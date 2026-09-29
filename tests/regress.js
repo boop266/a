@@ -204,6 +204,21 @@ const cases = {
     if (!r.rock[0] || r.rock[1]) throw new Error('落石: ' + JSON.stringify(r));
     if (r.taiko[0] || !r.taiko[1]) throw new Error('太鼓: ' + JSON.stringify(r));
   },
+  // 仲間は戦い以外にも一つ得意なことがある
+  async '仲間の得意なこと'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const W = ms => new Promise(r => setTimeout(r, ms)); const mate = k => { G.bag.items.push({ id: k, x: 0, y: 0, rot: 0, hp: ITEM[k].hp }); return G.bag.items.length - 1; };
+      const o = {}; for (let y = 2; y <= 14; y++) G.m[y][12] = 1; G.p.x = 11; G.p.y = 9; G.fu = {};
+      let i = mate('burrow'); slotUse(i); await W(450); o.dig = walk(12, 9); G.bag.items.splice(i, 1);
+      o.dark = hasFire(); i = mate('wisp'); o.fire = hasFire() && hasLight(); G.bag.items.splice(i, 1);
+      G.items.push({ x: 15, y: 9, id: 'potion' }); for (let x = 12; x <= 15; x++) G.seen.add(x + ',9'); i = mate('spider'); slotUse(i); await W(700);
+      document.getElementById('modal').innerHTML = ''; o.fetch = G.bag.items.some(q => q.id == 'potion');
+      G.chest = { x: 10, y: 9, locked: true }; i = mate('rust'); slotUse(i); await W(450); o.lock = !G.chest.locked;
+      return o;
+    });
+    if (!r.dig || r.dark || !r.fire || !r.fetch || !r.lock) throw new Error(JSON.stringify(r));
+  },
 };
 
 // 見通しのいい何もない部屋（暗い）に立たせる
