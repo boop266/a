@@ -85,6 +85,11 @@ const cases = {
       if (res !== 'ok') throw new Error(type + ': ' + res);
     }
   },
+  // 亡骸に隠れた古代の鞄を漁っても落ちない
+  async '古代の鞄を漁れる'(p) {
+    const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); searchSrc(s); return document.getElementById('toast').textContent } return 'NONE' });
+    if (r === 'NONE' || !/鞄/.test(r)) throw new Error('結果: ' + r);
+  },
   // 誤字
   async '誤字が無い'(p) {
     const html = require('fs').readFileSync(FILE.replace('file://', ''), 'utf8');
