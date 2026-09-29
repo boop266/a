@@ -14,6 +14,8 @@ const OUT = process.env.BOT_OUT || path.resolve(__dirname, 'out');
 // ページ内で動く1手分の判断。状態を文字列で返す。
 function botTick() {
   const $ = id => document.getElementById(id);
+  const ret = $('ret');
+  if (ret) { ret.click(); return 'ret'; }
   const modal = $('modal');
   const rnd = a => a[Math.floor(Math.random() * a.length)];
   const BAD = /消去|リセット|初期化|全部消す|削除|協力|ホスト|参加|コピー|貼り付け/;

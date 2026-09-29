@@ -272,6 +272,34 @@ body.sheeton .ctl.menu,body.mapon .ctl.menu{display:none!important}
 
 /* 広い画面では8枠を中央にまとめる（横に間延びさせない） */
 @media (min-width:720px){.abar{max-width:640px;margin:0 auto;border-radius:6px 6px 0 0}}
+
+/* ===== 帰還の見せ場 */
+.ret{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:radial-gradient(ellipse at 50% 35%,#3a2e14,#0a090c 70%);animation:retin .5s ease-out;cursor:pointer}
+.ret.out{animation:retout .26s ease-in forwards}
+@keyframes retin{from{opacity:0}to{opacity:1}}@keyframes retout{to{opacity:0}}
+.retin{position:relative;width:min(420px,100%);text-align:center}
+.retlight{position:absolute;left:50%;top:-40px;width:260px;height:260px;margin-left:-130px;border-radius:50%;background:radial-gradient(#ffe7a066,#0000 65%);animation:glow 2.4s ease-in-out infinite alternate;pointer-events:none}
+@keyframes glow{from{transform:scale(.85);opacity:.6}to{transform:scale(1.1);opacity:1}}
+.ret h2{position:relative;margin:0;font-size:42px;letter-spacing:.4em;padding-left:.4em;color:#f4e2b0;text-shadow:0 0 18px #d9b35e,0 3px 0 #000;animation:retword .9s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes retword{from{transform:translateY(12px) scale(.9);opacity:0;letter-spacing:.9em}to{transform:none;opacity:1}}
+.rettier{margin:6px 0 16px;color:var(--gold);font-size:14px;font-weight:600;letter-spacing:.08em}
+.retgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;max-height:46vh;overflow:auto;padding:4px}
+.retit{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px 8px;border-radius:4px;opacity:0;transform:translateY(10px) scale(.9);transition:all .28s cubic-bezier(.2,.9,.3,1.3);
+ background:var(--parch),linear-gradient(#e6d6ae,#cdb886);background-blend-mode:multiply,normal;box-shadow:0 0 0 1px #6e5426,0 3px 8px #000a;color:var(--inkD)}
+.retit.on{opacity:1;transform:none}
+.retit.big{box-shadow:0 0 0 1px #6e5426,0 0 14px #ffd35a,0 3px 8px #000a}
+.retit canvas{width:32px;height:32px;image-rendering:pixelated}
+.retit span{font-size:12px;font-weight:600;line-height:1.2}
+.retit em{font-style:normal;font-size:12px;font-weight:800;color:#8a5a12}
+.rettotal{margin-top:18px;display:flex;flex-direction:column;align-items:center}
+.rettotal small{color:var(--dim);font-size:12px;letter-spacing:.1em}
+.rettotal b{font-size:44px;color:#ffe08a;text-shadow:0 0 16px #d9b35e,0 3px 0 #000;font-variant-numeric:tabular-nums}
+.ret.done .rettotal b{animation:pop .4s cubic-bezier(.2,.9,.3,1.6)}
+@keyframes pop{from{transform:scale(1.35)}to{transform:none}}
+.retskip{margin-top:14px;color:var(--dim);font-size:12px;opacity:0;transition:opacity .3s}
+.ret.done .retskip{opacity:1;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.ret,.ret h2,.retlight,.retit,.ret.done .rettotal b,.ret.done .retskip{animation:none!important;transition:none!important}}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
@@ -2418,7 +2446,7 @@ async function afterPlayer(){
 // ===== SEKIRO-style defence: tap = deflect, swipe = dodge (perilous)
 const PERIL={nushi:.4,skel:.2,beetle:.35,gyoro:.3,koke:.25,wisp:0,puru:0,zombie:.15,spider:.1,mother:.4,ghost:.25,capt:.45,haka:.3,lskel:.25,spitter:.15};
 const hasEp=n=>G.bag.items.some(p=>p.inst&&p.inst.ep&&p.inst.ep.n==n);
-function addPosture(f,v){if(f.hp<=0)return;f.post=Math.min(100,(f.post||0)+v);if(f.post>=100&&!f.broken){f.broken=true;if(hasEp('裏返し')){const its=G.bag.items.slice().sort(()=>Math.random()-.5);const keep=G.bag.items.slice();G.bag.items=[];let ok=true;its.forEach(p=>{const ff=firstFit(p.id);if(ff){Object.assign(p,ff);G.bag.items.push(p)}else ok=false});if(!ok)G.bag.items=keep;toast('裏返し！カバンの中がぐちゃぐちゃに');}sfx('door');toast(f.n+'の体勢が崩れた！　決めろ');fx({type:'ring',x:f.rx+4,y:f.ry,c:'#ff4a3a'})}}
+function addPosture(f,v){if(f.hp<=0)return;f.post=Math.min(100,(f.post||0)+v);if(f.post>=100&&!f.broken){f.broken=true;buzz([30,40,70]);if(hasEp('裏返し')){const its=G.bag.items.slice().sort(()=>Math.random()-.5);const keep=G.bag.items.slice();G.bag.items=[];let ok=true;its.forEach(p=>{const ff=firstFit(p.id);if(ff){Object.assign(p,ff);G.bag.items.push(p)}else ok=false});if(!ok)G.bag.items=keep;toast('裏返し！カバンの中がぐちゃぐちゃに');}sfx('door');toast(f.n+'の体勢が崩れた！　決めろ');fx({type:'ring',x:f.rx+4,y:f.ry,c:'#ff4a3a'})}}
 function parryWin(){return 150*Math.max(1,...G.bag.items.map(p=>ITEM[p.id].pw||1))}
 function dodgeWin(){return 260*G.bag.items.reduce((m,p)=>m*(ITEM[p.id].dw||1),1)}
 let DEF=null;
@@ -2661,7 +2689,7 @@ function defend(f,fp){return new Promise(async res=>{
   const inp=d.input,dt=inp?inp.t-d.impact:999;const okT=inp&&dt>=-d.win&&dt<=d.win*.5;
   if(f.ranged||(G.fight&&G.fight.dist>=2)){fx({type:'bolt',x:f.rx+4,y:f.ry+2,tx:G.p.rx+4,ty:G.p.ry+2,life:.3});await wait(120)}else{f.ox=Math.sign(G.p.x-f.x)*4;f.oy=Math.sign(G.p.y-f.y)*4;await wait(90);f.ox=0;f.oy=0}
   if(!d.peril&&inp&&inp.kind=='tap'&&okT){ // deflect!
-   sfx('parry');G.flashW=performance.now()+110;if(G.bag.items.some(q=>q.id=='hakamori')){for(let k=0;k<3;k++)fx({type:'spark',x:G.p.rx+4+k*2,y:G.p.ry-k*2,c:'#9ad0ff',life:.5+k*.15});tone(1900,.5,'sine',.04,1.2);tone(2850,.4,'sine',.03,1.1,.05)}const cut=G.bag.items.some(q=>q.id=='cutlass');if(cut){sfx('splash');for(let k=0;k<2;k++)fx({type:'ring',x:G.p.rx+4,y:G.p.ry+2,c:'#9ad0ff',life:.6+k*.2})}if(hasEp('花霞'))for(let k=0;k<3;k++)fx({type:'petal',x:G.p.rx+4,y:G.p.ry,life:1.4,s:k});G.stop=performance.now()+90;G.shake=10;fx({type:'clang',x:(f.rx+G.p.rx)/2+4,y:(f.ry+G.p.ry)/2+1,life:.45});f.parriedThisTurn=true;f.parN=(f.parN||0)+1;store('yw31_parry',(+store('yw31_parry')||0)+1);
+   sfx('parry');buzz(G.opening?[20,30,40]:22);G.flashW=performance.now()+110;if(G.bag.items.some(q=>q.id=='hakamori')){for(let k=0;k<3;k++)fx({type:'spark',x:G.p.rx+4+k*2,y:G.p.ry-k*2,c:'#9ad0ff',life:.5+k*.15});tone(1900,.5,'sine',.04,1.2);tone(2850,.4,'sine',.03,1.1,.05)}const cut=G.bag.items.some(q=>q.id=='cutlass');if(cut){sfx('splash');for(let k=0;k<2;k++)fx({type:'ring',x:G.p.rx+4,y:G.p.ry+2,c:'#9ad0ff',life:.6+k*.2})}if(hasEp('花霞'))for(let k=0;k<3;k++)fx({type:'petal',x:G.p.rx+4,y:G.p.ry,life:1.4,s:k});G.stop=performance.now()+90;G.shake=10;fx({type:'clang',x:(f.rx+G.p.rx)/2+4,y:(f.ry+G.p.ry)/2+1,life:.45});f.parriedThisTurn=true;f.parN=(f.parN||0)+1;store('yw31_parry',(+store('yw31_parry')||0)+1);
    addPosture(f,(f.k=='haka'?16:f.k=='koke'||f.k=='nushi'||f.k=='capt'||f.k=='mother'?20:28)+(grownEye?10:0)+(G.bag.items.some(q=>q.id=='cutlass')?12:0)+(G.opening?12:0)+(G.charging?12:0));if(G.charging)toast('構えたまま弾いた。体幹が大きく崩れる');if(G.opening){learn('kaeshi','敵の先手：最初の一撃を弾くと「返し」になり、体幹が大きく崩れる');G.stop=performance.now()+200;G.shake=16;for(let k=0;k<2;k++)fx({type:'clang',x:(f.rx+G.p.rx)/2+4+k*3,y:(f.ry+G.p.ry)/2-k*2,life:.7});banner('返し','#ffd35a','初撃を弾いた')}toast(G.opening?'初撃を返した！　体幹が大きく崩れる':Math.abs(dt)<d.win*.35?'見事！':'弾いた');
    const pr=G.allies.find(a=>a.k=='puru'||a.k=='mochi');if(pr&&f.hp>0){await wait(200);await lunge(pr,f,3);hit(f,2,pr);addPosture(f,8)}
    await wait(260);res('ok');return}
@@ -2669,7 +2697,7 @@ function defend(f,fp){return new Promise(async res=>{
   const cover=G.allies.find(a=>a.grown&&(a.k=='puru'||a.k=='mochi'));if(cover&&Math.random()<.35){cover.hp-=Math.ceil(f.atk/2);fx({type:'num',s:'-'+Math.ceil(f.atk/2),x:cover.rx+4,y:cover.ry-9,c:'#ff7a6a'});toast(cover.n+'がかばってくれた！');sfx('hit');if(cover.hp<=0){G.allies.splice(G.allies.indexOf(cover),1);const k=G.bag.items.indexOf(cover.pc);if(k>=0)G.bag.items.splice(k,1);toast(cover.n+'が倒れてしまった…')}ui();await wait(320);res('hit');return}
   let dmg=f.atk;if(d.peril)dmg=Math.round(dmg*1.5);if(G.guard)dmg=Math.ceil(dmg/G.guard);
   if(rxOn('E')&&Math.random()<.2){const bi=G.bag.items.findIndex(q=>tagsOf(q.id).includes('火薬')&&!ITEM[q.id].weapon);if(bi>=0){G.bag.items.splice(bi,1);dmg+=5;sfx('boom');fx({type:'boom',x:G.p.rx+4,y:G.p.ry+2});setTimeout(()=>toast('導火線に火が移った！カバンの中で爆ぜた（+5）'),200)}}
-  G.p.hp-=dmg;G.lastHit=f.n;G.flashR=performance.now()+380;try{onFoeHit(f)}catch(e){}if(isBoss())G.bossHit=(G.bossHit||0)+1;sfx('hurt');if(f.spit&&G.fight&&G.fight.dist>=2){G.fight.webbed=2;setTimeout(()=>toast('糸が絡みついた。少しの間、間合いを動かせない'),400)}fx({type:'num',s:'-'+dmg,x:G.p.rx+4,y:G.p.ry-9,c:'#ff7a6a'});G.shake=9;G.hurt=7;
+  G.p.hp-=dmg;G.lastHit=f.n;G.flashR=performance.now()+380;buzz(G.p.hp<=0?[80,60,160]:d.peril?90:55);try{onFoeHit(f)}catch(e){}if(isBoss())G.bossHit=(G.bossHit||0)+1;sfx('hurt');if(f.spit&&G.fight&&G.fight.dist>=2){G.fight.webbed=2;setTimeout(()=>toast('糸が絡みついた。少しの間、間合いを動かせない'),400)}fx({type:'num',s:'-'+dmg,x:G.p.rx+4,y:G.p.ry-9,c:'#ff7a6a'});G.shake=9;G.hurt=7;
   toast(!inp?(d.peril?'「危」は弾けない。スワイプでかわす':'振り下ろしに合わせてタップで弾く'):d.peril&&inp.kind=='tap'?'「危」は弾けない！':inp.kind=='swipe'&&!d.peril?'通常攻撃は弾く':dt<0?'早い':'遅い');
   ui();await wait(320);if(G.p.hp<=0){G.p.hp=0;die();res('dead');return}res('hit')};
  requestAnimationFrame(tick);
@@ -2708,7 +2736,7 @@ async function endFishing(){
 }
 async function deathblow(){
  const f=alive().find(x=>x.broken);if(!f||G.busy)return;G.busy=true;ui();
- await lunge(G.p,f,6);G.stop=performance.now()+180;sfx('slash');sfx('boom');fx({type:'slash',x:f.rx+4,y:f.ry+2,c:'#ff4a3a',life:.9});fx({type:'clang',x:f.rx+4,y:f.ry,life:.6});
+ await lunge(G.p,f,6);G.stop=performance.now()+180;sfx('slash');sfx('boom');buzz([40,30,120]);fx({type:'slash',x:f.rx+4,y:f.ry+2,c:'#ff4a3a',life:.9});fx({type:'clang',x:f.rx+4,y:f.ry,life:.6});
  f.hp=0;fx({type:'num',s:'-99',x:f.rx+4,y:f.ry-9,c:'#ff4a3a'});G.shake=16;toast('忍殺');await wait(420);await afterPlayer();
 }
 async function resolveDeaths(){
@@ -2747,6 +2775,20 @@ function escape(){if(COOP.host)coopSend({t:'end',ok:1});G.partner=null;clearSave
  let v=bagValue();if(G.halve)v=Math.floor(v/2);const mons=G.bag.items.filter(p=>ITEM[p.id].mon).map(p=>({k:p.id,name:p.name||ITEM[p.id].n,trips:(p.trips||0)+1,inst:p.inst}));farm=farm.concat(mons);mons.forEach(m=>bioUp(m.k,m.trips+1));G.bag.items.forEach(p=>{note('i:'+p.id);try{if(!p.inst)p.inst=makeInst(p.id,'拾った');noteOn(p,'第'+runs+'回探索、'+((G.maxFi||0)+1)+'Fから一緒に帰ってきた')}catch(e){}if(!ITEM[p.id].mon){if(G.halve&&(ITEM[p.id].tre||ITEM[p.id].val)&&Math.random()<.5)return;wh.push({id:p.id,inst:p.inst})}});shopStock=null;saveMeta();
  G.over=true;closeSheet(true);ui();
  const RS=runSummary(true,mons);showBase('脱出成功　'+(G.cleared?'100F踏破':G.escTier||''),RS+(G.newDeep?'次からは'+G.newDeep+'Fの帰還の灯から潜れる。':'')+(G.halve?'護符で帰還。荷物の半分は置いてきた。':'')+(G.newVill&&G.newVill.length?'村に新しい顔が増えた：'+G.newVill.map(k=>VILL[k].n).join('・')+'。':'')+'持ち帰った物は倉庫へ。価値 '+v+'ぶん。'+(mons.length?'連れて帰った仲間：'+mons.map(m=>m.name+(m.trips>=3?'（'+m.trips+'回目の帰還。すっかり懐いている）':'')).join('・')+'。':''))}
+function showReturn(list,total,tier,halve){try{
+ const old=document.getElementById('ret');if(old)old.remove();
+ const el=document.createElement('div');el.id='ret';el.className='ret';
+ el.innerHTML='<div class="retin"><div class="retlight"></div><h2>帰還</h2><p class="rettier"></p><div class="retgrid"></div><div class="rettotal"><small>持ち帰った価値</small><b>0</b></div><p class="retskip">タップで村へ</p></div>';
+ document.body.append(el);el.querySelector('.rettier').textContent=(tier||'')+(halve?'　（護符で帰還。荷物は半分）':'');
+ const grid=el.querySelector('.retgrid'),tb=el.querySelector('.rettotal b');
+ let done=false,shown=0,timers=[];
+ const finish=()=>{if(done)return;done=true;timers.forEach(clearTimeout);grid.querySelectorAll('.retit').forEach(e=>e.classList.add('on'));tb.textContent=total;el.classList.add('done');sfx('fanfare');buzz([30,50,30,50,90])};
+ list.forEach((it,i)=>{const c=document.createElement('div');c.className='retit'+(it.v>=100?' big':'');let ic=null;try{ic=iconCanvas(it.id,it.inst)}catch(e){}if(ic)c.append(ic);
+  const n=document.createElement('span');n.textContent=it.n;c.append(n);if(it.v){const v=document.createElement('em');v.textContent=it.v;c.append(v)}grid.append(c);
+  timers.push(setTimeout(()=>{c.classList.add('on');shown+=it.v;tb.textContent=Math.min(total,shown);sfx(it.v>=100?'rare':'pick');if(it.v>=100)buzz(20)},500+i*170))});
+ timers.push(setTimeout(finish,700+list.length*170));
+ el.addEventListener('click',()=>{if(!done){finish();return}el.classList.add('out');setTimeout(()=>el.remove(),260)});
+ }catch(e){}}
 const BREED={'puru+puru':'mochi','gyoro+puru':'medama','gyoro+gyoro':'ogyoro','koke+koke':'koke','koke+puru':'mochi','gyoro+koke':'ogyoro'};
 const lineOf=k=>({mochi:'puru',medama:'gyoro',ogyoro:'gyoro'}[k]||k);
 function spriteCanvas(a){const c=document.createElement('canvas');c.width=a[0].length;c.height=a.length;spr(c.getContext('2d'),a,0,0);c.style.width='20px';c.style.height='20px';return c}
@@ -2945,6 +2987,8 @@ const DECO=[['花壇',20],['ランタン',30],['小さな池',60],['水槽',60],
 function sellPrice(id){const d=ITEM[id];return d.tre||d.val||Math.max(2,Math.floor((PRICE[id]||20)/3))}
 function rollShop(){const pool=['bomb','smoke','rope','fish','omamori','shovel','hook','ammo','gun'].sort(()=>Math.random()-.5);const st=['potion',...pool.slice(0,5)];const nb=Object.keys(BAGS).filter(k=>!bagsOwned.includes(k));if(nb.length&&Math.random()<.7)st.push('bag:'+pick(nb));return st.map(id=>({id,sold:false}))}
 const BAGPRICE={small:80,adv:180,long:250,big:400};
+{const _esc=escape;escape=function(){let list=[],total=0;try{const S=synergy();list=G.bag.items.map(p=>({id:p.id,inst:p.inst,n:instName(p.id,p.inst)||ITEM[p.id].n,v:itemValue(p,S)})).sort((a,b)=>b.v-a.v);total=list.reduce((a,b)=>a+b.v,0);if(G.halve)total=Math.floor(total/2)}catch(e){}
+ const r=_esc.apply(this,arguments);if(!G.guest)showReturn(list,total,G.cleared?'100F踏破':G.escTier,G.halve);return r}}
 function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}if(sv){h='探索の途中';p='潜った記録は残っている。下の「探索の続きから」を押せば、さっきの階に戻れる。'}}
 
  let tab=(h&&(h.startsWith('脱出')||h=='探索の途中'||h=='倒れた'))||!h?'vill':'prep',sel=[],bring=null,load=[],ins=null,smSel=null,whSel=null;if(!shopStock)shopStock=rollShop();
@@ -3230,8 +3274,11 @@ function confirmFlee(){if(G.fleeAsk&&performance.now()-G.fleeAsk<2500){G.fleeAsk
 const CTRLS=[['stick','スティック','画面のどこでも押して、その方向へ倒す']];
 let CTRL='stick';
 function applyCtrl(){const p=$('pad');if(!p)return;p.className='pad'+(CTRL=='sm'?' sm':CTRL=='gh'?' gh':'')+((CTRL=='stick'||CTRL=='flick'||CTRL=='none')?' hide':'');}
+// 手に伝わる手応え。対応していない端末や、設定でオフのときは何もしない
+function buzz(pat){try{if(store('yw70_vib')==='0'||!navigator.vibrate)return;navigator.vibrate(pat)}catch(e){}}
 function openSettings(){const rows=[['m','全体の音量'],['s','効果音'],['a','環境音'],['mu','音楽'],['sh','画面の揺れ']];
- $('modal').innerHTML=`<div class="modal"><div class="box"><h2>設定</h2>${rows.map(([k,n])=>`<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">${n}</span><input type="range" min="0" max="1" step="0.05" value="${VOL[k]}" data-k="${k}" style="flex:1"></label>`).join('')}<div class="btns"><button class="b" id="stok">閉じる</button></div></div></div>`;
+ $('modal').innerHTML=`<div class="modal"><div class="box"><h2>設定</h2>${rows.map(([k,n])=>`<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">${n}</span><input type="range" min="0" max="1" step="0.05" value="${VOL[k]}" data-k="${k}" style="flex:1"></label>`).join('')}<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">振動</span><input type="checkbox" id="stvib" ${store('yw70_vib')==='0'?'':'checked'} style="width:22px;height:22px"></label><div class="btns"><button class="b" id="stok">閉じる</button></div></div></div>`;
+ $('stvib').onchange=e=>{store('yw70_vib',e.target.checked?'1':'0');if(e.target.checked)buzz(30)};
  document.querySelectorAll('#modal input[type=range]').forEach(el=>el.oninput=()=>{VOL[el.dataset.k]=+el.value;applyVol();try{localStorage.setItem('yw13_vol',JSON.stringify(VOL))}catch(e){}if(el.dataset.k=='s')sfx('pick')});
  $('stok').onclick=()=>{$('modal').innerHTML=''}}
 function bagSfx(){try{noise(.18,.09,900);setTimeout(()=>noise(.1,.06,2400),70);tone(180,.12,'sine',.05,.7)}catch(e){}}
