@@ -309,10 +309,16 @@ body.sheeton .ctl.menu,body.mapon .ctl.menu{display:none!important}
 .ret.fall .retit{filter:grayscale(1) brightness(.7);transform:translateY(-8px)}
 .ret.fall .retit.on{transform:none;opacity:.8}
 .ret.fall .rettotal b{color:#a89888;text-shadow:0 3px 0 #000;font-size:34px}
+
+/* 一言の重なり：前の一言は小さく下に */
+#toastOld{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:4px}
+#toastOld div{font-size:11px;line-height:1.4;color:var(--ink);opacity:.72;text-shadow:0 1px 2px #000,0 0 6px #000;max-width:30em;transition:opacity .4s}
+#toastOld div.gone{opacity:0}
+.toast span.hot{box-shadow:0 0 0 1px #8a2418,0 0 14px #c4463a99,0 3px 10px #000c;color:#4a1008}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
-<div class="stage"><canvas id="scr" width="320" height="224"></canvas><div class="toast"><span id="toast" style="opacity:0" onclick="showLog()"></span></div><div class="floorname" id="fname"></div><button class="ctl menu" id="menuBtn" aria-label="メニュー" onclick="openMenu()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button></div>
+<div class="stage"><canvas id="scr" width="320" height="224"></canvas><div class="toast"><span id="toast" style="opacity:0" onclick="showLog()"></span><div id="toastOld"></div></div><div class="floorname" id="fname"></div><button class="ctl menu" id="menuBtn" aria-label="メニュー" onclick="openMenu()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button></div>
 <div class="row"><div class="btns" id="btns"></div>
 <div class="pad" id="pad"><button data-d="-1,-1" class="dg" aria-label="左上">◤</button><button data-d="0,-1" aria-label="上">▲</button><button data-d="1,-1" class="dg" aria-label="右上">◥</button><button data-d="-1,0" aria-label="左">◀</button><span></span><button data-d="1,0" aria-label="右">▶</button><button data-d="-1,1" class="dg" aria-label="左下">◣</button><button data-d="0,1" aria-label="下">▼</button><button data-d="1,1" class="dg" aria-label="右下">◢</button></div></div>
 </div>
@@ -1628,7 +1634,7 @@ const sprOf=o=>{let a=['puru','gyoro','koke','mochi','medama','ogyoro'].includes
  if(G.blight){sc.fillStyle='rgba(90,140,30,'+(.06+Math.min(.12,(G.blightT||0)/1200))+')';sc.fillRect(0,0,SW,SH)}
  if(false){sc.fillStyle='rgba(0,0,0,.5)';sc.fillRect(SW/2-43,SH*0.62,86,20);sc.font='12px "DotGothic16",monospace';sc.fillStyle='#e8e0d0';sc.fillText('間合い',SW/2-37,SH*0.62+15);for(let k=1;k<=3;k++){sc.fillStyle=k<=G.fight.dist?'#ffd35a':'#3a3442';sc.fillRect(SW/2+k*10,SH*0.62+6,7,8)}if(G.fight.webbed>0){sc.fillStyle='#e8e8f0';sc.fillText('糸',SW/2+46,SH*0.62+15)}}
  if(G.hurt>0){sc.fillStyle='rgba(224,82,74,.18)';sc.fillRect(0,0,SW,SH);G.hurt--}
- try{const tg=!!G.title;if(tg!==render._tg){render._tg=tg;if(tg){{const e=$('toast');if(!G.title.short&&+e.style.opacity>0&&e.textContent){toast.pend=e.textContent;e.style.opacity=0;clearTimeout(toast.t)}}const r=scr.getBoundingClientRect();document.body.style.setProperty('--ttop',Math.round(r.top+(SH*.17+46)*r.height/SH)+'px')}document.body.classList.toggle('titling',tg);if(!tg&&toast.pend){const q=toast.pend;toast.pend=null;const e=$('toast');e.textContent=q;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,Math.max(4200,q.length*140))}}}catch(e){}
+ try{const tg=!!G.title;if(tg!==render._tg){render._tg=tg;if(tg){{const e=$('toast');if(!G.title.short&&+e.style.opacity>0&&e.textContent){toast.pend=e.textContent;e.style.opacity=0;clearTimeout(toast.t)}}const r=scr.getBoundingClientRect();document.body.style.setProperty('--ttop',Math.round(r.top+(SH*.17+46)*r.height/SH)+'px')}document.body.classList.toggle('titling',tg);if(!tg&&toast.pend){const q=toast.pend;toast.pend=null;toastShow(q)}}}catch(e){}
  if(G.title){const a=(performance.now()-G.title.t0)/(G.title.short?2400:4600);if(a>1)G.title=null;else{const k=a<.22?a/.22:a>.7?(1-a)/.3:1;
   sc.fillStyle='rgba(0,0,0,'+(.45*k)+')';sc.fillRect(0,0,SW,SH);const TY=Math.round(SH*.17);const gr=sc.createLinearGradient(0,TY-46,0,TY+42);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(.5,'rgba(0,0,0,'+(.5*k)+')');gr.addColorStop(1,'rgba(0,0,0,0)');sc.fillStyle=gr;sc.fillRect(0,TY-46,SW,88);
   sc.textAlign='center';sc.globalAlpha=k;{let fz=Math.round(SW/13);sc.font='800 '+fz+'px "Shippori Mincho B1",serif';while(fz>10&&sc.measureText(G.title.s).width>SW-40){fz-=1;sc.font='800 '+fz+'px "Shippori Mincho B1",serif'}}try{sc.letterSpacing=Math.round(SW/60)+'px'}catch(e){}sc.fillStyle='#000';sc.fillText(G.title.s,SW/2+1,TY+3+(1-k)*4);sc.fillStyle='#ece2c8';sc.fillText(G.title.s,SW/2,TY+1+(1-k)*4);try{sc.letterSpacing='0px'}catch(e){}sc.strokeStyle='rgba(217,179,94,'+(.7*k)+')';sc.beginPath();sc.moveTo(SW/2-70,TY+12);sc.lineTo(SW/2+70,TY+12);sc.stroke();
@@ -1716,7 +1722,13 @@ function drawMap(t){
 }
 
 // ================= turns
-function toast(s){try{LOG.unshift(s);if(LOG.length>30)LOG.pop()}catch(e){}if(G&&G.title&&!G.title.short&&!G.over){toast.pend=s;return}const e=$('toast');e.textContent=s;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,Math.max(4200,s.length*140))}
+function toast(s){try{LOG.unshift(s);if(LOG.length>30)LOG.pop()}catch(e){}if(G&&G.title&&!G.title.short&&!G.over){toast.pend=s;return}toastShow(s)}
+// 一言は上書きしない。前の一言は小さく下へ送り（最大2行）、同じ一言が続けば「×2」にまとめる。「！」は危険の知らせとして目立たせる
+function toastShow(s){const e=$('toast');const on=+e.style.opacity>0&&e.textContent;
+ if(on&&e.dataset.base===s){e.dataset.n=(+e.dataset.n||1)+1;e.textContent=s+'（×'+e.dataset.n+'）'}
+ else{if(on){const o=$('toastOld');if(o){const d=document.createElement('div');d.textContent=e.textContent;o.prepend(d);while(o.children.length>2)o.lastChild.remove();setTimeout(()=>{d.classList.add('gone');setTimeout(()=>d.remove(),400)},2600)}}
+  e.dataset.base=s;e.dataset.n=1;e.textContent=s}
+ e.classList.toggle('hot',/！/.test(s));e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>{e.style.opacity=0;const o=$('toastOld');if(o)o.innerHTML=''},Math.max(2800,s.length*95))}
 const now=()=>(performance.now()-G.t0)/1000;
 function fx(o){G.fx.push({t:now(),life:.8,...o});if(o&&o.type=='boom'&&G&&!G.over&&G.gim&&G.gim.some(g=>g.type=='crack'&&!g.open)){try{blastAt(Math.floor(o.x/T),Math.floor(o.y/T))}catch(e){}}}
 async function step(dx,dy){
@@ -2696,10 +2708,58 @@ function runSummary(ok,mons,lost){try{if(!G.ship)saveFloor()}catch(e){}const flo
  return '<span style="display:block;text-align:left;font-size:14px;line-height:1.7">'+sec('持ち帰った',got,'#f0c04e')+(ok?'':sec('失った',[lost||'なし'],'#ff8a7a'))+sec('はじめて見た',fnd,'#9ad0ff')+sec('この深さでしか見られないもの',dn,'#e8c86a')+sec('決着がついた',res.map(s=>'✓ '+s.t),'#9ad08a')+sec('まだ終わっていない',S.slice(0,4).map(s=>'… '+s.t),'#e8c8ff')+'</span>'}
 const SCALES=[[0,3,5,7,10],[0,2,3,7,8],[0,3,5,6,10],[0,1,5,7,8],[0,3,7,10,14]];
 function musTone(f,d,ty,v,delay){if(!AC||!BUS||!BUS.mu)return;const c=CUR;CUR={bus:BUS.mu,pan:(Math.random()-.5)*.6,gain:1};try{tone(f,d,ty,v,0,delay||0)}catch(e){}CUR=c}
-let MUS_T=0;setInterval(()=>{try{if(!AC||!G||G.over||$('modal').innerHTML)return;const L=layerOf(G.fi||0),sc=SCALES[L%SCALES.length],base=[110,98,92.5,82.4,103.8][L%5];const fight=!!G.fight;MUS_T++;
+let MUS_T=0;setInterval(()=>{try{if(MUS2||!AC||!G||G.over||$('modal').innerHTML)return;const L=layerOf(G.fi||0),sc=SCALES[L%SCALES.length],base=[110,98,92.5,82.4,103.8][L%5];const fight=!!G.fight;MUS_T++;
  if(MUS_T%4==0)musTone(base/2,3.2,'sine',.05);
  if(fight){const n=sc[Math.floor(Math.random()*sc.length)];musTone(base*Math.pow(2,n/12)*2,.18,'triangle',.03);if(MUS_T%2==0)musTone(base/2,.12,'square',.02)}
  else if(Math.random()<.55){const n=sc[Math.floor(Math.random()*sc.length)];musTone(base*Math.pow(2,n/12)*(Math.random()<.3?4:2),1.6,'sine',.022,Math.random()*.4)}}catch(e){}},900);
+
+// ===== 音楽：層ごとの調・テンポ・コード進行・主題を持つ、状況で重なり方が変わる曲 =====
+// 強さ 0=探索 1=気づかれた 2=戦闘 3=ボス。コードの構成音と音階の音だけを鳴らす
+const MODES={aeo:[0,2,3,5,7,8,10],dor:[0,2,3,5,7,9,10],phr:[0,1,3,5,7,8,10],hmin:[0,2,3,5,7,8,11],loc:[0,1,3,5,6,8,10],lyd:[0,2,4,6,7,9,11],pdom:[0,1,4,5,7,8,10],maj:[0,2,4,5,7,9,11]};
+const MTH=[
+ {n:'地下庭園',bpm:74,root:110,m:'aeo',prog:[0,5,2,6],pad:'triangle',lead:'triangle',mot:[[4,1],[3,.5],[2,.5],[0,1.5],[2,.5],[1,1],[0,3]]},
+ {n:'湿地水路',bpm:68,root:98,m:'dor',prog:[0,3,0,6],pad:'sine',lead:'sine',mot:[[0,.5],[2,.5],[4,1],[5,1],[4,.5],[2,.5],[3,2]]},
+ {n:'灰骨領域',bpm:62,root:82.4,m:'phr',prog:[0,1,0,6],pad:'triangle',lead:'square',mot:[[0,1],[1,1],[0,1],[6,1],[4,2],[3,2]]},
+ {n:'蜘蛛巣界',bpm:70,root:69.3,m:'hmin',prog:[0,5,3,4],pad:'triangle',lead:'triangle',mot:[[4,.5],[5,.5],[6,1],[4,1],[2,.5],[3,.5],[1,2]]},
+ {n:'汚染庭園',bpm:58,root:103.8,m:'loc',prog:[0,1,5,4],pad:'sine',lead:'triangle',mot:[[0,1.5],[4,.5],[3,1],[1,1],[0,2]]},
+ {n:'沈没遺構',bpm:64,root:87.3,m:'dor',prog:[0,6,3,0],pad:'sine',lead:'sine',mot:[[2,1],[4,1],[5,.5],[4,.5],[2,1],[0,3]]},
+ {n:'幽霊海',bpm:60,root:116.5,m:'aeo',prog:[0,3,5,4],pad:'triangle',lead:'sine',mot:[[0,.5],[4,.5],[7,2],[6,.5],[4,.5],[3,2]]},
+ {n:'異形庭園',bpm:56,root:92.5,m:'pdom',prog:[0,1,0,5],pad:'sine',lead:'triangle',mot:[[0,1],[2,.5],[1,.5],[0,1],[4,1],[5,2]]},
+ {n:'地下の裏側',bpm:60,root:77.8,m:'phr',prog:[0,6,5,1],pad:'triangle',lead:'square',mot:[[4,1],[3,1],[1,1],[0,3]]},
+ {n:'中枢',bpm:54,root:130.8,m:'lyd',prog:[0,1,0,4],pad:'sine',lead:'sine',mot:[[4,1],[3,.5],[2,.5],[3,2],[0,3]]}];
+const MVILL={n:'村',bpm:86,root:130.8,m:'maj',prog:[0,3,4,0,5,3,1,4],pad:'triangle',lead:'triangle',mot:[[0,.5],[2,.5],[4,1],[5,.5],[4,.5],[2,1],[3,.5],[2,.5],[0,2]]};
+let MUS2={next:0,step:0,th:null,lastMot:-9};
+let NOISEBUF=null;
+function mnote(f,t,dur,type,vol,att,pan){if(!AC||!BUS.mu||!(f>0))return;const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(vol,t+Math.max(.005,att));g.gain.exponentialRampToValueAtTime(.0006,t+dur);o.connect(g);
+ if(AC.createStereoPanner&&pan){const P=AC.createStereoPanner();P.pan.value=pan;g.connect(P);P.connect(BUS.mu)}else g.connect(BUS.mu);o.start(t);o.stop(t+dur+.05)}
+function mperc(t,kind,vol){if(!AC||!BUS.mu)return;
+ if(kind=='kick'){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(42,t+.14);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0006,t+.18);o.connect(g).connect(BUS.mu);o.start(t);o.stop(t+.2);return}
+ if(!NOISEBUF){const n=AC.sampleRate*.3|0;NOISEBUF=AC.createBuffer(1,n,AC.sampleRate);const a=NOISEBUF.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1}
+ const s2=AC.createBufferSource();s2.buffer=NOISEBUF;const f=AC.createBiquadFilter();f.type=kind=='hat'?'highpass':'bandpass';f.frequency.value=kind=='hat'?7000:1800;const g=AC.createGain();const d=kind=='hat'?.04:.12;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0006,t+d);s2.connect(f).connect(g).connect(BUS.mu);s2.start(t);s2.stop(t+d+.02)}
+function mfreq(th,deg,oct){const sc=MODES[th.m];const d=((deg%7)+7)%7,o=Math.floor(deg/7)+oct;return th.root*Math.pow(2,(sc[d]+12*o)/12)}
+function musState(){if(!G)return null;if(G.over){const b=$('modal');return b&&b.innerHTML?{th:MVILL,lv:0}:null}
+ const th=MTH[Math.min(MTH.length-1,layerOf(G.fi||0))];let lv=0;
+ if(G.fight)lv=(typeof isBoss=='function'&&isBoss())?3:2;
+ else{const p=G.p;if(G.foes.some(f=>f.hp>0&&f.aware==2&&!f.dormant&&Math.abs(f.x-p.x)+Math.abs(f.y-p.y)<=7))lv=1}
+ return {th,lv}}
+function musSched(st,t,e){const th=st.th,lv=st.lv;const beat=60/th.bpm*(lv>=2?.8:1),e8=e%8,bar=Math.floor(e/8);const ch=th.prog[bar%th.prog.length];const tri=[ch,ch+2,ch+4];
+ // 和音（小節の頭で、ゆっくり立ち上がる）
+ if(e8==0)tri.forEach((d,i)=>mnote(mfreq(th,d,1),t,beat*4.3,th.pad,lv>=2?.012:.016,.35,(i-1)*.35));
+ // 低音
+ if(e8==0||(lv>=1&&e8==4)||(lv>=2&&e8%2==0))mnote(mfreq(th,ch,0),t,beat*(lv>=2?.9:2.2),'sine',lv>=2?.05:.045,.01);
+ // 分散和音：探索ではまばらに、戦闘では刻む
+ if(lv>=2){mnote(mfreq(th,tri[e8%3]+(e8>=4?7:0),2),t,beat*.45,'triangle',.018,.005,(e8%2?.3:-.3))}
+ else if((e8%2==1)&&Math.random()<(lv?.5:.28))mnote(mfreq(th,tri[Math.floor(Math.random()*3)],2),t,beat*1.4,'triangle',.011,.02,(Math.random()-.5)*.8);
+ // 打楽器（戦闘だけ）
+ if(lv>=2){if(e8==0||e8==4||(lv==3&&e8==6))mperc(t,'kick',.12);if(e8==2||e8==6)mperc(t,'snare',.032);mperc(t,'hat',e8%2?.01:.015)}
+ // 主題：8小節に一度くらい、静かなときだけ
+ if(lv<2&&e8==0&&bar%4==0&&bar-MUS2.lastMot>=8&&Math.random()<.7){MUS2.lastMot=bar;let tt=t;th.mot.forEach(([d,b])=>{mnote(mfreq(th,d,2),tt,beat*b*.95,th.lead,.018,.03,.1);tt+=beat*b})}
+ // 心音：HPが3割を切ったら
+ if(G&&!G.over&&G.p&&G.p.hp>0&&G.p.hp/G.p.max<.3&&(e8==0||e8==4)){mnote(55,t,.16,'sine',.07,.005);mnote(52,t+.2,.2,'sine',.05,.005)}}
+setInterval(()=>{try{if(!AC||AC.state!='running'||!BUS.mu)return;const st=musState();if(!st){MUS2.th=null;return}
+ const now=AC.currentTime;if(st.th!==MUS2.th){MUS2.th=st.th;MUS2.step=0;MUS2.lastMot=-9;MUS2.next=now+.1}
+ if(MUS2.next<now-.5)MUS2.next=now+.05;
+ while(MUS2.next<now+.25){const beat=60/st.th.bpm*(st.lv>=2?.8:1);musSched(st,MUS2.next,MUS2.step);MUS2.next+=beat/2;MUS2.step++}}catch(e){}},60);
 const RMOT={grave:[[220,.5,'sine'],[207,.7,'sine']],chapel:[[523,.6,'sine'],[659,.6,'sine'],[784,.9,'sine']],prison:[[110,.4,'square'],[104,.6,'square']],barracks:[[196,.2,'triangle'],[196,.2,'triangle'],[262,.4,'triangle']],kitchen:[[392,.2,'triangle'],[440,.3,'triangle']],store:[[294,.3,'triangle'],[330,.4,'triangle']],nest:[[880,.08,'square'],[940,.08,'square'],[900,.08,'square']],camp:[[330,.4,'sine'],[392,.5,'sine']]};
 function roomMotif(t){const m=RMOT[t];if(!m||!AC)return;let d=0;m.forEach(([f,l,ty])=>{tone(f,l,ty,.035,0,d);d+=l*.6})}
 setInterval(()=>{try{if(!G||G.over||G.fight||!AC)return;const p=G.p;const f=G.foes.filter(f=>f.hp>0&&f.aware&&!f.dormant&&!f.lurk&&Math.abs(f.x-p.x)+Math.abs(f.y-p.y)<=9&&Math.abs(f.x-p.x)+Math.abs(f.y-p.y)>2)[0];if(f&&Math.random()<.5)sfxAt(f.k=='skel'||f.k=='lskel'||f.k=='archer'||f.k=='shieldk'?'clack':'step',(f.x-p.x)/7,.35)}catch(e){}},1400);
