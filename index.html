@@ -300,6 +300,15 @@ body.sheeton .ctl.menu,body.mapon .ctl.menu{display:none!important}
 .ret.done .retskip{opacity:1;animation:blink 1.4s infinite}
 @keyframes blink{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.ret,.ret h2,.retlight,.retit,.ret.done .rettotal b,.ret.done .retskip{animation:none!important;transition:none!important}}
+
+.ret.fall{background:radial-gradient(ellipse at 50% 35%,#2a0e0c,#050405 70%);animation:fallin 1s ease-out}
+@keyframes fallin{0%{opacity:0;background:#7a1a12}35%{opacity:1}}
+.ret.fall h2{color:#d8c8b8;text-shadow:0 0 18px #8a2418,0 3px 0 #000;animation:fallword 1.4s ease-out}
+@keyframes fallword{from{opacity:0;letter-spacing:.1em;filter:blur(4px)}to{opacity:1}}
+.ret.fall .rettier{color:#c08a7a}
+.ret.fall .retit{filter:grayscale(1) brightness(.7);transform:translateY(-8px)}
+.ret.fall .retit.on{transform:none;opacity:.8}
+.ret.fall .rettotal b{color:#a89888;text-shadow:0 3px 0 #000;font-size:34px}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
@@ -2767,7 +2776,7 @@ async function flee(sure){if(isBoss()){sfx('no');toast('霧に阻まれて、逃
 function die(){
  if(COOP.host)coopSend({t:'end',ok:0});if(G.guest){G.over=true;return}
  G.over=true;clearSave();{let dl=[];try{dl=JSON.parse(store('yw15_deaths')||'[]')||[]}catch(e){}const z=zoneAt(G.p.x,G.p.y);dl.unshift({run:runs,f:G.fi+1,where:G.ship?G.bname:z?z.name:G.blight?G.bname:THEMES[G.fi].n.split(' ')[1],cause:G.lastHit||'不明',boss:isBoss()});store('yw15_deaths',JSON.stringify(dl.slice(0,12)))}G.busy=false;const lost=G.bag.items.map(b=>ITEM[b.id].n).join('・')||'なし';const v=bagValue();let saved='';if(G.insured){const ins=G.insured;if(ins.mon){farm.push(ins.mon);saved=ins.mon.name}else{wh.push(ins.o);saved=instName(ins.o.id,ins.o.inst)}saveMeta()}G.bag.items=[];G.allies=[];G.tray=null;closeSheet(true);ui();
- window.DIEDNOW=1;showBase('倒れた',runSummary(false,[],lost)+'カバンの中身はすべてダンジョンに残った：'+lost+(v?'（価値'+v+'）':'')+'。'+bagDef().n+'だけは手元に戻った。'+(saved?'保険をかけた'+saved+'は戻ってきた。':''))}
+ window.DIEDNOW=1;showBase('倒れた',runSummary(false,[],lost)+'カバンの中身はすべてダンジョンに残った'+(v?'（価値'+v+'）':'')+'。'+bagDef().n+'だけは手元に戻った。'+(saved?'保険をかけた'+saved+'は戻ってきた。':''))}
 function escape(){if(COOP.host)coopSend({t:'end',ok:1});G.partner=null;clearSave();try{if(G.muts&&G.muts.length){let rec={};try{rec=JSON.parse(store('yw24_rec')||'{}')}catch(e){}const n=G.muts.length,d=(G.maxFi||0)+1;if(!rec[n]||d>rec[n]){rec[n]=d;store('yw24_rec',JSON.stringify(rec))}}}catch(e){}try{if((window.MUTS||[]).length){const tm=todayMuts(Math.min(3,mutMax()));const same=tm.length==G.muts.length&&tm.every(k=>G.muts.includes(k));
  if(same){let tr={};try{tr=JSON.parse(store('yw68_today')||'{}')}catch(e){}const f=(G.maxFi||0)+1;if(tr.d!=todayKey()||f>tr.f)store('yw68_today',JSON.stringify({d:todayKey(),f}))}}}catch(e){}
  {const reached=Math.floor(((G.maxFi||0)+1)/5)*5;const deep=+store('yw17_deep')||0;if(reached>deep){store('yw17_deep',reached);G.newDeep=reached}}{const big=G.bossKilled,mid=(G.maxFi||0)>=(G.startFi||0)+2;let er={};try{er=JSON.parse(store('yw16_esc')||'{}')||{}}catch(e){}const k=big?'l':mid?'m':'s';er[k]=(er[k]||0)+1;store('yw16_esc',JSON.stringify(er));G.escTier=big?'大成功：主を討って帰還':mid?'中成功：深くまで潜って帰還':'小成功：欲張らずに帰還'}
@@ -2780,7 +2789,7 @@ function showReturn(list,total,tier,halve){try{
  const el=document.createElement('div');el.id='ret';el.className='ret';
  el.innerHTML='<div class="retin"><div class="retlight"></div><h2>帰還</h2><p class="rettier"></p><div class="retgrid"></div><div class="rettotal"><small>持ち帰った価値</small><b>0</b></div><p class="retskip">タップで村へ</p></div>';
  document.body.append(el);el.querySelector('.rettier').textContent=(tier||'')+(halve?'　（護符で帰還。荷物は半分）':'');
- const grid=el.querySelector('.retgrid'),tb=el.querySelector('.rettotal b');
+ const grid=el.querySelector('.retgrid'),tb=el.querySelector('.rettotal b');if(!list.length){el.querySelector('.rettotal').style.display='none';el.querySelector('.rettier').textContent+='　手ぶらで帰ってきた'}
  let done=false,shown=0,timers=[];
  const finish=()=>{if(done)return;done=true;timers.forEach(clearTimeout);grid.querySelectorAll('.retit').forEach(e=>e.classList.add('on'));tb.textContent=total;el.classList.add('done');sfx('fanfare');buzz([30,50,30,50,90])};
  list.forEach((it,i)=>{const c=document.createElement('div');c.className='retit'+(it.v>=100?' big':'');let ic=null;try{ic=iconCanvas(it.id,it.inst)}catch(e){}if(ic)c.append(ic);
@@ -2788,6 +2797,15 @@ function showReturn(list,total,tier,halve){try{
   timers.push(setTimeout(()=>{c.classList.add('on');shown+=it.v;tb.textContent=Math.min(total,shown);sfx(it.v>=100?'rare':'pick');if(it.v>=100)buzz(20)},500+i*170))});
  timers.push(setTimeout(finish,700+list.length*170));
  el.addEventListener('click',()=>{if(!done){finish();return}el.classList.add('out');setTimeout(()=>el.remove(),260)});
+ }catch(e){}}
+function showFall(list,total,cause,fl){try{
+ const old=document.getElementById('ret');if(old)old.remove();
+ const el=document.createElement('div');el.id='ret';el.className='ret fall';
+ el.innerHTML='<div class="retin"><h2>力尽きた</h2><p class="rettier"></p><div class="retgrid"></div><div class="rettotal"><small>ダンジョンに残した価値</small><b></b></div><p class="retskip">タップで村へ</p></div>';
+ document.body.append(el);el.querySelector('.rettier').textContent=fl+'F　'+(cause?cause+'に倒された':'');el.querySelector('.rettotal b').textContent=total;if(!total)el.querySelector('.rettotal').style.display='none';
+ const grid=el.querySelector('.retgrid');list.forEach((it,i)=>{const c=document.createElement('div');c.className='retit';let ic=null;try{ic=iconCanvas(it.id,it.inst)}catch(e){}if(ic)c.append(ic);const n=document.createElement('span');n.textContent=it.n;c.append(n);grid.append(c);setTimeout(()=>c.classList.add('on'),900+i*120)});
+ let ready=false;setTimeout(()=>{ready=true;el.classList.add('done')},900+list.length*120);
+ el.addEventListener('click',()=>{if(!ready){ready=true;el.classList.add('done');grid.querySelectorAll('.retit').forEach(e=>e.classList.add('on'));return}el.classList.add('out');setTimeout(()=>el.remove(),260)});
  }catch(e){}}
 const BREED={'puru+puru':'mochi','gyoro+puru':'medama','gyoro+gyoro':'ogyoro','koke+koke':'koke','koke+puru':'mochi','gyoro+koke':'ogyoro'};
 const lineOf=k=>({mochi:'puru',medama:'gyoro',ogyoro:'gyoro'}[k]||k);
@@ -2989,6 +3007,8 @@ function rollShop(){const pool=['bomb','smoke','rope','fish','omamori','shovel',
 const BAGPRICE={small:80,adv:180,long:250,big:400};
 {const _esc=escape;escape=function(){let list=[],total=0;try{const S=synergy();list=G.bag.items.map(p=>({id:p.id,inst:p.inst,n:instName(p.id,p.inst)||ITEM[p.id].n,v:itemValue(p,S)})).sort((a,b)=>b.v-a.v);total=list.reduce((a,b)=>a+b.v,0);if(G.halve)total=Math.floor(total/2)}catch(e){}
  const r=_esc.apply(this,arguments);if(!G.guest)showReturn(list,total,G.cleared?'100F踏破':G.escTier,G.halve);return r}}
+{const _die=die;die=function(){let list=[],total=0,cause='',fl=1;try{if(!G.guest){const S=synergy();list=G.bag.items.map(p=>({id:p.id,inst:p.inst,n:instName(p.id,p.inst)||ITEM[p.id].n,v:itemValue(p,S)})).sort((a,b)=>b.v-a.v);total=list.reduce((a,b)=>a+b.v,0);cause=G.lastHit&&G.lastHit!='不明'?G.lastHit:'';fl=G.fi+1}}catch(e){}
+ const guest=G&&G.guest;const r=_die.apply(this,arguments);if(!guest)showFall(list,total,cause,fl);return r}}
 function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}if(sv){h='探索の途中';p='潜った記録は残っている。下の「探索の続きから」を押せば、さっきの階に戻れる。'}}
 
  let tab=(h&&(h.startsWith('脱出')||h=='探索の途中'||h=='倒れた'))||!h?'vill':'prep',sel=[],bring=null,load=[],ins=null,smSel=null,whSel=null;if(!shopStock)shopStock=rollShop();
@@ -3431,7 +3451,7 @@ function renderFrow(){
  if(br){const k=document.createElement('button');k.className='kill';k.textContent='決める（忍殺）';k.onclick=()=>{if(!G.busy)deathblow()};k.disabled=G.busy;el.append(k);return}
  const wb=G.fight.webbed>0,dd=G.fight.dist;
  const mk=(t,lab,f,dis,cls)=>{const b=document.createElement('button');b.textContent=t;b.className=cls||'';b.setAttribute('aria-label',lab);b.onclick=()=>{if(!G.busy)f()};b.disabled=!!dis||G.busy;return b};
- if(wb){const d2=document.createElement('span');d2.className='dst';d2.textContent='糸で動けない';el.append(d2)}
+ if(wb){const d2=document.createElement('span');d2.className='dst';d2.textContent='糸で動けない';el.append(d2);el.append(mk('もがく','糸を振りほどく（1ターン）',async()=>{G.busy=true;ui();G.guard=0;sfx('no');G.p.ox=2;setTimeout(()=>{G.p.ox=-2;setTimeout(()=>{G.p.ox=0},90)},90);toast('糸を振りほどこうともがいた');await wait(260);await afterPlayer()}))}
  const sp=tg&&SPARE[tg.k];
  if(tg&&(KNOW['mercy_'+tg.k]||(sp&&(sp.free||(sp.need&&G.bag.items.some(q=>sp.need.includes(q.id)))))))el.append(mk('なだめる','なだめる',()=>spare()));
  {const hasW=G.bag.items.some(q=>ITEM[q.id].weapon);

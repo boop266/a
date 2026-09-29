@@ -43,6 +43,8 @@ function botTick() {
     const ws = its.map((p, i) => [p, i]).filter(([p]) => ITEM[p.id].weapon && !p.out);
     const ok = ws.filter(([p]) => reachOK(p.id));
     const r = Math.random();
+    const fb = [...document.querySelectorAll('#frow button')].filter(b => !b.disabled);
+    if (fb.length && (!ok.length || r < .08)) { const b = rnd(fb); b.click(); return 'frow:' + b.textContent; }
     if (ok.length && r < .8) { act(rnd(ok)[1]); return 'atk'; }
     if (r < .9) { const d = [[1, 0], [-1, 0], [0, 1], [0, -1]]; step(...rnd(d)); return 'fmove'; }
     const any = its.map((p, i) => i).filter(i => !ITEM[its[i].id].tre && !ITEM[its[i].id].passive);
@@ -91,9 +93,13 @@ function botTick() {
     await ctx.route(FILE, r => r.fulfill({ body: html, contentType: 'text/html; charset=utf-8' }));
     await page.goto(FILE);
     await page.waitForTimeout(600);
+    // START=階 で深い階から始める。GOD=1 で倒れないようにして奥まで見る
+    const START = +process.env.START || 0, GOD = !!process.env.GOD;
+    if (START) await page.evaluate(sf => { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf); }, START);
     let same = 0, lastSig = '', maxF = 0, dives = 0, deaths = 0, escapes = 0;
     for (let s = 0; s < STEPS; s++) {
       let r;
+      if (GOD) await page.evaluate(() => { if (typeof G != 'undefined' && G && G.p && !G.over) G.p.hp = G.p.max; });
       try { r = await page.evaluate(botTick); } catch (e) { errs.push('evaluate: ' + e.message); break; }
       if (r.startsWith('mainErr')) errs.push(r);
       // 帰還と死亡の流れも必ず通す
