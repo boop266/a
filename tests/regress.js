@@ -41,6 +41,26 @@ const cases = {
     const after = await p.evaluate(() => +getComputedStyle(document.getElementById('toast')).opacity);
     if (after < 0.5) throw new Error('題字の後に一言が出ていない');
   },
+  // 流れの上に階段が来ても、乗れば降りられる
+  async '流れの中の階段から降りられる'(p) {
+    const r = await p.evaluate(async () => {
+      let found = 0, placed = 0;
+      for (let i = 0; i < 400 && found < 5; i++) {
+        document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, [1, 9, 12, 15][i % 4]);
+        if (G.cur && G.down && G.cur.cells.has(G.down.join(','))) placed++;
+        // 生成で避けていても、安全網を確かめるため、階段を無理やり流れに入れる
+        if (!G.cur || !G.down) continue;
+        const [x, y] = G.down; if (!(G.water[y] && G.water[y][x])) continue;
+        G.cur.cells.add(x + ',' + y); G.cur.spd = 3; G.foes = [];
+        const [a, b] = [-G.cur.dir[0], -G.cur.dir[1]]; if (!walk(x + a, y + b)) continue;
+        found++; G.p.x = x + a; G.p.y = y + b; G.busy = false; G.title = null;
+        await step(-a, -b); for (let k = 0; k < 60 && G.busy; k++) await new Promise(r => setTimeout(r, 50));
+        const ma = mainAction(); if (!(ma && ma.ic == 'down')) return 'SAFETY:流されて降りられない';
+      }
+      return placed ? 'GEN:流れの上に階段が作られた（' + placed + '）' : found ? 'ok' : 'NONE';
+    });
+    if (r !== 'ok') throw new Error(r);
+  },
   // 誤字
   async '誤字が無い'(p) {
     const html = require('fs').readFileSync(FILE.replace('file://', ''), 'utf8');
