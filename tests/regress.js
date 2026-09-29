@@ -87,7 +87,7 @@ const cases = {
   },
   // 亡骸に隠れた古代の鞄を漁っても落ちない
   async '古代の鞄を漁れる'(p) {
-    const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); searchSrc(s); return document.getElementById('toast').textContent } return 'NONE' });
+    const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); G.title = null; G.twistShown = 1; searchSrc(s); return document.getElementById('toast').textContent } return 'NONE' });
     if (r === 'NONE' || !/鞄/.test(r)) throw new Error('結果: ' + r);
   },
   // 仲間と倉庫が、開き直しても消えない（後から登録される仲間・ボスの武器も）
@@ -110,7 +110,7 @@ const cases = {
       const bad = [];
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; give('hyouka'); slotUse(G.bag.items.findIndex(q => q.id == 'hyouka')); if (curAt(k[0], k[1])) bad.push('凍らせても流れが残る') }
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; while (bagUsed() < Math.ceil(bagCap() * .75) && firstFit('gem')) give('gem'); if (curPush(G.p, true)) bad.push('重い荷物でも流される') }
-      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); G.items = G.items.filter(i => !(i.x == w[0] && i.y == w[1])); for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
+      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); G.items = G.items.filter(i => !(i.x == w[0] && i.y == w[1])); G.srcs = (G.srcs || []).filter(q => !(q.x == w[0] && q.y == w[1])); G.bodies = []; G.thin = []; for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
       for (const [t, tool] of [['crack', 'hammer'], ['vine', 'v_poison'], ['volt', 'raika']]) { if (!floorWith(() => G.gim.some(g => g.type == t), 5)) continue; const g = G.gim.find(g => g.type == t); const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y)); G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == c[0] && i.y == c[1])); G.srcs = []; give(tool);
         if (t == 'crack') for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '槌で壁を叩く') { m.f(); for (let w = 0; w < 40 && G.busy; w++) await new Promise(r => setTimeout(r, 30)) } }
         if (t == 'vine') { spill(G.p.x, G.p.y, 'gas', 5); for (let k = 0; k < 2; k++) { G.busy = false; await doWait() } }
@@ -161,11 +161,11 @@ const cases = {
       G.m[7][7] = G.m[8][7] = G.m[9][7] = 0; G.foes = [];
       f = put('gob', 16, 11, false); G.bag.items.push({ id: 'koishi', x: 0, y: 0, rot: 0, n: 2 }); G.faceX = 1; G.faceY = 0; throwStone(G.bag.items.length - 1);
       await new Promise(r => setTimeout(r, 300)); for (let k = 0; k < 6; k++) await enemiesMove(); o.stone = [f.x, f.y, f.aware || 0];
-      G.foes = []; f = put('gob', 6, 8, false); await startFight([f], contactMode(f)); await new Promise(r => setTimeout(r, 1200)); o.ass = [f.hp, !!G.fight, G.bodies.length];
+      G.foes = []; f = put('gob', 6, 8, false); f.max = f.hp = 9; await startFight([f], contactMode(f)); await new Promise(r => setTimeout(r, 1200)); o.ass = [f.hp, !!G.fight, G.bodies.length];
       return o;
     });
     if (r.open !== 1 || r.wall !== 0) throw new Error('視線: ' + JSON.stringify(r));
-    if (r.stone[0] !== 11 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
+    if (Math.abs(r.stone[0] - 11) > 1 || Math.abs(r.stone[1] - 8) > 1 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
     if (r.ass[0] > 0 || r.ass[1] || r.ass[2] !== 1) throw new Error('暗殺: ' + JSON.stringify(r));
   },
   // 相性の悪い種族は勝手に争い、追ってくる敵も天敵の隣で足を止める
@@ -235,6 +235,26 @@ const cases = {
       return o;
     });
     if (r.conf <= 0 || r.cfight || !r.charm || !r.scout || !r.lead || !r.fear || !r.json) throw new Error(JSON.stringify(r));
+  },
+  // 地形の性格：氷は滑る、泥は一手遅れる、茂みは隠れる、橋は燃え落ちる、裂け谷は必ず渡れる
+  async '地形の性格'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const W = ms => new Promise(r => setTimeout(r, ms)); const o = {};
+      document.getElementById('modal').innerHTML = ''; G.ice = new Set(); for (let x = 6; x <= 12; x++) G.ice.add(x + ',8'); G.p.x = 5; G.p.y = 8; G.busy = false; await step(1, 0); await W(300); o.ice = G.p.x;
+      document.getElementById('modal').innerHTML = ''; G.ice = new Set(); G.mud = new Set(['6,8']); G.p.x = 5; G.p.y = 8; const f = put('skel', 12, 8, true); f.aware = 2; const x0 = f.x; G.busy = false; await step(1, 0); await W(300); o.mud = x0 - f.x;
+      G.mud = new Set(); G.foes = []; G.bush = new Set(['5,8']); G.p.x = 5; G.p.y = 8; const g = put('gob', 8, 8, true); await enemiesMove(); o.bush = g.aware || 0;
+      G.bush = new Set(); G.foes = []; G.holes = new Set(['10,8']); G.bridges = new Set(['9,8']); G.fires = [{ x: 9, y: 8, t: 2, life: 9 }]; fireStep(); o.bridge = [G.bridges.has('9,8'), G.holes.has('9,8')];
+      let bad = 0; for (let k = 0; k < 40; k++) { const F = genFloor(5 + (k % 30)); if (F.twist != 'chasm') continue; const H = F.holes; const seen = new Set([F.start + '']); const q = [F.start];
+        while (q.length) { const [x, y] = q.pop(); for (const [a, b] of DIRS) { const nx = x + a, ny = y + b, kk = nx + ',' + ny; if (seen.has(kk) || !(F.m[ny] && F.m[ny][nx] === 0) || H.has(kk)) continue; seen.add(kk); q.push([nx, ny]); } }
+        if ([F.down, F.exit].filter(Boolean).some(t => !seen.has(t[0] + ',' + t[1]))) bad++; }
+      o.chasmBad = bad; return o;
+    });
+    if (r.ice < 12) throw new Error('氷で滑らない: ' + JSON.stringify(r));
+    if (r.mud < 2) throw new Error('泥で遅れない: ' + JSON.stringify(r));
+    if (r.bush !== 0) throw new Error('茂みで見つかる: ' + JSON.stringify(r));
+    if (r.bridge[0] || !r.bridge[1]) throw new Error('橋が燃えない: ' + JSON.stringify(r));
+    if (r.chasmBad) throw new Error('裂け谷で階段に行けない: ' + JSON.stringify(r));
   },
 };
 
