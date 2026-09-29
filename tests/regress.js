@@ -106,7 +106,7 @@ const cases = {
   async '氷と雷の解決策'(p) {
     const r = await p.evaluate(async () => {
       const give = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) };
-      const floorWith = (c, sf) => { for (let i = 0; i < 500; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf || 12); G.title = null; G.foes = []; if (c()) return true } return false };
+      const floorWith = (c, sf) => { for (let i = 0; i < 500; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf || 12); G.title = null; G.foes = []; G.wind = null; if (c()) return true } return false };
       const bad = [];
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; give('hyouka'); slotUse(G.bag.items.findIndex(q => q.id == 'hyouka')); if (curAt(k[0], k[1])) bad.push('凍らせても流れが残る') }
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; while (bagUsed() < Math.ceil(bagCap() * .75) && firstFit('gem')) give('gem'); if (curPush(G.p, true)) bad.push('重い荷物でも流される') }
@@ -256,25 +256,45 @@ const cases = {
     if (r.bridge[0] || !r.bridge[1]) throw new Error('橋が燃えない: ' + JSON.stringify(r));
     if (r.chasmBad) throw new Error('裂け谷で階段に行けない: ' + JSON.stringify(r));
   },
-  // 化学反応：11種すべてが起き、反応表に載る
+  // 化学反応：8つの性質の総当たり28通りが、すべて起きる
   async '化学反応'(p) {
-    await arena(p);
-    const r = await p.evaluate(async () => {
-      REACTD = {}; for (let y = 2; y <= 14; y++) for (let x = 2; x <= 20; x++) G.seen.add(x + ',' + y); G.p.x = 10; G.p.y = 8;
-      G.water = G.m.map(r => r.map(() => false)); G.garden = G.m.map(r => r.map(() => false)); G.oil = new Set(); G.ice = new Set(); G.mud = new Set(); G.gas = []; G.fires = []; G.steam = [];
-      G.garden[5][9] = true; ignite(9, 5); G.oil.add('11,5'); ignite(11, 5);
-      for (let x = 13; x <= 16; x++) G.water[8][x] = true; G.fires.push({ x: 12, y: 8, t: 1, life: 9 }); fireStep();
-      G.ice.add('6,11'); G.fires.push({ x: 5, y: 11, t: 1, life: 9 }); try { turnTick() } catch (e) { }
-      G.mud.add('8,12'); G.fires = [{ x: 7, y: 12, t: 1, life: 9 }]; fireStep();
-      G.gas = [{ x: 14, y: 8, t: 0, life: 14 }]; G.fires = []; gasStep();
-      const f = mkFoe('skel', 16, 9, 0); G.foes.push(f); f.wetC = 3; shockSet(waterBody(15, 8), 5, 'test');
-      G.water[10][12] = true; freezeAt(12, 10, 0);
-      G.gas = [{ x: 5, y: 3, t: 0, life: 14 }]; G.wind = { dx: 1, dy: 0, every: 1, t: 0 }; gasStep(); G.wind = null;
-      G.gas = [{ x: 8, y: 4, t: 0, life: 14 }]; G.fires = [{ x: 8, y: 4, t: 0, life: 5 }]; gasStep();
-      await new Promise(r => setTimeout(r, 50));
-      return REACT.filter(R => !REACTD[R.k]).map(R => R.k);
-    });
-    if (r.length) throw new Error('起きない反応: ' + r.join(','));
+    await dive(p);
+    const cases={
+ 'fire+water':()=>{W(9,8);G.fires.push({x:8,y:8,t:1,life:9});fireStep()},
+ 'fire+ice':()=>{G.ice.add('9,8');G.fires.push({x:8,y:8,t:1,life:9});envHazardStep()},
+ 'fire+volt':()=>{W(12,8);G.fires.push({x:11,y:9,t:1,life:9});G.garden[10][10]=true;G.garden[10][12]=true;shockSet(waterBody(12,8),5,'t')},
+ 'fire+oil':()=>{G.oil.add('9,8');ignite(9,8)},
+ 'fire+poison':()=>{G.gas=[{x:9,y:8,t:0,life:14}];G.fires=[{x:9,y:8,t:0,life:5}];gasStep()},
+ 'fire+wind':()=>{G.garden[8][10]=true;G.fires=[{x:9,y:8,t:1,life:9}];gust(1,0,null,1)},
+ 'fire+earth':()=>{G.mud.add('9,8');G.fires=[{x:8,y:8,t:1,life:9}];fireStep()},
+ 'water+ice':()=>{W(9,8);freezeAt(9,8,0)},
+ 'water+volt':()=>{W(9,8);shockSet(waterBody(9,8),5,'t')},
+ 'water+oil':()=>{W(9,8);W(10,8);spill(9,8,'oil',1)},
+ 'water+poison':()=>{W(9,8);G.gas=[{x:9,y:8,t:0,life:14}];gasStep()},
+ 'water+wind':()=>{W(9,8);W(10,8);const f=mkFoe('skel',9,8,0);G.foes.push(f);gust(1,0,null,1)},
+ 'water+earth':()=>{W(8,8);G.faceX=1;G.faceY=0;G.p.x=5;G.p.y=8;G.bag.items.push({id:'doro',x:0,y:0,rot:0,n:3});useMudBall(G.bag.items.length-1)},
+ 'ice+volt':()=>{W(9,8);G.ice.add('10,8');shockSet(waterBody(9,8),5,'t')},
+ 'ice+oil':()=>{G.oil.add('9,8');freezeAt(9,8,0)},
+ 'ice+poison':()=>{G.gas=[{x:9,y:8,t:0,life:14}];freezeAt(9,8,0)},
+ 'ice+wind':()=>{G.ice.add('9,8');W(10,8);gust(1,0,null,1)},
+ 'ice+earth':()=>{G.mud.add('9,8');freezeAt(9,8,0)},
+ 'volt+oil':()=>{W(9,8);G.oil.add('10,8');shockSet(waterBody(9,8),5,'t')},
+ 'volt+poison':()=>{W(9,8);G.gas=[{x:10,y:8,t:0,life:14}];shockSet(waterBody(9,8),5,'t')},
+ 'volt+wind':()=>{W(9,8);G.wind={dx:1,dy:0,t:0,every:5,n:0};const f=mkFoe('skel',11,8,0);G.foes.push(f);shockSet(waterBody(9,8),5,'t');G.wind=null},
+ 'volt+earth':()=>{W(9,8);G.mud.add('10,8');G.mud.add('11,8');shockSet(waterBody(9,8),5,'t')},
+ 'oil+poison':()=>{G.oil.add('9,8');G.gas=[{x:9,y:8,t:0,life:14}];gasStep()},
+ 'oil+wind':()=>{G.oil.add('9,8');gust(1,0,null,1)},
+ 'oil+earth':()=>{G.mud.add('9,8');spill(9,8,'oil',1)},
+ 'poison+wind':()=>{G.gas=[{x:9,y:8,t:0,life:14}];gust(1,0,null,1)},
+ 'poison+earth':()=>{G.mud.add('9,8');G.gas=[{x:9,y:8,t:0,life:14}];gasStep()},
+ 'wind+earth':()=>{G.mud.add('9,8');gust(1,0,null,1)}};
+    const miss = [];
+    for (const [k, fn] of Object.entries(cases)) {
+      const ok = await p.evaluate(async ([k, src]) => { G.title = null; G.fight = null; const H = G.m.length, Wd = G.m[0].length; for (let y = 0; y < H; y++) for (let x = 0; x < Wd; x++) G.m[y][x] = (x >= 2 && x <= 24 && y >= 2 && y <= 16) ? 0 : 1; G.water = G.m.map(r => r.map(() => false)); G.garden = G.m.map(r => r.map(() => false)); G.foes = []; G.fires = []; G.gas = []; G.ice = new Set(); G.mud = new Set(); G.oil = new Set(); G.steam = []; G.items = []; G.srcs = []; G.gim = []; G.pwater = null; G.pmud = null; G.toil = null; G.wind = null; G.gustT = null; G.p.x = 9; G.p.y = 12; for (let y = 0; y < H; y++) for (let x = 0; x < Wd; x++) G.seen.add(x + ',' + y); REACTD = {};
+        window.W = (x, y) => { G.water[y][x] = true }; try { eval('(' + src + ')')() } catch (e) { return 'ERR ' + e.message } await new Promise(r => setTimeout(r, 30)); return !!REACTD[k] }, [k, fn.toString()]);
+      if (ok !== true) miss.push(k + ':' + ok);
+    }
+    if (miss.length || Object.keys(cases).length !== 28) throw new Error('起きない反応: ' + miss.join(','));
   },
   // モンスターは500種。名前が重ならず、見た目と仲間の登録がそろっていて、各階に住人がいる
   async 'モンスター500種'(p) {
