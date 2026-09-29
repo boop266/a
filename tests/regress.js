@@ -64,7 +64,7 @@ const cases = {
   // 待っても、戦っても、環境の時間（火など）は進む
   async '待つと火が燃え広がる'(p) {
     await dive(p);
-    const r = await p.evaluate(async () => { G.title = null; const P = G.p; G.oil = new Set(); for (const [a, b] of DIRS8) G.oil.add((P.x + a) + ',' + (P.y + b));
+    const r = await p.evaluate(async () => { G.title = null; for (let y = 3; y < MH - 3; y++) for (let x = 3; x < MW - 3; x++) { let ok = true; for (let j = -2; j <= 2; j++) for (let k = -2; k <= 2; k++) if (!walk(x + k, y + j) || G.water[y + j][x + k]) ok = false; if (ok) { G.p.x = x; G.p.y = y } } G.foes = []; const P = G.p; G.oil = new Set(); for (const [a, b] of DIRS8) G.oil.add((P.x + a) + ',' + (P.y + b));
       const c = DIRS.map(([a, b]) => [P.x + a, P.y + b]).find(([x, y]) => walk(x, y)); ignite(c[0], c[1]); const n0 = G.fires.length;
       G.busy = false; await doWait(); return [n0, G.fires.length]; });
     if (!(r[1] > r[0])) throw new Error('待っても火が広がらない: ' + r);
@@ -110,7 +110,7 @@ const cases = {
       const bad = [];
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; give('hyouka'); slotUse(G.bag.items.findIndex(q => q.id == 'hyouka')); if (curAt(k[0], k[1])) bad.push('凍らせても流れが残る') }
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; while (bagUsed() < Math.ceil(bagCap() * .75) && firstFit('gem')) give('gem'); if (curPush(G.p, true)) bad.push('重い荷物でも流される') }
-      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
+      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); G.items = G.items.filter(i => !(i.x == w[0] && i.y == w[1])); for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
       for (const [t, tool] of [['crack', 'hammer'], ['vine', 'v_poison'], ['volt', 'raika']]) { if (!floorWith(() => G.gim.some(g => g.type == t), 5)) continue; const g = G.gim.find(g => g.type == t); const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y)); G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == c[0] && i.y == c[1])); G.srcs = []; give(tool);
         if (t == 'crack') for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '槌で壁を叩く') { m.f(); for (let w = 0; w < 40 && G.busy; w++) await new Promise(r => setTimeout(r, 30)) } }
         if (t == 'vine') { spill(G.p.x, G.p.y, 'gas', 5); for (let k = 0; k < 2; k++) { G.busy = false; await doWait() } }
@@ -119,13 +119,18 @@ const cases = {
       return bad.join(' / ') || 'ok' });
     if (r !== 'ok') throw new Error(r);
   },
-  // 工房：素材を持ち込むと、道具がずっと作れるようになる
-  async '工房の図面'(p) {
-    const r = await p.evaluate(() => { runs = 3; gold = 100; wh = [{ id: 'kokuyou' }]; saveMeta(); document.getElementById('modal').innerHTML = ''; showBase('', ''); [...document.querySelectorAll('.place')].find(b => /工房/.test(b.textContent)).click();
-      [...document.querySelectorAll('#tb button')].find(b => /持ち込む：黒曜石/.test(b.textContent)).click();
-      const ok1 = JSON.parse(store('yw80_bp')).includes('kokuyou') && wh.some(o => o.id == 'hyouka');
-      [...document.querySelectorAll('#tb button')].find(b => /作る：氷の瓶/.test(b.textContent)).click();
-      return ok1 && gold == 70 && wh.filter(o => o.id == 'hyouka').length == 2 ? 'ok' : JSON.stringify({ gold, wh }) });
+  // 工房：倉庫の材料で、筋の通ったレシピだけが作れる。鍛冶屋で素材を打ち込むと銘がつく
+  async '工房と銘打ち'(p) {
+    const r = await p.evaluate(() => { runs = 3; gold = 100; wh = [{ id: 'kawa' }, { id: 'gomu' }, { id: 'raiseki' }, { id: 'sword' }]; saveMeta(); document.getElementById('modal').innerHTML = ''; showBase('', '');
+      [...document.querySelectorAll('.place')].find(b => /工房/.test(b.textContent)).click();
+      const btns = [...document.querySelectorAll('#tb button')].map(b => b.textContent);
+      if (btns.some(t => /作る：雷の瓶/.test(t))) return '瓶が無いのに雷の瓶が作れる';
+      [...document.querySelectorAll('#tb button')].find(b => /作る：ゴム底の長靴/.test(b.textContent)).click();
+      if (!wh.some(o => o.id == 'boots') || wh.some(o => o.id == 'kawa' || o.id == 'gomu')) return '長靴: ' + JSON.stringify(wh.map(o => o.id));
+      document.getElementById('modal').innerHTML = ''; showBase('', ''); [...document.querySelectorAll('.place')].find(b => /鍛冶屋/.test(b.textContent)).click();
+      [...document.querySelectorAll('#tb .chip')].filter(b => /長剣/.test(b.textContent)).pop().click();
+      [...document.querySelectorAll('#tb button')].find(b => /雷の結晶を打ち込む/.test(b.textContent)).click();
+      const sw = wh.find(o => o.id == 'sword'); return sw && sw.inst.af.includes('rai') && gold == 60 && !wh.some(o => o.id == 'raiseki') ? 'ok' : JSON.stringify({ gold, wh }) });
     if (r !== 'ok') throw new Error(r);
   },
   // 誤字
