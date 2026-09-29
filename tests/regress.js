@@ -276,6 +276,14 @@ const cases = {
     });
     if (r.length) throw new Error('起きない反応: ' + r.join(','));
   },
+  // モンスターは500種。名前が重ならず、見た目と仲間の登録がそろっていて、各階に住人がいる
+  async 'モンスター500種'(p) {
+    const r = await p.evaluate(() => {
+      const ks = Object.keys(FOE); const g = Object.keys(GEN); const names = new Set(g.map(k => FOE[k].n));
+      return { total: ks.length, gen: g.length, dup: g.length - names.size, noSp: g.filter(k => !SP[k]).length, noItem: g.filter(k => !ITEM[k]).length, emptyFloor: Array.from({ length: 99 }, (_, i) => i + 1).filter(fi => !genPool(fi).length).length };
+    });
+    if (r.total < 500 || r.dup || r.noSp || r.noItem || r.emptyFloor) throw new Error(JSON.stringify(r));
+  },
 };
 
 // 見通しのいい何もない部屋（暗い）に立たせる
@@ -286,7 +294,7 @@ async function arena(p) {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
     G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.srcs = []; G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
     G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
-    window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
+    window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.slowV = 0; f.fastV = 0; f.slow = 0; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });
 }
 

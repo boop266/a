@@ -1129,6 +1129,7 @@ let peddler=null;if(fi>0&&Math.random()<.8){const c=free(5,99);if(c.length){cons
  for(let i=0;i<nPuru&&gcells.length;i++){const f=gcells.splice(r(gcells.length),1)[0];take(f);foes.push(mkFoe('puru',f[0],f[1],0))}
  const pool=(fi<3?[['skel','skel','wisp'],['skel','wisp','beetle','gyoro','gyoro','lskel'],['beetle','wisp','gyoro','gyoro','skel','lskel','spitter']][fi]:[['skel','skel','wisp','beetle'],['skel','wisp','beetle','gyoro','lskel'],['skel','zombie','lskel','wisp','zombie'],['spider','spitter','beetle','gyoro','spider'],['beetle','gyoro','zombie','spitter'],['wisp','gyoro','beetle','lskel','spitter'],['ghost','ghost','wisp','skel','lskel'],['gyoro','beetle','spitter','spider','zombie'],['skel','zombie','spider','spitter','ghost','lskel','beetle','gyoro'],['ghost','lskel','spitter','zombie','gyoro','beetle','wisp']][layerOf(fi)]).filter(k=>!(fi<2&&k=='wisp')&&!((G&&G.tier||9)<=1&&(k=='lskel'||k=='spitter'))&&!((G&&G.tier||9)<=2&&k=='spitter'));
  try{newPool(fi).forEach(k=>{pool.push(k);if(Math.random()<.5)pool.push(k)})}catch(e){}
+ try{if(fi>=1)genPool(fi).forEach(k=>{pool.push(k);pool.push(k)})}catch(e){}
  try{if(G&&G.muts&&G.muts.includes('mut')){const st=strangerPool(fi);if(st.length&&Math.random()<.5)pool.push(pick(st))}}catch(e){}
  for(let i=0;i<Math.min(11,1+Math.round(fi*.55))+(G&&G.cond=='plenty'?2:0);i++){const c=free(5,99);if(!c.length)break;const f=take(pick(c));foes.push(mkFoe(pick(pool),f[0],f[1],ddOf(f[0],f[1])))}
  if(G&&G.cond=='dead')for(let i=0;i<3;i++){const c=free(5,99);if(!c.length)break;const f=take(pick(c));foes.push(mkFoe(pick(['skel','zombie','skel']),f[0],f[1],ddOf(f[0],f[1])))}
@@ -2818,7 +2819,7 @@ async function enemiesMove(){
   const shy0=f.k=='puru'||f.k=='koke';
   if(!shy0){if(!f.aware&&!(G.hush>0)&&!(inBush(p.x,p.y)&&dd>1)&&!feudOf(f)&&!(f.conf>0)&&!(f.fear>0)&&!(f.charm>0)){const u=bagUsed(),bs=bagDef().st||0,R=4+(u>=6?1:0)+(u>=10?1:0)+(u>=14?1:0)+bs+(bagAf('kou')?2:0)+litHere()+(f.alert>0?2:0)-(rxOn('D')?1:0)-(G.cond=='fog'||G.cond=='silent'?1:0)+(f.pers=='fierce'?2:0)-(f.pers=='lazy'?2:0)-(f.pers=='friendly'?1:0);if((dd<=R&&inFront(f,p.x,p.y)&&losClear(f.x,f.y,p.x,p.y))||(bs>=0&&!rxOn('D')&&u>=10&&dd<=2)||(bs>0&&u>=6&&dd<=1)){f.aware=1;f.flip=p.x<f.x;sfxAt('spot',(f.x-p.x)/6);continue}}
    else if(f.aware==1){f.aware=2}else if(dd>9){f.aware=0}}
-  if(f.still||(f.slow&&(G.steps||0)%2))continue;
+  if(f.still||((f.slow||f.slowV)&&(G.steps||0)%2))continue;
   if(inMud(f.x,f.y)&&!(FOE[f.k]||{}).fly&&(G.steps||0)%2)continue;
   if(feudOf(f))continue;
   if(f.charm>0||f.conf>0||f.fear>0||fearFire(f,dd)){const op=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!(x==p.x&&y==p.y));
@@ -3685,6 +3686,75 @@ function breedResult(a,b){
 const FOE_D={thief:'カバンの中身を盗んで逃げる。倒せば取り返せる',archer:'離れた所から射る。詰めれば弱い',shieldk:'盾が硬い。槌か溜めで崩す',bat:'速い。1ターンに2歩詰めてくる',slimeB:'斬ると分裂する',eater:'カバンの食べ物と薬を食う',shade:'すぐ隣に来るまで見えない',caller:'気づくと仲間を呼ぶ',mimic:'木箱のふりをしている',golem:'遅いが、重い'};
 Object.assign(SP,{thief:["..........","..........","......kk..","..kkkkbbk.",".kbbbbbrbk","kbbybbbbbk",".kbbbbbbk.","..kbkkbk..",".k.k..k.k."],archer:recolor(SP.skel,{r:'o'}).map((r,i)=>i==5?r.slice(0,9)+'t':r),shieldk:["...kkkk...","..kBBBBk..",".kBrBBrBk.",".kBBkkBBk.","kEEk.BBk..","kEgEkBBBk.","kEEEkBkBk.","kEgEkBBk..",".kEk.kBk..","..k..kk...","....k..k.."],bat:["..........","..........","k........k","kVk.kk.kVk",".kVkrrkVk.","..kVVVVk..","...k..k...","..........","..........",".........."],slimeB:["..........","...kkkk...","..kPPPPk..",".kPwPPwPk.","kPPkPPkPPk","kPPPPPPPPk","kpPPPPPPpk","kppPPPPppk",".kkkkkkkk."],eater:["..........","..........","..........","...kkkkk..","..kllLllk.",".klkrlkrlk","kllllllllk","kLkLkLkLk.",".k.k.k.k.."],shade:["...kkkk...","..kZZZZk..",".kZZZZZZk.",".kZrZZrZk.",".kZZZZZZk.","..kZZZZk..",".kZZZZZZk.",".kZkZZkZk.","..k.kk.k..","...k..k..."],caller:recolor(SP.skel,{B:'l',b:'L',r:'y'}),mimic:["..kkkkkk..",".kGggggGk.","kGrgrggrgk","kkkkyykkkk","ktkkkkkktk","ktwkwkwkt.","kkkkkkkkk."],golem:["..kkkkkk..",".keEEEEek.","keErEErEek","keEEEEEEek","kkeEEEEekk","keEeEEeEek","keEeEEeEek",".keEkkEek.",".kek..kek.",".kk....kk."]});
 try{Object.keys(BONLY).forEach(k=>{const b=BONLY[k];if(!SP[k]&&SP[b.base])SP[k]=recolor(SP[b.base],b.rec)})}catch(e){}
+
+// ===== 生まれの組み合わせで増える魔物たち =====
+// 体（種族）× 性（属性）× 育ち（大きさ）の組み合わせ。行動はすべて既存の性質で動く。層ごとに41種
+const GBASE=[
+ {b:'skel',fam:'dead',n:['骸骨','骨兵','髑髏','骨人'],tr:{bone:1,fireOK:1},hp:8,atk:4,L:[2,8,9]},
+ {b:'lskel',fam:'dead',n:['槍骨','矛骨','骨槍兵'],tr:{bone:1,fireOK:1},hp:9,atk:5,L:[2,6,8]},
+ {b:'zombie',fam:'dead',n:['屍','亡者','腐れ人','死人'],tr:{flam:1,slow:1},hp:12,atk:5,L:[2,4,7]},
+ {b:'ghost',fam:'dead',n:['亡霊','怨霊','死霊','影霊'],tr:{fly:1,fireOK:1},hp:12,atk:6,L:[5,6,8]},
+ {b:'wisp',fam:'fire',n:['鬼火','狐火','人魂','燐火'],tr:{fly:1,fireOK:1},hp:6,atk:6,L:[2,6,9]},
+ {b:'rat',fam:'beast',n:['鼠','溝鼠','穴鼠','尾長'],tr:{flam:1,frail:1},hp:5,atk:3,L:[0,1,4]},
+ {b:'bat',fam:'beast',n:['蝙蝠','夜翼','洞蝙蝠'],tr:{fly:1,fast:1,frail:1},hp:5,atk:3,L:[0,3,6]},
+ {b:'gob',fam:'gob',n:['小鬼','鬼童','山鬼','穴鬼'],tr:{flam:1},hp:9,atk:4,L:[0,1,4]},
+ {b:'spider',fam:'bug',n:['蜘蛛','土蜘蛛','女郎蜘蛛','足長'],tr:{flam:1,frail:1},hp:7,atk:4,L:[3,7]},
+ {b:'beetle',fam:'bug',n:['甲虫','兜虫','鎧虫','角虫'],tr:{armor:1,heavy:1},hp:11,atk:3,L:[0,3,8]},
+ {b:'slime',fam:'ooze',n:['すらいむ','ぬめり','ぷよ'],tr:{wet:1,frail:1},hp:6,atk:2,L:[0,1,5]},
+ {b:'doll',fam:'doll',n:['人形','操り人形','木偶','傀儡'],tr:{flam:1,frail:1},hp:10,atk:5,L:[7,8]},
+ {b:'golem',fam:'doll',n:['石像','巨像','守り像'],tr:{slow:1,armor:1,heavy:1},hp:26,atk:8,L:[8,9]},
+ {b:'frog',fam:'water',n:['蛙','水蛙','疣蛙'],tr:{wet:1},hp:10,atk:3,L:[1,5]},
+ {b:'raiju',fam:'water',n:['魚','跳ね魚','牙魚'],tr:{wet:1},hp:11,atk:4,L:[1,5,6]},
+ {b:'salam',fam:'fire',n:['蜥蜴','守宮','大守宮'],tr:{},hp:12,atk:5,L:[2,3,9]},
+ {b:'oilbug',fam:'bug',n:['芋虫','地這い','穴虫'],tr:{flam:1},hp:9,atk:3,L:[0,4]},
+ {b:'mud',fam:'ooze',n:['泥人','泥坊主','沼人'],tr:{wet:1,heavy:1},hp:14,atk:4,L:[1,4,5]},
+ {b:'mosser',fam:'plant',n:['苔虫','苔這い','緑喰い'],tr:{flam:1,wet:1},hp:10,atk:3,L:[0,4,7]},
+ {b:'shade',fam:'dead',n:['影','黒影','闇法師'],tr:{fly:1,fireOK:1},hp:10,atk:6,L:[6,9]},
+ {b:'mirror',fam:'bug',n:['鏡蟲','玻璃虫'],tr:{frail:1},hp:12,atk:3,L:[6,8]},
+ {b:'bell',fam:'bug',n:['鈴蟲','鳴り虫'],tr:{frail:1},hp:5,atk:2,L:[9,3]},
+ {b:'twin',fam:'doll',n:['双子人形','童人形'],tr:{flam:1,frail:1},hp:9,atk:4,L:[3,7]},
+ {b:'snuff',fam:'water',n:['灯消し','霧吹き'],tr:{fly:1,wet:1},hp:9,atk:3,L:[3,5,6]},
+ {b:'eater',fam:'bug',n:['荷食い虫','齧り虫'],tr:{flam:1,heavy:1},hp:9,atk:3,L:[0,4,7]}];
+const GEL=[
+ {k:'none',pre:['','野良','はぐれ','洞の'],col:null,tr:{},ab:{},d:''},
+ {k:'fire',pre:['火吹き','焔の','炎纏いの'],col:['o','r','y'],tr:{fireOK:1},ab:{breath:1},d:'火を吐いて、まわりの燃える物に火をつける',L:[2,3,9]},
+ {k:'water',pre:['水吐き','雫の','濡れた'],col:['c','C','M'],tr:{wet:1},ab:{douse:1},d:'水を吐いて、まわりの火を消す',L:[1,5,6]},
+ {k:'volt',pre:['雷の','痺れの','帯電した'],col:['g','G','w'],tr:{},ab:{volt:1},d:'電気を帯びていて、感電しない',L:[1,5,8]},
+ {k:'oil',pre:['油撒き','油じみた','脂ぎった'],col:['U','t','o'],tr:{flam:1},ab:{oiler:1},d:'歩いたあとに油を残す。火をつければよく燃える',L:[0,4,7]},
+ {k:'stone',pre:['石肌の','岩の','鉄の'],col:['e','E','o'],tr:{heavy:1},ab:{armor:1},d:'硬い。槌か溜めで崩す',L:[2,8,9]},
+ {k:'shadow',pre:['影の','闇の','夜の'],col:['v','Z','r'],tr:{},ab:{shade:1},d:'すぐそばまで来ないと姿が見えない',L:[6,8,9]},
+ {k:'glass',pre:['硝子の','玻璃の','水晶の'],col:['M','P','z'],tr:{frail:1},ab:{reflect:1},d:'斬った衝撃を半分跳ね返す',L:[6,8]},
+ {k:'bell',pre:['鳴き','鈴の'],col:['Y','g','r'],tr:{},ab:{bell:1},d:'打たれると鳴いて、まわりの敵を呼び寄せる',L:[3,9]},
+ {k:'wind',pre:['疾風の','早駆け'],col:['p','n','w'],tr:{frail:1},ab:{fast:1},d:'速い。1ターンに2歩詰めてくる',L:[0,6,7]},
+ {k:'call',pre:['群れ呼びの','吠える'],col:['q','F','y'],tr:{},ab:{caller:1},d:'戦いになると、仲間を呼ぶ',L:[1,4,7]},
+ {k:'bow',pre:['射手の','弓引き'],col:['t','U','r'],tr:{},ab:{ranged:1,rng:[2,4]},d:'離れた所から撃ってくる。詰めれば弱い',L:[2,8],only:['dead','gob','doll']},
+ {k:'web',pre:['糸吐き','糸引き'],col:['B','b','r'],tr:{},ab:{spit:1,ranged:1,rng:[1,3]},d:'糸を吐いて縛ってくる',L:[3,7],only:['bug']},
+ {k:'split',pre:['分かれ','増える'],col:['l','L','y'],tr:{},ab:{split:1},d:'斬ると分かれる',L:[1,5],only:['ooze']}];
+const GSIZE=[{p:'',h:1,a:1,tr:{}},{p:'大',h:1.6,a:1.2,tr:{heavy:1},big:1},{p:'小',h:.6,a:.9,tr:{frail:1}},{p:'角',h:1.3,a:1.15,tr:{},horn:1}];
+const GEN={},GEN_BY_L=Array.from({length:10},()=>[]);
+function genSprite(base,el,sz,seed){let a=SP[base].slice();const cnt={};a.forEach(r=>[...r].forEach(c=>{if(c!='.'&&c!='k')cnt[c]=(cnt[c]||0)+1}));
+ const ord=Object.keys(cnt).filter(c=>!'ryRx'.includes(c)).sort((x,y)=>cnt[y]-cnt[x]);const mp={};
+ if(el.col){if(ord[0])mp[ord[0]]=el.col[0];if(ord[1])mp[ord[1]]=el.col[1];'ryRx'.split('').forEach(c=>{if(cnt[c])mp[c]=el.col[2]})}
+ else{const alt=[['u','U'],['e','E'],['V','v'],['l','L'],['b','B']][seed%5];if(ord[0])mp[ord[0]]=alt[0];if(ord[1])mp[ord[1]]=alt[1]}
+ a=recolor(a,mp);
+ if(sz.horn){const i=a.findIndex(r=>/[^.]/.test(r));if(i>0){const r=[...a[i]],L=r.findIndex(c=>c!='.'),R=r.length-1-[...r].reverse().findIndex(c=>c!='.');const up=[...a[i-1]];const hc=el.col?el.col[2]:'y';if(L>=0)up[L]=hc;if(R>=0)up[R]=hc;a[i-1]=up.join('')}else{const w=a[0].length;const up=Array(w).fill('.');const hc=el.col?el.col[2]:'y';up[2]=hc;up[w-3]=hc;a=[up.join(''),...a]}}
+ return a}
+function buildGen(){let sd=97531;const rnd=()=>{sd=(Math.imul(sd,1103515245)+12345)&0x7fffffff;return sd/0x7fffffff};const used=new Set(Object.values(FOE).map(f=>f.n));
+ const bases=GBASE.filter(b=>SP[b.b]&&FOE[b.b]);
+ for(let L=0;L<10;L++){let made=0,tries=0;while(made<41&&tries<4000){tries++;
+  const bw=bases.map(b=>b.L.includes(L)?4:1);let t=bw.reduce((x,y)=>x+y,0)*rnd(),bi=0;for(;bi<bases.length;bi++){if((t-=bw[bi])<0)break}const B=bases[Math.min(bi,bases.length-1)];
+  const els=GEL.filter(e=>!e.only||e.only.includes(B.fam));const ew=els.map(e=>e.k=='none'?2:(e.L&&e.L.includes(L)?3:.7));t=ew.reduce((x,y)=>x+y,0)*rnd();let ei=0;for(;ei<els.length;ei++){if((t-=ew[ei])<0)break}const E=els[Math.min(ei,els.length-1)];
+  const S=GSIZE[Math.floor(rnd()*GSIZE.length)];if(S.big&&(FOE[B.b].big||B.b=='golem'||L<=1))continue;
+  const nm=E.pre[Math.floor(rnd()*E.pre.length)]+S.p+B.n[Math.floor(rnd()*B.n.length)];if(used.has(nm))continue;used.add(nm);
+  const k='g'+L+'_'+made;let hp=Math.max(3,Math.round(B.hp*S.h+L*2.2)),atk=Math.max(1,Math.round(B.atk*S.a+L*.8));if(L==0){hp=Math.min(hp,12);atk=Math.min(atk,5)}
+  const D={n:nm,hp,atk,...B.tr,...E.tr,...S.tr,...E.ab};if(S.big)D.big=1;if(D.fly)delete D.heavy;
+  FOE[k]=D;SP[k]=genSprite(B.b,E,S,made+L*41);FAM[k]=B.fam;GEN[k]={base:B.b,el:E.k,L};GEN_BY_L[L].push(k);
+  FOE_D[k]=[E.d,S.big?'大きい。場所を取る':S.p=='小'?'小さく脆い':S.horn?'年経た個体。角が生えている':''].filter(Boolean).join('。')||'これといった癖はない';
+  const sh=S.big?[2,2]:(hp>=16?[1,2]:[1,1]);ITEM[k]={n:nm,v:'呼ぶ',d:'攻撃'+(atk+1)+'。'+FOE_D[k],sh,mon:1,hp:Math.round(hp*1.3),atk:atk+1};D.cap=1;
+  if(E.k=='fire')FIELDOF[k]='fire';else if(E.k=='water')FIELDOF[k]='douse';else if(E.k=='oil')FIELDOF[k]='oil';else if(E.k=='bell')FIELDOF[k]='call';else if(FIELDOF[B.b])FIELDOF[k]=FIELDOF[B.b];
+  if(['beast','gob','ooze','water'].includes(B.fam))TAME.push(k);
+  made++}}}
+try{buildGen()}catch(e){console.error('buildGen',e)}
 // 層ごとの住人。ここにない者は、その層には出ない
 const LAYERMOB=[
  ['bat','oilbug','thief','bakudake','eater','mosser','fungus'],
@@ -3697,6 +3767,8 @@ const LAYERMOB=[
  ['memeat','twin','eater','mosser','shadowme'],
  ['golem','mirror','glass','snuff','shadowme'],
  ['shadowme','memeat','mirror','golem','bell']];
+// その階の住人：層の生まれの者から、階ごとに決まった4種
+function genPool(fi){const A=GEN_BY_L[layerOf(fi)]||[];if(!A.length)return[];const o=[];for(let i=0;i<4;i++){const k=A[(fi*7+i*11)%A.length];if(!o.includes(k))o.push(k)}return o}
 function newPool(fi){const L=layerOf(fi);const a=(LAYERMOB[L]||[]).slice();
  const need=[0,2,4,6,8][Math.min(4,Math.floor((fi%10)/2))];
  const out=a.slice(0,Math.max(1,Math.min(a.length,1+Math.floor((fi%10)/2))));
