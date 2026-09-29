@@ -1236,7 +1236,7 @@ function newRaid(bringMon,loadout,insured,sf){sf=sf||0;clearSave();WSEED=1+Math.
  loadFloor(genFloor(sf));placeAt(G.start);if(COOP.host)setTimeout(()=>{coopPlacePartner();coopFloor()},100);
  runs++;saveMeta();[...(KIT[G.bag.type]||[{id:'dagger'},{id:'potion'}]),...(loadout||[])].forEach(o=>{addToBag(o.id,o.inst?{inst:o.inst}:null);note('i:'+o.id)});G.insured=insured||null;G.brought=(loadout||[]).slice();G.found=[];
  if(bringMon){if(addToBag(bringMon.k,{hp:ITEM[bringMon.k].hp,name:bringMon.name,trips:bringMon.trips||0,inst:bringMon.inst})){const k=farm.indexOf(bringMon);if(k>=0)farm.splice(k,1);saveMeta()}}
- reveal();try{G.lastBand=null;bandEnter()}catch(e){}toast(G.tier<=1?'十字キーで歩く。敵にぶつかると戦闘。宝を拾ってカバンに詰め、光る出口から帰ろう':G.tier<=3?'潜入した。出口は1Fにしかない。今回は新しい何かに出会うかもしれない':'潜入した。出口は1Fにしかない。奥ほど宝も仲間も良い');if(G.cond){const c=CONDS.find(q=>q.k==G.cond);setTimeout(()=>{G.title={s:'今回の条件　'+c.n,sub:c.d,t0:performance.now(),short:false};sfxAt('title',0,1,'mu');toast('今回の条件「'+c.n+'」：'+c.d)},400)}else if(G.blight)setTimeout(()=>showTitle(G.bname,'― 汚染区域 ―'),300);ui();
+ reveal();try{G.lastBand=null;bandEnter()}catch(e){}toast(G.tier<=1?MOVEHINT()+'。敵にぶつかると戦闘。宝を拾ってカバンに詰め、光る出口から帰ろう':G.tier<=3?'潜入した。出口は1Fにしかない。今回は新しい何かに出会うかもしれない':'潜入した。出口は1Fにしかない。奥ほど宝も仲間も良い');if(G.cond){const c=CONDS.find(q=>q.k==G.cond);setTimeout(()=>{G.title={s:'今回の条件　'+c.n,sub:c.d,t0:performance.now(),short:false};sfxAt('title',0,1,'mu');toast('今回の条件「'+c.n+'」：'+c.d)},400)}else if(G.blight)setTimeout(()=>showTitle(G.bname,'― 汚染区域 ―'),300);ui();
 }
 function placeAt(pos){const p=G.p;p.x=pos[0];p.y=pos[1];p.rx=p.x*T;p.ry=p.y*T;G.cam.x=p.rx+4;G.cam.y=p.ry+4;G.lk={x:0,y:0};G.prev=pos.slice()}
 function evInject(){if(!G||G.fi==0||G.ship)return;if(!G.evs)G.evs=[];const q=G.quest;
@@ -2526,7 +2526,7 @@ function coopUI(){const box=h=>{$('modal').innerHTML='<div class="modal"><div cl
  $('cg').onclick=()=>{box('<p>① ホストの合言葉を貼る</p><textarea id="o2" style="width:100%;height:60px;font-size:11px"></textarea><button class="b sub" id="pv2">貼り付ける</button><button class="b go" id="cn">返事を作る</button><button class="b sub" id="cx">やめる</button>');if($('pv2'))$('pv2').onclick=()=>pasteInto('o2');$('cx').onclick=()=>showBase();
   $('cn').onclick=async()=>{let off;try{off=dec($('o2').value)}catch(e){toast('合言葉が読めなかった');return}COOP.guest=true;COOP.host=false;const pc=COOP.pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});pc.ondatachannel=e=>{COOP.dc=e.channel;coopWire()};await pc.setRemoteDescription(off);await pc.setLocalDescription(await pc.createAnswer());box('<p>返事を作っています…</p>');await iceDone(pc);
    box('<p>② この返事をホストに送る。ホストが貼れば、つながる</p><textarea id="a2" readonly style="width:100%;height:80px;font-size:10px">'+enc(pc.localDescription)+'</textarea><button class="b sub" id="cp">コピー</button>');$('cp').onclick=()=>copyFrom('a2');setTimeout(()=>{try{$('a2').focus();$('a2').select()}catch(e){}},50)}}}
-function coopWait(){$('modal').innerHTML='<div class="modal"><div class="box"><h2>相棒として待機中</h2><p>ホストが潜ると、同じ階に降り立つ。<br>あなたは緑の冒険者。十字キーで歩き、敵にぶつかると一緒に戦う。拾った物（4つまで）は、生きて帰れば自分の倉庫に届く。</p></div></div>'}
+function coopWait(){$('modal').innerHTML='<div class="modal"><div class="box"><h2>相棒として待機中</h2><p>ホストが潜ると、同じ階に降り立つ。<br>あなたは緑の冒険者。'+MOVEHINT()+'。敵にぶつかると一緒に戦う。拾った物（4つまで）は、生きて帰れば自分の倉庫に届く。</p></div></div>'}
 // host side
 function coopPlacePartner(){if(!G)return;const p=G.p;const c=DIRS.map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>!G.m[y][x])||[p.x,p.y];G.partner={x:c[0],y:c[1],rx:c[0]*T,ry:c[1]*T,ox:0,oy:0,hp:(G.partner&&G.partner.hp)||30,max:30,heals:(G.partner&&G.partner.heals!=null)?G.partner.heals:3,flip:false,k:'partner',n:'相棒',carry:(G.partner&&G.partner.carry)||0}}
 function coopFloor(){const F={};FKEYS.forEach(k=>F[k]=G[k]);coopSend({t:'floor',F,fi:G.fi,muts:G.muts,cond:G.cond})}
@@ -3297,6 +3297,8 @@ function confirmHome(w){if(G.homeAsk&&performance.now()-G.homeAsk<3000){G.homeAs
 function confirmFlee(){if(G.fleeAsk&&performance.now()-G.fleeAsk<2500){G.fleeAsk=0;return true}G.fleeAsk=performance.now();toast('もう一度押すと逃げる（成功50%）');return false}
 const CTRLS=[['stick','スティック','画面のどこでも押して、その方向へ倒す']];
 let CTRL='stick';
+// 歩き方の案内。タッチ端末ではスティック、キーボードがあれば矢印キーも案内する
+const MOVEHINT=()=>(matchMedia('(pointer:coarse)').matches?'画面を押したまま、行きたい方へ指をずらすと歩く':'矢印キー（WASD）か、画面を押して行きたい方へずらすと歩く');
 function applyCtrl(){const p=$('pad');if(!p)return;p.className='pad'+(CTRL=='sm'?' sm':CTRL=='gh'?' gh':'')+((CTRL=='stick'||CTRL=='flick'||CTRL=='none')?' hide':'');}
 // 手に伝わる手応え。対応していない端末や、設定でオフのときは何もしない
 function buzz(pat){try{if(store('yw70_vib')==='0'||!navigator.vibrate)return;navigator.vibrate(pat)}catch(e){}}

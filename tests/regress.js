@@ -51,7 +51,9 @@ const cases = {
     await dive(p);
     await p.evaluate(() => escape());
     if (!await p.$('#ret')) throw new Error('帰還の画面が出ない');
-    await p.click('#ret'); await p.click('#ret'); await p.waitForTimeout(400);
+    // 1回目で演出を飛ばし、2回目で閉じる（演出が終わっていれば1回目で閉じる）
+    await p.evaluate(() => { const r = document.getElementById('ret'); r.click(); const r2 = document.getElementById('ret'); if (r2 && !r2.classList.contains('out')) r2.click(); });
+    await p.waitForTimeout(400);
     if (await p.$('#ret')) throw new Error('帰還の画面が閉じない');
     await dive(p);
     await p.evaluate(() => die());

@@ -117,8 +117,9 @@ function botTick() {
         await page.screenshot({ path: shot });
         // 本当に固まっているか: 3秒待っても busy が解けないか確かめる
         await page.waitForTimeout(3000);
-        const info = await page.evaluate(() => ({ busy: G.busy, x: G.p.x, y: G.p.y, cur: !!(G.cur && G.cur.cells && G.cur.cells.has && G.cur.cells.has(G.p.x + ',' + G.p.y)), fight: !!G.fight, over: G.over, sheet: G.sheet, map: G.map, modal: document.getElementById('modal').innerText.slice(0, 200) }));
-        report.locks.push({ run, s, last: r, info, shot });
+        const info = await page.evaluate(() => ({ fishing: G.fishing ? { age: performance.now() - G.fishing.t0, bite: G.fishing.bite - G.fishing.t0, input: !!G.fishing.input } : null, def: typeof DEF != 'undefined' && !!DEF, stuck: G.stuck, fi: G.fi, sw: (window.__swl || []).slice(-3), busy: G.busy, x: G.p.x, y: G.p.y, cur: !!(G.cur && G.cur.cells && G.cur.cells.has && G.cur.cells.has(G.p.x + ',' + G.p.y)), fight: !!G.fight, over: G.over, sheet: G.sheet, map: G.map, modal: document.getElementById('modal').innerText.slice(0, 200) }));
+        // 釣りは失敗しても状態が変わらず、最長4.4秒かかるので、釣りの最中は固まりとみなさない
+        if (!info.fishing) report.locks.push({ run, s, last: r, info, shot });
         await page.evaluate(() => { if (G) { G.busy = false; } });
       }
       await page.waitForTimeout(r === 'def' ? 30 : r === 'busy' ? 60 : 70);
