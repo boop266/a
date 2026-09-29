@@ -55,7 +55,7 @@ function botTick() {
   try {
     const m = mainAction && mainAction();
     if (m && m.f && Math.random() < (m.ic == 'down' ? .9 : .5)) { m.f(); return 'main:' + (m.t || m.ic); }
-  } catch (e) { return 'mainErr:' + e.message; }
+  } catch (e) { return 'mainErr:' + e.message + ' @ ' + String(e.stack).split('\n').slice(1, 3).join(' < '); }
   if (Math.random() < .04) { const i = Math.floor(Math.random() * G.bag.items.length); if (G.bag.items[i]) { slotUse(i); return 'slot'; } }
   // 階段へBFS、なければ未探索方向へ
   const p = G.p, goal = G.down || G.exit;

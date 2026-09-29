@@ -61,6 +61,30 @@ const cases = {
     });
     if (r !== 'ok') throw new Error(r);
   },
+  // 待っても、戦っても、環境の時間（火など）は進む
+  async '待つと火が燃え広がる'(p) {
+    await dive(p);
+    const r = await p.evaluate(async () => { G.title = null; const P = G.p; G.oil = new Set(); for (const [a, b] of DIRS8) G.oil.add((P.x + a) + ',' + (P.y + b));
+      const c = DIRS.map(([a, b]) => [P.x + a, P.y + b]).find(([x, y]) => walk(x, y)); ignite(c[0], c[1]); const n0 = G.fires.length;
+      G.busy = false; await doWait(); return [n0, G.fires.length]; });
+    if (!(r[1] > r[0])) throw new Error('待っても火が広がらない: ' + r);
+  },
+  // 蔦・ひび割れた壁・燭台の門が、道具で開く
+  async '環境で開く門'(p) {
+    for (const type of ['vine', 'crack', 'brazier']) {
+      const res = await p.evaluate(async t => {
+        let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); }
+        if (!g) return 'NONE'; G.foes = []; G.title = null;
+        const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y));
+        G.p.x = c[0]; G.p.y = c[1]; const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
+        if (passGim(g)) return '最初から通れる';
+        if (t == 'brazier') { for (const b of g.brz) lightBrazier(g, b) } else { const m = mainAction(); if (!m) return '行動が出ない'; m.f() }
+        for (let k = 0; k < 6 && !g.open; k++) { G.p.hp = G.p.max; G.busy = false; await doWait(); for (let w = 0; w < 50 && G.busy; w++) await new Promise(r => setTimeout(r, 40)) }
+        return g.open && passGim(g) ? 'ok' : '開かない';
+      }, type);
+      if (res !== 'ok') throw new Error(type + ': ' + res);
+    }
+  },
   // 誤字
   async '誤字が無い'(p) {
     const html = require('fs').readFileSync(FILE.replace('file://', ''), 'utf8');
