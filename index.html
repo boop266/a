@@ -818,11 +818,11 @@ const wait=ms=>new Promise(res=>setTimeout(res,ms));
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const DIAGN={'1,1':'右下','1,-1':'右上','-1,1':'左下','-1,-1':'左上'};
-const FKEYS=['cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
+const FKEYS=['twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
-function pickStyle(fi,att){if(att>=14)return 'cave';if(fi==0||att>=10)return 'shiren';{const r=Math.random();if(fi>=4&&r<.07)return 'honey';if(fi>=6&&r<.13)return 'mirrorf';if(r<.85)return 'shiren'}const L=layerOf(fi);const w={cave:3,rooms:2.5,hall:1,ring:1.3,city:L>=2?1.6:.4,mansion:L>=1?1.3:.3,tunnel:1.2};let t=Object.values(w).reduce((a,b)=>a+b,0)*Math.random();for(const k in w){if((t-=w[k])<0)return k}return 'cave'}
+function pickStyle(fi,att){if(att>=14)return 'cave';if(fi==0||att>=10)return 'shiren';{const r=Math.random();if(fi>=4&&r<.07)return 'honey';if(fi>=6&&r<.13)return 'mirrorf';if(r<.6)return 'shiren'}const L=layerOf(fi);const w={cave:3,rooms:2.5,hall:1,ring:1.3,city:L>=2?1.6:.4,mansion:L>=1?1.3:.3,tunnel:1.2};let t=Object.values(w).reduce((a,b)=>a+b,0)*Math.random();for(const k in w){if((t-=w[k])<0)return k}return 'cave'}
 function keepBig(m,min){const reg=Array.from({length:MH},()=>Array(MW).fill(-1));let best=-1,bestN=0,id=0;for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){if(m[y][x]||reg[y][x]>=0)continue;let q=[[x,y]],cnt=0;reg[y][x]=id;while(q.length){const[a,b]=q.pop();cnt++;for(const[dx,dy]of DIRS){const nx=a+dx,ny=b+dy;if(!m[ny][nx]&&reg[ny][nx]<0){reg[ny][nx]=id;q.push([nx,ny])}}}if(cnt>bestN){bestN=cnt;best=id}id++}if(bestN<min)return null;for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(reg[y][x]!==best)m[y][x]=1;return m}
 function genStyled(st){const R_=n=>Math.floor(Math.random()*n);for(let tries=0;tries<40;tries++){const m=Array.from({length:MH},()=>Array(MW).fill(1));const dig=(x,y)=>{if(x>1&&y>1&&x<MW-2&&y<MH-2)m[y][x]=0};const rect=(x0,y0,w,h)=>{for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++)dig(x,y)};const lcor=(a,b,c,d)=>{if(Math.random()<.5){for(let x=Math.min(a,c);x<=Math.max(a,c);x++)dig(x,b);for(let y=Math.min(b,d);y<=Math.max(b,d);y++)dig(c,y)}else{for(let y=Math.min(b,d);y<=Math.max(b,d);y++)dig(a,y);for(let x=Math.min(a,c);x<=Math.max(a,c);x++)dig(x,d)}};
  if(st=='rooms'){const cs=[];for(let i=0;i<11;i++){const w=3+R_(5),h=3+R_(3),x=2+R_(MW-w-4),y=2+R_(MH-h-4);rect(x,y,w,h);cs.push([x+(w>>1),y+(h>>1)])}cs.sort((a,b)=>a[0]-b[0]);for(let i=1;i<cs.length;i++)lcor(cs[i-1][0],cs[i-1][1],cs[i][0],cs[i][1])}
@@ -866,7 +866,16 @@ const scOpen=()=>{try{const o=JSON.parse(store('yw14_sc')||'{}');return o.seed==
 const getEcho=()=>{try{const o=JSON.parse(store('yw14_echo')||'null');return o&&o.seed==WSEED?o:null}catch(e){return null}};
 function genFloor(fi){for(let k=0;k<6;k++){const F=genFloor0(fi);if(F)return F}return genFloor0(0)||genFloor0(1)}
 function genFloor0(fi){const F=seeded(WSEED*31+fi*7919+(G&&G.plan&&G.plan.blight==fi?0:0),()=>genFloorRaw(fi));
- F.items.forEach(it=>{if(it.lf)it.id=lootFor(Math.min(1,fi*.33+.2+Math.random()*.3))});return F}
+ F.items.forEach(it=>{if(it.lf)it.id=lootFor(Math.min(1,fi*.33+.2+Math.random()*.3))});
+ try{floorTwist(F,fi)}catch(e){}return F}
+// 特別な階：環境の遊びが主役になる階。ボスの階・船・汚染区域では起きない
+function floorTwist(F,fi){if(fi<2||BOSSF[fi]||F.ship||F.blight)return;const r=Math.random();const cells=[];for(let y=1;y<MH-1;y++)for(let x=1;x<MW-1;x++)if(!F.m[y][x]&&!(F.water[y]&&F.water[y][x]))cells.push([x,y]);
+ if(r<.09){F.twist='dry';cells.forEach(([x,y])=>{if(Math.random()<.82)F.garden[y][x]=true});
+  const far=cells.filter(([x,y])=>F.dist[y][x]>=10);for(let k=0;k<1+(fi>=10?1:0)&&far.length;k++){const q=far.splice(Math.floor(Math.random()*far.length),1)[0];if(F.foes.some(f=>f.x==q[0]&&f.y==q[1]))continue;F.foes.push(mkFoe('salam',q[0],q[1],Math.min(1,fi*.33)))}}
+ else if(r<.17&&fi>=4){F.twist='oil';F.oil=F.oil||new Set();const n=5+Math.floor(Math.random()*3);for(let k=0;k<n;k++){const c=cells[Math.floor(Math.random()*cells.length)];if(!c||F.dist[c[1]][c[0]]<4)continue;
+   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const x=c[0]+i,y=c[1]+j;if(!F.m[y][x]&&!(F.water[y]&&F.water[y][x])&&Math.random()<.8)F.oil.add(x+','+y)}}}}
+const TWIST={dry:['枯れ野','― 乾いた草が一面に。火ひとつで、階ごと燃え変わる ―','枯れ野：乾いた草が一面に広がる階。火をつければ道が開けるが、燃え広がる先に自分がいないように'],
+ oil:['油の貯蔵庫','― 床のあちこちに、油がたまっている ―','油の貯蔵庫：油だまりのある階。敵を誘い込んで火をつければ、まとめて焼ける。滑るので足元に注意']};
 let GENFI=0;
 const LAYERROOM=[
  ['camp','store','store','nest','garden','kitchen'],
@@ -1458,13 +1467,13 @@ function render(now){
  G.oil&&G.oil.forEach(k=>{const[x,y]=k.split(',').map(Number);if(!G.seen.has(k))return;
   const X=x*T,Y=y*T;
   wc.fillStyle='#120c1e';wc.fillRect(X,Y+1,8,6);
-  wc.fillStyle='#1b1430';wc.fillRect(X,Y,8,8);
+  wc.fillStyle='#241a3e';wc.fillRect(X,Y,8,8);
   // 虹色の膜がゆっくり動く
   for(let yy=1;yy<7;yy++){const w=Math.sin((X+yy*3)*.5+t*.7)+Math.sin((Y-yy*2)*.4-t*.5);
-   if(w>1.1)wc.fillStyle='#6a4a8a';else if(w>.4)wc.fillStyle='#3a5a6a';else if(w>-.2)wc.fillStyle='#4a3a2a';else continue;
+   if(w>1.1)wc.fillStyle='#9a70c0';else if(w>.4)wc.fillStyle='#4a8090';else if(w>-.2)wc.fillStyle='#6a5030';else continue;
    wc.fillRect(X+1,Y+yy,6,1)}
   // ふちの照り
-  wc.fillStyle='#8a7ab0';const gl=Math.floor(t*.8+x*3+y)%6;if(gl<2)wc.fillRect(X+2+gl,Y+2,2,1)});
+  wc.fillStyle='#d0c0f0';const gl=Math.floor(t*.8+x*3+y)%6;if(gl<3)wc.fillRect(X+2+gl,Y+2,2,1)});
  (G.gas||[]).forEach(g=>{if(!G.seen.has(g.x+','+g.y))return;const a=.35+.15*Math.sin(t*3+g.x);
   wc.globalAlpha=a;wc.fillStyle='#7ad08a';wc.fillRect(g.x*T,g.y*T,8,8);wc.globalAlpha=1});
  G.burnt&&G.burnt.forEach(k=>{const[x,y]=k.split(',').map(Number);if(!G.seen.has(k))return;wc.fillStyle='#1a1614';wc.fillRect(x*T+1,y*T+2,6,5);wc.fillStyle='#2a2420';wc.fillRect(x*T+2,y*T+3,4,3)});
@@ -2010,6 +2019,7 @@ function envFoeStep(){const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
    learn('foe_bakudake',FOE_D2.bakudake);fx({type:'boom',x:f.x*T+4,y:f.y*T+4})}}
  if(!G.fight)for(let i=G.foes.length-1;i>=0;i--)if(G.foes[i].hp<=0&&(FOE[G.foes[i].k]||{}).boomer)G.foes.splice(i,1)}
 function envGateStep(){const p=G.p;
+ if(G.twist&&!G.twistShown&&!G.title&&TWIST[G.twist]){G.twistShown=1;const T2=TWIST[G.twist];showTitle(T2[0],T2[1]);learn('tw_'+G.twist,T2[2])}
  (G.rooms||[]).forEach(r=>{if(!r.oilCells||r.woke||r.oilHint)return;if(r.oilCells.some(k=>{const[x,y]=k.split(',').map(Number);return cd(x,y,p.x,p.y)<=2})){r.oilHint=1;sfx('shadow');toast('床がぬめっている。油の匂い……奥で何かが、たくさん寝息を立てている');learn('mhoil','油の染みた部屋：眠っている群れの足元まで油が広がっている。踏み込まずに火を放てば、群れごと焼ける。……燃えた者の持ち物も灰になる')}});(G.gim||[]).forEach(g=>{if(g.open)return;
  if(g.type=='vine'){const f=(G.fires||[]).find(f=>f.x==g.x&&f.y==g.y);if(f&&f.t>=1){for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#ff9a3a',life:.8});openGate(g,'蔦が燃え落ちた','― 焦げた匂いの向こうに、小部屋がある ―')}}
  if(g.type=='brazier')(g.brz||[]).forEach(b=>{if(!b.lit&&(G.fires||[]).some(f=>cd(f.x,f.y,b.x,b.y)<=1))lightBrazier(g,b)});
