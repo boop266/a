@@ -825,7 +825,7 @@ function noise(d,v=.1,fq=1200){if(!AC)return;const t=AC.currentTime,len=AC.sampl
 const LOG=[];
 function showLog(){const ks=Object.keys(KNOW||{});
  const kn=ks.length?ks.map(k=>'<p style="font-size:13px">・'+KNOW[k].t+'</p>').reverse().join(''):'<p class="hint">まだ何も覚えていない。</p>';
- $('modal').innerHTML='<div class="modal"><div class="box">'+reactTable()+'<h2>覚えたこと（'+ks.length+'）</h2>'+kn+'<h2>これまでの出来事</h2>'+(LOG.length?LOG.map(l=>'<p style="font-size:13px">'+l+'</p>').join(''):'<p>まだ何もない。</p>')+'</div></div>'}
+ $('modal').innerHTML='<div class="modal"><div class="box">'+mapTable()+reactTable()+'<h2>覚えたこと（'+ks.length+'）</h2>'+kn+'<h2>これまでの出来事</h2>'+(LOG.length?LOG.map(l=>'<p style="font-size:13px">'+l+'</p>').join(''):'<p>まだ何もない。</p>')+'</div></div>'}
 const SFX={
  tick:()=>{tone(1400,.05,'triangle',.05);tone(2100,.04,'triangle',.03,0,.03)},
  no2:()=>tone(160,.12,'square',.05),
@@ -902,8 +902,10 @@ const FKEYS=['pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','ru
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
-function pickStyle(fi,att){if(att>=14)return 'cave';if(fi==0||att>=10)return 'shiren';{const r=Math.random();if(fi>=4&&r<.06)return 'honey';if(fi>=6&&r<.11)return 'mirrorf';if(r<.36)return 'shiren'}const L=layerOf(fi);const w={cave:2.4,rooms:2,hall:.9,ring:1.1,city:L>=2?1.4:.4,mansion:L>=1?1.1:.3,tunnel:1,maze:fi>=2?1.3:0,cross:1.1,canyon:fi>=3?1.3:0};let t=Object.values(w).reduce((a,b)=>a+b,0)*Math.random();for(const k in w){if((t-=w[k])<0)return k}return 'cave'}
+function pickStyle(fi,att){if(att>=14)return 'cave';if(fi==0||att>=10)return 'shiren';{const r=Math.random();if(fi>=4&&r<.06)return 'honey';if(fi>=6&&r<.11)return 'mirrorf';if(r<.36)return 'shiren'}const L=layerOf(fi);const w={cave:2.4,rooms:2,hall:.9,ring:1.1,city:L>=2?1.4:.4,mansion:L>=1?1.1:.3,tunnel:1,maze:fi>=2?1.3:0,cross:1.1,canyon:fi>=3?1.3:0,islands:1.1,spiral:fi>=2?.9:0,grid:1,diamond:.9,twin:1,comb:1,cells:L>=1?1:.4,burrow:1.1};let t=Object.values(w).reduce((a,b)=>a+b,0)*Math.random();for(const k in w){if((t-=w[k])<0)return k}return 'cave'}
 function keepBig(m,min){const reg=Array.from({length:MH},()=>Array(MW).fill(-1));let best=-1,bestN=0,id=0;for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){if(m[y][x]||reg[y][x]>=0)continue;let q=[[x,y]],cnt=0;reg[y][x]=id;while(q.length){const[a,b]=q.pop();cnt++;for(const[dx,dy]of DIRS){const nx=a+dx,ny=b+dy;if(!m[ny][nx]&&reg[ny][nx]<0){reg[ny][nx]=id;q.push([nx,ny])}}}if(cnt>bestN){bestN=cnt;best=id}id++}if(bestN<min)return null;for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(reg[y][x]!==best)m[y][x]=1;return m}
+const NEWLAY=['islands','spiral','grid','diamond','twin','comb','cells','burrow'];
+const LAYN={shiren:'部屋と通路',honey:'小部屋の巣',mirrorf:'鏡写しの階',cave:'洞窟',rooms:'散らばる部屋',hall:'大広間',ring:'回廊',city:'石の街',mansion:'館',tunnel:'坑道',maze:'迷路',cross:'十字の広間',canyon:'大峡谷',islands:'島々',spiral:'渦巻き',grid:'碁盤の間',diamond:'菱の大広間',twin:'双子の洞',comb:'櫛の回廊',cells:'牢獄',burrow:'蟻の巣'};
 function genStyled(st){const R_=n=>Math.floor(Math.random()*n);for(let tries=0;tries<40;tries++){const m=Array.from({length:MH},()=>Array(MW).fill(1));const dig=(x,y)=>{if(x>1&&y>1&&x<MW-2&&y<MH-2)m[y][x]=0};const rect=(x0,y0,w,h)=>{for(let y=y0;y<y0+h;y++)for(let x=x0;x<x0+w;x++)dig(x,y)};const lcor=(a,b,c,d)=>{if(Math.random()<.5){for(let x=Math.min(a,c);x<=Math.max(a,c);x++)dig(x,b);for(let y=Math.min(b,d);y<=Math.max(b,d);y++)dig(c,y)}else{for(let y=Math.min(b,d);y<=Math.max(b,d);y++)dig(a,y);for(let x=Math.min(a,c);x<=Math.max(a,c);x++)dig(x,d)}};
  if(st=='rooms'){const cs=[];for(let i=0;i<11;i++){const w=3+R_(5),h=3+R_(3),x=2+R_(MW-w-4),y=2+R_(MH-h-4);rect(x,y,w,h);cs.push([x+(w>>1),y+(h>>1)])}cs.sort((a,b)=>a[0]-b[0]);for(let i=1;i<cs.length;i++)lcor(cs[i-1][0],cs[i-1][1],cs[i][0],cs[i][1])}
  else if(st=='hall'){rect(3,3,MW-6,MH-6);for(let y=5;y<MH-5;y+=4)for(let x=5;x<MW-5;x+=4)if(Math.random()<.75){m[y][x]=1;if(Math.random()<.4)m[y][x+1]=1}for(let i=0;i<3;i++){const x=6+R_(MW-12),y=6+R_(MH-12),w=2+R_(5);for(let k=0;k<w;k++)m[y][x+k]=1}const ex=[[2,2+R_(MH-6)],[MW-4,2+R_(MH-6)]];ex.forEach(([x,y])=>rect(x,y,2,3))}
@@ -918,8 +920,25 @@ function genStyled(st){const R_=n=>Math.floor(Math.random()*n);for(let tries=0;t
    [[3,cy-2],[MW-8,cy-2],[cx-3,2],[cx-3,MH-6]].forEach(([x,y])=>rect(x,y,5+R_(2),4));for(let x=5;x<MW-5;x++){dig(x,4);dig(x,MH-5)}for(let y=4;y<MH-4;y++){dig(5,y);dig(MW-6,y)}
    for(let k=0;k<4;k++){const x=6+R_(MW-12),y=5+R_(MH-10);if(Math.abs(x-cx)>6||Math.abs(y-cy)>4)rect(x,y,3,2)}}
  else if(st=='canyon'){rect(2,2,MW-4,MH-4);for(let k=0;k<16;k++){const x=3+R_(MW-6),y=3+R_(MH-6),rr=1+R_(2);for(let j=-rr;j<=rr;j++)for(let i=-rr;i<=rr;i++)if(i*i+j*j<=rr*rr+1&&x+i>2&&y+j>2&&x+i<MW-3&&y+j<MH-3&&Math.abs(x+i-(MW>>1))>2)m[y+j][x+i]=1}}
+ else if(st=='islands'){const C=[];for(let k=0;k<40&&C.length<7;k++){const x=5+R_(MW-10),y=4+R_(MH-8);if(C.some(c=>Math.abs(c[0]-x)<7&&Math.abs(c[1]-y)<5))continue;C.push([x,y])}
+   C.forEach(([x,y])=>{const rx=2+R_(2),ry=2+R_(2);for(let j=-ry;j<=ry;j++)for(let i=-rx;i<=rx;i++)if((i*i)/(rx*rx+.5)+(j*j)/(ry*ry+.5)<=1)dig(x+i,y+j)});C.sort((a,b)=>a[0]-b[0]);for(let i=1;i<C.length;i++)lcor(C[i-1][0],C[i-1][1],C[i][0],C[i][1]);if(C.length>3)lcor(C[0][0],C[0][1],C[C.length-1][0],C[C.length-1][1])}
+ else if(st=='spiral'){rect(2,2,MW-4,MH-4);const sides=[0,1,2,3];for(let i=4,k=0;i<Math.min(MW,MH)/2-1;i+=3,k++){const x0=i,y0=i,x1=MW-1-i,y1=MH-1-i;if(x1-x0<3||y1-y0<2)break;for(let x=x0;x<=x1;x++){m[y0][x]=1;m[y1][x]=1}for(let y=y0;y<=y1;y++){m[y][x0]=1;m[y][x1]=1}
+   const sd=(k+R_(2))%4;const ox=x0+1+R_(Math.max(1,x1-x0-2)),oy=y0+1+R_(Math.max(1,y1-y0-2));if(sd==0){m[y0][ox]=0;m[y0][ox+1<x1?ox+1:ox]=0}else if(sd==1){m[oy][x1]=0}else if(sd==2){m[y1][ox]=0}else m[oy][x0]=0;if(R_(3)==0)m[y1][x0+1+R_(Math.max(1,x1-x0-2))]=0}}
+ else if(st=='grid'){const P=[];for(let gy=0;gy<3;gy++)for(let gx=0;gx<4;gx++){const x=3+gx*7,y=3+gy*6;const w=3+R_(2),h=2+R_(2);rect(x,y,w,h);P.push([x+1,y+1,gx,gy])}
+   P.forEach(([x,y,gx,gy])=>{const r2=P.find(q=>q[2]==gx+1&&q[3]==gy),d2=P.find(q=>q[2]==gx&&q[3]==gy+1);if(r2&&R_(5))lcor(x,y,r2[0],r2[1]);if(d2&&R_(5))lcor(x,y,d2[0],d2[1])})}
+ else if(st=='diamond'){const cx=MW>>1,cy=MH>>1,ax=(MW>>1)-2,ay=(MH>>1)-2;for(let y=2;y<MH-2;y++)for(let x=2;x<MW-2;x++)if(Math.abs(x-cx)/ax+Math.abs(y-cy)/ay<=1.02)dig(x,y);
+   for(let k=0;k<7;k++){const x=cx-6+R_(12),y=cy-4+R_(8);if(Math.abs(x-cx)+Math.abs(y-cy)<3)continue;m[y][x]=1;if(R_(2))m[y][x+1]=1;if(R_(2))m[y+1][x]=1}
+   [[3,2],[MW-7,2],[3,MH-6],[MW-7,MH-6]].forEach(([x,y])=>{if(R_(3)){rect(x,y,4,3);lcor(x+2,y+1,cx,cy)}})}
+ else if(st=='twin'){const L2=[8,MH>>1],R2=[MW-9,MH>>1];[L2,R2].forEach(([x,y])=>{const rx=5+R_(2),ry=6+R_(3);for(let j=-ry;j<=ry;j++)for(let i=-rx;i<=rx;i++)if((i*i)/(rx*rx)+(j*j)/(ry*ry)<=1+Math.random()*.25)dig(x+i,y+j)});
+   let x=L2[0],y=L2[1]-4+R_(8);while(x<R2[0]){dig(x,y);x++;if(R_(4)==0){y+=R_(3)-1;y=Math.max(3,Math.min(MH-4,y));dig(x,y)}}if(R_(2)){lcor(L2[0],3,R2[0],3)}}
+ else if(st=='comb'){const cy=MH>>1;for(let x=2;x<MW-2;x++){dig(x,cy);dig(x,cy+1)}for(let x=4;x<MW-5;x+=5){const up=R_(4)>0,dn=R_(4)>0;if(up){const h=2+R_(2);rect(x,cy-2-h-1,4,h+1);for(let y=cy-2;y<cy;y++)dig(x+1+R_(2),y)}if(dn){const h=2+R_(2);rect(x,cy+3,4,h+1);for(let y=cy+2;y<cy+3;y++)dig(x+1+R_(2),y)}}
+   if(R_(2)){for(let x=3;x<MW-3;x++)dig(x,2);dig(3,3);for(let y=2;y<cy;y++)dig(3,y)}}
+ else if(st=='cells'){const ys=[6,MH-7];ys.forEach(y=>{for(let x=3;x<MW-3;x++)dig(x,y)});for(let y=6;y<=MH-7;y++){dig(3,y);dig(MW-4,y)}
+   ys.forEach(y=>{for(let x=5;x<MW-6;x+=4){if(R_(5)){rect(x,y-4,3,3);dig(x+1,y-1)}if(R_(5)){rect(x,y+2,3,3);dig(x+1,y+1)}}});rect((MW>>1)-3,(MH>>1)-1,6,3);for(let y=7;y<(MH>>1);y++)dig(MW>>1,y);for(let y=(MH>>1)+2;y<MH-7;y++)dig(MW>>1,y)}
+ else if(st=='burrow'){const cx=MW>>1,cy=MH>>1;rect(cx-2,cy-1,4,3);for(let b=0;b<7;b++){let x=cx,y=cy,a=Math.random()*6.3;const len=8+R_(8);for(let i=0;i<len;i++){a+=(Math.random()-.5)*.8;x+=Math.round(Math.cos(a));y+=Math.round(Math.sin(a)*.7);x=Math.max(3,Math.min(MW-4,x));y=Math.max(3,Math.min(MH-4,y));dig(x,y)}
+   const rr=1+R_(2);for(let j=-rr;j<=rr;j++)for(let i=-rr-1;i<=rr+1;i++)if(i*i/((rr+1)*(rr+1))+j*j/(rr*rr)<=1.1)dig(x+i,y+j)}}
  else if(st=='tunnel'){let x=3,y=3+R_(MH-6),d=[1,0];for(let i=0;i<240;i++){dig(x,y);if(Math.random()<.3)dig(x+d[1],y+d[0]);if(Math.random()<.18)d=pick(DIRS);const nx=x+d[0],ny=y+d[1];if(nx<3||ny<3||nx>MW-4||ny>MH-4){d=pick(DIRS);continue}x=nx;y=ny;if(Math.random()<.03){rect(x-2,y-1,4,3)}}}
- const k=keepBig(m,st=='tunnel'?160:220);if(k)return k}return null}
+ const k=keepBig(m,st=='tunnel'?160:(NEWLAY.includes(st)||st=='maze'||st=='cross')?130:220);if(k)return k}return null}
 function genShiren(C0,R0,minRoom){for(let tries=0;tries<30;tries++){const m=Array.from({length:MH},()=>Array(MW).fill(1));const C=C0||3,Rw=R0||3,cw=Math.floor((MW-2)/C),ch=Math.floor((MH-2)/Rw);const cells=[];
  const cells0=C*Rw;const nRooms=Math.min(cells0-1,(C0?8:6)+Math.floor(Math.random()*3));const pickR=new Set();while(pickR.size<nRooms)pickR.add(Math.floor(Math.random()*cells0));const rooms=[];
  for(let j=0;j<Rw;j++)for(let i=0;i<C;i++){const id=j*C+i,x0=1+i*cw,y0=1+j*ch;if(pickR.has(id)){const mn=minRoom||4;const w=mn+Math.floor(Math.random()*Math.max(1,cw-mn-1)),h=Math.max(3,mn-1)+Math.floor(Math.random()*Math.max(1,ch-mn));const x=x0+1+Math.floor(Math.random()*Math.max(1,cw-w-1)),y=y0+1+Math.floor(Math.random()*Math.max(1,ch-h-1));
@@ -928,9 +947,11 @@ function genShiren(C0,R0,minRoom){for(let tries=0;tries<30;tries++){const m=Arra
  const seen=new Set([0]);const st=[0];const edges=[];while(st.length){const c=st[st.length-1];const i=c%C,j=Math.floor(c/C);const nb=[[i+1,j],[i-1,j],[i,j+1],[i,j-1]].filter(([a,b])=>a>=0&&b>=0&&a<C&&b<Rw).map(([a,b])=>b*C+a).filter(n=>!seen.has(n));if(!nb.length){st.pop();continue}const n=nb[Math.floor(Math.random()*nb.length)];seen.add(n);edges.push([c,n]);st.push(n)}
  for(let k=0;k<1+Math.floor(Math.random()*2);k++){const c=Math.floor(Math.random()*(C*Rw)),i=c%C,j=Math.floor(c/C);const nb=[[i+1,j],[i,j+1]].filter(([a,b])=>a<C&&b<Rw).map(([a,b])=>b*C+a);if(nb.length)edges.push([c,nb[Math.floor(Math.random()*nb.length)]])}
  edges.forEach(([a,b])=>cor(cells[a],cells[b]));const k=keepBig(m,120);if(k&&rooms.length>=5){k.rooms=rooms;return k}}return null}
+var GEN_FB=0;
 function genMap(st){if(st=='honey'){for(let k=0;k<20;k++){const g=genShiren(4,3,3);if(g)return g}}
  if(st=='mirrorf'){for(let k=0;k<20;k++){const g=genShiren();if(g){for(let y=0;y<MH;y++)for(let x=0;x<Math.floor(MW/2);x++)g[y][MW-1-x]=g[y][x];const rr=[];(g.rooms||[]).forEach(r=>{rr.push(r);const nx=MW-r.x-r.w;rr.push({x:nx,y:r.y,w:r.w,h:r.h,cx:nx+(r.w>>1),cy:r.cy})});for(let y=1;y<MH-1;y++)g[y][Math.floor(MW/2)]=0;const k2=keepBig(g,200);if(k2){k2.rooms=rr.filter(r=>r.x>1&&r.x+r.w<MW-1);if(k2.rooms.length>=5)return k2}}}}
  if(st=='shiren'){const g=genShiren();if(g)return g}if(st&&st!='cave'&&st!='shiren'){const g=genStyled(st);if(g)return g}
+ if(st&&st!='cave')GEN_FB=1;
  for(let tries=0;tries<80;tries++){
   let m=[];for(let y=0;y<MH;y++){m.push([]);for(let x=0;x<MW;x++)m[y].push(x==0||y==0||x==MW-1||y==MH-1||Math.random()<.44?1:0)}
   for(let it=0;it<4;it++){const n=m.map(r=>r.slice());for(let y=1;y<MH-1;y++)for(let x=1;x<MW-1;x++){let c=0;for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)c+=m[y+j][x+i];n[y][x]=c>=5?1:0}m=n}
@@ -1008,8 +1029,26 @@ const BIOME={
  pillar(F){const P=bioProt(F);let n=0;const pl=[];for(let y=2;y<MH-2;y++)for(let x=2;x<MW-2;x++){if(!bioFloor(F,x,y)||P.has(x+','+y))continue;let open=true;for(let j=-1;j<=1&&open;j++)for(let i=-1;i<=1;i++)if(!bioFloor(F,x+i,y+j)){open=false;break}
    if(!open||pl.some(q=>cd(q[0],q[1],x,y)<3)||Math.random()>.75)continue;pl.push([x,y])}
   if(pl.length<3)return false;pl.forEach(([x,y])=>{F.m[y][x]=1;n++});return true}};
-const BIOW=L=>({dry:[1.1,.6,.8,.5,1.3,.3,.3,1.3,.6,.5][L],oil:.8,chasm:1.3,bush:[2,1.2,.6,.8,2,.6,.6,2,.8,.8][L],ice:[.4,.6,1.8,.8,.4,1.2,1.8,.4,1.2,1][L],mud:[.8,2.2,.4,.8,1.4,1.6,.8,.8,.6,.6][L],glow:[.8,.8,.8,2,.8,1,1.2,1,2,1.6][L],pillar:[.6,.6,1.4,1,.6,1.2,1,.8,1.4,1.4][L],none:2});
-function floorTwist(F,fi){if(fi<1||BOSSF[fi]||F.ship||F.blight)return;const W=BIOW(layerOf(fi));if(fi<4)W.oil=0;if(fi<3)W.chasm=0;if(fi<2){W.dry=0;W.none=3}if(F.mstyle=='canyon'){for(const k in W)W[k]=0;W.chasm=1}
+// 通れなくなる地形の上に、必ず一本は道を通す（溶岩は冷えて固まる）
+function bioOpen(F,blk,fix){const key=(x,y)=>x+','+y;for(let it=0;it<16;it++){const D=Array.from({length:MH},()=>Array(MW).fill(1e9)),par={};const dq=[[F.start[0],F.start[1]]];D[F.start[1]][F.start[0]]=0;
+  while(dq.length){const[cx,cy]=dq.shift();for(const[a,b]of DIRS){const nx=cx+a,ny=cy+b;if(!(F.m[ny]&&F.m[ny][nx]===0))continue;if(F.holes&&F.holes.has(key(nx,ny)))continue;const c=blk.has(key(nx,ny))?1:0;if(D[cy][cx]+c<D[ny][nx]){D[ny][nx]=D[cy][cx]+c;par[key(nx,ny)]=[cx,cy];if(c)dq.push([nx,ny]);else dq.unshift([nx,ny])}}}
+  let tgt=null;for(let y=1;y<MH-1&&!tgt;y++)for(let x=1;x<MW-1;x++){if(F.m[y][x]===0&&!blk.has(key(x,y))&&!(F.holes&&F.holes.has(key(x,y)))&&D[y][x]>0&&D[y][x]<1e9){tgt=[x,y];break}}
+  if(!tgt)break;let c=tgt;while(c&&!(c[0]==F.start[0]&&c[1]==F.start[1])){const k=key(c[0],c[1]);if(blk.has(k)){blk.delete(k);if(fix)fix(k)}c=par[k]}}}
+Object.assign(BIOME,{
+ // 溶岩原：あちこちに溶岩だまり。少しずつ広がる。水をかければ蒸気、氷の瓶で固まる
+ lava(F){F.lava=F.lava||new Set();const P=bioProt(F);bioPatch(F,P,.6,3.3,(x,y)=>{F.lava.add(x+','+y);F.garden[y][x]=false});if(F.lava.size<6)return false;bioOpen(F,F.lava,null);return F.lava.size>=6},
+ // 浸水：床のあちこちに水が張っている。濡れる。雷がよく走る
+ flood(F){const P=bioProt(F);let n=0;bioPatch(F,P,.42,4,(x,y)=>{F.water[y][x]=true;F.garden[y][x]=false;n++});return n>=20},
+ // 蜘蛛の糸原：糸が張りめぐらされている。絡まると動けない。火で焼き払える
+ web(F){F.webs=F.webs||new Set();const P=bioProt(F);bioPatch(F,P,.58,2.4,(x,y)=>F.webs.add(x+','+y));return F.webs.size>=8},
+ // 風穴：強い風が決まった向きに吹き抜ける。火は消え、毒気や蒸気は流され、こちらも押される
+ windy(F){const d=DIRS[Math.floor(Math.random()*4)];F.wind={dx:d[0],dy:d[1],t:0,every:4+Math.floor(Math.random()*3),n:0};return true}});
+Object.assign(BIOPAL,{lava:{stone:['#5a3a34','#4a2e2a','#3c2422','#2e1a1a'],grass:['#5a4030','#4a3426','#3c2a1e','#302018'],amb:[.34,.22,.2]},
+ flood:{stone:['#46586a','#3a4a5a','#2e3c4a','#24303c'],grass:['#3e6a5a','#325848','#28483a','#1e382e'],amb:[.22,.28,.34]},
+ web:{stone:['#4a4452','#3c3844','#302c38','#26222c'],grass:['#4a4a58','#3c3c48','#30303a','#26262e'],amb:[.24,.22,.28]},
+ windy:{stone:['#6a7078','#5a6068','#4a5058','#3c4248'],grass:['#6a8068','#586a56','#485846','#3a4838'],amb:[.28,.3,.32]}});
+const BIOW=L=>({dry:[1.1,.6,.8,.5,1.3,.3,.3,1.3,.6,.5][L],oil:.8,chasm:1.3,bush:[2,1.2,.6,.8,2,.6,.6,2,.8,.8][L],ice:[.4,.6,1.8,.8,.4,1.2,1.8,.4,1.2,1][L],mud:[.8,2.2,.4,.8,1.4,1.6,.8,.8,.6,.6][L],glow:[.8,.8,.8,2,.8,1,1.2,1,2,1.6][L],pillar:[.6,.6,1.4,1,.6,1.2,1,.8,1.4,1.4][L],lava:[0,0,.6,.4,.3,.3,.4,.8,1.2,1.4][L],flood:[.6,1.8,.3,.4,.5,1.8,1.6,.5,.4,.5][L],web:[.3,.4,.8,2.2,.4,.4,.6,.8,.8,.6][L],windy:[.4,.8,.8,.6,.6,.8,1.4,.6,.8,1][L],none:2.4});
+function floorTwist(F,fi){if(fi<1||BOSSF[fi]||F.ship||F.blight)return;const W=BIOW(layerOf(fi));if(fi<4)W.oil=0;if(fi<3){W.chasm=0;W.lava=0;W.windy=0}if(F.wind)W.windy=0;if(fi<2){W.dry=0;W.none=3}if(F.mstyle=='canyon'){for(const k in W)W[k]=0;W.chasm=1}
  let t=Object.values(W).reduce((a,b)=>a+b,0)*Math.random(),k='none';for(const q in W){if((t-=W[q])<0){k=q;break}}
  if(k=='none')return;if(k=='dry'){floorTwist0(F,fi,0);return}if(k=='oil'){floorTwist0(F,fi,.1);return}
  let ok=false;try{ok=BIOME[k](F,fi)}catch(e){ok=false}if(!ok)return;F.twist=k;if(BIOPAL[k])F.th={...F.th,...BIOPAL[k]}}
@@ -1020,6 +1059,10 @@ const TWIST={dry:['枯れ野','― 乾いた草が一面に。火ひとつで、
  mud:['泥沼','― 足首まで沈む泥。急ぐほど、遅れる ―','泥沼：泥に踏み込むと足を取られて一手遅れる。敵も鈍る。火は燃え移らない'],
  glow:['光苔の洞','― 灯りはない。苔だけが、青く光っている ―','光苔：光る苔の上は明るい。見えるぶん、見られる'],
  pillar:['柱の間','― 太い柱が林のように立っている ―','柱：視線を切る物陰になる。柱から柱へ、見つからずに進める'],
+ lava:['溶岩原','― 床のあちこちで、溶岩が赤く息をしている ―','溶岩原：溶岩だまりが少しずつ広がる。落ちれば大火傷。水や氷で冷やせば固まる'],
+ flood:['浸水した階','― 床に水が張っている。足音が、ぴちゃりと響く ―','浸水：水の張った床。濡れた物は湿り、雷は水を伝って遠くまで走る'],
+ web:['糸の原','― 白い糸が、階じゅうに張りめぐらされている ―','糸の原：蜘蛛の糸に絡まると動けない。刃物で払うか、火で焼き払える'],
+ windy:['風穴','― 冷たい風が、ひとつの方向へ吹き抜けていく ―','風穴：強い風が決まった向きに吹く。火は消え、毒気や蒸気は流され、こちらも押される'],
  oil:['油の貯蔵庫','― 床のあちこちに、油がたまっている ―','油の貯蔵庫：油だまりのある階。敵を誘い込んで火をつければ、まとめて焼ける。滑るので足元に注意']};
 let GENFI=0;
 const LAYERROOM=[
@@ -1040,14 +1083,14 @@ function themeFilter(fi,list){const L=layerOf(fi);const ok=(LAYERMOB[L]||[]).con
 function genFloorRaw(fi){GENFI=fi;
  const th=THEMES[fi];
  for(let attempt=0;attempt<20;attempt++){
- const mstyle=pickStyle(fi,attempt);const m=genMap(mstyle);
+ let mstyle=pickStyle(fi,attempt);GEN_FB=0;const m=genMap(mstyle);if(GEN_FB)mstyle='cave';
  const carved=[];
  for(let a=0;a<2500&&carved.length<(fi==0?2:3);a++){const fx=1+r(MW-2),fy=1+r(MH-2);if(m[fy][fx])continue;const[dx,dy]=pick(DIRS);
   const cor=[[fx+dx,fy+dy],[fx+dx*2,fy+dy*2]];const cx=fx+dx*4,cy=fy+dy*4;const room=[];for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)room.push([cx+i,cy+j]);
   const all=[...cor,...room];const inAll=(X,Y)=>all.some(q=>q[0]==X&&q[1]==Y);let ok=true;
   for(const[x,y]of all){if(x<2||y<2||x>MW-3||y>MH-3||!m[y][x]){ok=false;break}if(x==cor[0][0]&&y==cor[0][1])continue;for(let j=-1;j<=1&&ok;j++)for(let i=-1;i<=1;i++){const X=x+i,Y=y+j;if(!m[Y][X]&&!inAll(X,Y)){ok=false;break}}if(!ok)break}
   if(!ok)continue;all.forEach(([x,y])=>m[y][x]=0);carved.push({gate:cor[0],pocket:[cor[1],...room]})}
- if(carved.length<2&&attempt<19&&!(mstyle=='hall'||mstyle=='city'||mstyle=='shiren'||mstyle=='maze'||mstyle=='cross'||mstyle=='canyon'))continue;
+ if(carved.length<2&&attempt<19&&!(mstyle=='hall'||mstyle=='city'||mstyle=='shiren'||mstyle=='maze'||mstyle=='cross'||mstyle=='canyon'||NEWLAY.includes(mstyle)))continue;
  const floors=[];for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(!m[y][x])floors.push([x,y]);
  const pk=new Set();carved.forEach(c=>[c.gate,...c.pocket].forEach(q=>pk.add(q+'')));
  const outside=floors.filter(f=>!pk.has(f+''));outside.sort((a,b)=>a[0]-b[0]);const start=outside[r(6)];
@@ -2233,6 +2276,7 @@ function envFoeStep(){try{pwaterStep()}catch(e){}const p=G.p;const seen=f=>G.see
    learn('foe_bakudake',FOE_D2.bakudake);fx({type:'boom',x:f.x*T+4,y:f.y*T+4})}}
  if(!G.fight)for(let i=G.foes.length-1;i>=0;i--)if(G.foes[i].hp<=0&&(FOE[G.foes[i].k]||{}).boomer)G.foes.splice(i,1)}
 function envGateStep(){const p=G.p;
+ mapSeen();
  if(G.twist&&!G.twistShown&&!G.title&&TWIST[G.twist]){G.twistShown=1;const T2=TWIST[G.twist];showTitle(T2[0],T2[1]);learn('tw_'+G.twist,T2[2])}
  (G.rooms||[]).forEach(r=>{if(!r.oilCells||r.woke||r.oilHint)return;if(r.oilCells.some(k=>{const[x,y]=k.split(',').map(Number);return cd(x,y,p.x,p.y)<=2})){r.oilHint=1;sfx('shadow');toast('床がぬめっている。油の匂い……奥で何かが、たくさん寝息を立てている');learn('mhoil','油の染みた部屋：眠っている群れの足元まで油が広がっている。踏み込まずに火を放てば、群れごと焼ける。……燃えた者の持ち物も灰になる')}});(G.gim||[]).forEach(g=>{if(g.open)return;
  if(g.type=='vine'&&(G.gas||[]).some(q=>cd(q.x,q.y,g.x,g.y)<=1)){for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#b0a060',life:.8});openGate(g,'蔦が枯れ落ちた','― 毒気に当てられて、茶色く縮んでいく ―');learn('pz_vine2','蔦の門は、毒気に当てると枯れ落ちる');return}
@@ -2650,6 +2694,12 @@ const REACT=[
  {k:'wetshock',a:'雷',b:'濡れた者',r:'水から出ていても、しびれる'},
  {k:'poisonwater',a:'毒',b:'水',r:'水が毒に変わり、中の者を蝕む'},
  {k:'windgas',a:'風',b:'毒気',r:'流されていく'}];
+let MAPD={};try{MAPD=JSON.parse(store('yw71_maps')||'{}')||{}}catch(e){}
+const TWN=()=>['none',...Object.keys(TWIST)];
+function mapSeen(){try{if(!G||!G.mstyle||G.ship||BOSSF[G.fi])return;const k=G.mstyle+'|'+(G.twist||'none');if(MAPD[k])return;MAPD[k]=1;store('yw71_maps',JSON.stringify(MAPD))}catch(e){}}
+function mapTable(){const L=Object.keys(LAYN),B=TWN();const tot=L.length*B.length,n=Object.keys(MAPD).filter(k=>{const[a,b]=k.split('|');return L.includes(a)&&B.includes(b)}).length;
+ const lay=L.filter(a=>B.some(b=>MAPD[a+'|'+b])),bio=B.filter(b=>L.some(a=>MAPD[a+'|'+b]));
+ return '<h2>歩いた地形（'+n+'/'+tot+'）</h2><p style="font-size:13px">地図の形 '+lay.length+'/'+L.length+'：'+L.map(a=>lay.includes(a)?LAYN[a]:'？').join('・')+'</p><p style="font-size:13px">地形の性格 '+bio.length+'/'+B.length+'：'+B.map(b=>bio.includes(b)?(b=='none'?'ふつう':TWIST[b][0]):'？').join('・')+'</p>'}
 let REACTD={};try{REACTD=JSON.parse(store('yw70_react')||'{}')||{}}catch(e){}
 function react(k,x,y){try{const R=REACT.find(q=>q.k==k);if(!R)return;if(x!=null&&!(G.seen&&G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=9))return;
  if(REACTD[k])return;REACTD[k]=1;store('yw70_react',JSON.stringify(REACTD));const n=Object.keys(REACTD).length;
