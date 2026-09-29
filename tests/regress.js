@@ -151,7 +151,50 @@ const cases = {
     await p.evaluate(() => die());
     if (!await p.$('#ret.fall')) throw new Error('倒れたの画面が出ない');
   },
+  // 敵は壁の向こうが見えず、小石の音に寄っていき、気づいていない小さな敵は背後から一撃で仕留められる
+  async '視線・音・暗殺'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {};
+      let f = put('gob', 8, 8, true); await enemiesMove(); o.open = f.aware;
+      G.foes = []; G.m[7][7] = G.m[8][7] = G.m[9][7] = 1; f = put('gob', 8, 8, true); await enemiesMove(); o.wall = f.aware || 0;
+      G.m[7][7] = G.m[8][7] = G.m[9][7] = 0; G.foes = [];
+      f = put('gob', 16, 11, false); G.bag.items.push({ id: 'koishi', x: 0, y: 0, rot: 0, n: 2 }); G.faceX = 1; G.faceY = 0; throwStone(G.bag.items.length - 1);
+      await new Promise(r => setTimeout(r, 300)); for (let k = 0; k < 6; k++) await enemiesMove(); o.stone = [f.x, f.y, f.aware || 0];
+      G.foes = []; f = put('gob', 6, 8, false); await startFight([f], contactMode(f)); await new Promise(r => setTimeout(r, 1200)); o.ass = [f.hp, !!G.fight, G.bodies.length];
+      return o;
+    });
+    if (r.open !== 1 || r.wall !== 0) throw new Error('視線: ' + JSON.stringify(r));
+    if (r.stone[0] !== 11 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
+    if (r.ass[0] > 0 || r.ass[1] || r.ass[2] !== 1) throw new Error('暗殺: ' + JSON.stringify(r));
+  },
+  // 相性の悪い種族は勝手に争い、追ってくる敵も天敵の隣で足を止める
+  async '縄張り争い'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const a = put('skel', 10, 8, false), b = put('beetle', 11, 8, true);
+      for (let i = 0; i < 12 && G.foes.length > 1; i++) await enemiesMove();
+      const o = { left: G.foes.length, bodies: G.bodies.length };
+      G.foes = []; G.p.x = 4; G.p.y = 8; const c = put('skel', 9, 8, true); c.aware = 2; put('beetle', 7, 9, false);
+      for (let t = 0; t < 3; t++) await enemiesMove(); o.chaser = [c.x, !!c.feud, !!G.fight];
+      return o;
+    });
+    if (r.left !== 1 || r.bodies !== 1) throw new Error('争わない: ' + JSON.stringify(r));
+    if (!r.chaser[1] || r.chaser[2]) throw new Error('追手が止まらない: ' + JSON.stringify(r));
+  },
 };
+
+// 見通しのいい何もない部屋（暗い）に立たせる
+async function arena(p) {
+  await dive(p);
+  await p.evaluate(() => {
+    G.title = null; const H = G.m.length, W = G.m[0].length;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
+    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
+    G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
+    window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
+  });
+}
 
 async function dive(p) {
   await p.evaluate(() => { document.getElementById('modal').innerHTML = ''; const r = document.getElementById('ret'); if (r) r.remove(); newRaid(null, [], null, 0); });
