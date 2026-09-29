@@ -219,6 +219,23 @@ const cases = {
     });
     if (!r.dig || r.dark || !r.fire || !r.fetch || !r.lock) throw new Error(JSON.stringify(r));
   },
+  // 混乱した敵は同士討ちし、餌付けした獣はなついて仲間になり、群れの長を倒すと残りは逃げる
+  async '敵の状態'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const W = ms => new Promise(r => setTimeout(r, ms)); const give = (id, n) => { G.bag.items.push({ id, x: 0, y: 0, rot: 0, n }); return G.bag.items.length - 1; };
+      const o = {}; G.p.x = 5; G.p.y = 8; for (let y = 2; y <= 14; y++) for (let x = 2; x <= 20; x++) G.seen.add(x + ',' + y);
+      const a = put('skel', 10, 8), b = put('skel', 11, 8); G.faceX = 1; G.faceY = 0; throwPowder(give('konran', 2)); await W(400);
+      const h0 = a.hp + b.hp; for (let t = 0; t < 4; t++) await enemiesMove(); o.conf = h0 - Math.max(0, a.hp) - Math.max(0, b.hp); o.cfight = !!G.fight;
+      G.foes = []; const r = put('rat', 8, 8, true); let i = give('jerky'); await slotUse(i); await slotUse(i); await W(400); o.charm = r.charm > 0;
+      i = give('fish'); await slotUse(i); await slotUse(i); await W(400); o.scout = G.items.some(it => it.id == 'rat' && it.scout);
+      G.foes = []; put('skel', 12, 8); put('skel', 13, 8); const L = put('lskel', 12, 9); L.max = L.hp = 20; markLeaders(G); o.lead = L.lead;
+      L.hp = 0; onFoeDeath(L); G.foes = G.foes.filter(f => f.hp > 0); o.fear = G.foes.every(f => f.fear > 0);
+      try { JSON.stringify(G.foes); o.json = 1 } catch (e) { o.json = 0 }
+      return o;
+    });
+    if (r.conf <= 0 || r.cfight || !r.charm || !r.scout || !r.lead || !r.fear || !r.json) throw new Error(JSON.stringify(r));
+  },
 };
 
 // 見通しのいい何もない部屋（暗い）に立たせる
