@@ -1957,6 +1957,21 @@ function lightBrazier(g,b){if(b.lit)return;b.lit=true;sfx('summon');fx({type:'ri
 function blastAt(x,y){(G.gim||[]).forEach(g=>{if(g.type=='crack'&&!g.open&&cd(g.x,g.y,x,y)<=1){for(let k=0;k<6;k++)fx({type:'spark',x:g.x*T+2+k,y:g.y*T+1+(k%3),c:'#a49ab0',life:.7});openGate(g,'壁が崩れ落ちた','― 風の吹いてくる方へ ―')}})}
 function plantBomb(g){const i=G.bag.items.findIndex(q=>q.id=='bomb'&&!q.wet);if(i<0)return;G.bag.items.splice(i,1);g.fuse=3;sfx('summon');tone(420,.5,'sawtooth',.02,3);
  toast('壁に爆弾を仕掛けて、導火線に火をつけた。離れろ！（3ターン）');learn('pz_crack','ひび割れた壁：爆発で崩れる。爆弾を仕掛けるか、床に置いた火薬に火をつけて誘爆させる');ui()}
+function envFoeStep(){const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
+ for(const f of G.foes){if(f.hp<=0||f.dormant)continue;const d=FOE[f.k]||{};
+  // 油撒き虫：前にいたマスに油を残す
+  if(d.oiler){if(f.lx!=null&&(f.lx!==f.x||f.ly!==f.y)&&walk(f.lx,f.ly)&&!(G.water[f.ly]&&G.water[f.ly][f.lx])){G.oil=G.oil||new Set();G.oil.add(f.lx+','+f.ly)}f.lx=f.x;f.ly=f.y}
+  // 火吹き蜥蜴：気づいていて近ければ、こちらのまわりの燃えるものに火を吐く
+  if(d.breath&&f.aware&&cd(f.x,f.y,p.x,p.y)<=3&&Math.random()<.3){const c=DIRS8.map(([a,b])=>[p.x+a,p.y+b]).filter(([x,y])=>burnable(x,y)&&!(G.fires||[]).some(q=>q.x==x&&q.y==y));
+   if(c.length){const q=pick(c);fx({type:'bolt',x:f.rx+4,y:f.ry+2,tx:q[0]*T+4,ty:q[1]*T+4,life:.3});if(ignite(q[0],q[1],'quiet')){sfx('boom');if(seen(f)){toast(f.n+'が火を吐いた！');learn('foe_salam',FOE_D2.salam)}}}}
+  // 水袋蛙：まわりの火を消す
+  if(d.douse&&(G.fires||[]).length){const n0=G.fires.length;G.fires=G.fires.filter(q=>cd(q.x,q.y,f.x,f.y)>1);if(G.fires.length<n0){fx({type:'ring',x:f.rx+4,y:f.ry+2,c:'#9ad0ff'});if(seen(f)){sfx('splash');toast(f.n+'が水を吐いて、火を消した');learn('foe_frog',FOE_D2.frog)}}}
+  // 爆ぜ茸：火が付くと破裂する
+  if(d.boomer&&(G.fires||[]).some(q=>q.x==f.x&&q.y==f.y)){f.hp=0;sfx('boom');G.shake=14;
+   DIRS8.forEach(([a,b])=>{const q=foeAt(f.x+a,f.y+b);if(q&&q!==f)hit(q,6);ignite(f.x+a,f.y+b,'quiet')});
+   if(cd(f.x,f.y,p.x,p.y)<=1){G.p.hp=Math.max(1,G.p.hp-5);G.hurt=8;G.lastHit=f.n;toast(f.n+'の破裂に巻き込まれた！（-5）')}else if(seen(f))toast(f.n+'が炎で破裂した！');
+   learn('foe_bakudake',FOE_D2.bakudake);fx({type:'boom',x:f.x*T+4,y:f.y*T+4})}}
+ if(!G.fight)for(let i=G.foes.length-1;i>=0;i--)if(G.foes[i].hp<=0&&(FOE[G.foes[i].k]||{}).boomer)G.foes.splice(i,1)}
 function envGateStep(){const p=G.p;
  (G.rooms||[]).forEach(r=>{if(!r.oilCells||r.woke||r.oilHint)return;if(r.oilCells.some(k=>{const[x,y]=k.split(',').map(Number);return cd(x,y,p.x,p.y)<=2})){r.oilHint=1;sfx('shadow');toast('床がぬめっている。油の匂い……奥で何かが、たくさん寝息を立てている');learn('mhoil','油の染みた部屋：眠っている群れの足元まで油が広がっている。踏み込まずに火を放てば、群れごと焼ける。……燃えた者の持ち物も灰になる')}});(G.gim||[]).forEach(g=>{if(g.open)return;
  if(g.type=='vine'){const f=(G.fires||[]).find(f=>f.x==g.x&&f.y==g.y);if(f&&f.t>=1){for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#ff9a3a',life:.8});openGate(g,'蔦が燃え落ちた','― 焦げた匂いの向こうに、小部屋がある ―')}}
@@ -2065,7 +2080,7 @@ function craftTick(){
  if(G.blur>0){G.blur--;if(!G.blur){toast('視界がはっきりしてきた');reveal()}}
  if(G.compass>0)G.compass--;
  if(G.lures&&G.lures.length){for(let i=G.lures.length-1;i>=0;i--){const L=G.lures[i];if(++L.t>40){G.lures.splice(i,1);if(G.seen.has(L.x+','+L.y))toast('糸人形が、ぼろぼろになって崩れた')}}}}
-function turnTick(){if(G._tt)return;G._tt=1;try{stayTick();try{envGateStep()}catch(e){}try{floodStep();dripStep();curStep();wetTick();crackStep();caveStep();fireStep();lavaStep();steamStep();gasStep();coatTick();windStep();comboStep();specialStep();craftTick()}catch(e){}}finally{G._tt=0}
+function turnTick(){if(G._tt)return;G._tt=1;try{stayTick();try{envGateStep()}catch(e){}try{envFoeStep()}catch(e){}try{floodStep();dripStep();curStep();wetTick();crackStep();caveStep();fireStep();lavaStep();steamStep();gasStep();coatTick();windStep();comboStep();specialStep();craftTick()}catch(e){}}finally{G._tt=0}
  return turnTick2()}
 function turnTick2(){if(G.poison>0){G.poison--;G.p.hp=Math.max(1,G.p.hp-1);fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#b06cf0'})}G.bag.items.forEach(pc=>{if(pc.id=='sealstone'){pc.inst=pc.inst||{};pc.t=(pc.t==null?30:pc.t)-1}});const i=G.bag.items.findIndex(pc=>pc.id=='sealstone'&&pc.t<=0);if(i>=0){G.bag.items.splice(i,1);toast('封じ石が、砂になって崩れた');ui()}}
 function lurkCheck(){(G.foes||[]).forEach(f=>{if(f.lurk&&f.hp>0&&Math.abs(f.x-G.p.x)+Math.abs(f.y-G.p.y)<=1){f.lurk=0;f.aware=2;G.shake=8;sfx('spot');toast('物陰から'+f.n+'が飛び出した！')}})}
@@ -2979,7 +2994,14 @@ Object.assign(SP,{
  fungus:["..........","...kkk....","..kMMMk...",".kMwMwMk..","kMMMMMMMk.",".kMMMMMk..","...kMk....","...kMk....","..kkMkk..."],
  rust:["..........","..........","...kkkk...","..kxxxxk..",".kxXxxXxk.","kxxrxxrxxk",".kxxxxxxk.","..kxkkxk..",".k.k..k.k."],
  wallbug:["..........","..........","...kkkk...","..kbbbbk..",".kbEbbEbk.","kbbbbbbbbk",".kbkkkkbk.","..k....k..",".........."]});
-const FOE_D2={mirror:'鏡蟲：硬い。斬った分の半分が、こちらへ跳ね返る',mosser:'苔喰い：放っておくと、死体を食べて太っていく',memeat:'記憶喰い：殴られると、覚えた瓶の中身を一つ忘れる',shadowme:'影法師：こちらの構えを真似る。弾きも真似る',warden:'鍵守：鍵を持って逃げ回る。倒せば落とす',bell:'鈴蟲：弱いが、斬ると鳴り響いて周りが起きる',burrow:'土潜り：地面に潜って、すぐ隣に出てくる',snuff:'灯消し：近づくと灯りを吸って、あたりが暗くなる',bonepile:'骨積み：動かないが、一度だけ骨たちを起こす',twin:'双子人形：片方が壊れると、もう片方が荒れ狂う',glass:'硝子蜘蛛：一撃で砕けるが、砕けた場所に糸が残る',mud:'泥人：殴られると足が重くなり、次の一歩が遅れる',fungus:'月光茸：動かないが、まわりの敵を癒し続ける',rust:'錆喰い：武器を錆びさせる。今回の探索の間、切れ味が落ちる',wallbug:'石喰い虫：壁を食べて、新しい穴を開ける'};
+// ===== 環境を動かす住人 =====
+Object.assign(FOE,{
+ oilbug:{n:'油撒き虫',hp:9,atk:3,oiler:1,flam:1},
+ salam:{n:'火吹き蜥蜴',hp:12,atk:5,breath:1,fireOK:1,rng:[1,2]},
+ frog:{n:'水袋蛙',hp:10,atk:3,douse:1,wet:1,aqua:1},
+ bakudake:{n:'爆ぜ茸',hp:6,atk:0,still:1,boomer:1,flam:1,frail:1}});
+Object.assign(SP,{oilbug:recolor(SP.beetle,{V:'U',v:'t',r:'y'}),salam:recolor(SP.rat,{b:'o',r:'y'}),frog:recolor(SP.puru,{P:'l',p:'L',q:'y'}),bakudake:recolor(SP.fungus,{M:'r',w:'y'})});
+const FOE_D2={oilbug:'油撒き虫：歩いた跡に油を残す。跡に火をつければ、本体まで燃え移る',salam:'火吹き蜥蜴：近くの草や油に火を吐く。火に強い。うまく誘えば、火種にもなる',frog:'水袋蛙：まわりの火を水で消してしまう。燃やす作戦の天敵',bakudake:'爆ぜ茸：動かない。火が付くと破裂して、まわりを吹き飛ばす。ひび割れた壁も崩れる',mirror:'鏡蟲：硬い。斬った分の半分が、こちらへ跳ね返る',mosser:'苔喰い：放っておくと、死体を食べて太っていく',memeat:'記憶喰い：殴られると、覚えた瓶の中身を一つ忘れる',shadowme:'影法師：こちらの構えを真似る。弾きも真似る',warden:'鍵守：鍵を持って逃げ回る。倒せば落とす',bell:'鈴蟲：弱いが、斬ると鳴り響いて周りが起きる',burrow:'土潜り：地面に潜って、すぐ隣に出てくる',snuff:'灯消し：近づくと灯りを吸って、あたりが暗くなる',bonepile:'骨積み：動かないが、一度だけ骨たちを起こす',twin:'双子人形：片方が壊れると、もう片方が荒れ狂う',glass:'硝子蜘蛛：一撃で砕けるが、砕けた場所に糸が残る',mud:'泥人：殴られると足が重くなり、次の一歩が遅れる',fungus:'月光茸：動かないが、まわりの敵を癒し続ける',rust:'錆喰い：武器を錆びさせる。今回の探索の間、切れ味が落ちる',wallbug:'石喰い虫：壁を食べて、新しい穴を開ける'};
 Object.assign(FOE,{});
 try{Object.keys(TRAITS0).forEach(k=>{if(FOE[k])Object.assign(FOE[k],TRAITS0[k])})}catch(e){}
 // ===== ほとんどのモンスターを仲間にできるようにする =====
@@ -3050,12 +3072,12 @@ Object.assign(SP,{thief:["..........","..........","......kk..","..kkkkbbk.",".k
 try{Object.keys(BONLY).forEach(k=>{const b=BONLY[k];if(!SP[k]&&SP[b.base])SP[k]=recolor(SP[b.base],b.rec)})}catch(e){}
 // 層ごとの住人。ここにない者は、その層には出ない
 const LAYERMOB=[
- ['bat','thief','eater','mosser','fungus'],
- ['slimeB','mud','burrow','caller','eater'],
- ['bonepile','shieldk','warden','shade','rust'],
- ['spitter','twin','wallbug','snuff','thief'],
- ['fungus','mosser','mud','eater','memeat'],
- ['slimeB','burrow','mud','caller','wallbug'],
+ ['bat','oilbug','thief','bakudake','eater','mosser','fungus'],
+ ['frog','slimeB','mud','burrow','caller','eater'],
+ ['bonepile','salam','shieldk','warden','shade','rust'],
+ ['spitter','salam','twin','wallbug','snuff','thief'],
+ ['fungus','bakudake','mosser','oilbug','mud','eater','memeat'],
+ ['slimeB','frog','burrow','mud','caller','wallbug'],
  ['shade','snuff','mirror','bonepile','warden'],
  ['memeat','twin','eater','mosser','shadowme'],
  ['golem','mirror','glass','snuff','shadowme'],
