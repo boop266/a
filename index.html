@@ -329,6 +329,13 @@ body.sheeton .ctl.menu,body.mapon .ctl.menu{display:none!important}
 body.lowhp .stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;box-shadow:inset 0 0 90px 30px #b0201899;animation:lowhp 1.1s ease-in-out infinite}
 @keyframes lowhp{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){body.lowhp .stage::before{animation:none}}
+
+/* 工房 */
+.kobo{display:flex;gap:10px;align-items:center;margin:8px 0 4px;padding:8px 10px;border-radius:4px;background:#1a1620;box-shadow:inset 0 0 0 1px #3a3442}
+.kobo.on{background:#221c14;box-shadow:inset 0 0 0 1px #6e5426}
+.kobo .ic{width:36px;height:36px;flex:none;display:grid;place-items:center;background:#0e0c12;border-radius:3px}
+.kobo .ic canvas{width:32px;height:32px;image-rendering:pixelated}
+.kobo b{display:block;font-size:14px;color:var(--ink)}.kobo small{font-size:12px;color:var(--dim);line-height:1.4}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
@@ -425,7 +432,10 @@ Object.assign(ITEM,{
  hyouka:{n:'氷の瓶',v:'凍らす',d:'叩きつけると、まわりの水・溶岩・炎が凍る。凍った水は歩けて、電気も通さない',sh:[1,1]},
  raika:{n:'雷の瓶',v:'放電',d:'叩きつけると放電する。水につながっていれば、その水全体に電気が走る（自分が水の中なら自分にも）',sh:[1,1]},
  boots:{n:'革の長靴',v:'履く',d:'持っているだけで感電しない',sh:[1,1],passive:1},
- raiseki:{n:'雷の結晶',d:'放電石の芯。まだ指先がぴりぴりする',sh:[1,1],tre:60}});
+ raiseki:{n:'雷の結晶',d:'放電石の芯。まだ指先がぴりぴりする。工房に持ち込むと、雷の道具が作れるようになる',sh:[1,1],tre:60},
+ tsuta:{n:'蔦の束',d:'門をふさいでいた蔦。よく乾いている。工房に持ち込むと、火の道具が作れるようになる',sh:[1,1],tre:20},
+ haguruma:{n:'古い歯車',d:'崩れた仕掛けの中から出てきた。工房に持ち込むと、渡る道具が作れるようになる',sh:[1,1],tre:35},
+ kokuyou:{n:'黒曜石',d:'溶岩が急に冷えてできた、黒いガラス。工房に持ち込むと、氷の道具が作れるようになる',sh:[1,1],tre:45}});
 Object.assign(ITEM,{
  axe:{n:'斧',v:'割る',d:'6。隣の敵をまとめて薙ぐ。蔦の門を切り開ける',sh:[1,2],weapon:1,dmg:6,post:14,blade:1,cleave:1},
  whip:{n:'鞭',v:'打つ',d:'3。間合い1〜2。当てた敵を手前へ引き寄せる（穴や炎の上にも）',sh:[1,2],weapon:1,dmg:3,post:8,rng:[1,2],pull:1},
@@ -713,6 +723,9 @@ Object.assign(IC,{
  hyouka:["...kk...","..kEEk..",".kkkkkk.",".kMwMMk.","kMMwMMMk","kMwMMwMk","kMMMMMMk",".kkkkkk."],
  raika:["...kk...","..kEEk..",".kkkkkk.",".kvyvvk.","kvvyyvvk","kvvvyvvk","kvvyvvvk",".kkkkkk."],
  boots:["........",".kkk....",".kUUk...",".kUUk...",".kUUk...",".kUUUkk.",".kUUUUUk",".kkkkkkk"],
+ tsuta:["..kk.k..",".klLkLk.","kLlkLlk.",".kLlLk..","..kLlk..",".klkLlk.","kLk.kLk.",".k...k.."],
+ haguruma:["..k.k...",".kEkEk..","kEEeEEk.","keEkEek.","kEEeEEk.",".kEkEk..","..k.k...","........"],
+ kokuyou:["...kk...","..kvvk..",".kvZvZk.","kZvwvZvk","kvZvvZk.",".kZvZk..","..kkk...","........"],
  raiseki:["...kk...","..kyyk..",".kyMyk..","kyMyyMk.",".kyyMyk.","..kyyk..","...kk...","........"]});
 Object.assign(IC,{
  axe:["..kkk...",".kEEEk..","kEEEEtk.","kEEEkt..",".kkkt...","...kt...","..kt....",".kt....."],
@@ -2016,7 +2029,7 @@ function ignite(x,y,src){if(!burnable(x,y)||(G.fires||[]).some(f=>f.x==x&&f.y==y
  G.fires=G.fires||[];G.fires.push({x,y,t:0,life:5+r(4)});if(src!=='quiet'){sfx('boom');}
  return true}
 // ===== 環境で開く門 =====
-function openGate(g,title,sub){if(g.open)return;g.open=true;sfx('door');G.shake=12;fx({type:'ring',x:g.x*T+4,y:g.y*T+2,c:'#ffd35a'});showTitle(title,sub);note('pz:'+g.type)}
+function openGate(g,title,sub){if(g.open)return;g.open=true;{const drop={vine:'tsuta',crack:'haguruma',volt:'haguruma'}[g.type];if(drop)G.items.push({x:g.x,y:g.y,id:drop,drop:now(),how:'仕掛けを解いて'})}sfx('door');G.shake=12;fx({type:'ring',x:g.x*T+4,y:g.y*T+2,c:'#ffd35a'});showTitle(title,sub);note('pz:'+g.type)}
 function lightBrazier(g,b){if(b.lit)return;b.lit=true;sfx('summon');fx({type:'ring',x:b.x*T+4,y:b.y*T+2,c:'#ff9a3a'});
  const n=g.brz.filter(q=>q.lit).length;if(n>=g.brz.length)openGate(g,'燭台がすべて灯った','― 格子がゆっくりと上がる ―');else toast('燭台に火が灯った（'+n+'/'+g.brz.length+'）')}
 function blastAt(x,y){(G.gim||[]).forEach(g=>{if(g.type=='crack'&&!g.open&&cd(g.x,g.y,x,y)<=1){for(let k=0;k<6;k++)fx({type:'spark',x:g.x*T+2+k,y:g.y*T+1+(k%3),c:'#a49ab0',life:.7});openGate(g,'壁が崩れ落ちた','― 風の吹いてくる方へ ―')}})}
@@ -2028,7 +2041,7 @@ const isIce=(x,y)=>!!(G.ice&&G.ice.has(x+','+y));
 function freezeAt(cx,cy,rad){G.ice=G.ice||new Set();let nw=0,nl=0,nf=0,nfoe=0;
  for(let y=cy-rad;y<=cy+rad;y++)for(let x=cx-rad;x<=cx+rad;x++){if(cd(x,y,cx,cy)>rad||!G.water[y])continue;const k=x+','+y;
   if(G.water[y][x]){G.water[y][x]=false;G.ice.add(k);nw++;if(G.cur&&G.cur.cells)G.cur.cells.delete(k)}
-  if(G.lava&&G.lava.has(k)){G.lava.delete(k);(G.burnt=G.burnt||new Set()).add(k);nl++}
+  if(G.lava&&G.lava.has(k)){G.lava.delete(k);(G.burnt=G.burnt||new Set()).add(k);nl++;if(nl==1&&!G.items.some(i=>i.x==x&&i.y==y))G.items.push({x,y,id:'kokuyou',drop:now(),how:'溶岩を凍らせて'})}
   if((G.fires||[]).some(f=>f.x==x&&f.y==y)){G.fires=G.fires.filter(f=>!(f.x==x&&f.y==y));nf++}
   const f=foeAt(x,y);if(f&&(nw||isIce(x,y))&&isIce(x,y)){f.stun=Math.max(f.stun||0,3);f.frozen=3;nfoe++}}
  for(let k=0;k<8;k++)fx({type:'spark',x:cx*T+4+(k%4-2)*4,y:cy*T+2+(k>>2)*4,c:'#c8f0ff',life:.8});sfx('splash');tone(1600,.4,'sine',.03,.5);
@@ -2116,7 +2129,7 @@ function lavaStep(){if(!G.lava||!G.lava.size)return;const p=G.p;
   const o=DIRS.map(([a,b])=>[p.x+a,p.y+b]).filter(([x,y])=>walk(x,y)&&!G.lava.has(x+','+y));if(o.length){const q=pick(o);p.x=q[0];p.y=q[1];toast('慌てて飛びのいた')}}
  {const solid=[];G.lava.forEach(k=>{const[x,y]=k.split(',').map(Number);
   if(DIRS.some(([a,b])=>G.water[y+b]&&G.water[y+b][x+a]))solid.push([k,x,y])});
-  solid.forEach(([k,x,y])=>{G.lava.delete(k);G.burnt=G.burnt||new Set();G.burnt.add(k);
+  solid.forEach(([k,x,y],si)=>{G.lava.delete(k);G.burnt=G.burnt||new Set();G.burnt.add(k);if(si==0&&Math.random()<.5&&!G.items.some(i=>i.x==x&&i.y==y))G.items.push({x,y,id:'kokuyou',drop:now(),how:'溶岩が冷えて'});
    DIRS.forEach(([a,b])=>{if(G.water[y+b]&&G.water[y+b][x+a])G.water[y+b][x+a]=false});
    G.steam=G.steam||[];G.steam.push({x,y,t:0,life:12});
    if(G.seen.has(k)){sfx('splash');toast('溶岩が水に触れて、黒く固まった。渡れる');
@@ -3125,7 +3138,7 @@ function drawHome(cv){
  if(show.mon){let a=SP[show.mon.k];if(show.mon.inst&&show.mon.inst.shiny&&SHINY[show.mon.k])a=recolor(a,SHINY[show.mon.k].map);c.save();c.translate(88,48);c.scale(2,2);spr(c,a,0,0);c.restore()}
  farm.slice(0,3).forEach((m,q)=>{if(show.mon&&q==0)return;spr(c,SP[m.k],120+q*11-(deco.includes('仲間の小屋')?0:10),60)});
 }
-const PRICE={hyouka:30,raika:30,boots:60,axe:45,whip:40,kama:35,katana:80,kikan:70,bigpot:35,gun:90,ammo:20,hook:40,shovel:25,bomb:15,smoke:20,rope:15,fish:10,omamori:40,potion:15,v_heal:12,v_poison:12,v_fire:12,v_sight:12,v_sleep:12,v_haste:12};
+const PRICE={bridge:25,firearrow:25,torch:20,hyouka:30,raika:30,boots:60,axe:45,whip:40,kama:35,katana:80,kikan:70,bigpot:35,gun:90,ammo:20,hook:40,shovel:25,bomb:15,smoke:20,rope:15,fish:10,omamori:40,potion:15,v_heal:12,v_poison:12,v_fire:12,v_sight:12,v_sleep:12,v_haste:12};
 let vill=[];try{vill=JSON.parse(store('yw22_vill')||'[]')||[]}catch(e){}let pets=[];try{pets=JSON.parse(store('yw22_pets')||'[]')||[]}catch(e){}
 const VILL={pan:{n:'パン屋のおばさん',l:[...(store('yw24_title')?['「'+store('yw24_title')+'、だって？ 大げさだねえ。あんたはあんたさ」']:[]),'「おかえり。焼きたてだよ、ひとつ持っていきな」','「地下の匂いがするねえ。まずは手を洗っておいで」','「生きて帰ってきた。それだけで、今日はいい日さ」']},kid:{n:'村の子',l:['「ねえねえ、下ってどんなとこ？ おばけいた？」','「おれもおっきくなったら潜る！ ……うそ、こわい」','「その鞄、かっこいい！」']},oldwoman:{n:'老婆',l:['「孫を連れて帰ってくれて、ありがとうねえ」','「あんたのぶんも、毎朝お祈りしてるよ」','「編み物、あげようか。……まだ途中だけど」']},mago:{n:'老婆の孫',l:['「もう、こわくないよ。おばあちゃんがいるから」','「ゴブリンね、ほんとはお腹すいてただけなんだって」','「いつか、いっしょに潜りたい」']},kenta:{n:'片脚の冒険者',l:['「命の恩人だ。脚はなくしたが、釣りならできる」','「深い階の話、聞きたいか？ ……いや、やめとこう。夢に出る」','「無理はするな。帰ってくるのが、一番の稼ぎだ」']},ningyo:{n:'人形のニーナ',l:['「おれいに、きた。ここ、あったかい」','「よるになると、わたし、すこしうごくの。ないしょ」','「かお、かえしてくれて、ありがと」']},singer:{n:'竪琴の音',l:['どこからか、「かえりみち」の歌が聞こえる。','井戸のそばに、崩れた竪琴が飾ってある。誰が置いたのだろう。','風が吹くと、竪琴がひとりでに鳴る。']}};
 const PETS=[['dog','犬',60],['cat','猫',60],['chick','ひよこ',30]];
@@ -3291,6 +3304,8 @@ function showBreedBook(back){let br={};try{br=JSON.parse(store('yw70_breed')||'{
  $('modal').innerHTML=`<div class="modal"><div class="box"><h2>配合の書（${n}/${ks.length}）</h2><p class="hint">性質の違う2匹を掛け合わせると、どこにもいない子が生まれる。伝説は、親のどちらかが配合限定の子のときだけ。</p><div class="bbgrid">${ks.map(card).join('')}</div><div class="btns"><button class="b sub" id="bbx">閉じる</button></div></div></div>`;
  document.querySelectorAll('#modal .bb .ic').forEach(e=>{const k=e.dataset.k;if(k)e.append(iconCanvas(k))});
  $('bbx').onclick=()=>{$('modal').innerHTML='';if(back)back()}}
+// 工房の図面：仕掛けから出てくる素材 → 仕掛けを解く道具
+const KOBO=[{mat:'tsuta',out:['firearrow','torch'],hint:'蔦の門を開けると出てくる'},{mat:'haguruma',out:['hook','bridge'],hint:'ひび割れた壁や雷の扉を開けると出てくる'},{mat:'raiseki',out:['raika','boots'],hint:'水に電気を流す石を砕くと出てくる'},{mat:'kokuyou',out:['hyouka'],hint:'溶岩を凍らせたり、水で固めたりすると出てくる'}];
 function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}if(sv){h='探索の途中';p='潜った記録は残っている。下の「探索の続きから」を押せば、さっきの階に戻れる。'}}
 
  let tab=(h&&(h.startsWith('脱出')||h=='探索の途中'||h=='倒れた'))||!h?'vill':'prep',sel=[],bring=null,load=[],ins=null,smSel=null,whSel=null;if(!shopStock)shopStock=rollShop();
@@ -3298,12 +3313,12 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
  const cap=()=>{const d=BAGS[bagType];return d.w*d.h-d.holes.length};
  const chip=(id,txt,on,fn,cls,inst)=>{const c=document.createElement('button');c.className='chip'+(on?' on':'')+(cls?' '+cls:'');c.append(iconCanvas(id.startsWith('bag:')?'bag':id,inst));c.append(txt);c.onclick=fn;if(inst&&inst.ep)c.style.borderColor='#8a6a24';return c};
  const draw=()=>{
-  const UN={vill:1,prep:runs>=1,wh:runs>=1,shop:false,codex:runs>=1,farm:farm.length>0,smith:runs>=2,home:runs>=2};let prevU=[];try{prevU=JSON.parse(store('yw31_unl')||'[]')}catch(e){}const nowU=Object.keys(UN).filter(k=>UN[k]);const newU=nowU.filter(k=>!prevU.includes(k)&&k!='vill');if(newU.length)store('yw31_unl',JSON.stringify(nowU));
-  const tabs0=[['vill','村'],['prep','準備'],['wh','倉庫'],['smith','鍛冶屋'],['farm','牧場'],['home','家'],['codex','図鑑']];const tabs=tabs0.filter(t=>UN[t[0]]);if(!UN[tab])tab='vill';
-  const PN={vill:'村',prep:'準備',wh:'倉庫',shop:'商人',smith:'鍛冶屋',farm:'牧場',home:'家',codex:'図鑑'};
+  const UN={vill:1,prep:runs>=1,wh:runs>=1,kobo:runs>=1,shop:false,codex:runs>=1,farm:farm.length>0,smith:runs>=2,home:runs>=2};let prevU=[];try{prevU=JSON.parse(store('yw31_unl')||'[]')}catch(e){}const nowU=Object.keys(UN).filter(k=>UN[k]);const newU=nowU.filter(k=>!prevU.includes(k)&&k!='vill');if(newU.length)store('yw31_unl',JSON.stringify(nowU));
+  const tabs0=[['vill','村'],['prep','準備'],['wh','倉庫'],['kobo','工房'],['smith','鍛冶屋'],['farm','牧場'],['home','家'],['codex','図鑑']];const tabs=tabs0.filter(t=>UN[t[0]]);if(!UN[tab])tab='vill';
+  const PN={vill:'村',prep:'準備',wh:'倉庫',kobo:'工房',shop:'商人',smith:'鍛冶屋',farm:'牧場',home:'家',codex:'図鑑'};
   $('modal').innerHTML=`<div class="modal mbase"><div class="box base"><div class="bhead">${tab!='vill'?'<button class="bback" id="bback" aria-label="村へ戻る">‹</button>':'<span class="bback"></span>'}<h2>${PN[tab]}</h2><span class="bgold">${gold}G</span></div><div class="chips" id="tabs" style="display:none"></div><div id="tb" class="bbody">${h&&tab=='vill'?`<h2 class="bmsg">${h}</h2><p>${p}</p>`:''}</div><div class="bfoot" id="bf"></div></div></div>`;
   if($('bback'))$('bback').onclick=()=>{tab='vill';h='';window.HOMESEL=null;window.HOMEPUT=null;draw()};
-  const pd=()=>{const tb=$('tb'),bf=$('bf');if(tab=='vill'&&runs>0){const hh=document.createElement('h3');hh.textContent='村の中';const gr=document.createElement('div');gr.className='places';[['wh','倉庫','持ち帰った物'],['smith','鍛冶屋','形を変える'],['farm','牧場','仲間たち'],['home','家','飾る・眺める'],['codex','図鑑','覚えたこと']].forEach(([k,n,d])=>{if(!UN[k])return;const b=document.createElement('button');b.className='place'+(newU.includes(k)?' pulse':'');b.innerHTML='<b>'+n+'</b><small>'+d+'</small>';b.onclick=()=>{if(k=='codex'){showCodex(draw);return}tab=k;h='';draw()};gr.append(b)});const first=tb.querySelector('canvas');const anchor=first?first.nextSibling:tb.firstChild;tb.insertBefore(gr,anchor&&anchor.nextSibling||null);tb.insertBefore(hh,gr)}
+  const pd=()=>{const tb=$('tb'),bf=$('bf');if(tab=='vill'&&runs>0){const hh=document.createElement('h3');hh.textContent='村の中';const gr=document.createElement('div');gr.className='places';[['wh','倉庫','持ち帰った物'],['kobo','工房','道具を作る'],['smith','鍛冶屋','形を変える'],['farm','牧場','仲間たち'],['home','家','飾る・眺める'],['codex','図鑑','覚えたこと']].forEach(([k,n,d])=>{if(!UN[k])return;const b=document.createElement('button');b.className='place'+(newU.includes(k)?' pulse':'');b.innerHTML='<b>'+n+'</b><small>'+d+'</small>';b.onclick=()=>{if(k=='codex'){showCodex(draw);return}tab=k;h='';draw()};gr.append(b)});const first=tb.querySelector('canvas');const anchor=first?first.nextSibling:tb.firstChild;tb.insertBefore(gr,anchor&&anchor.nextSibling||null);tb.insertBefore(hh,gr)}
   const go=[...tb.querySelectorAll('button.go')].find(b=>/^(潜る|準備して潜る|同じ構成ですぐ潜る)/.test(b.textContent)&&!/同じ構成/.test(b.textContent))||[...tb.querySelectorAll('button.go')].find(b=>/潜る/.test(b.textContent));if(go)bf.append(go);else{const b=document.createElement('button');b.className='b go';b.textContent=UN.prep?'準備して潜る':'潜る';b.onclick=()=>{if(UN.prep){tab='prep';h='';draw()}else{$('modal').innerHTML='';newRaid(null,[],null,0)}};bf.append(b)}};
   if(tabs.length<2)$('tabs').style.display='none';if(newU.length&&runs>0){const nm=Object.fromEntries(tabs0);setTimeout(()=>toast('新しく開いた：'+newU.map(k=>nm[k]).join('・')),400)}
   tabs.forEach(([k,n])=>{const b=document.createElement('button');if(newU.includes(k))b.classList.add('pulse');b.className='chip'+(tab==k?' on':'');b.textContent=n;b.onclick=()=>{tab=k;h='';whSel=null;if(k=='codex'){showCodex(draw);return}draw()};$('tabs').append(b)});
@@ -3367,6 +3382,14 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
    P('目のたくさんある商人。「きょうの品は、これだけ」。帰ってくるたびに品が入れ替わる。武器は売っていない。');
    const c=C();shopStock.forEach(st=>{if(st.sold)return;if(st.id.startsWith('bag:')){const k=st.id.slice(4),d=BAGS[k],pr=BAGPRICE[k];c.append(chip(st.id,d.n+'（'+d.w+'×'+d.h+(d.holes.length?'・穴あき':'')+'）'+pr+'G',false,()=>{if(gold<pr){toast('お金が足りない');return}gold-=pr;bagsOwned.push(k);st.sold=true;saveMeta();sfx('rare');draw()}));return}
     const pr=PRICE[st.id];c.append(chip(st.id,ITEM[st.id].n+' '+pr+'G',false,()=>{if(gold<pr){toast('お金が足りない');return}gold-=pr;wh.push({id:st.id});st.sold=true;saveMeta();sfx('pick');draw()}))});
+  }
+  if(tab=='kobo'){let bp=[];try{bp=JSON.parse(store('yw80_bp')||'[]')||[]}catch(e){}
+   P('工房の親方「仕掛けの中から出てきた物を持ってきな。それを手がかりに、仕掛けを解く道具をこしらえてやる。一度覚えりゃ、あとは金さえあればいつでも作る」');
+   KOBO.forEach(b=>{const on=bp.includes(b.mat),have=wh.findIndex(o=>o.id==b.mat);const box=document.createElement('div');box.className='kobo'+(on?' on':'');
+    const ic=document.createElement('span');ic.className='ic';if(on||codex['i:'+b.mat]||have>=0)ic.append(iconCanvas(b.mat));box.append(ic);
+    const tx=document.createElement('div');tx.innerHTML='<b>'+(on||have>=0?ITEM[b.mat].n:'？？？')+'</b><small>'+(on?'作れる：'+b.out.map(k=>ITEM[k].n).join('・'):'手がかり：'+b.hint)+'</small>';box.append(tx);tb.append(box);
+    if(on)b.out.forEach(k=>B('作る：'+ITEM[k].n+'（'+ITEM[k].d.slice(0,22)+'…）'+PRICE[k]+'G',()=>{if(gold<PRICE[k]){toast('お金が足りない');sfx('no');return}gold-=PRICE[k];wh.push({id:k});saveMeta();sfx('pick');toast(ITEM[k].n+'を作ってもらった。倉庫に入れた');draw()},'sub'));
+    else if(have>=0)B('持ち込む：'+ITEM[b.mat].n+'（'+b.out.map(k=>ITEM[k].n).join('・')+'が作れるようになる）',()=>{wh.splice(have,1);bp.push(b.mat);store('yw80_bp',JSON.stringify(bp));b.out.forEach(k=>wh.push({id:k}));saveMeta();sfx('fanfare');buzz([30,40,30]);h='';toast('親方が図面を引いた。'+b.out.map(k=>ITEM[k].n).join('・')+'が作れるようになった（最初の1つはおまけ）');draw()},'go')});
   }
   if(tab=='smith'){
    P('鍛冶屋は強くしない。形を変えるか、性質を付け替えるか、呪いを解くか。1つの装備に1回だけ。見た目と異名はそのまま残る。');

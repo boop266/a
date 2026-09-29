@@ -119,6 +119,15 @@ const cases = {
       return bad.join(' / ') || 'ok' });
     if (r !== 'ok') throw new Error(r);
   },
+  // 工房：素材を持ち込むと、道具がずっと作れるようになる
+  async '工房の図面'(p) {
+    const r = await p.evaluate(() => { runs = 3; gold = 100; wh = [{ id: 'kokuyou' }]; saveMeta(); document.getElementById('modal').innerHTML = ''; showBase('', ''); [...document.querySelectorAll('.place')].find(b => /工房/.test(b.textContent)).click();
+      [...document.querySelectorAll('#tb button')].find(b => /持ち込む：黒曜石/.test(b.textContent)).click();
+      const ok1 = JSON.parse(store('yw80_bp')).includes('kokuyou') && wh.some(o => o.id == 'hyouka');
+      [...document.querySelectorAll('#tb button')].find(b => /作る：氷の瓶/.test(b.textContent)).click();
+      return ok1 && gold == 70 && wh.filter(o => o.id == 'hyouka').length == 2 ? 'ok' : JSON.stringify({ gold, wh }) });
+    if (r !== 'ok') throw new Error(r);
+  },
   // 誤字
   async '誤字が無い'(p) {
     const html = require('fs').readFileSync(FILE.replace('file://', ''), 'utf8');
