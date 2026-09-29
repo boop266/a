@@ -825,7 +825,7 @@ function noise(d,v=.1,fq=1200){if(!AC)return;const t=AC.currentTime,len=AC.sampl
 const LOG=[];
 function showLog(){const ks=Object.keys(KNOW||{});
  const kn=ks.length?ks.map(k=>'<p style="font-size:13px">・'+KNOW[k].t+'</p>').reverse().join(''):'<p class="hint">まだ何も覚えていない。</p>';
- $('modal').innerHTML='<div class="modal"><div class="box"><h2>覚えたこと（'+ks.length+'）</h2>'+kn+'<h2>これまでの出来事</h2>'+(LOG.length?LOG.map(l=>'<p style="font-size:13px">'+l+'</p>').join(''):'<p>まだ何もない。</p>')+'</div></div>'}
+ $('modal').innerHTML='<div class="modal"><div class="box">'+reactTable()+'<h2>覚えたこと（'+ks.length+'）</h2>'+kn+'<h2>これまでの出来事</h2>'+(LOG.length?LOG.map(l=>'<p style="font-size:13px">'+l+'</p>').join(''):'<p>まだ何もない。</p>')+'</div></div>'}
 const SFX={
  tick:()=>{tone(1400,.05,'triangle',.05);tone(2100,.04,'triangle',.03,0,.03)},
  no2:()=>tone(160,.12,'square',.05),
@@ -898,7 +898,7 @@ const wait=ms=>new Promise(res=>setTimeout(res,ms));
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const DIAGN={'1,1':'右下','1,-1':'右上','-1,1':'左下','-1,-1':'左上'};
-const FKEYS=['bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
+const FKEYS=['pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
@@ -2157,6 +2157,7 @@ function spill(x,y,kind,n){const set=kind=='oil'?(G.oil=G.oil||new Set()):null;
  return cells.length}
 const burnable=(x,y)=>{if(!walk(x,y))return false;{const k=x+','+y;if(G.mud&&G.mud.has(k))return false;if((G.bush&&G.bush.has(k))||(G.bridges&&G.bridges.has(k)))return true}if(G.gim&&G.gim.some(g=>!g.open&&((g.type=='vine'&&g.x==x&&g.y==y)||(g.type=='brazier'&&(g.brz||[]).some(b=>!b.lit&&b.x==x&&b.y==y)))))return true;if(hasOil(x,y))return !(G.water[y]&&G.water[y][x]);if(G.water[y][x])return false;if(G.webs&&G.webs.has(x+','+y))return true;return !!(G.garden&&G.garden[y]&&G.garden[y][x])};
 function ignite(x,y,src){if(!burnable(x,y)||(G.fires||[]).some(f=>f.x==x&&f.y==y))return false;
+ try{const k=x+','+y;if(hasOil(x,y))react('oilfire',x,y);else if((G.garden[y]&&G.garden[y][x])||(G.bush&&G.bush.has(k))||(G.webs&&G.webs.has(k))||(G.bridges&&G.bridges.has(k)))react('burn',x,y)}catch(e){}
  G.fires=G.fires||[];G.fires.push({x,y,t:0,life:5+r(4)});if(src!=='quiet'){sfx('boom');}
  return true}
 // ===== 環境で開く門 =====
@@ -2170,7 +2171,7 @@ function plantBomb(g){const i=G.bag.items.findIndex(q=>q.id=='bomb'&&!q.wet);if(
 // 氷：水・溶岩・炎を凍らせる。凍った水は歩けて、流れも電気も止まる。炎が隣に来ると溶けて水に戻る
 const isIce=(x,y)=>!!(G.ice&&G.ice.has(x+','+y));
 const inBush=(x,y)=>!!(G.bush&&G.bush.has(x+','+y));const inMud=(x,y)=>!!(G.mud&&G.mud.has(x+','+y));const onGlow=(x,y)=>!!(G.glowm&&G.glowm.has(x+','+y));
-function freezeAt(cx,cy,rad){G.ice=G.ice||new Set();let nw=0,nl=0,nf=0,nfoe=0;
+function freezeAt(cx,cy,rad){G.ice=G.ice||new Set();let nw=0,nl=0,nf=0,nfoe=0;setTimeout(()=>{if(nw)react('freeze',cx,cy)},0);
  for(let y=cy-rad;y<=cy+rad;y++)for(let x=cx-rad;x<=cx+rad;x++){if(cd(x,y,cx,cy)>rad||!G.water[y])continue;const k=x+','+y;
   if(G.water[y][x]){G.water[y][x]=false;G.ice.add(k);nw++;if(G.cur&&G.cur.cells)G.cur.cells.delete(k)}
   if(G.lava&&G.lava.has(k)){G.lava.delete(k);(G.burnt=G.burnt||new Set()).add(k);nl++;if(nl==1&&!G.items.some(i=>i.x==x&&i.y==y))G.items.push({x,y,id:'kokuyou',drop:now(),how:'溶岩を凍らせて'})}
@@ -2186,6 +2187,8 @@ const insulated=()=>G.bag.items.some(q=>q.id=='boots');
 function shockSet(cells,dmg,src){const p=G.p;let n=0;
  G.volt=(G.volt||[]).concat([...cells].slice(0,60).map(k=>{const[x,y]=k.split(',').map(Number);return {x,y,t:performance.now()}}));
  G.foes.forEach(f=>{if(f.hp>0&&cells.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt){hit(f,dmg+((FOE[f.k]||{}).wet?3:0));f.stun=Math.max(f.stun||0,1);n++}});
+ try{const c0=[...cells].map(k=>k.split(',').map(Number)).sort((a,b)=>cd(a[0],a[1],G.p.x,G.p.y)-cd(b[0],b[1],G.p.x,G.p.y))[0];if(c0)react('shock',c0[0],c0[1])}catch(e){}
+ G.foes.forEach(f=>{if(f.hp>0&&f.wetC>0&&!cells.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt&&DIRS8.some(([a,b])=>cells.has((f.x+a)+','+(f.y+b)))){hit(f,Math.max(2,dmg-2));f.stun=Math.max(f.stun||0,1);n++;fx({type:'spark',x:f.rx+4,y:f.ry,c:'#fff0a0'});react('wetshock',f.x,f.y)}});
  let me=false;if(cells.has(p.x+','+p.y)){if(insulated()){toast('足元を電気が走った。……ゴム底の長靴のおかげで平気だ')}else{me=true;G.p.hp=Math.max(0,G.p.hp-Math.max(3,dmg-2));G.hurt=10;G.flashW=performance.now()+90;G.lastHit=src||'感電';sfx('hurt');buzz([30,20,30,20,60])}}
  sfx('boom');tone(2400,.25,'sawtooth',.03,.3);G.shake=Math.max(G.shake||0,8);
  if(n||me)toast((n?n+'体が感電した':'')+(n&&me?'。':'')+(me?'自分も感電した！':''));
@@ -2204,7 +2207,7 @@ function smashVolt(i){const p=G.p;G.bag.items.splice(i,1);
  (G.gim||[]).forEach(g=>{if(g.type=='volt'&&!g.open&&cd(g.x,g.y,p.x,p.y)<=2)openGate(g,'雷の扉が動いた','― 電気を浴びて、錆びた歯車が回りだす ―')});ui()}
 function envHazardStep(){const p=G.p;
  // 炎が隣に来た氷は溶ける
- if(G.ice&&G.ice.size&&(G.fires||[]).length){[...G.ice].forEach(k=>{const[x,y]=k.split(',').map(Number);if(G.fires.some(f=>cd(f.x,f.y,x,y)<=1)){G.ice.delete(k);G.water[y][x]=true;(G.steam=G.steam||[]).push({x,y,t:0,life:6});if(G.seen.has(k))toast('氷が溶けて、湯気が上がった')}})}
+ if(G.ice&&G.ice.size&&(G.fires||[]).length){[...G.ice].forEach(k=>{const[x,y]=k.split(',').map(Number);if(G.fires.some(f=>cd(f.x,f.y,x,y)<=1)){G.ice.delete(k);G.water[y][x]=true;(G.steam=G.steam||[]).push({x,y,t:0,life:6});react('melt',x,y);if(G.seen.has(k))toast('氷が溶けて、湯気が上がった')}})}
  // 凍った敵は少しずつ溶ける
  G.foes.forEach(f=>{if(f.frozen>0)f.frozen--});
  // 放電石：同じ水の中にいる者を2ターンごとに感電させる。前のターンにぱちぱちと予告する
@@ -2214,7 +2217,7 @@ function envHazardStep(){const p=G.p;
  // 雷魚：同じ水の中にこちらがいると、3ターンごとに放電する
  G.foes.forEach(f=>{if(f.hp<=0||!(FOE[f.k]||{}).volt||f.stun>0)return;if(!inWater(f.x,f.y))return;f.vt=(f.vt||0)+1;const body=waterBody(f.x,f.y);
   if(body.has(p.x+','+p.y)||G.foes.some(o=>o!==f&&o.hp>0&&body.has(o.x+','+o.y))){if(f.vt%3==0){fx({type:'ring',x:f.rx+4,y:f.ry+2,c:'#ffe060'});shockSet(body,5,f.n)}else if(f.vt%3==2&&G.seen.has(f.x+','+f.y))toast(f.n+'の体が光りはじめた……')}})}
-function envFoeStep(){const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
+function envFoeStep(){try{pwaterStep()}catch(e){}const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
  for(const f of G.foes){if(f.hp<=0||f.dormant)continue;const d=FOE[f.k]||{};
   // 油撒き虫：前にいたマスに油を残す
   if(d.oiler){if(f.lx!=null&&(f.lx!==f.x||f.ly!==f.y)&&walk(f.lx,f.ly)&&!(G.water[f.ly]&&G.water[f.ly][f.lx])){G.oil=G.oil||new Set();G.oil.add(f.lx+','+f.ly)}f.lx=f.x;f.ly=f.y}
@@ -2248,10 +2251,11 @@ function fireStep(){const F=G.fires;if(!F||!F.length)return;const p=G.p;
   // 焼けたものは消える
   if(G.webs&&G.webs.has(f.x+','+f.y)&&f.t>=2){G.webs.delete(f.x+','+f.y);if(G.seen.has(f.x+','+f.y))toast('糸が焼け落ちた')}
   if(G.bush&&f.t>=2&&G.bush.delete(f.x+','+f.y)&&G.garden[f.y])G.garden[f.y][f.x]=false;
+  if(G.mud&&G.mud.size&&f.t==2)DIRS.forEach(([a,b])=>{const k=(f.x+a)+','+(f.y+b);if(G.mud.has(k)){G.mud.delete(k);(G.rubble=G.rubble||[]);fx({type:'spark',x:(f.x+a)*T+4,y:(f.y+b)*T+3,c:'#c8a870'});react('dry',f.x+a,f.y+b);if(!G.dryHint&&G.seen.has(k)){G.dryHint=1;toast('火に炙られて、泥が乾いて固まった')}}});
   if(G.bridges&&f.t>=3&&G.bridges.has(f.x+','+f.y)){const k=f.x+','+f.y;G.bridges.delete(k);G.holes=G.holes||new Set();G.holes.add(k);f.life=f.t;sfxAt('thud',(f.x-p.x)/7,1);if(G.seen.has(k)){toast('橋が燃え落ちた');learn('bridgefire','橋は燃える：燃え落ちた橋は穴になる。追っ手を断つことも、帰り道を失うこともある')}
    const q=foeAt(f.x,f.y);if(q)holeSwallow(q);if(p.x==f.x&&p.y==f.y)fallDown('燃える橋ごと落ちた')}
   // 水に触れると蒸気
-  if(DIRS.some(([a,b])=>G.water[f.y+b]&&G.water[f.y+b][f.x+a])&&f.t==2){G.steam=G.steam||[];G.steam.push({x:f.x,y:f.y,t:0,life:10+r(8)});if(cd(f.x,f.y,p.x,p.y)<=6){sfx('splash');toast('火と水がぶつかって、蒸気が噴き上がった');learn('steam','蒸気：火が水に触れると噴き上がる。中にいると、まわりが見えない')}}
+  if(DIRS.some(([a,b])=>G.water[f.y+b]&&G.water[f.y+b][f.x+a])&&f.t==2){G.steam=G.steam||[];G.steam.push({x:f.x,y:f.y,t:0,life:10+r(8)});react('steam',f.x,f.y);if(cd(f.x,f.y,p.x,p.y)<=6){sfx('splash');toast('火と水がぶつかって、蒸気が噴き上がった');learn('steam','蒸気：火が水に触れると噴き上がる。中にいると、まわりが見えない')}}
   // 上にいるものは焼ける
   if(f.x==p.x&&f.y==p.y&&f.t%2==0){G.p.hp=Math.max(1,G.p.hp-2);G.hurt=6;fx({type:'num',s:'-2',x:p.rx+4,y:p.ry-9,c:'#ff9a3a'});toast('炎の中だ！')}
   {const bi=(G.items||[]).findIndex(it=>it.x==f.x&&it.y==f.y&&(it.id=='bomb'||it.id=='ammo'||it.id=='steamb'||it.id=='flash'));
@@ -2413,6 +2417,7 @@ function pzBuild(gim,m,free,take,used,water,notes){const near=(g,lo,hi)=>(x,y)=>
    const words=g.order.map(i=>L[i].s[1]);const RID=[`${words[0]}を起こし、${words[1]}を呼び、最後に${words[2]}を眠らせよ`,`先に${words[0]}。次に${words[1]}。${words[2]}は、いつも最後だった`,`わたしの子は、${words[0]}、${words[1]}、${words[2]}の順に生まれた`];
    const c=free(6,99,(x,y)=>!water[y][x]);if(c.length){const q=take(pick(c));notes.push({x:q[0],y:q[1],t:pick(RID),lever:1})}}})}
 function envDraw(wc,t){
+ if(G.pwater)G.pwater.forEach(k=>{if(!G.seen.has(k))return;const[x,y]=k.split(',').map(Number);if(!(G.water[y]&&G.water[y][x]))return;wc.fillStyle='rgba(150,70,200,'+(.28+.08*Math.sin(t*2+x+y))+')';wc.fillRect(x*T,y*T,T,T);if((Math.floor(t*2)+x*3+y)%7==0){wc.fillStyle='#d0a0ff';wc.fillRect(x*T+3,y*T+3,1,1)}});
  if(G.mud)G.mud.forEach(k=>{if(!G.seen.has(k))return;const[x,y]=k.split(',').map(Number);const X=x*T,Y=y*T;const M=(a,b)=>G.mud.has((x+a)+','+(y+b));wc.fillStyle='#2a1e12';wc.fillRect(X,Y,T,T);wc.fillStyle='#3e2c1a';wc.fillRect(X+1,Y+1,6,6);if(!M(0,-1)){wc.fillStyle='#5a4428';wc.fillRect(X,Y,T,1)}if(!M(-1,0)){wc.fillStyle='#4a3822';wc.fillRect(X,Y,1,T)}wc.fillStyle='#8a7048';wc.fillRect(X+1+(x*3)%4,Y+2+(y%3),3,1);wc.fillStyle='#6a5434';wc.fillRect(X+2+(y*5)%3,Y+5,2,1);const ph=(t*.8+x*1.3+y*.7)%3;if(ph<.5){const r2=Math.floor(ph*4);wc.fillStyle='#a08858';wc.fillRect(X+3-r2,Y+4,1+r2*2,1)}});
  if(G.glowm)G.glowm.forEach(k=>{if(!G.seen.has(k))return;const[x,y]=k.split(',').map(Number);const X=x*T,Y=y*T;for(let q=0;q<3;q++){const h=hash(x*7+q,y*5+q);const b=.5+.5*Math.sin(t*1.5+h*9);wc.fillStyle=b>.6?'#b8fff0':'#5ad8c8';wc.fillRect(X+Math.floor(h*7),Y+Math.floor(hash(y+q,x)*7),1,1)}wc.fillStyle='rgba(90,216,200,.12)';wc.fillRect(X,Y,T,T)});
  if(G.bush)G.bush.forEach(k=>{if(!G.seen.has(k))return;const[x,y]=k.split(',').map(Number);const X=x*T,Y=y*T;const sw=Math.sin(t*1.8+x*.9+y*.5);for(let q=0;q<4;q++){const bx=X+q*2+(hash(x+q,y)>.5?1:0),hgt=5+Math.floor(hash(x,y+q)*4);wc.fillStyle=q%2?'#3f7a3a':'#5a9a4a';wc.fillRect(bx+(sw>.3&&q%2?1:0),Y+T-hgt,1,hgt);wc.fillStyle='#7ab860';wc.fillRect(bx+(sw>.3?1:0),Y+T-hgt,1,1)}});
@@ -2631,6 +2636,33 @@ function fieldUse(i){const pc=G.bag.items[i],d=ITEM[pc.id],r=fieldOf(pc.id),F=r&
  let ok;try{ok=FIELDF[r](pc,nm)}catch(e){ok=false}if(ok===false)return;G.fu[pc.uid]=used+1;
  learn('field','仲間の得意なこと：戦い以外にも、種族ごとに一つだけ得意なことがある（照らす・掘る・嗅ぐ・取ってくる・見張る……）。カバンの仲間を押すと頼める');learn('field_'+r,d.n+'：'+F.d);
  G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
+// ===== 化学反応：二つの要素が出会うと、何かが起きる =====
+// 反応表は「覚えたこと」に載る。まだ見ていない反応は、組み合わせだけ見えて結果が隠れている
+const REACT=[
+ {k:'burn',a:'火',b:'草・茂み・蔦・糸・橋',r:'燃え広がる'},
+ {k:'oilfire',a:'火',b:'油',r:'一気に燃え上がり、長く燃える'},
+ {k:'gasfire',a:'火',b:'毒気',r:'引火して燃え上がる'},
+ {k:'steam',a:'火',b:'水',r:'蒸気が噴き上がり、姿が隠れる'},
+ {k:'melt',a:'火',b:'氷',r:'溶けて水に戻る'},
+ {k:'dry',a:'火',b:'泥',r:'乾いて固い地面になる'},
+ {k:'freeze',a:'冷気',b:'水',r:'凍って、歩いて渡れる。流れも止まる'},
+ {k:'shock',a:'雷',b:'水',r:'つながった水全体に電気が走る'},
+ {k:'wetshock',a:'雷',b:'濡れた者',r:'水から出ていても、しびれる'},
+ {k:'poisonwater',a:'毒',b:'水',r:'水が毒に変わり、中の者を蝕む'},
+ {k:'windgas',a:'風',b:'毒気',r:'流されていく'}];
+let REACTD={};try{REACTD=JSON.parse(store('yw70_react')||'{}')||{}}catch(e){}
+function react(k,x,y){try{const R=REACT.find(q=>q.k==k);if(!R)return;if(x!=null&&!(G.seen&&G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=9))return;
+ if(REACTD[k])return;REACTD[k]=1;store('yw70_react',JSON.stringify(REACTD));const n=Object.keys(REACTD).length;
+ setTimeout(()=>{sfx('rare');toast('反応を見つけた！　'+R.a+' × '+R.b+' → '+R.r+'（'+n+'/'+REACT.length+'）')},400);learn('react','化学反応：二つの要素が出会うと何かが起きる。見つけた反応は「覚えたこと」の反応表に残る。まだ見ていない反応も、組み合わせだけは載っている')}catch(e){}}
+function reactTable(){return '<h2>反応表（'+REACT.filter(R=>REACTD[R.k]).length+'/'+REACT.length+'）</h2>'+REACT.map(R=>'<p style="font-size:13px">'+(REACTD[R.k]?'◆ ':'◇ ')+R.a+' × '+R.b+' → '+(REACTD[R.k]?R.r:'？？？')+'</p>').join('')}
+// 毒の水：毒気が水に触れると、その水はしばらく毒になる
+const inPWater=(x,y)=>!!(G.pwater&&G.pwater.has(x+','+y)&&G.water[y]&&G.water[y][x]);
+function poisonWater(x,y){if(!inWater(x,y))return;const body=waterBody(x,y);if(!body.size)return;G.pwater=G.pwater||new Set();let nw=0;[...body].slice(0,90).forEach(k=>{if(!G.pwater.has(k)){G.pwater.add(k);nw++}});G.pwT=40;
+ if(nw){react('poisonwater',x,y);if(G.seen.has(x+','+y))toast('毒気が水に溶けて、水が濁った紫に変わった')}}
+function pwaterStep(){if(!G.pwater||!G.pwater.size)return;if(--G.pwT<=0){G.pwater=null;return}const p=G.p;
+ G.foes.forEach(f=>{if(f.hp>0&&inPWater(f.x,f.y)&&!(FOE[f.k]||{}).fly&&G.pwT%2==0){hit(f,2);fx({type:'spark',x:f.rx+4,y:f.ry+2,c:'#a060d0'})}});
+ if(inPWater(p.x,p.y)&&G.pwT%2==0){G.poison=Math.max(G.poison||0,3);G.p.hp=Math.max(1,G.p.hp-2);G.hurt=6;toast('毒の水だ！')}
+ if(!G.fight)G.foes=G.foes.filter(f=>f.hp>0||f.gone)}
 // ===== 敵の状態：混乱・恐怖・なつく =====
 // 混乱：敵味方の区別を失い、隣の者に襲いかかる。恐怖：こちらから逃げる。なつく：しばらく味方として一緒に戦う
 const TAME=['rat','grat','thief','bat','burrow','gob','caller','slime','slimeB','puru','gyoro','frog','raiju','salam','eater','beetle','oilbug','mud'];
@@ -2861,8 +2893,9 @@ function coatTick(){const p=G.p;
 }
 function gasStep(){const A=G.gas;if(!A||!A.length)return;const p=G.p;const W=G.wind;
  for(let i=A.length-1;i>=0;i--){const g=A[i];g.t++;
-  if((G.fires||[]).some(q=>q.x==g.x&&q.y==g.y)){A.splice(i,1);ignite(g.x,g.y,'quiet');if(G.seen.has(g.x+','+g.y)){sfx('boom');toast('毒気に火が入って、燃え上がった')}continue}
-  if(W&&W.t%W.every==0){const qx=g.x+W.dx,qy=g.y+W.dy;if(walk(qx,qy)){g.x=qx;g.y=qy}}
+  if((G.fires||[]).some(q=>q.x==g.x&&q.y==g.y)){A.splice(i,1);ignite(g.x,g.y,'quiet');if(G.seen.has(g.x+','+g.y)){sfx('boom');toast('毒気に火が入って、燃え上がった')}react('gasfire',g.x,g.y);continue}
+  if(inWater(g.x,g.y)&&!inPWater(g.x,g.y))poisonWater(g.x,g.y);
+  if(W&&W.t%W.every==0){const qx=g.x+W.dx,qy=g.y+W.dy;if(walk(qx,qy)){g.x=qx;g.y=qy;react('windgas',g.x,g.y)}}
   if(g.t>=g.life){A.splice(i,1);continue}
   const fo=foeAt(g.x,g.y);if(fo&&fo.hp>0&&g.t%2==0)hit(fo,2);
   if(g.x==p.x&&g.y==p.y&&g.t%2==0){G.poison=Math.max(G.poison||0,3);G.p.hp=Math.max(1,G.p.hp-2);G.hurt=6;toast('毒気の中だ！')}}}

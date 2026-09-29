@@ -256,6 +256,26 @@ const cases = {
     if (r.bridge[0] || !r.bridge[1]) throw new Error('橋が燃えない: ' + JSON.stringify(r));
     if (r.chasmBad) throw new Error('裂け谷で階段に行けない: ' + JSON.stringify(r));
   },
+  // 化学反応：11種すべてが起き、反応表に載る
+  async '化学反応'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      REACTD = {}; for (let y = 2; y <= 14; y++) for (let x = 2; x <= 20; x++) G.seen.add(x + ',' + y); G.p.x = 10; G.p.y = 8;
+      G.water = G.m.map(r => r.map(() => false)); G.garden = G.m.map(r => r.map(() => false)); G.oil = new Set(); G.ice = new Set(); G.mud = new Set(); G.gas = []; G.fires = []; G.steam = [];
+      G.garden[5][9] = true; ignite(9, 5); G.oil.add('11,5'); ignite(11, 5);
+      for (let x = 13; x <= 16; x++) G.water[8][x] = true; G.fires.push({ x: 12, y: 8, t: 1, life: 9 }); fireStep();
+      G.ice.add('6,11'); G.fires.push({ x: 5, y: 11, t: 1, life: 9 }); try { turnTick() } catch (e) { }
+      G.mud.add('8,12'); G.fires = [{ x: 7, y: 12, t: 1, life: 9 }]; fireStep();
+      G.gas = [{ x: 14, y: 8, t: 0, life: 14 }]; G.fires = []; gasStep();
+      const f = mkFoe('skel', 16, 9, 0); G.foes.push(f); f.wetC = 3; shockSet(waterBody(15, 8), 5, 'test');
+      G.water[10][12] = true; freezeAt(12, 10, 0);
+      G.gas = [{ x: 5, y: 3, t: 0, life: 14 }]; G.wind = { dx: 1, dy: 0, every: 1, t: 0 }; gasStep(); G.wind = null;
+      G.gas = [{ x: 8, y: 4, t: 0, life: 14 }]; G.fires = [{ x: 8, y: 4, t: 0, life: 5 }]; gasStep();
+      await new Promise(r => setTimeout(r, 50));
+      return REACT.filter(R => !REACTD[R.k]).map(R => R.k);
+    });
+    if (r.length) throw new Error('起きない反応: ' + r.join(','));
+  },
 };
 
 // 見通しのいい何もない部屋（暗い）に立たせる
