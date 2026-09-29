@@ -176,11 +176,33 @@ const cases = {
       for (let i = 0; i < 12 && G.foes.length > 1; i++) await enemiesMove();
       const o = { left: G.foes.length, bodies: G.bodies.length };
       G.foes = []; G.p.x = 4; G.p.y = 8; const c = put('skel', 9, 8, true); c.aware = 2; put('beetle', 7, 9, false);
-      for (let t = 0; t < 3; t++) await enemiesMove(); o.chaser = [c.x, !!c.feud, !!G.fight];
+      for (let t = 0; t < 3; t++) await enemiesMove(); o.chaser = [c.x, !!feudOf(c), !!G.fight]; try { JSON.stringify(G.foes); o.json = 1 } catch (e) { o.json = 0 }
       return o;
     });
     if (r.left !== 1 || r.bodies !== 1) throw new Error('争わない: ' + JSON.stringify(r));
     if (!r.chaser[1] || r.chaser[2]) throw new Error('追手が止まらない: ' + JSON.stringify(r));
+    if (!r.json) throw new Error('争い中の敵が保存できない');
+  },
+  // 薄い壁は槌・吹き飛ばした敵・揺れで崩れ、崩れかけの天井は小石や太鼓で落ちる
+  async '壊れる地形'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {};
+      G.m[8][7] = 1; G.thin = [{ x: 7, y: 8 }]; G.p.x = 6; G.p.y = 8; G.bag.items.push({ id: 'hammer', x: 0, y: 0, rot: 0 });
+      const a = mainAction(); o.lab = a && a.t; a.f(); await new Promise(r => setTimeout(r, 500)); o.hammer = walk(7, 8);
+      G.m[8][12] = 1; G.thin = [{ x: 12, y: 8 }]; G.p.x = 10; const f = put('gob', 11, 8, false); knockBack(f, G.p, 4); o.kb = walk(12, 8);
+      G.foes = []; G.p.x = 4; G.p.y = 8; G.loose = [{ x: 9, y: 8, ph: 0 }]; const g = put('beetle', 9, 8, true);
+      G.bag.items.push({ id: 'koishi', x: 0, y: 0, rot: 0, n: 3 }); G.faceX = 1; G.faceY = 0; throwStone(G.bag.items.length - 1);
+      await new Promise(r => setTimeout(r, 800)); o.rock = [g.hp < g.max, G.loose.length];
+      G.foes = []; G.loose = [{ x: 8, y: 11, ph: 0 }]; G.m[5][14] = 1; G.thin = [{ x: 14, y: 5 }]; G.p.x = 12; G.p.y = 8; await new Promise(r => setTimeout(r, 400));
+      G.bag.items.push({ id: 'taiko', x: 0, y: 0, rot: 0 }); useTaiko(G.bag.items.length - 1); await new Promise(r => setTimeout(r, 600));
+      o.taiko = [G.loose.length, walk(14, 5)];
+      return o;
+    });
+    if (!r.hammer || !/崩す/.test(r.lab)) throw new Error('槌: ' + JSON.stringify(r));
+    if (!r.kb) throw new Error('吹き飛ばし: ' + JSON.stringify(r));
+    if (!r.rock[0] || r.rock[1]) throw new Error('落石: ' + JSON.stringify(r));
+    if (r.taiko[0] || !r.taiko[1]) throw new Error('太鼓: ' + JSON.stringify(r));
   },
 };
 
@@ -190,7 +212,7 @@ async function arena(p) {
   await p.evaluate(() => {
     G.title = null; const H = G.m.length, W = G.m[0].length;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
-    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
+    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.srcs = []; G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
     G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
     window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });
