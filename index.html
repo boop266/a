@@ -907,7 +907,7 @@ const wait=ms=>new Promise(res=>setTimeout(res,ms));
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const DIAGN={'1,1':'右下','1,-1':'右上','-1,1':'左下','-1,-1':'左上'};
-const FKEYS=['pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
+const FKEYS=['arch','pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
@@ -1057,7 +1057,69 @@ Object.assign(BIOPAL,{lava:{stone:['#5a3a34','#4a2e2a','#3c2422','#2e1a1a'],gras
  web:{stone:['#4a4452','#3c3844','#302c38','#26222c'],grass:['#4a4a58','#3c3c48','#30303a','#26262e'],amb:[.24,.22,.28]},
  windy:{stone:['#6a7078','#5a6068','#4a5058','#3c4248'],grass:['#6a8068','#586a56','#485846','#3a4838'],amb:[.28,.3,.32]}});
 const BIOW=L=>({dry:[1.1,.6,.8,.5,1.3,.3,.3,1.3,.6,.5][L],oil:.8,chasm:1.3,bush:[2,1.2,.6,.8,2,.6,.6,2,.8,.8][L],ice:[.4,.6,1.8,.8,.4,1.2,1.8,.4,1.2,1][L],mud:[.8,2.2,.4,.8,1.4,1.6,.8,.8,.6,.6][L],glow:[.8,.8,.8,2,.8,1,1.2,1,2,1.6][L],pillar:[.6,.6,1.4,1,.6,1.2,1,.8,1.4,1.4][L],lava:[0,0,.6,.4,.3,.3,.4,.8,1.2,1.4][L],flood:[.6,1.8,.3,.4,.5,1.8,1.6,.5,.4,.5][L],web:[.3,.4,.8,2.2,.4,.4,.6,.8,.8,.6][L],windy:[.4,.8,.8,.6,.6,.8,1.4,.6,.8,1][L],none:2.4});
-function floorTwist(F,fi){if(fi<1||BOSSF[fi]||F.ship||F.blight)return;const W=BIOW(layerOf(fi));if(fi<4)W.oil=0;if(fi<3){W.chasm=0;W.lava=0;W.windy=0}if(F.wind)W.windy=0;if(fi<2){W.dry=0;W.none=3}if(F.mstyle=='canyon'){for(const k in W)W[k]=0;W.chasm=1}
+
+// ===== 名前つきの階：形 × 地形の性格 × 目玉の仕掛け =====
+// 100の階は、どの二つをくらべても「形と性格」の組が重ならない。そこに階ごとの目玉の仕掛けが一つ乗る
+function spCore(F){const P=new Set();const add=q=>{if(q)P.add((q.x!=null?q.x:q[0])+','+(q.y!=null?q.y:q[1]))};[F.start,F.exit,F.up,F.down,F.chest,F.sdoor,F.relic].forEach(add);
+ (F.gim||[]).forEach(g=>{add(g);if(g.pocket)g.pocket.forEach(add);if(g.brz)g.brz.forEach(add);if(g.bx!=null)add([g.bx,g.by]);if(g.px!=null)add([g.px,g.py]);if(g.levers)g.levers.forEach(add)});
+ (F.graves||[]).forEach(add);(F.thin||[]).forEach(add);(F.torches||[]).forEach(add);(F.volts||[]).forEach(add);(F.cocoons||[]).forEach(add);
+ const st=F.start;if(st)for(let j=-2;j<=2;j++)for(let i=-2;i<=2;i++)P.add((st[0]+i)+','+(st[1]+j));return P}
+function spArea(F,w,h,P,far,mw,mh){P=spCore(F);mw=mw||3;mh=mh||3;
+ for(let W=w,H=h;W>=mw&&H>=mh;W>H?W--:H--){for(const fr of [far||8,5,3]){const c=[];for(let y=1;y<MH-H;y++)for(let x=1;x<MW-W;x++){let ok=true;for(let j=0;j<H&&ok;j++)for(let i=0;i<W;i++){const X=x+i,Y=y+j;if(F.m[Y][X]!==0||P.has(X+','+Y)||(F.holes&&F.holes.has(X+','+Y))){ok=false;break}}
+   if(ok&&(F.dist[y+(H>>1)]&&F.dist[y+(H>>1)][x+(W>>1)]||0)>=fr)c.push([x,y])}
+  if(c.length){const a=c[Math.floor(Math.random()*c.length)];const inA=q=>q.x>=a[0]&&q.x<a[0]+W&&q.y>=a[1]&&q.y<a[1]+H;F.foes=F.foes.filter(f=>!inA(f));F.srcs=(F.srcs||[]).filter(q=>!inA(q));F.evs=(F.evs||[]).filter(q=>!inA(q));F.items=F.items.filter(q=>!(q.hid&&inA(q)));return [a[0],a[1],W,H]}}}return null}
+const spLoot=(F,x,y,how)=>{if(!F.items.some(q=>q.x==x&&q.y==y))F.items.push({x,y,id:pick(['gem','idol','crown','locket','gem']),how})};
+const spFoe=(F,x,y,k,o)=>{if(F.foes.some(f=>f.x==x&&f.y==y))return null;const f=mkFoe(k||pick((GEN_BY_L[layerOf(GENFI)]||['skel']).concat(['skel'])),x,y,Math.min(1,GENFI*.33+.2));Object.assign(f,o||{});F.foes.push(f);return f};
+const rectEach=(a,fn)=>{for(let j=0;j<a[3];j++)for(let i=0;i<a[2];i++)fn(a[0]+i,a[1]+j,i,j)};
+const SETP={
+ isle:{n:'宝島',d:'水の真ん中の小島に宝。凍らせるか、泥で埋めるか、泳ぐか',f(F){const a=spArea(F,7,5,null,8,5,3);if(!a)return false;const[x0,y0,w,h]=a;const cy=y0+(h>>1);
+   rectEach(a,(x,y)=>{F.water[y][x]=true;F.garden[y][x]=false});for(let x=x0+2;x<=x0+w-3;x++)F.water[cy][x]=false;spLoot(F,x0+(w>>1),cy);if(w>=6)spLoot(F,x0+2,cy);return true}},
+ powder:{n:'火薬庫',d:'樽と油だまりの部屋で、群れが眠っている。火をつければ一網打尽',f(F){const a=spArea(F,6,4,null,8,4,3);if(!a)return false;const[x0,y0,w,h]=a;F.barrels=F.barrels||[];F.oil=F.oil||new Set();
+   rectEach(a,(x,y)=>{if(Math.random()<.55)F.oil.add(x+','+y)});[[0,0],[w-1,0],[0,h-1],[w-1,h-1]].forEach(([i,j])=>F.barrels.push({x:x0+i,y:y0+j,hp:1}));
+   [[1,1],[w-2,1],[w>>1,h-2]].forEach(([i,j])=>spFoe(F,x0+i,y0+j,null,{mhSleep:1,aware:0}));spLoot(F,x0+(w>>1),y0+(h>>1));return true}},
+ sentry:{n:'見張り部屋',d:'宝を守る見張りが入口を向いている。音で釣るか、背後に回るか',f(F){const a=spArea(F,5,5,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;const cx=x0+(w>>1),cy=y0+(h>>1);spLoot(F,cx,cy);
+   spFoe(F,x0,cy,null,{flip:true});spFoe(F,x0+w-1,cy,null,{flip:false});if(h>=4)spFoe(F,cx,y0+h-1);F.loose=F.loose||[];F.loose.push({x:x0+1,y:y0+h-1,ph:1});return true}},
+ rivals:{n:'縄張りの境',d:'仲の悪い二つの群れがにらみ合っている。ひと押しで争いが始まる',f(F){const a=spArea(F,9,4,null,8,5,2);if(!a)return false;const[x0,y0,w,h]=a;const pr=pick([['skel','beetle'],['gob','rat'],['wisp','gyoro'],['spider','zombie']]);
+   for(let j=0;j<h;j+=Math.max(1,h>>1)){spFoe(F,x0,y0+j,pr[0],{flip:false});spFoe(F,x0+w-1,y0+j,pr[1],{flip:true})}spLoot(F,x0+(w>>1),y0+(h>>1));return true}},
+ rockfall:{n:'落石の回廊',d:'天井が崩れかけている。敵を真下へ誘って、小石で落とす',f(F){const a=spArea(F,7,3,null,8,4,1);if(!a)return false;const[x0,y0,w,h]=a;const cy=y0+(h>>1);F.loose=F.loose||[];
+   for(let i=1;i<w-1;i+=2)F.loose.push({x:x0+i,y:cy,ph:i});spFoe(F,x0+(w>>1),cy);spLoot(F,x0+w-1,cy);return true}},
+ rink:{n:'氷の間',d:'一面の氷に穴が開いている。滑って止まる場所を読め',f(F){const a=spArea(F,7,5,null,8,4,3);if(!a)return false;const[x0,y0,w,h]=a;F.ice=F.ice||new Set();F.holes=F.holes||new Set();
+   rectEach(a,(x,y)=>{F.ice.add(x+','+y);F.garden[y][x]=false});const hs=[[2,1],[w-3,h-2]];if(w>=6)hs.push([w-2,1]);hs.forEach(([i,j])=>{const k=(x0+i)+','+(y0+j);F.holes.add(k);F.ice.delete(k)});spLoot(F,x0+w-1,y0+(h>>1));return true}},
+ lavariver:{n:'溶岩の川',d:'溶岩の川に、一本だけ道が残っている。冷やせば道は増える',f(F){const a=spArea(F,8,4,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;F.lava=F.lava||new Set();const ry=y0+(h>>1);
+   for(let i=0;i<w;i++)F.lava.add((x0+i)+','+ry);const gap=x0+1+Math.floor(Math.random()*(w-2));F.lava.delete(gap+','+ry);bioOpen(F,F.lava,null);spLoot(F,x0+w-1,y0+h-1);return true}},
+ vault:{n:'隠し宝物庫',d:'ひびの入った薄い壁の奥に、小部屋がある',f(F){for(let t=0;t<300;t++){const x=2+Math.floor(Math.random()*(MW-6)),y=2+Math.floor(Math.random()*(MH-6));let solid=true;for(let j=-1;j<=2&&solid;j++)for(let i=-1;i<=2;i++)if(!F.m[y+j]||F.m[y+j][x+i]!==1){solid=false;break}if(!solid)continue;
+   const door=[[x,y-2,x,y-1],[x,y+3,x,y+2],[x-2,y,x-1,y],[x+3,y,x+2,y]].find(([fx,fy])=>F.m[fy]&&F.m[fy][fx]===0&&F.dist[fy][fx]<999);if(!door)continue;
+   for(let j=0;j<2;j++)for(let i=0;i<2;i++){F.m[y+j][x+i]=0;F.dist[y+j][x+i]=F.dist[door[1]][door[0]]+2}F.thin=F.thin||[];F.thin.push({x:door[2],y:door[3]});spLoot(F,x,y);spLoot(F,x+1,y+1);F.items.push({x:x+1,y,id:pick(['kaze','mizu','doro','taiko','konran'])});return true}return false}},
+ webnest:{n:'糸の巣',d:'糸だらけの部屋の奥に、繭に包まれた宝。焼くか、払うか',f(F){const a=spArea(F,6,5,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;F.webs=F.webs||new Set();rectEach(a,(x,y)=>{if(Math.random()<.75)F.webs.add(x+','+y)});
+   spFoe(F,x0,y0,'spider');spFoe(F,x0+w-1,y0+h-1,'spider');spLoot(F,x0+w-1,y0);return true}},
+ oillake:{n:'油の池',d:'池の水面に油が浮いている。火を投げれば、水の上が燃える',f(F){const a=spArea(F,6,4,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;F.oil=F.oil||new Set();rectEach(a,(x,y)=>{F.water[y][x]=true;F.garden[y][x]=false;F.oil.add(x+','+y)});
+   spFoe(F,x0+(w>>1),y0+(h>>1));spLoot(F,x0+w-1,y0);return true}},
+ arena:{n:'柱の闘技場',d:'柱に囲まれた広間で、大物が待っている。柱を盾に戦え',f(F){const a=spArea(F,7,7,null,6,4,4);if(!a)return false;const[x0,y0,w,h]=a;if(w>=5&&h>=5)[[1,1],[w-2,1],[1,h-2],[w-2,h-2]].forEach(([i,j])=>{F.m[y0+j][x0+i]=1});
+   const f=spFoe(F,x0+(w>>1),y0+(h>>1),pick(GEN_BY_L[layerOf(GENFI)]||['golem']));if(f){f.hp=f.max=Math.round(f.hp*1.8);f.atk+=2;f.elite=1}spLoot(F,x0+(w>>1),y0+h-1);return true}},
+ meadow:{n:'花畑',d:'背の高い茂みで獣が眠っている。そっと抜けるか、火を放つか',f(F){const a=spArea(F,7,5,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;F.bush=F.bush||new Set();rectEach(a,(x,y)=>{F.bush.add(x+','+y);F.garden[y][x]=true});
+   const bs=(GEN_BY_L[layerOf(GENFI)]||[]).filter(k=>FAM[k]=='beast');spFoe(F,x0+1,y0+1,bs.length?pick(bs):'rat',{mhSleep:1,aware:0});spFoe(F,x0+w-2,y0+h-1,bs.length?pick(bs):'rat',{mhSleep:1,aware:0});spLoot(F,x0+(w>>1),y0+(h>>1));return true}},
+ cracked:{n:'抜ける床',d:'ひびだらけの床の真ん中に宝。重い敵は床を踏み抜く',f(F){const a=spArea(F,5,5,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;const cx=w>>1,cy=h>>1;F.cracks=F.cracks||[];rectEach(a,(x,y,i,j)=>{if((i+j)%2==0&&!(i==cx&&j==cy))F.cracks.push({x,y,t:0,need:14+Math.floor(Math.random()*20),st:0,ph:Math.random()*6,grown:0})});
+   spLoot(F,x0+cx,y0+cy);return true}},
+ moat:{n:'泥の堀',d:'泥の堀に囲まれた宝。踏み込めば一手ずつ遅れる',f(F){const a=spArea(F,7,5,null,8,3,3);if(!a)return false;const[x0,y0,w,h]=a;F.mud=F.mud||new Set();const cx=w>>1,cy=h>>1;rectEach(a,(x,y,i,j)=>{if(!(i==cx&&j==cy)){F.mud.add(x+','+y);F.garden[y][x]=false}});
+   spLoot(F,x0+cx,y0+cy);spFoe(F,x0,y0);return true}},
+ shrine:{n:'闇の祠',d:'灯りのない奥に祠がある。光る苔が道しるべ',f(F){const a=spArea(F,6,4,null,10,3,2);if(!a)return false;const[x0,y0,w,h]=a;F.glowm=F.glowm||new Set();for(let i=0;i<w;i++)F.glowm.add((x0+i)+','+y0);
+   (F.rooms||[]).forEach(r=>{if(!r.start)r.lit=false});spLoot(F,x0+w-1,y0+h-1);spFoe(F,x0+(w>>1),y0+h-1,null,{flip:true});return true}},
+ windhall:{n:'風の回廊',d:'風が吹き抜ける通路の先に宝。火は風下へ走り、毒は流される',f(F){const d=pick(DIRS);F.wind={dx:d[0],dy:d[1],t:0,every:3,n:0};const a=spArea(F,5,3,null,8,2,1);if(a){spLoot(F,a[0]+a[2]-1,a[1]);F.garden[a[1]][a[0]]=true}return true}}};
+// 広い場所が要る仕掛けは、細い通路ばかりの形には置かない
+const SPWIDE={isle:1,arena:1,rivals:1,cracked:1,rink:1,powder:1,meadow:1,webnest:1,oillake:1};const NARROW=['maze','tunnel','spiral','comb','cells','burrow','ring','honey'];
+const BIOADJ={none:'',dry:'枯れ野の',oil:'油じみた',chasm:'裂けた',bush:'茂みの',ice:'凍てた',mud:'泥の',glow:'光苔の',pillar:'柱立つ',lava:'燃える',flood:'水浸しの',web:'糸張る',windy:'風吹く'};
+// 組み合わせの相性：仕掛けが地形を打ち消さないように
+const SPBAD={isle:['lava','chasm'],oillake:['lava'],rink:['lava'],meadow:['ice','lava','flood'],lavariver:['flood','ice'],moat:['ice'],shrine:['glow'],windhall:['windy'],webnest:['web']};
+const FLOORDEF=(()=>{let sd=24681;const rnd=()=>{sd=(Math.imul(sd,1103515245)+12345)&0x7fffffff;return sd/0x7fffffff};const lays=Object.keys(LAYN),bios=Object.keys(BIOADJ),sps=Object.keys(SETP);const used=new Set(),names=new Set(),out=[];
+ for(let t=0;t<20000&&out.length<100;t++){const sp=sps[out.length%sps.length];const lay=lays[Math.floor(rnd()*lays.length)],bio=bios[Math.floor(rnd()*bios.length)];const key=lay+'|'+bio;if(used.has(key)||(SPBAD[sp]||[]).includes(bio)||((SPWIDE[sp]||0)&&NARROW.includes(lay)))continue;
+  const nm=bio=='none'?LAYN[lay]+'の'+SETP[sp].n:BIOADJ[bio]+SETP[sp].n;if(names.has(nm))continue;used.add(key);names.add(nm);out.push({n:nm,lay,bio,sp})}return out})();
+// この世界での、階ごとの割り当て（同じ世界なら同じ）
+function floorDef(fi){if(fi<1||BOSSF[fi])return null;
+ // 世界ごとに並べ替えて、階ごとに一つずつ（同じ世界の中では重ならない）
+ let s2=(WSEED*31)>>>0;const perm=[];for(let i=0;i<FLOORDEF.length;i++)perm.push(i);for(let i=perm.length-1;i>0;i--){s2=(Math.imul(s2,1103515245)+12345)>>>0;const j=s2%(i+1);[perm[i],perm[j]]=[perm[j],perm[i]]}return perm[fi%perm.length]}
+function floorTwist(F,fi){if(fi<1||BOSSF[fi]||F.ship)return;
+ {let di=floorDef(fi);if(di!=null&&FLOORDEF[di].lay!=F.mstyle){const alt=FLOORDEF.map((d,i)=>i).filter(i=>FLOORDEF[i].lay==F.mstyle);di=alt.length?alt[(fi*13+WSEED)%alt.length]:null}const D=di!=null?FLOORDEF[di]:null;if(D&&F.mstyle==D.lay){F.arch=di;if(D.bio=='dry')floorTwist0(F,fi,0);else if(D.bio=='oil')floorTwist0(F,fi,.1);else if(D.bio!='none'){let ok=false;try{ok=BIOME[D.bio](F,fi)}catch(e){}if(ok){F.twist=D.bio;if(BIOPAL[D.bio])F.th={...F.th,...BIOPAL[D.bio]}}}try{SETP[D.sp].f(F)}catch(e){}return}}
+ if(F.blight)return;const W=BIOW(layerOf(fi));if(fi<4)W.oil=0;if(fi<3){W.chasm=0;W.lava=0;W.windy=0}if(F.wind)W.windy=0;if(fi<2){W.dry=0;W.none=3}if(F.mstyle=='canyon'){for(const k in W)W[k]=0;W.chasm=1}
  let t=Object.values(W).reduce((a,b)=>a+b,0)*Math.random(),k='none';for(const q in W){if((t-=W[q])<0){k=q;break}}
  if(k=='none')return;if(k=='dry'){floorTwist0(F,fi,0);return}if(k=='oil'){floorTwist0(F,fi,.1);return}
  let ok=false;try{ok=BIOME[k](F,fi)}catch(e){ok=false}if(!ok)return;F.twist=k;if(BIOPAL[k])F.th={...F.th,...BIOPAL[k]}}
@@ -1092,7 +1154,7 @@ function themeFilter(fi,list){const L=layerOf(fi);const ok=(LAYERMOB[L]||[]).con
 function genFloorRaw(fi){GENFI=fi;
  const th=THEMES[fi];
  for(let attempt=0;attempt<20;attempt++){
- let mstyle=pickStyle(fi,attempt);GEN_FB=0;const m=genMap(mstyle);if(GEN_FB)mstyle='cave';
+ let mstyle=pickStyle(fi,attempt);{const di=(G&&G.ship)?null:floorDef(fi);if(di!=null&&attempt<12)mstyle=FLOORDEF[di].lay}GEN_FB=0;const m=genMap(mstyle);if(GEN_FB)mstyle='cave';
  const carved=[];
  for(let a=0;a<2500&&carved.length<(fi==0?2:3);a++){const fx=1+r(MW-2),fy=1+r(MH-2);if(m[fy][fx])continue;const[dx,dy]=pick(DIRS);
   const cor=[[fx+dx,fy+dy],[fx+dx*2,fy+dy*2]];const cx=fx+dx*4,cy=fy+dy*4;const room=[];for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)room.push([cx+i,cy+j]);
@@ -2300,6 +2362,7 @@ function envFoeStep(){try{pwaterStep()}catch(e){}try{pmudStep()}catch(e){}const 
  if(!G.fight)for(let i=G.foes.length-1;i>=0;i--)if(G.foes[i].hp<=0&&(FOE[G.foes[i].k]||{}).boomer)G.foes.splice(i,1)}
 function envGateStep(){const p=G.p;
  mapSeen();
+ if(G.arch!=null&&!G.twistShown&&!G.title&&FLOORDEF[G.arch]){G.twistShown=1;const D=FLOORDEF[G.arch];showTitle(D.n,'― '+LAYN[D.lay]+'。'+SETP[D.sp].d+' ―');if(TWIST[G.twist])learn('tw_'+G.twist,TWIST[G.twist][2]);learn('arch','名前つきの階：どの階にも名前と、目玉の仕掛けがある。100の階は、形と地形の性格の組がすべて違う')}
  if(G.twist&&!G.twistShown&&!G.title&&TWIST[G.twist]){G.twistShown=1;const T2=TWIST[G.twist];showTitle(T2[0],T2[1]);learn('tw_'+G.twist,T2[2])}
  (G.rooms||[]).forEach(r=>{if(!r.oilCells||r.woke||r.oilHint)return;if(r.oilCells.some(k=>{const[x,y]=k.split(',').map(Number);return cd(x,y,p.x,p.y)<=2})){r.oilHint=1;sfx('shadow');toast('床がぬめっている。油の匂い……奥で何かが、たくさん寝息を立てている');learn('mhoil','油の染みた部屋：眠っている群れの足元まで油が広がっている。踏み込まずに火を放てば、群れごと焼ける。……燃えた者の持ち物も灰になる')}});(G.gim||[]).forEach(g=>{if(g.open)return;
  if(g.type=='vine'&&(G.gas||[]).some(q=>cd(q.x,q.y,g.x,g.y)<=1)){for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#b0a060',life:.8});openGate(g,'蔦が枯れ落ちた','― 毒気に当てられて、茶色く縮んでいく ―');learn('pz_vine2','蔦の門は、毒気に当てると枯れ落ちる');return}
@@ -2743,10 +2806,11 @@ const REACT=[
 const REACT_ALIAS={oilfire:'fire+oil',gasfire:'fire+poison',steam:'fire+water',melt:'fire+ice',dry:'fire+earth',freeze:'water+ice',shock:'water+volt',wetshock:'water+volt',poisonwater:'water+poison',windgas:'poison+wind'};
 let MAPD={};try{MAPD=JSON.parse(store('yw71_maps')||'{}')||{}}catch(e){}
 const TWN=()=>['none',...Object.keys(TWIST)];
-function mapSeen(){try{if(!G||!G.mstyle||G.ship||BOSSF[G.fi])return;const k=G.mstyle+'|'+(G.twist||'none');if(MAPD[k])return;MAPD[k]=1;store('yw71_maps',JSON.stringify(MAPD))}catch(e){}}
+function mapSeen(){try{if(!G||!G.mstyle||G.ship||BOSSF[G.fi])return;if(G.arch!=null&&!MAPD['#'+G.arch]){MAPD['#'+G.arch]=1;store('yw71_maps',JSON.stringify(MAPD))}const k=G.mstyle+'|'+(G.twist||'none');if(MAPD[k])return;MAPD[k]=1;store('yw71_maps',JSON.stringify(MAPD))}catch(e){}}
 function mapTable(){const L=Object.keys(LAYN),B=TWN();const tot=L.length*B.length,n=Object.keys(MAPD).filter(k=>{const[a,b]=k.split('|');return L.includes(a)&&B.includes(b)}).length;
  const lay=L.filter(a=>B.some(b=>MAPD[a+'|'+b])),bio=B.filter(b=>L.some(a=>MAPD[a+'|'+b]));
- return '<h2>歩いた地形（'+n+'/'+tot+'）</h2><p style="font-size:13px">地図の形 '+lay.length+'/'+L.length+'：'+L.map(a=>lay.includes(a)?LAYN[a]:'？').join('・')+'</p><p style="font-size:13px">地形の性格 '+bio.length+'/'+B.length+'：'+B.map(b=>bio.includes(b)?(b=='none'?'ふつう':TWIST[b][0]):'？').join('・')+'</p>'}
+ const na=FLOORDEF.filter((_,i)=>MAPD['#'+i]).length;
+ return '<h2>名前つきの階（'+na+'/'+FLOORDEF.length+'）</h2><p style="font-size:13px">'+FLOORDEF.map((D,i)=>MAPD['#'+i]?D.n:'？').join('・')+'</p><h2>歩いた地形（'+n+'/'+tot+'）</h2><p style="font-size:13px">地図の形 '+lay.length+'/'+L.length+'：'+L.map(a=>lay.includes(a)?LAYN[a]:'？').join('・')+'</p><p style="font-size:13px">地形の性格 '+bio.length+'/'+B.length+'：'+B.map(b=>bio.includes(b)?(b=='none'?'ふつう':TWIST[b][0]):'？').join('・')+'</p>'}
 let REACTD={};try{REACTD=JSON.parse(store('yw70_react')||'{}')||{}}catch(e){}
 function react(k,x,y){try{k=REACT_ALIAS[k]||k;const R=REACT.find(q=>q.k==k);if(!R)return;if(x!=null&&!(G.seen&&G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=9))return;
  if(REACTD[k])return;REACTD[k]=1;store('yw70_react',JSON.stringify(REACTD));const n=Object.keys(REACTD).length;

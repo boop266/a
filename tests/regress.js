@@ -305,6 +305,15 @@ const cases = {
     });
     if (r.total < 500 || r.close || r.dup || r.noSp || r.noItem || r.emptyFloor) throw new Error(JSON.stringify(r));
   },
+  // 名前つきの階が100。形と性格の組はすべて違い、1つの世界で階ごとに違う階が当たる
+  async '名前つきの階100'(p) {
+    const r = await p.evaluate(() => {
+      const pairs = new Set(FLOORDEF.map(d => d.lay + '|' + d.bio)).size, names = new Set(FLOORDEF.map(d => d.n)).size;
+      const got = []; for (let fi = 1; fi < 100; fi++) { if (BOSSF[fi]) continue; const d = floorDef(fi); got.push(d); }
+      return { n: FLOORDEF.length, pairs, names, distinct: new Set(got).size, floors: got.length };
+    });
+    if (r.n !== 100 || r.pairs !== 100 || r.names !== 100 || r.distinct !== r.floors) throw new Error(JSON.stringify(r));
+  },
 };
 
 // 見通しのいい何もない部屋（暗い）に立たせる
