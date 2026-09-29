@@ -323,7 +323,7 @@ body.sheeton .ctl.menu,body.mapon .ctl.menu{display:none!important}
 <div id="modal"></div>
 <script>
 // ================= art
-const PAL={k:'#07060a',w:'#efe6d2',s:'#d7a57c',c:'#3d5f94',C:'#243a63',g:'#f0c04e',G:'#9a7424',r:'#ff4a3a',R:'#6a1a1a',B:'#e4e0d2',b:'#9d978a',m:'#6fe8c6',M:'#c8fff0',n:'#2e8f7a',o:'#ff9a3a',y:'#fff0a0',e:'#6c7684',E:'#b9c3cf',l:'#6fae5a',L:'#2d5e3c',t:'#8a5a34',x:'#c0302a',v:'#5a4a6a',V:'#8a78a0',P:'#bff5dc',p:'#86d9b8',q:'#ff9ab8',Q:'#ffd0e0',F:'#8a3f66',f:'#4a1f38',u:'#a0703e',U:'#6a4626',z:'#b06cf0',Z:'#4a2270'};
+const PAL={k:'#07060a',w:'#efe6d2',s:'#d7a57c',c:'#3d5f94',C:'#243a63',g:'#f0c04e',G:'#9a7424',r:'#ff4a3a',R:'#6a1a1a',B:'#e4e0d2',b:'#9d978a',m:'#6fe8c6',M:'#c8fff0',n:'#2e8f7a',o:'#ff9a3a',y:'#fff0a0',e:'#6c7684',E:'#b9c3cf',l:'#6fae5a',L:'#2d5e3c',t:'#8a5a34',x:'#c0302a',v:'#5a4a6a',V:'#8a78a0',P:'#bff5dc',p:'#86d9b8',q:'#ff9ab8',Q:'#ffd0e0',F:'#8a3f66',f:'#4a1f38',u:'#a0703e',U:'#6a4626',z:'#b06cf0',Z:'#4a2270',X:'#7a1a14',Y:'#b89a3c'};
 const recolor=(sp,map)=>sp.map(r=>[...r].map(c=>map[c]||c).join(''));
 const SP={
 hero:["...kkkk...","..kCCCCk..",".kCCccCCk.",".kCkssskk.",".kCssskCk.","..kkccck..",".kcccgcck.","kscCcgcCsk","kkcCccccyk","..kCCCCkok","..kC..Ck..","..kk..kk.."],
@@ -2815,7 +2815,7 @@ function showFall(list,total,cause,fl){try{
  let ready=false;setTimeout(()=>{ready=true;el.classList.add('done')},900+list.length*120);
  el.addEventListener('click',()=>{if(!ready){ready=true;el.classList.add('done');grid.querySelectorAll('.retit').forEach(e=>e.classList.add('on'));return}el.classList.add('out');setTimeout(()=>el.remove(),260)});
  }catch(e){}}
-const BREED={'puru+puru':'mochi','gyoro+puru':'medama','gyoro+gyoro':'ogyoro','koke+koke':'koke','koke+puru':'mochi','gyoro+koke':'ogyoro'};
+const BREED={'puru+puru':'mochi','gyoro+puru':'medama','gyoro+gyoro':'ogyoro','koke+puru':'mochi','gyoro+koke':'ogyoro'};
 const lineOf=k=>({mochi:'puru',medama:'gyoro',ogyoro:'gyoro'}[k]||k);
 function spriteCanvas(a){const c=document.createElement('canvas');c.width=a[0].length;c.height=a.length;spr(c.getContext('2d'),a,0,0);c.style.width='20px';c.style.height='20px';return c}
 function showCodex(back){
@@ -2955,20 +2955,49 @@ try{Object.keys(FOE).forEach(k=>{const D=FOE[k];if(!D||D.boss||NOCAP[k])return;i
 const BONLY={
  honoo:{n:'焔ぷる',base:'puru',rec:{P:'r',p:'R',w:'y'},hp:24,atk:9,sh:[1,1],d:'配合でしか生まれない。火に強い・燃えやすい',tr:['fireOK','flam']},
  shizuku:{n:'雫ぎょろ',base:'gyoro',rec:{F:'c',f:'C',w:'w'},hp:26,atk:10,sh:[1,2],d:'配合でしか生まれない。水棲・濡れている',tr:['aqua','wet']},
- hone:{n:'骨鳥',base:'bat',rec:{k:'k',E:'B',e:'b'},hp:20,atk:11,sh:[1,1],d:'配合でしか生まれない。骨・浮く',tr:['bone','fly']},
+ hone:{n:'骨鳥',base:'bat',rec:{V:'B',r:'y'},hp:20,atk:11,sh:[1,1],d:'配合でしか生まれない。骨・浮く',tr:['bone','fly']},
  doro:{n:'泥金',base:'mud',rec:{u:'y',U:'Y',r:'w'},hp:34,atk:8,sh:[2,2],d:'配合でしか生まれない。重い・濡れている',tr:['heavy','wet']},
  kagebi:{n:'影灯',base:'shade',rec:{Z:'v',r:'y'},hp:22,atk:12,sh:[1,2],d:'配合でしか生まれない。浮く・火に強い',tr:['fly','fireOK']},
- garasu:{n:'硝子王',base:'mirror',rec:{E:'M',w:'m'},hp:18,atk:14,sh:[1,2],d:'配合でしか生まれない。骨と硝子。脆いが、とても鋭い',tr:['bone','frail']}};
+ garasu:{n:'硝子王',base:'mirror',rec:{E:'M',w:'m'},hp:18,atk:14,sh:[1,2],d:'配合でしか生まれない。骨と硝子。脆いが、とても鋭い',tr:['bone','frail']},
+ yakebone:{n:'焼け骨',base:'skel',rec:{B:'U',r:'o'},hp:22,atk:11,sh:[1,2],d:'配合でしか生まれない。骨・火に強い。焼け跡の骨を拾い集めてできた',tr:['bone','fireOK']},
+ kaigara:{n:'貝骨',base:'bonepile',rec:{B:'P',b:'n',r:'c'},hp:26,atk:9,sh:[1,1],d:'配合でしか生まれない。骨・水棲。水底で貝殻と骨が混ざり合った',tr:['bone','aqua']},
+ oboro:{n:'溺れ骨',base:'lskel',rec:{B:'M',E:'n',r:'c'},hp:20,atk:11,sh:[1,2],d:'配合でしか生まれない。骨・濡れ。いつも水を滴らせている',tr:['bone','wet']},
+ takigi:{n:'薪骨',base:'skel',rec:{B:'t',r:'o'},hp:18,atk:12,sh:[1,2],d:'配合でしか生まれない。骨・燃えやすい。乾ききった骨はよく燃える',tr:['bone','flam']},
+ honeyoroi:{n:'骨鎧',base:'shieldk',rec:{B:'E',E:'e',g:'y'},hp:34,atk:9,sh:[2,2],d:'配合でしか生まれない。骨・重い。骨を幾重にも重ねた鎧',tr:['bone','heavy']},
+ yugyoro:{n:'湯ぎょろ',base:'gyoro',rec:{F:'o',f:'R',w:'y'},hp:26,atk:10,sh:[1,2],d:'配合でしか生まれない。火に強い・水棲。湯の湧く池にしか棲めない',tr:['fireOK','aqua']},
+ yuge:{n:'湯気すらいむ',base:'slime',rec:{P:'E',p:'e'},hp:22,atk:8,sh:[1,1],d:'配合でしか生まれない。火に強い・濡れ。いつもほかほかしている',tr:['fireOK','wet']},
+ yougan:{n:'溶岩像',base:'golem',rec:{E:'o',e:'R',r:'y'},hp:40,atk:11,sh:[2,2],d:'配合でしか生まれない。火に強い・重い。冷めると動きが鈍る',tr:['fireOK','heavy']},
+ hibana:{n:'火花鈴',base:'bell',rec:{g:'o',w:'y'},hp:14,atk:13,sh:[1,1],d:'配合でしか生まれない。火に強い・脆い。鳴るたびに火花が散る',tr:['fireOK','frail']},
+ shibuki:{n:'飛沫蝙蝠',base:'bat',rec:{V:'c',r:'M'},hp:18,atk:11,sh:[1,1],d:'配合でしか生まれない。浮く・水棲。水面すれすれを飛ぶ',tr:['fly','aqua']},
+ kiri:{n:'霧の亡霊',base:'ghost',rec:{M:'E',m:'e'},hp:20,atk:10,sh:[1,2],d:'配合でしか生まれない。浮く・濡れ。霧の夜にだけ輪郭がはっきりする',tr:['fly','wet']},
+ ohotaru:{n:'大蛍',base:'wisp',rec:{m:'y',M:'w',n:'o'},hp:16,atk:12,sh:[1,1],d:'配合でしか生まれない。浮く・燃えやすい。尻の灯りは本物の火',tr:['fly','flam']},
+ ishitsubasa:{n:'石翼',base:'bat',rec:{V:'e',r:'y'},hp:30,atk:10,sh:[1,2],d:'配合でしか生まれない。浮く・重い。重いのになぜか飛べる',tr:['fly','heavy']},
+ usuba:{n:'薄羽',base:'memeat',rec:{z:'M',Z:'m'},hp:12,atk:13,sh:[1,1],d:'配合でしか生まれない。浮く・脆い。羽は光を透かすほど薄い',tr:['fly','frail']},
+ aburagyoro:{n:'油ぎょろ',base:'gyoro',rec:{F:'u',f:'U',w:'y'},hp:24,atk:10,sh:[1,2],d:'配合でしか生まれない。水棲・燃えやすい。体から油がにじむ',tr:['aqua','flam']},
+ iwagame:{n:'岩亀',base:'beetle',rec:{V:'n',v:'L',r:'y'},hp:38,atk:8,sh:[2,2],d:'配合でしか生まれない。水棲・重い。甲羅に苔が生えている',tr:['aqua','heavy']},
+ kurage:{n:'水母蜘蛛',base:'glass',rec:{m:'q',M:'Q'},hp:14,atk:12,sh:[1,1],d:'配合でしか生まれない。水棲・脆い。透けた脚で水をかく',tr:['aqua','frail']},
+ rinko:{n:'燐光茸',base:'fungus',rec:{M:'o',w:'y'},hp:18,atk:11,sh:[1,1],d:'配合でしか生まれない。濡れ・燃えやすい。湿っているのに、よく燃える',tr:['wet','flam']},
+ awapuru:{n:'泡ぷる',base:'puru',rec:{P:'M',p:'m',q:'c'},hp:14,atk:9,sh:[1,1],d:'配合でしか生まれない。濡れ・脆い。触るとぱちんと弾けそう',tr:['wet','frail']},
+ warabito:{n:'藁の大人形',base:'doll',rec:{Q:'u',q:'U',F:'t'},hp:32,atk:10,sh:[2,2],d:'配合でしか生まれない。燃えやすい・重い。中に何が詰まっているのか',tr:['flam','heavy']},
+ kamigumo:{n:'紙蜘蛛',base:'spider',rec:{V:'w',v:'b'},hp:12,atk:12,sh:[1,1],d:'配合でしか生まれない。燃えやすい・脆い。古い手紙を折って作られた',tr:['flam','frail']},
+ warezou:{n:'割れ石像',base:'golem',rec:{E:'B',e:'b'},hp:30,atk:12,sh:[2,2],d:'配合でしか生まれない。重い・脆い。いつ崩れてもおかしくない',tr:['heavy','frail']},
+ fushicho:{n:'不死鳥',base:'bat',rec:{V:'o',r:'y'},hp:40,atk:16,sh:[2,2],leg:1,d:'伝説。火に強い・浮く・燃えやすい。燃え尽きても、灰の中から戻ってくる',tr:['fireOK','fly','flam']},
+ umihebi:{n:'大海蛇',base:'nushi',rec:{w:'M',r:'y',F:'c',f:'C'},hp:50,atk:14,sh:[2,2],leg:1,d:'伝説。水棲・濡れ・重い。地下にも海があると信じている',tr:['aqua','wet','heavy']},
+ gasha:{n:'がしゃどくろ',base:'haka',rec:{V:'B',v:'b',B:'y',M:'r'},hp:52,atk:15,sh:[2,2],leg:1,d:'伝説。骨・重い・火に強い。数えきれない骨が、ひとつの名を名乗った',tr:['bone','heavy','fireOK']},
+ yousei:{n:'硝子の妖精',base:'memeat',rec:{z:'M',Z:'P',w:'y'},hp:24,atk:18,sh:[1,2],leg:1,d:'伝説。浮く・脆い・濡れ。朝露でできた翅を持つ',tr:['fly','frail','wet']}};
 try{Object.keys(BONLY).forEach(k=>{const b=BONLY[k];
  if(SP[b.base])SP[k]=recolor(SP[b.base],b.rec);
- ITEM[k]={n:b.n,v:'呼ぶ',d:b.d,sh:b.sh,mon:1,hp:b.hp,atk:b.atk,bonly:1};
+ ITEM[k]={n:b.n,v:'呼ぶ',d:b.d,sh:b.sh,mon:1,hp:b.hp,atk:b.atk,bonly:1,leg:b.leg?1:0};
  FOE[k]={n:b.n,hp:b.hp,atk:b.atk};b.tr.forEach(t=>FOE[k][t]=1)})}catch(e){}
+[['mochi',{wet:1,frail:1,heavy:1}],['medama',{aqua:1,wet:1,frail:1}],['ogyoro',{aqua:1,wet:1,heavy:1}]].forEach(([k,t])=>{if(ITEM[k]&&!FOE[k])FOE[k]={n:ITEM[k].n,hp:ITEM[k].hp,atk:ITEM[k].atk,...t}});
 function monTraits(k){const D=FOE[k]||{};return Object.keys(TRW).filter(t=>D[t])}
 function breedResult(a,b){
  try{const ta=monTraits(a),tb=monTraits(b);const both=ta.filter(t=>tb.includes(t));const all=[...new Set([...ta,...tb])];
   // 両親の性質を二つとも備えた「配合限定」がいれば、それが生まれる
-  const hit=Object.keys(BONLY).find(k=>BONLY[k].tr.length>=2&&BONLY[k].tr.every(t=>all.includes(t))&&BONLY[k].tr.some(t=>ta.includes(t))&&BONLY[k].tr.some(t=>tb.includes(t))&&k!=a&&k!=b);
-  if(hit)return hit;
+  // 伝説（性質3つ）は、親のどちらかが配合限定の子のときだけ。同じ親の組からは、いつも同じ子が生まれる
+  const cand=Object.keys(BONLY).filter(k=>{const B=BONLY[k];return k!=a&&k!=b&&B.tr.every(t=>all.includes(t))&&B.tr.some(t=>ta.includes(t))&&B.tr.some(t=>tb.includes(t))&&(!B.leg||ITEM[a].bonly||ITEM[b].bonly)});
+  if(cand.length){const top=Math.max(...cand.map(k=>BONLY[k].tr.length));const cc=cand.filter(k=>BONLY[k].tr.length==top).sort();
+   let h=0;for(const ch of [a,b].sort().join('+'))h=(Math.imul(h,31)+ch.charCodeAt(0))|0;return cc[Math.abs(h)%cc.length]}
   // 同じ性質を共有していれば、その性質を持つ中で一番強い者へ育つ
   const pool=Object.keys(ITEM).filter(k=>ITEM[k]&&ITEM[k].mon&&!ITEM[k].bonly);
   if(both.length){const c=pool.filter(k=>both.every(t=>(FOE[k]||{})[t])).sort((x,y)=>(ITEM[y].atk||0)-(ITEM[x].atk||0));
@@ -3105,6 +3134,11 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
    P(farm.length?'タップで選ぶ。1匹なら見せる・飾る、2匹なら配合（親の2匹はいなくなる）。':'まだいない。ダンジョンで仲間にして、連れて帰ろう。');
    const c=C();farm.forEach((m,i)=>c.append(chip(m.k,m.name+(m.inst&&m.inst.shiny?'✦':'')+(m.name!=ITEM[m.k].n?'（'+ITEM[m.k].n+'）':'')+' '+ITEM[m.k].sh.join('×')+(m.trips?' 帰還'+m.trips:'')+(m.trips>=3?'★':''),sel.includes(i),()=>{if(sel.includes(i))sel=sel.filter(x=>x!=i);else{sel.push(i);if(sel.length>2)sel.shift()}draw()},'',m.inst)));
    if(sel.length==1)B('見せる',()=>showOff('mon',farm[sel[0]],draw),'go');
+   // 配合の前に、生まれる子を予告する（一度生まれた組は名前を、初めての組は性質を見せる）
+   if(sel.length==2){const a=farm[sel[0]].k,b=farm[sel[1]].k;const ch=BREED[[lineOf(a),lineOf(b)].sort().join('+')]||breedResult(a,b);let br={};try{br=JSON.parse(store('yw70_breed')||'{}')||{}}catch(e){}
+    const tw=k=>monTraits(k).map(t=>TRW[t]).join('・')||'癖なし';
+    if(br[[a,b].sort().join('+')])P('この組み合わせからは<b>'+ITEM[ch].n+'</b>が生まれる。');
+    else P(ITEM[a].n+'（'+tw(a)+'）× '+ITEM[b].n+'（'+tw(b)+'）。何が生まれるかは、まだ分からない。'+(ITEM[ch].leg?'<br><b style="color:var(--gold)">……ただならぬ気配がする。</b>':ITEM[ch].bonly?'<br>どこにもいない何かが、生まれそうだ。':''))}
    if(sel.length==2)B('配合する',()=>{const a=farm[sel[0]].k,b=farm[sel[1]].k;const na=farm[sel[0]].name,nb=farm[sel[1]].name;const key=[lineOf(a),lineOf(b)].sort().join('+');const child=BREED[key]||breedResult(a,b);try{let br={};try{br=JSON.parse(store('yw70_breed')||'{}')}catch(e){}br[[a,b].sort().join('+')]=child;store('yw70_breed',JSON.stringify(br))}catch(e){}farm=farm.filter((_,i)=>!sel.includes(i));farm.push({k:child,name:ITEM[child].n,trips:0,inst:{origin:'配合で生まれた・第'+runs+'回探索のあと',shiny:Math.random()<.1?1:0}});note('m:'+child);bring=null;saveMeta();sfx('rare');sel=[];h='配合';p=na+'と'+nb+'はいなくなり、'+ITEM[child].n+'（'+ITEM[child].sh.join('×')+'マス）が生まれた。';draw()},'sub');
   }
   if(tab=='home'){
