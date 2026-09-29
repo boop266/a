@@ -84,14 +84,15 @@ function botTick() {
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
     const page = await ctx.newPage();
     const errs = [];
-    page.on('pageerror', e => errs.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n')[1]));
+    page.on('pageerror', e => errs.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 5).map(x => x.trim().replace(/\(file:.*?index\.html[^:]*:/, '(')).join(' < ')));
     page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|ERR_CERT|fonts/.test(m.text())) errs.push('console: ' + m.text()); });
     // テスト時だけ、握りつぶされている例外も記録する
     const html = require('fs').readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8')
       .replace(/catch\((e|er|err)\)\{\}/g, (m, v) => `catch(${v}){window.__sw&&window.__sw(${v})}`)
-      .replace('<head>', '<head><script>window.__swl=[];window.__sw=e=>{try{const k=String(e&&e.message||e)+" @ "+String(e&&e.stack||"").split("\\n")[1];if(!/localStorage|JSON|Unexpected token|is not valid JSON|null/.test(k)||1)window.__swl.push(k)}catch(_){}}</script>');
-    await ctx.route(FILE, r => r.fulfill({ body: html, contentType: 'text/html; charset=utf-8' }));
-    await page.goto(FILE);
+      .replace('<head>', '<head><script>window.__swl=[];window.__sw=e=>{try{const k=String(e&&e.message||e)+" @ "+String(e&&e.stack||"").split("\\n").slice(1,5).map(x=>x.trim().replace(/\\(file:.*?index\\.html[^:]*:/,"(")).join(" < ");if(!/localStorage|JSON|Unexpected token|is not valid JSON|null/.test(k)||1)window.__swl.push(k)}catch(_){}}</script>');
+    await ctx.route(/index\.html/, r => r.fulfill({ body: html, contentType: 'text/html; charset=utf-8' }));
+    // QS=zone=grave など、テスト用のURLパラメータで特殊な階を狙い撃ちできる
+    await page.goto(FILE + (process.env.QS ? '?' + process.env.QS : ''));
     await page.waitForTimeout(600);
     // START=階 で深い階から始める。GOD=1 で倒れないようにして奥まで見る
     const START = +process.env.START || 0, GOD = !!process.env.GOD;
