@@ -79,7 +79,7 @@ const cases = {
         G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == G.p.x && i.y == G.p.y)); G.srcs = (G.srcs || []).filter(q => !(q.x == G.p.x && q.y == G.p.y)); const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
         if (passGim(g)) return '最初から通れる';
         if (t == 'brazier') { for (const b of g.brz) lightBrazier(g, b) } else { const m = mainAction(); if (!m) return '行動が出ない'; m.f() }
-        for (let k = 0; k < 6 && !g.open; k++) { G.p.hp = G.p.max; G.busy = false; await doWait(); for (let w = 0; w < 50 && G.busy; w++) await new Promise(r => setTimeout(r, 40)) }
+        for (let k = 0; k < 6 && !g.open; k++) { G.p.hp = G.p.max; G.foes = []; G.fight = null; G.busy = false; await doWait(); for (let w = 0; w < 50 && G.busy; w++) await new Promise(r => setTimeout(r, 40)) }
         return g.open && passGim(g) ? 'ok' : '開かない';
       }, type);
       if (res !== 'ok') throw new Error(type + ': ' + res);
@@ -110,9 +110,9 @@ const cases = {
       const bad = [];
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; give('hyouka'); slotUse(G.bag.items.findIndex(q => q.id == 'hyouka')); if (curAt(k[0], k[1])) bad.push('凍らせても流れが残る') }
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; while (bagUsed() < Math.ceil(bagCap() * .75) && firstFit('gem')) give('gem'); if (curPush(G.p, true)) bad.push('重い荷物でも流される') }
-      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); G.items = G.items.filter(i => !(i.x == w[0] && i.y == w[1])); G.srcs = (G.srcs || []).filter(q => !(q.x == w[0] && q.y == w[1])); G.bodies = []; G.thin = []; for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
+      if (floorWith(() => G.volts && G.volts.length, 15)) { const v = G.volts[0]; const w = DIRS8.map(([a, b]) => [v.x + a, v.y + b]).find(([x, y]) => inWater(x, y)); if (w) { G.p.x = w[0]; G.p.y = w[1]; G.p.hp = 30; for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp >= 30) bad.push('放電石の水で感電しない'); G.p.hp = 30; give('boots'); for (let k = 0; k < 3; k++) { G.busy = false; await doWait() } if (G.p.hp < 30) bad.push('長靴でも感電する'); G.bag.items = G.bag.items.filter(q => q.id != 'boots'); freezeAt(w[0], w[1], 0); G.items = G.items.filter(i => !(i.x == w[0] && i.y == w[1])); G.srcs = (G.srcs || []).filter(q => !(q.x == w[0] && q.y == w[1])); G.bodies = []; G.thin = []; for (let k = 0; k < 3; k++) { G.foes = []; G.fight = null; G.busy = false; const m = mainAction(); if (m && m.t == '放電石を砕く') m.f() } if (v.hp > 0) bad.push('氷の上から砕けない') } }
       for (const [t, tool] of [['crack', 'hammer'], ['vine', 'v_poison'], ['volt', 'raika']]) { if (!floorWith(() => G.gim.some(g => g.type == t), 5)) continue; const g = G.gim.find(g => g.type == t); const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y)); G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == c[0] && i.y == c[1])); G.srcs = []; give(tool);
-        if (t == 'crack') for (let k = 0; k < 3; k++) { const m = mainAction(); if (m && m.t == '槌で壁を叩く') { m.f(); for (let w = 0; w < 40 && G.busy; w++) await new Promise(r => setTimeout(r, 30)) } }
+        if (t == 'crack') for (let k = 0; k < 3; k++) { G.foes = []; G.fight = null; G.busy = false; const m = mainAction(); if (m && m.t == '槌で壁を叩く') { m.f(); for (let w = 0; w < 40 && G.busy; w++) await new Promise(r => setTimeout(r, 30)) } }
         if (t == 'vine') { spill(G.p.x, G.p.y, 'gas', 5); for (let k = 0; k < 2; k++) { G.busy = false; await doWait() } }
         if (t == 'volt') slotUse(G.bag.items.findIndex(q => q.id == 'raika'));
         if (!g.open) bad.push(t + 'が開かない') }
@@ -121,7 +121,7 @@ const cases = {
   },
   // 工房：倉庫の材料で、筋の通ったレシピだけが作れる。鍛冶屋で素材を打ち込むと銘がつく
   async '工房と銘打ち'(p) {
-    const r = await p.evaluate(() => { runs = 3; gold = 100; wh = [{ id: 'kawa' }, { id: 'gomu' }, { id: 'raiseki' }, { id: 'sword' }]; saveMeta(); document.getElementById('modal').innerHTML = ''; showBase('', '');
+    const r = await p.evaluate(() => { runs = 3; gold = 100; wh = [{ id: 'kawa' }, { id: 'gomu' }, { id: 'raiseki' }, { id: 'sword', inst: Object.assign(makeInst('sword', 'テスト'), { af: [] }) }]; saveMeta(); document.getElementById('modal').innerHTML = ''; showBase('', '');
       [...document.querySelectorAll('.place')].find(b => /工房/.test(b.textContent)).click();
       const btns = [...document.querySelectorAll('#tb button')].map(b => b.textContent);
       if (btns.some(t => /作る：雷の瓶/.test(t))) return '瓶が無いのに雷の瓶が作れる';
@@ -300,9 +300,10 @@ const cases = {
   async 'モンスター500種'(p) {
     const r = await p.evaluate(() => {
       const ks = Object.keys(FOE); const g = Object.keys(GEN); const names = new Set(g.map(k => FOE[k].n));
-      return { total: ks.length, gen: g.length, dup: g.length - names.size, noSp: g.filter(k => !SP[k]).length, noItem: g.filter(k => !ITEM[k]).length, emptyFloor: Array.from({ length: 99 }, (_, i) => i + 1).filter(fi => !genPool(fi).length).length };
+      const dyn = ['puru', 'gyoro', 'koke', 'mochi', 'medama', 'ogyoro']; const ms = ks.filter(k => SP[k] && !dyn.includes(k)).map(k => bodyMask(SP[k])); let close = 0; for (let i = 0; i < ms.length; i++) for (let j = i + 1; j < ms.length; j++) if (maskDist(ms[i], ms[j]) < 6) close++;
+      return { close, total: ks.length, gen: g.length, dup: g.length - names.size, noSp: g.filter(k => !SP[k]).length, noItem: g.filter(k => !ITEM[k]).length, emptyFloor: Array.from({ length: 99 }, (_, i) => i + 1).filter(fi => !genPool(fi).length).length };
     });
-    if (r.total < 500 || r.dup || r.noSp || r.noItem || r.emptyFloor) throw new Error(JSON.stringify(r));
+    if (r.total < 500 || r.close || r.dup || r.noSp || r.noItem || r.emptyFloor) throw new Error(JSON.stringify(r));
   },
 };
 
@@ -312,7 +313,7 @@ async function arena(p) {
   await p.evaluate(() => {
     G.title = null; const H = G.m.length, W = G.m[0].length;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
-    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.srcs = []; G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
+    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.srcs = []; G.exit = [2, 2]; G.down = [3, 2]; G.up = null; G.wind = null; G.cur = null; G.mud = new Set(); G.bush = new Set(); G.ice = new Set(); G.holes = new Set(); G.bridges = new Set(); G.lava = new Set(); G.webs = new Set(); G.oil = new Set(); G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
     G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
     window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.slowV = 0; f.fastV = 0; f.slow = 0; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });

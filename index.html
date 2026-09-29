@@ -3789,32 +3789,106 @@ try{Object.keys(BONLY).forEach(k=>{const b=BONLY[k];if(!SP[k]&&SP[b.base])SP[k]=
 
 // ===== 生まれの組み合わせで増える魔物たち =====
 // 体（種族）× 性（属性）× 育ち（大きさ）の組み合わせ。行動はすべて既存の性質で動く。層ごとに41種
-const GBASE=[
- {b:'skel',fam:'dead',n:['骸骨','骨兵','髑髏','骨人'],tr:{bone:1,fireOK:1},hp:8,atk:4,L:[2,8,9]},
- {b:'lskel',fam:'dead',n:['槍骨','矛骨','骨槍兵'],tr:{bone:1,fireOK:1},hp:9,atk:5,L:[2,6,8]},
- {b:'zombie',fam:'dead',n:['屍','亡者','腐れ人','死人'],tr:{flam:1,slow:1},hp:12,atk:5,L:[2,4,7]},
- {b:'ghost',fam:'dead',n:['亡霊','怨霊','死霊','影霊'],tr:{fly:1,fireOK:1},hp:12,atk:6,L:[5,6,8]},
- {b:'wisp',fam:'fire',n:['鬼火','狐火','人魂','燐火'],tr:{fly:1,fireOK:1},hp:6,atk:6,L:[2,6,9]},
- {b:'rat',fam:'beast',n:['鼠','溝鼠','穴鼠','尾長'],tr:{flam:1,frail:1},hp:5,atk:3,L:[0,1,4]},
- {b:'bat',fam:'beast',n:['蝙蝠','夜翼','洞蝙蝠'],tr:{fly:1,fast:1,frail:1},hp:5,atk:3,L:[0,3,6]},
- {b:'gob',fam:'gob',n:['小鬼','鬼童','山鬼','穴鬼'],tr:{flam:1},hp:9,atk:4,L:[0,1,4]},
- {b:'spider',fam:'bug',n:['蜘蛛','土蜘蛛','女郎蜘蛛','足長'],tr:{flam:1,frail:1},hp:7,atk:4,L:[3,7]},
- {b:'beetle',fam:'bug',n:['甲虫','兜虫','鎧虫','角虫'],tr:{armor:1,heavy:1},hp:11,atk:3,L:[0,3,8]},
- {b:'slime',fam:'ooze',n:['すらいむ','ぬめり','ぷよ'],tr:{wet:1,frail:1},hp:6,atk:2,L:[0,1,5]},
- {b:'doll',fam:'doll',n:['人形','操り人形','木偶','傀儡'],tr:{flam:1,frail:1},hp:10,atk:5,L:[7,8]},
- {b:'golem',fam:'doll',n:['石像','巨像','守り像'],tr:{slow:1,armor:1,heavy:1},hp:26,atk:8,L:[8,9]},
- {b:'frog',fam:'water',n:['蛙','水蛙','疣蛙'],tr:{wet:1},hp:10,atk:3,L:[1,5]},
- {b:'raiju',fam:'water',n:['魚','跳ね魚','牙魚'],tr:{wet:1},hp:11,atk:4,L:[1,5,6]},
- {b:'salam',fam:'fire',n:['蜥蜴','守宮','大守宮'],tr:{},hp:12,atk:5,L:[2,3,9]},
- {b:'oilbug',fam:'bug',n:['芋虫','地這い','穴虫'],tr:{flam:1},hp:9,atk:3,L:[0,4]},
- {b:'mud',fam:'ooze',n:['泥人','泥坊主','沼人'],tr:{wet:1,heavy:1},hp:14,atk:4,L:[1,4,5]},
- {b:'mosser',fam:'plant',n:['苔虫','苔這い','緑喰い'],tr:{flam:1,wet:1},hp:10,atk:3,L:[0,4,7]},
- {b:'shade',fam:'dead',n:['影','黒影','闇法師'],tr:{fly:1,fireOK:1},hp:10,atk:6,L:[6,9]},
- {b:'mirror',fam:'bug',n:['鏡蟲','玻璃虫'],tr:{frail:1},hp:12,atk:3,L:[6,8]},
- {b:'bell',fam:'bug',n:['鈴蟲','鳴り虫'],tr:{frail:1},hp:5,atk:2,L:[9,3]},
- {b:'twin',fam:'doll',n:['双子人形','童人形'],tr:{flam:1,frail:1},hp:9,atk:4,L:[3,7]},
- {b:'snuff',fam:'water',n:['灯消し','霧吹き'],tr:{fly:1,wet:1},hp:9,atk:3,L:[3,5,6]},
- {b:'eater',fam:'bug',n:['荷食い虫','齧り虫'],tr:{flam:1,heavy:1},hp:9,atk:3,L:[0,4,7]}];
+// ===== 体を組み立てる：12の設計図 × 部品 =====
+// 'M'体 'D'影 'L'明るい所 'E'目 'A'角・爪・飾り。最後に輪郭を足し、属性の色に塗る
+const BODY_W=12,BODY_H=12;
+function bodyGrid(){return Array.from({length:BODY_H},()=>Array(BODY_W).fill('.'))}
+function bodyMake(plan,R,pre){pre=pre||{};const g=bodyGrid();const W=BODY_W,H=BODY_H;
+ const set=(x,y,c)=>{if(x>=0&&y>=0&&x<W&&y<H)g[y][x]=c};const setS=(x,y,c)=>{set(x,y,c);set(W-1-x,y,c)};
+ const fill=(x0,y0,x1,y1,c)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)set(x,y,c)};const fillS=(x0,y0,x1,y1,c)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)setS(x,y,c)};
+ const ell=(cx,cy,rx,ry,c)=>{for(let y=Math.floor(cy-ry);y<=Math.ceil(cy+ry);y++)for(let x=Math.floor(cx-rx);x<=Math.ceil(cx+rx);x++){const dx=(x-cx)/(rx+.35),dy=(y-cy)/(ry+.35);if(dx*dx+dy*dy<=1)set(x,y,c)}};
+ const pk=a=>a[Math.floor(R()*a.length)];const o={plan};const P={};const opt=(k,a)=>{P[k]=pre[k]!=null?pre[k]:pk(a);return P[k]};
+ if(plan=='humanoid'){const hd=opt('head',['round','skull','hood','horned','helm','mask','cyclops','antler']);const ts=opt('torso',['thin','stout','robe','armor','hunch']);const ar=opt('arms',['thin','long','claw','none','big']);const lg=opt('legs',['two','stub','none','wide']);const wp=opt('weapon',['none','none','staff','spear','shield','blade']);
+  const hy=ts=='hunch'?2:1;fillS(4,hy,5,hy+2,'M');fillS(3,hy+1,4,hy+2,'M');if(hd!='hood')setS(4,hy-1,'M');
+  if(hd=='skull'){setS(4,hy+1,'E');set(5,hy+3,'L');set(6,hy+3,'L');fillS(4,hy+3,4,hy+3,'M')}else if(hd=='cyclops'){set(5,hy+1,'E');set(6,hy+1,'E')}else if(hd=='mask'){fillS(4,hy+1,5,hy+2,'L');setS(4,hy+1,'E')}else setS(4,hy+1,'E');
+  if(hd=='hood'){setS(3,hy,'D');setS(4,hy-1,'D');set(5,hy-2,'D');set(6,hy-2,'D');setS(2,hy+2,'D')}if(hd=='horned'){setS(3,hy-1,'A');setS(2,hy-2,'A')}if(hd=='helm'){fillS(3,hy,5,hy,'D');setS(4,hy-1,'D')}if(hd=='antler'){setS(3,hy-1,'A');setS(2,hy-2,'A');setS(4,hy-2,'A');setS(1,hy-1,'A')}
+  const ty=hy+3;if(ts=='thin')fillS(4,ty,5,ty+4,'M');if(ts=='stout'||ts=='hunch')fillS(3,ty,5,ty+4,'M');if(ts=='armor'){fillS(3,ty,5,ty+4,'M');fillS(3,ty+1,5,ty+1,'D');fillS(3,ty+3,5,ty+3,'D')}if(ts=='robe'){fillS(4,ty,5,ty+1,'M');fillS(3,ty+2,5,ty+4,'M');fillS(2,ty+5,5,H-1,'M')}
+  if(ar=='thin'){fillS(2,ty+1,2,ty+3,'M')}if(ar=='long'){fillS(2,ty+1,2,ty+5,'M')}if(ar=='claw'){fillS(2,ty+1,2,ty+3,'M');setS(1,ty+4,'A');setS(2,ty+4,'A')}if(ar=='big'){fillS(1,ty,2,ty+3,'M');setS(1,ty+4,'M')}
+  if(ts!='robe'){if(lg=='two'){fillS(4,ty+5,4,H-1,'M')}if(lg=='stub'){fillS(3,ty+5,4,ty+6,'M')}if(lg=='wide'){fillS(3,ty+5,3,H-1,'M');setS(2,H-1,'M')}}
+  if(wp=='staff'){for(let y=ty-2;y<H;y++)set(1,y,'A');set(0,ty-2,'A')}if(wp=='spear'){for(let y=0;y<H-1;y++)set(10,y,'A');set(9,1,'A');set(11,1,'A')}if(wp=='shield'){fill(0,ty,2,ty+3,'A');set(1,ty+1,'L')}if(wp=='blade'){for(let y=ty-1;y<ty+4;y++)set(10,y,'A');set(10,ty+4,'D')}}
+ else if(plan=='beast'){const hd=opt('head',['wolf','boar','fox','deer','bull','cat','bear']);const tl=opt('tail',['up','straight','bush','none','curl']);const bd=opt('body',['long','tall','heavy','slim']);const mk=opt('mark',['none','stripe','spot','mane']);
+  const by=bd=='tall'?4:5,bh=bd=='heavy'?4:3,bx0=bd=='long'?1:2,bx1=bd=='slim'?7:8;fill(bx0,by,bx1,by+bh-1,'M');fill(bx0,by+bh-1,bx1,by+bh-1,'D');
+  const hx=bx1+1;fill(hx-1,by-2,hx+1,by+1,'M');set(hx+1,by-1,'E');if(hd=='wolf'||hd=='fox'){set(hx+2,by,'M');set(hx+2,by+1,'M');set(hx-1,by-3,'M');set(hx,by-3,'M')}if(hd=='fox'){set(hx-1,by-4,'M');set(hx,by-4,'A')}
+  if(hd=='boar'){set(hx+2,by,'M');set(hx+2,by+1,'A');set(hx+1,by+2,'A')}if(hd=='deer'){set(hx-1,by-3,'A');set(hx-2,by-4,'A');set(hx,by-4,'A');set(hx+1,by-5,'A')}if(hd=='bull'){set(hx-2,by-3,'A');set(hx+1,by-3,'A');set(hx+2,by,'L')}if(hd=='cat'){set(hx-1,by-3,'M');set(hx+1,by-3,'M');set(hx+2,by,'M')}if(hd=='bear'){fill(hx-1,by-3,hx+1,by-3,'M');set(hx+2,by+1,'M')}
+  const ly=by+bh;[bx0,bx0+1,bx1-1,bx1].forEach((x,i)=>{if(bd=='heavy'&&i%2)return;fill(x,ly,x,Math.min(H-1,ly+(bd=='tall'?3:2)),'M')});
+  if(tl=='up'){set(bx0-1,by,'M');set(bx0-1,by-1,'M');set(bx0-1,by-2,'M')}if(tl=='straight'){set(bx0-1,by,'M');set(bx0-2,by,'M')}if(tl=='bush'){fill(bx0-2,by-2,bx0-1,by+1,'M');set(bx0-2,by-2,'L')}if(tl=='curl'){set(bx0-1,by,'M');set(bx0-2,by-1,'M');set(bx0-1,by-2,'M')}
+  if(mk=='stripe')for(let x=bx0+1;x<bx1;x+=2)set(x,by,'D');if(mk=='spot'){set(bx0+2,by+1,'L');set(bx1-2,by+1,'L')}if(mk=='mane')fill(hx-2,by-2,hx-2,by+1,'D')}
+ else if(plan=='serpent'){const tp=opt('type',['snake','cobra','worm','centi','eel']);const amp=pk([1,2]);const th=tp=='worm'?2:1;
+  for(let x=0;x<9;x++){const y=7+Math.round(Math.sin(x*.9+R()*.3)*amp);fill(x,y,x,y+th,'M');set(x,y+th,'D');if(tp=='centi'&&x%2==0){set(x,y+th+1,'A')}}
+  const hy=5;fill(8,hy,10,hy+2,'M');set(10,hy,'E');if(tp=='snake'){set(11,hy+2,'A')}if(tp=='cobra'){fill(7,hy-2,9,hy-1,'M');set(7,hy-2,'D');set(9,hy-2,'D')}if(tp=='worm'){fill(8,hy+3,10,hy+3,'M');set(11,hy+1,'L')}if(tp=='eel'){set(8,hy-1,'A');set(5,5,'A');set(3,6,'A')}if(tp=='centi'){set(10,hy-1,'A');set(11,hy-2,'A')}}
+ else if(plan=='insect'){const tp=opt('type',['beetle','ant','bee','spider','mantis','moth','flea']);
+  if(tp=='spider'){ell(5.5,6,2,2,'M');ell(5.5,3,1,1,'M');setS(5,3,'E');setS(4,3,'E');for(let i=0;i<4;i++){setS(2-(i%2),4+i,'M');setS(1-(i%2),5+i,'M');setS(0,6+i,'M')}set(5,8,'D');set(6,8,'D')}
+  else{const hy=tp=='mantis'?1:2;fillS(5,hy,5,hy+1,'M');setS(4,hy+1,'M');setS(4,hy,'E');const ty=hy+2;fillS(4,ty,5,ty+1,'M');const ay=ty+2,al=tp=='ant'?2:tp=='bee'?3:tp=='flea'?4:3;fillS(tp=='beetle'?3:4,ay,5,ay+al,'M');if(tp=='beetle'){fillS(3,ay,3,ay+al,'D');set(5,ay,'L');set(6,ay+al,'D')}if(tp=='bee')for(let y=ay;y<=ay+al;y+=2)fillS(4,y,5,y,'D');
+   for(let i=0;i<3;i++){setS(3,ty+i,'M');setS(2,ty+i+1,'M')}if(tp!='flea'){setS(4,hy-1,'A');setS(3,hy-2,'A')}if(tp=='mantis'){setS(3,ty,'A');setS(2,ty-1,'A');setS(1,ty,'A')}
+   if(tp=='bee'||tp=='moth'){const wy=ty;fillS(1,wy-1,2,wy+1,'L');if(tp=='moth'){fillS(0,wy-2,2,wy+2,'L');setS(1,wy,'E')}}}}
+ else if(plan=='bird'){const tp=opt('type',['crow','owl','raptor','bat','heron']);const wg=opt('wing',['up','down','spread']);
+  if(tp=='bat'||tp=='owl'){ell(5.5,6,2,2.5,'M');setS(5,5,'E');if(tp=='owl'){setS(4,5,'E');setS(4,3,'A')}else{setS(4,3,'M');setS(4,2,'M')}const w=wg;if(w=='up'){for(let i=0;i<4;i++){setS(3-i,5-i,'M');setS(3-i,6-i,'D')}}else if(w=='down'){for(let i=0;i<4;i++){setS(3-i,6+i%2,'M');setS(3-i,7,'D')}}else{fillS(0,5,3,6,'M');setS(0,7,'D');setS(2,7,'D')}fillS(5,9,5,10,'A')}
+  else{ell(4.5,6.5,2.5,1.7,'M');fill(6,3,8,5,'M');set(8,4,'E');set(9,5,'A');if(tp=='raptor'){set(9,4,'A');set(9,6,'A')}if(tp=='heron'){fill(6,1,6,4,'M');fill(6,0,8,1,'M');set(8,0,'E');set(9,1,'A');set(10,1,'A')}
+   fill(0,6,1,7,'M');set(0,5,'D');if(wg=='up'){fill(2,2,5,4,'M');fill(3,1,4,1,'M');fill(2,4,5,4,'D')}else if(wg=='down'){fill(2,6,6,7,'D')}else{fill(1,3,6,4,'M');set(0,2,'M')}set(4,9,'A');set(6,9,'A');set(4,10,'A');set(6,10,'A')}}
+ else if(plan=='blob'){const tp=opt('shape',['dome','tall','wide','drip','tentacle','crown','twin']);const ey=opt('eyes',['two','one','three','mouth']);
+  const rx=tp=='wide'?4.5:tp=='tall'?2.8:3.5,ry=tp=='tall'?4.2:3,cy=tp=='tall'?6.5:7.5;ell(5.5,cy,rx,ry,'M');for(let x=0;x<W;x++){if(g[Math.floor(cy+ry)]&&g[Math.floor(cy+ry)][x]=='M')set(x,Math.floor(cy+ry),'D')}
+  if(tp=='drip'){set(3,Math.floor(cy+ry)+1,'M');set(8,Math.floor(cy+ry)+1,'M');set(3,Math.floor(cy+ry)+2,'M')}if(tp=='tentacle')for(let i=0;i<4;i++){const x=2+i*2+(i>1?1:0);fill(x,Math.floor(cy+ry),x,H-1,'M');set(x,H-1,'D')}if(tp=='crown'){setS(3,Math.floor(cy-ry)-1,'A');setS(5,Math.floor(cy-ry)-2,'A');setS(4,Math.floor(cy-ry)-1,'A')}if(tp=='twin'){ell(3,4,1.3,1.3,'M');ell(8,4,1.3,1.3,'M')}
+  const ex=Math.floor(cy)-1;if(ey=='two'){setS(4,ex,'E')}if(ey=='one'){set(5,ex,'E');set(6,ex,'E');set(5,ex-1,'E')}if(ey=='three'){setS(3,ex,'E');set(5,ex-1,'E')}if(ey=='mouth'){setS(4,ex-1,'E');fillS(4,ex+1,5,ex+1,'D')}set(3,Math.floor(cy)-2,'L')}
+ else if(plan=='ghost'){const tp=opt('type',['sheet','wisp','hooded','crowned','armless','clawed']);ell(5.5,4.5,3,3.3,'M');fillS(2,5,5,8,'M');for(let x=2;x<10;x++){if((x+(R()<.5?0:1))%2==0){set(x,9,'M');set(x,10,'D')}else set(x,9,'D')}
+  setS(4,4,'E');if(tp=='hooded'){setS(2,2,'D');setS(3,1,'D');fillS(4,0,5,0,'D')}if(tp=='crowned'){setS(3,0,'A');setS(5,0,'A');setS(4,1,'A')}if(tp=='clawed'){setS(1,6,'M');setS(0,7,'A');setS(1,7,'A')}if(tp!='armless'&&tp!='clawed'){setS(1,5,'M');setS(1,6,'M')}if(tp=='wisp'){fillS(4,0,5,1,'L');set(5,6,'D');set(6,6,'D')}set(4,2,'L')}
+ else if(plan=='fish'){const tp=opt('type',['carp','shark','puffer','angler','catfish','ray']);
+  if(tp=='ray'){fillS(1,5,5,7,'M');fillS(3,4,5,4,'M');fillS(0,6,0,6,'M');setS(4,5,'E');fill(5,8,6,H-1,'D')}
+  else{const ry=tp=='puffer'?2.8:1.8;ell(5.5,6,3.5,ry,'M');for(let x=2;x<10;x++)if(g[Math.ceil(6+ry)]&&g[Math.ceil(6+ry)][x]=='M')set(x,Math.ceil(6+ry),'D');set(8,5,'E');fill(0,4,1,5,'M');fill(0,7,1,8,'M');set(1,6,'M');
+   if(tp=='shark'){fill(5,1,6,3,'M');set(4,3,'M');set(9,7,'A');set(8,7,'A')}if(tp=='puffer'){[[5,2],[3,3],[8,3],[2,6],[9,8],[5,10]].forEach(([x,y])=>set(x,y,'A'))}if(tp=='angler'){set(8,2,'A');set(9,1,'A');set(10,1,'L');set(10,7,'A')}if(tp=='catfish'){set(10,7,'A');set(11,8,'A');set(10,5,'A')}if(tp=='carp'){fill(4,3,6,3,'M');set(5,6,'L');set(6,6,'L')}}}
+ else if(plan=='plant'){const tp=opt('type',['mushroom','flower','vine','cactus','pod','tree']);
+  if(tp=='mushroom'){ell(5.5,4,4,2,'M');fillS(4,6,5,H-1,'L');set(3,3,'L');set(7,2,'L');set(8,4,'L');setS(4,8,'E');fillS(3,H-1,5,H-1,'D')}
+  if(tp=='flower'){ell(5.5,4,1.5,1.5,'L');[[5,1],[6,1],[2,4],[9,4],[3,2],[8,2],[3,6],[8,6],[5,7],[6,7]].forEach(([x,y])=>set(x,y,'A'));setS(5,4,'E');fillS(5,7,5,H-1,'M');fill(2,9,4,9,'M');fill(7,10,9,10,'M')}
+  if(tp=='vine'){for(let y=1;y<H;y++){const x=5+Math.round(Math.sin(y*.9)*2);fill(x,y,x+1,y,'M')}[[3,3],[8,6],[2,8],[9,2]].forEach(([x,y])=>{set(x,y,'L');set(x+1,y,'L')});set(5,1,'E');set(6,1,'E')}
+  if(tp=='cactus'){fillS(4,1,5,H-1,'M');fill(1,4,2,7,'M');fill(3,6,3,6,'M');fill(9,3,10,6,'M');fill(8,5,8,5,'M');setS(4,3,'E');[[4,2],[7,5],[2,5],[9,4],[5,8]].forEach(([x,y])=>set(x,y,'A'))}
+  if(tp=='pod'){ell(5.5,5,2.5,3.5,'M');fillS(5,8,5,H-1,'D');setS(4,4,'E');fillS(4,6,5,6,'A');set(2,9,'M');set(9,9,'M')}
+  if(tp=='tree'){ell(5.5,3.5,4,3,'M');fillS(5,6,5,H-1,'D');setS(3,H-1,'D');setS(4,4,'E');set(3,2,'L');set(8,3,'L')}}
+ else if(plan=='eye'){const tp=opt('type',['wing','tentacle','spike','lid','stalk','cluster']);
+  if(tp=='cluster'){ell(3.5,4,2,2,'M');ell(8,4.5,2,2,'M');ell(5.5,8,2.3,2.3,'M');set(3,4,'E');set(8,4,'E');set(5,8,'E');set(6,8,'E')}
+  else{ell(5.5,5.5,3.3,3.3,'M');fillS(4,4,5,6,'L');setS(5,5,'E');setS(5,4,'E');set(3,3,'L');
+   if(tp=='wing'){fillS(0,3,1,6,'D');setS(0,2,'D')}if(tp=='tentacle'){[3,5,6,8].forEach(x=>fill(x,9,x,H-1,'M'))}if(tp=='spike'){[[5,0],[6,0],[1,5],[10,5],[2,2],[9,2],[2,9],[9,9]].forEach(([x,y])=>set(x,y,'A'))}if(tp=='lid'){fillS(3,2,5,3,'D')}if(tp=='stalk'){fillS(5,9,5,H-1,'D');setS(4,H-1,'D')}}}
+ else if(plan=='crab'){const tp=opt('type',['crab','hermit','turtle','scorpion']);
+  if(tp=='turtle'){ell(5,6,4,2.2,'M');for(let x=2;x<9;x+=2)set(x,5,'D');fill(9,5,10,7,'M');set(10,5,'E');fill(2,9,2,9,'M');fill(7,9,7,9,'M')}
+  else if(tp=='scorpion'){fillS(4,6,5,9,'M');setS(4,6,'E');for(let y=0;y<6;y++)set(5+(y<2?1:0),y,'M');set(7,0,'A');set(6,0,'A');setS(2,5,'M');setS(1,4,'A');setS(2,4,'A');for(let i=0;i<3;i++)setS(3,7+i,'D')}
+  else{ell(5.5,7,4,2,'M');fillS(4,4,4,5,'D');setS(4,4,'E');fillS(0,3,1,5,'M');setS(0,2,'A');setS(1,2,'A');for(let i=0;i<3;i++)setS(2+i,9+(i%2),'D');if(tp=='hermit'){ell(5.5,5,2.5,2,'L');set(5,4,'D')}}}
+ else if(plan=='frog'){const tp=opt('type',['frog','toad','newt','axolotl']);
+  if(tp=='newt'||tp=='axolotl'){fill(2,6,9,8,'M');fill(9,4,11,7,'M');set(10,5,'E');fill(0,7,1,7,'M');[3,4,7,8].forEach(x=>set(x,9,'M'));if(tp=='axolotl'){set(9,3,'A');set(10,2,'A');set(11,3,'A')}else for(let x=2;x<9;x+=2)set(x,6,'D')}
+  else{ell(5.5,7.5,4,2.5,'M');setS(3,4,'M');fillS(3,5,4,5,'M');setS(3,4,'E');fillS(4,8,5,8,'D');setS(0,9,'M');setS(1,10,'M');setS(2,10,'M');if(tp=='toad'){set(3,7,'D');set(8,8,'D');set(6,6,'D')}}}
+ // どの体にも付く飾り：角・棘・翼・尾・光輪・帽子
+ const ex=opt('extra',['none','none','horns','spikes','wings','tail','halo','hat']);const filled=(x,y)=>g[y]&&g[y][x]&&g[y][x]!='.';
+ let top=H,bl=W,br=-1;for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(filled(x,y)){if(y<top)top=y}
+ const rowX=y=>{let a=-1,b=-1;for(let x=0;x<W;x++)if(filled(x,y)){if(a<0)a=x;b=x}return[a,b]};
+ if(ex=='horns'&&top>0){const[a,b]=rowX(top);set(a,top-1,'A');set(b,top-1,'A');if(top>1){set(a-1,top-2,'A');set(b+1,top-2,'A')}}
+ if(ex=='spikes'){for(let x=0;x<W;x+=2){for(let y=0;y<H;y++)if(filled(x,y)){if(y>0&&!filled(x,y-1))set(x,y-1,'A');break}}}
+ if(ex=='wings'){let best=0,by=5;for(let y=2;y<H-3;y++){const[a,b]=rowX(y);if(b-a>best){best=b-a;by=y}}const[a,b]=rowX(by);for(let i=1;i<=2;i++){set(a-i,by-i,'L');set(a-i,by-i+1,'L');set(b+i,by-i,'L');set(b+i,by-i+1,'L')}}
+ if(ex=='tail'){let ly=-1,lx=W;for(let y=Math.floor(H/2);y<H;y++){const[a]=rowX(y);if(a>=0&&a<lx){lx=a;ly=y}}if(ly>=0){set(lx-1,ly,'M');set(lx-2,ly-1,'M');set(lx-2,ly-2,'A')}}
+ if(ex=='halo'&&top>1){const[a,b]=rowX(top);const m=(a+b)>>1;set(m,top-2,'A');set(m+1,top-2,'A');set(m-1,top-2,'A');set(m+2,top-2,'A')}
+ if(ex=='hat'&&top>0){const[a,b]=rowX(top);for(let x=a-1;x<=b+1;x++)set(x,top-1,'D');for(let x=a+1;x<=b-1;x++){set(x,top-2,'D')}}
+ o.parts=P;o.g=g;return o}
+// 輪郭と陰影をつけて、パレット文字に置き換える
+function bodyFinish(g,pal){const H=g.length,W=g[0].length;const out=g.map(r=>r.slice());
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(g[y][x]!='M')continue;const below=y+1>=H||g[y+1][x]=='.';const above=y==0||g[y-1][x]=='.';if(below)out[y][x]='D';else if(above&&(x+y)%2==0)out[y][x]='L'}
+ const fin=out.map(r=>r.slice());for(let y=0;y<H;y++)for(let x=0;x<W;x++){if(out[y][x]!='.')continue;if([[1,0],[-1,0],[0,1],[0,-1]].some(([a,b])=>out[y+b]&&out[y+b][x+a]&&out[y+b][x+a]!='.'))fin[y][x]='k'}
+ const map={M:pal[0],D:pal[1],L:pal[2],E:pal[3],A:pal[4]};return fin.map(r=>r.map(c=>map[c]||c).join(''))}
+const bodyMask=a=>a.map(r=>r.replace(/[^.]/g,'#')).join('|');
+function maskDist(a,b){const A=a.split('|'),B=b.split('|');const h=Math.max(A.length,B.length),w=Math.max(A[0].length,B[0].length);let d=0;
+ for(let y=0;y<h;y++){const ra=A[A.length-h+y]||'',rb=B[B.length-h+y]||'';const oa=Math.floor((w-(ra.length||w))/2),ob=Math.floor((w-(rb.length||w))/2);for(let x=0;x<w;x++){const ca=ra[x-oa]=='#',cb=rb[x-ob]=='#';if(ca!=cb)d++}}return d}
+
+// 生まれの組み合わせ：体（12の設計図と部品）× 性（属性）× 育ち。見た目はどれも他と輪郭が違う
+const PLANS={
+ humanoid:{hp:9,atk:4,L:[2,8,9,0],fam:p=>p.head=='skull'||p.head=='hood'?'dead':'gob',n:p=>({skull:['骸骨','骨兵','髑髏'],hood:['法師','隠者','呪い師'],horned:['鬼','角鬼','山鬼'],helm:['兵','鎧武者','番兵'],mask:['面','仮面','道化'],cyclops:['一つ目','単眼鬼'],antler:['鹿人','角人'],round:['小鬼','童','木偶']}[p.head]),tr:p=>p.head=='skull'?{bone:1,fireOK:1}:{flam:1},role:p=>p.head=='mask'?'decoy':p.head=='round'?'lock':null},
+ beast:{hp:8,atk:4,L:[0,2,6],fam:()=>'beast',n:p=>({wolf:['狼','山犬'],boar:['猪','牙猪'],fox:['狐','妖狐'],deer:['鹿','角鹿'],bull:['牛','角牛'],cat:['猫','山猫'],bear:['熊','穴熊']}[p.head]),tr:()=>({flam:1}),role:p=>['wolf','fox','cat'].includes(p.head)?'sniff':['boar','bear'].includes(p.head)?'dig':null},
+ serpent:{hp:9,atk:4,L:[1,3,5],fam:()=>'beast',n:p=>({snake:['蛇','大蛇'],cobra:['毒蛇','頭巾蛇'],worm:['蚯蚓','地虫'],centi:['百足','大百足'],eel:['鰻','海蛇']}[p.type]),tr:p=>p.type=='eel'?{wet:1}:{},role:p=>p.type=='worm'?'dig':p.type=='eel'?'swim':null},
+ insect:{hp:7,atk:4,L:[0,3,4],fam:()=>'bug',n:p=>({beetle:['甲虫','兜虫'],ant:['蟻','大蟻'],bee:['蜂','大蜂'],spider:['蜘蛛','土蜘蛛'],mantis:['蟷螂','鎌虫'],moth:['蛾','鱗蛾'],flea:['蚤','跳ね虫']}[p.type]),tr:p=>p.type=='beetle'?{armor:1,heavy:1}:p.type=='bee'||p.type=='moth'?{fly:1,frail:1}:p.type=='flea'?{fast:1,frail:1}:{flam:1},role:p=>p.type=='spider'?'fetch':p.type=='ant'||p.type=='beetle'?'dig':p.type=='moth'?'glow':null},
+ bird:{hp:6,atk:4,L:[0,6,8],fam:()=>'beast',n:p=>({crow:['鴉','夜鴉'],owl:['梟','木菟'],raptor:['鷲','鷹'],bat:['蝙蝠','夜翼'],heron:['鷺','首長鳥']}[p.type]),tr:()=>({fly:1,frail:1}),role:p=>p.type=='bat'?'fetch':'scout'},
+ blob:{hp:8,atk:2,L:[0,4,7,1],fam:()=>'ooze',n:p=>({tentacle:['海月','触手'],twin:['双ぷる'],crown:['王ぷる','冠ぷる']}[p.shape]||['ぷる','ぬめり','粘体']),tr:()=>({wet:1}),role:()=>'swim'},
+ ghost:{hp:10,atk:5,L:[2,5,6,8],fam:()=>'dead',n:p=>({hooded:['死神','隠れ霊'],crowned:['霊王'],wisp:['人魂','燐火']}[p.type]||['霊','亡霊','怨霊']),tr:()=>({fly:1,fireOK:1}),role:()=>'scout'},
+ fish:{hp:9,atk:4,L:[1,5,6],fam:()=>'water',n:p=>({carp:['鯉','川魚'],shark:['鮫','牙鮫'],puffer:['河豚','針魚'],angler:['提灯魚','鮟鱇'],catfish:['鯰','大鯰'],ray:['鱏','平魚']}[p.type]),tr:()=>({wet:1}),role:p=>p.type=='angler'?'glow':'swim'},
+ plant:{hp:11,atk:3,L:[0,4,7],fam:()=>'plant',n:p=>({mushroom:['茸','笠茸'],flower:['花','人喰い花'],vine:['蔓','絡み蔓'],cactus:['棘草','仙人掌'],pod:['莢','種袋'],tree:['木霊','樹人']}[p.type]),tr:()=>({flam:1}),role:p=>p.type=='mushroom'?'glow':p.type=='vine'?'eat':null},
+ eye:{hp:9,atk:5,L:[7,8,9,3],fam:()=>'dead',n:p=>({cluster:['群れ目'],wing:['飛び目'],tentacle:['触手目']}[p.type]||['目玉','眼','単眼']),tr:p=>p.type=='wing'?{fly:1}:{},role:()=>'scout'},
+ crab:{hp:11,atk:3,L:[1,5,9],fam:()=>'water',n:p=>({crab:['蟹','大蟹'],hermit:['宿借り'],turtle:['亀','甲羅亀'],scorpion:['蠍','毒蠍']}[p.type]),tr:p=>p.type=='turtle'?{armor:1,heavy:1,wet:1}:{wet:1},role:p=>p.type=='hermit'?'lock':'swim'},
+ frog:{hp:9,atk:3,L:[1,4,5],fam:()=>'water',n:p=>({frog:['蛙'],toad:['蝦蟇','疣蛙'],newt:['井守','山椒魚'],axolotl:['鰓蜥蜴']}[p.type]),tr:()=>({wet:1}),role:()=>'douse'}};
+const NATPAL=[['u','U','w','r','B'],['b','e','B','r','E'],['t','U','u','y','w'],['l','L','P','r','y'],['e','C','E','y','w'],['s','U','w','r','B'],['V','v','Q','y','w'],['n','L','P','y','w']];
+const ELPAL={fire:['o','r','y','w','X'],water:['c','C','M','w','P'],volt:['g','G','y','c','w'],oil:['t','U','u','g','k'],stone:['E','e','B','o','w'],shadow:['v','Z','V','r','z'],glass:['M','n','P','z','w'],bell:['Y','G','g','r','w'],wind:['p','n','P','w','M'],call:['q','F','Q','y','w'],bow:['t','U','u','r','B'],web:['B','b','w','r','E'],split:['l','L','P','y','m']};
 const GEL=[
  {k:'none',pre:['','野良','はぐれ','洞の'],col:null,tr:{},ab:{},d:''},
  {k:'fire',pre:['火吹き','焔の','炎纏いの'],col:['o','r','y'],tr:{fireOK:1},ab:{breath:1},d:'火を吐いて、まわりの燃える物に火をつける',L:[2,3,9]},
@@ -3830,29 +3904,38 @@ const GEL=[
  {k:'bow',pre:['射手の','弓引き'],col:['t','U','r'],tr:{},ab:{ranged:1,rng:[2,4]},d:'離れた所から撃ってくる。詰めれば弱い',L:[2,8],only:['dead','gob','doll']},
  {k:'web',pre:['糸吐き','糸引き'],col:['B','b','r'],tr:{},ab:{spit:1,ranged:1,rng:[1,3]},d:'糸を吐いて縛ってくる',L:[3,7],only:['bug']},
  {k:'split',pre:['分かれ','増える'],col:['l','L','y'],tr:{},ab:{split:1},d:'斬ると分かれる',L:[1,5],only:['ooze']}];
-const GSIZE=[{p:'',h:1,a:1,tr:{}},{p:'大',h:1.6,a:1.2,tr:{heavy:1},big:1},{p:'小',h:.6,a:.9,tr:{frail:1}},{p:'角',h:1.3,a:1.15,tr:{},horn:1}];
+const GSIZE=[{p:'',h:1,a:1,tr:{}},{p:'大',h:1.6,a:1.2,tr:{heavy:1},big:1},{p:'小',h:.6,a:.9,tr:{frail:1}}];
 const GEN={},GEN_BY_L=Array.from({length:10},()=>[]);
-function genSprite(base,el,sz,seed){let a=SP[base].slice();const cnt={};a.forEach(r=>[...r].forEach(c=>{if(c!='.'&&c!='k')cnt[c]=(cnt[c]||0)+1}));
- const ord=Object.keys(cnt).filter(c=>!'ryRx'.includes(c)).sort((x,y)=>cnt[y]-cnt[x]);const mp={};
- if(el.col){if(ord[0])mp[ord[0]]=el.col[0];if(ord[1])mp[ord[1]]=el.col[1];'ryRx'.split('').forEach(c=>{if(cnt[c])mp[c]=el.col[2]})}
- else{const alt=[['u','U'],['e','E'],['V','v'],['l','L'],['b','B']][seed%5];if(ord[0])mp[ord[0]]=alt[0];if(ord[1])mp[ord[1]]=alt[1]}
- a=recolor(a,mp);
- if(sz.horn){const i=a.findIndex(r=>/[^.]/.test(r));if(i>0){const r=[...a[i]],L=r.findIndex(c=>c!='.'),R=r.length-1-[...r].reverse().findIndex(c=>c!='.');const up=[...a[i-1]];const hc=el.col?el.col[2]:'y';if(L>=0)up[L]=hc;if(R>=0)up[R]=hc;a[i-1]=up.join('')}else{const w=a[0].length;const up=Array(w).fill('.');const hc=el.col?el.col[2]:'y';up[2]=hc;up[w-3]=hc;a=[up.join(''),...a]}}
- return a}
+// 配合限定の者にも、名前に合った専用の姿を
+const BONLY_BODY={honoo:['blob',{shape:'crown'},'fire'],shizuku:['eye',{type:'lid'},'water'],hone:['bird',{type:'raptor',extra:'spikes'},'stone'],doro:['blob',{shape:'drip',eyes:'mouth'},'oil'],kagebi:['ghost',{type:'wisp'},'shadow'],garasu:['humanoid',{head:'horned',torso:'armor',extra:'halo'},'glass'],
+ yakebone:['humanoid',{head:'skull',torso:'thin',extra:'spikes'},'fire'],kaigara:['crab',{type:'hermit'},'stone'],oboro:['humanoid',{head:'skull',torso:'robe'},'water'],takigi:['humanoid',{head:'skull',torso:'stout',extra:'hat'},'oil'],honeyoroi:['humanoid',{head:'helm',torso:'armor',weapon:'shield'},'stone'],yugyoro:['eye',{type:'tentacle'},'fire'],
+ yuge:['blob',{shape:'twin'},'water'],yougan:['humanoid',{head:'cyclops',torso:'stout',arms:'big'},'fire'],hibana:['insect',{type:'flea'},'bell'],shibuki:['bird',{type:'bat',wing:'up'},'water'],kiri:['ghost',{type:'sheet',extra:'halo'},'wind'],ohotaru:['insect',{type:'moth'},'volt'],
+ ishitsubasa:['bird',{type:'owl',wing:'spread'},'stone'],usuba:['insect',{type:'bee',extra:'wings'},'wind'],aburagyoro:['fish',{type:'angler'},'oil'],iwagame:['crab',{type:'turtle',extra:'spikes'},'stone'],kurage:['blob',{shape:'tentacle',eyes:'one'},'glass'],rinko:['plant',{type:'mushroom',extra:'halo'},'glass'],
+ awapuru:['blob',{shape:'wide',eyes:'three'},'water'],warabito:['humanoid',{head:'hood',torso:'robe',arms:'long'},'oil'],kamigumo:['insect',{type:'spider',extra:'hat'},'web'],warezou:['humanoid',{head:'mask',torso:'armor',arms:'big'},'stone'],fushicho:['bird',{type:'heron',wing:'spread',extra:'halo'},'fire'],
+ umihebi:['serpent',{type:'eel',extra:'spikes'},'water'],gasha:['humanoid',{head:'skull',torso:'hunch',arms:'claw',extra:'horns'},'shadow'],yousei:['humanoid',{head:'round',torso:'thin',extra:'wings'},'glass']};
 function buildGen(){let sd=97531;const rnd=()=>{sd=(Math.imul(sd,1103515245)+12345)&0x7fffffff;return sd/0x7fffffff};const used=new Set(Object.values(FOE).map(f=>f.n));
- const bases=GBASE.filter(b=>SP[b.b]&&FOE[b.b]);
- for(let L=0;L<10;L++){let made=0,tries=0;while(made<41&&tries<4000){tries++;
-  const bw=bases.map(b=>b.L.includes(L)?4:1);let t=bw.reduce((x,y)=>x+y,0)*rnd(),bi=0;for(;bi<bases.length;bi++){if((t-=bw[bi])<0)break}const B=bases[Math.min(bi,bases.length-1)];
-  const els=GEL.filter(e=>!e.only||e.only.includes(B.fam));const ew=els.map(e=>e.k=='none'?2:(e.L&&e.L.includes(L)?3:.7));t=ew.reduce((x,y)=>x+y,0)*rnd();let ei=0;for(;ei<els.length;ei++){if((t-=ew[ei])<0)break}const E=els[Math.min(ei,els.length-1)];
-  const S=GSIZE[Math.floor(rnd()*GSIZE.length)];if(S.big&&(FOE[B.b].big||B.b=='golem'||L<=1))continue;
-  const nm=E.pre[Math.floor(rnd()*E.pre.length)]+S.p+B.n[Math.floor(rnd()*B.n.length)];if(used.has(nm))continue;used.add(nm);
+ const masks=[];const okMask=m=>masks.every(q=>maskDist(q,m)>=6);
+ // 手描きの者同士で形がほとんど同じなら、後の方に専用の姿を
+ const hand=Object.keys(FOE).filter(k=>SP[k]&&!BONLY[k]).sort((a,b)=>(FOE[b].boss?1:0)-(FOE[a].boss?1:0));hand.forEach(k=>{const m=bodyMask(SP[k]);if(okMask(m)||(FOE[k].boss&&!['b10','b50','b90'].includes(k))){masks.push(m);return}if(['b10','b50','b90'].includes(k))return;
+  for(let t=0;t<60;t++){const pl=FAM[k]=='dead'?'humanoid':FAM[k]=='bug'?'insect':FAM[k]=='water'?'fish':FAM[k]=='beast'?'beast':'humanoid';const o=bodyMake(pl,rnd,pl=='humanoid'&&FAM[k]=='dead'?{head:'skull'}:{});const a=bodyFinish(o.g,NATPAL[t%NATPAL.length]);const m2=bodyMask(a);if(okMask(m2)){SP[k]=a;masks.push(m2);break}}});
+ // 同じ姿を使い回していた守護者たちにも、それぞれの姿を
+ [['b10',{head:'antler',torso:'armor',arms:'big',legs:'wide',weapon:'none',extra:'none'},['l','L','P','y','u']],['b50',{head:'cyclops',torso:'hunch',arms:'claw',legs:'stub',weapon:'none',extra:'spikes'},['V','v','Q','m','z']],['b90',{head:'mask',torso:'armor',arms:'big',legs:'two',weapon:'blade',extra:'none'},['b','e','E','r','o']]].forEach(([k,pr,pal])=>{if(!FOE[k]||!SP[k])return;for(let t=0;t<40;t++){const o=bodyMake('humanoid',rnd,pr);const a=bodyFinish(o.g,pal);const m=bodyMask(a);if(okMask(m)){SP[k]=a;masks.push(m);break}}});
+ Object.keys(BONLY).forEach(k=>{const bb=BONLY_BODY[k];if(!bb)return;for(let t=0;t<80;t++){const o=bodyMake(bb[0],rnd,t<40?bb[1]:{});const a=bodyFinish(o.g,ELPAL[bb[2]]||NATPAL[0]);const m=bodyMask(a);if(okMask(m)){SP[k]=a;masks.push(m);break}}});
+ const plans=Object.keys(PLANS);
+ for(let L=0;L<10;L++){let made=0,tries=0;while(made<41&&tries<6000){tries++;
+  const pw=plans.map(p=>PLANS[p].L.includes(L)?4:1);let t=pw.reduce((x,y)=>x+y,0)*rnd(),pi=0;for(;pi<plans.length;pi++){if((t-=pw[pi])<0)break}const PL=plans[Math.min(pi,plans.length-1)],B=PLANS[PL];
+  const o=bodyMake(PL,rnd);const P=o.parts;const fam=B.fam(P);
+  const els=GEL.filter(e=>!e.only||(e.only.includes(fam)&&(e.k!='web'||PL=='insect')&&(e.k!='bow'||PL=='humanoid')&&(e.k!='split'||PL=='blob')));const ew=els.map(e=>e.k=='none'?2:(e.L&&e.L.includes(L)?3:.7));t=ew.reduce((x,y)=>x+y,0)*rnd();let ei=0;for(;ei<els.length;ei++){if((t-=ew[ei])<0)break}const E=els[Math.min(ei,els.length-1)];
+  const S=GSIZE[Math.floor(rnd()*GSIZE.length)];if(S.big&&L<=1)continue;
+  const pal=E.col?ELPAL[E.k]:NATPAL[Math.floor(rnd()*NATPAL.length)];const a=bodyFinish(o.g,pal);const mk=bodyMask(a);if(!okMask(mk))continue;
+  const nouns=B.n(P)||['魔物'];const nm=E.pre[Math.floor(rnd()*E.pre.length)]+S.p+nouns[Math.floor(rnd()*nouns.length)];if(used.has(nm))continue;used.add(nm);masks.push(mk);
   const k='g'+L+'_'+made;let hp=Math.max(3,Math.round(B.hp*S.h+L*2.2)),atk=Math.max(1,Math.round(B.atk*S.a+L*.8));if(L==0){hp=Math.min(hp,12);atk=Math.min(atk,5)}
-  const D={n:nm,hp,atk,...B.tr,...E.tr,...S.tr,...E.ab};if(S.big)D.big=1;if(D.fly)delete D.heavy;
-  FOE[k]=D;SP[k]=genSprite(B.b,E,S,made+L*41);FAM[k]=B.fam;GEN[k]={base:B.b,el:E.k,L};GEN_BY_L[L].push(k);
-  FOE_D[k]=[E.d,S.big?'大きい。場所を取る':S.p=='小'?'小さく脆い':S.horn?'年経た個体。角が生えている':''].filter(Boolean).join('。')||'これといった癖はない';
+  const D={n:nm,hp,atk,...B.tr(P),...E.tr,...S.tr,...E.ab};if(P.extra=='wings')D.fly=1;if(S.big)D.big=1;if(D.fly)delete D.heavy;
+  FOE[k]=D;SP[k]=a;FAM[k]=fam;GEN[k]={plan:PL,parts:P,el:E.k,L};GEN_BY_L[L].push(k);
+  FOE_D[k]=[E.d,D.fly&&!E.d.includes('浮')?'宙に浮いている':'',S.big?'大きい。場所を取る':S.p=='小'?'小さく脆い':''].filter(Boolean).join('。')||'これといった癖はない';
   const sh=S.big?[2,2]:(hp>=16?[1,2]:[1,1]);ITEM[k]={n:nm,v:'呼ぶ',d:'攻撃'+(atk+1)+'。'+FOE_D[k],sh,mon:1,hp:Math.round(hp*1.3),atk:atk+1};D.cap=1;
-  if(E.k=='fire')FIELDOF[k]='fire';else if(E.k=='water')FIELDOF[k]='douse';else if(E.k=='oil')FIELDOF[k]='oil';else if(E.k=='bell')FIELDOF[k]='call';else if(FIELDOF[B.b])FIELDOF[k]=FIELDOF[B.b];
-  if(['beast','gob','ooze','water'].includes(B.fam))TAME.push(k);
+  const role=E.k=='fire'?'fire':E.k=='water'?'douse':E.k=='oil'?'oil':E.k=='bell'?'call':B.role(P);if(role)FIELDOF[k]=role;
+  if(['beast','gob','ooze','water'].includes(fam))TAME.push(k);
   made++}}}
 try{buildGen()}catch(e){console.error('buildGen',e)}
 // 層ごとの住人。ここにない者は、その層には出ない
