@@ -76,7 +76,7 @@ const cases = {
         let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); }
         if (!g) return 'NONE'; G.foes = []; G.title = null;
         const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y));
-        G.p.x = c[0]; G.p.y = c[1]; const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
+        G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == G.p.x && i.y == G.p.y)); G.srcs = (G.srcs || []).filter(q => !(q.x == G.p.x && q.y == G.p.y)); const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
         if (passGim(g)) return '最初から通れる';
         if (t == 'brazier') { for (const b of g.brz) lightBrazier(g, b) } else { const m = mainAction(); if (!m) return '行動が出ない'; m.f() }
         for (let k = 0; k < 6 && !g.open; k++) { G.p.hp = G.p.max; G.busy = false; await doWait(); for (let w = 0; w < 50 && G.busy; w++) await new Promise(r => setTimeout(r, 40)) }
@@ -89,6 +89,18 @@ const cases = {
   async '古代の鞄を漁れる'(p) {
     const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); searchSrc(s); return document.getElementById('toast').textContent } return 'NONE' });
     if (r === 'NONE' || !/鞄/.test(r)) throw new Error('結果: ' + r);
+  },
+  // 仲間と倉庫が、開き直しても消えない（後から登録される仲間・ボスの武器も）
+  async '仲間と倉庫が残る'(p) {
+    await p.evaluate(() => { farm = [{ k: 'kagebi', name: '影灯', trips: 1 }, { k: 'gob', name: 'ゴブリン', trips: 0 }, { k: 'puru', name: 'ぷる', trips: 0 }]; wh = [{ id: 'hakamori' }, { id: 'axe' }, { id: 'potion' }]; saveMeta(); });
+    await p.reload(); await p.waitForTimeout(500);
+    const r = await p.evaluate(() => [farm.map(f => f.k).join(), wh.map(i => i.id).join()]);
+    if (r[0] !== 'kagebi,gob,puru' || r[1] !== 'hakamori,axe,potion') throw new Error('消えた: ' + JSON.stringify(r));
+  },
+  // 引き継ぎコードで、別のブラウザに記録を移せる
+  async '引き継ぎコード'(p) {
+    const r = await p.evaluate(() => { gold = 777; farm = [{ k: 'fushicho', name: '不死鳥', trips: 0 }]; saveMeta(); const c = saveCode(); const o = loadCode(c); return [o.yw7_gold, JSON.parse(o.yw4_farm)[0].k] });
+    if (r[0] !== '777' || r[1] !== 'fushicho') throw new Error(JSON.stringify(r));
   },
   // 誤字
   async '誤字が無い'(p) {
