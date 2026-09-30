@@ -1942,6 +1942,7 @@ const sprOf=o=>{let a=['puru','gyoro','koke','mochi','medama','ogyoro'].includes
   sc.fillStyle='rgba(0,0,0,'+(.35*k)+')';sc.fillRect(0,SH/2-28,SW,56);sc.save();sc.translate(SW/2,SH/2);sc.scale(sc2,sc2);sc.textAlign='center';sc.globalAlpha=k;sc.font='800 '+Math.round(SW/9)+'px "Shippori Mincho B1",serif';sc.fillStyle='#000';sc.fillText(G.banner.s,2,10);sc.fillStyle=G.banner.c;sc.fillText(G.banner.s,0,8);sc.restore();
   sc.globalAlpha=k;sc.textAlign='center';sc.font='600 '+Math.round(SW/26)+'px "Shippori Mincho B1",serif';sc.fillStyle='#c8bca0';sc.fillText(G.banner.sub||'',SW/2,SH/2+22);sc.globalAlpha=1;sc.textAlign='left'}}
  if(!G.map&&!G.fight&&!G.over)try{drawOmens(t,sx,sy,SW/vw)}catch(e){}
+ if(!G.map&&G.fight&&!G.over)try{drawKickOmen(t,sx,sy,SW/vw)}catch(e){}
  if(G.map)drawMap(t);
  if(G.fishing){const F=G.fishing,z=SW/vw,now=performance.now(),bx=(F.x*T+4-sx)*z,by=(F.y*T+4-sy)*z;const bit=now>F.bite;const bob=bit?6:Math.sin(now/300)*1.5;
   sc.strokeStyle='rgba(230,230,230,.5)';sc.beginPath();sc.moveTo((p.rx+6-sx)*z,(p.ry-2-sy)*z);sc.quadraticCurveTo((bx+(p.rx+6-sx)*z)/2,Math.min(by,(p.ry-2-sy)*z)-20,bx,by+bob);sc.stroke();
@@ -4724,7 +4725,7 @@ function mainAction0(){const p=G.p;if(G.guest)return null;
    if(g.type=='crack'&&!g.fuse&&cd(g.x,g.y,p.x,p.y)<=1&&G.bag.items.some(q=>q.id=='bomb'&&!q.wet))return{ic:'hand',t:'爆弾を仕掛ける',sub:'ひび割れた壁に。3ターンで爆ぜる',f:()=>plantBomb(g)};
    if(g.type=='vine'&&cd(g.x,g.y,p.x,p.y)<=1&&G.bag.items.some(q=>q.id=='axe'))return{ic:'hand',t:'斧で蔦を切り開く',sub:'火を使わずに済む',f:()=>{sfx('slash');for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#8aa050',life:.6});openGate(g,'蔦を切り開いた','― 斧で、力ずくで ―');ui()}};
    if(g.type=='vine'&&hasFire()&&cd(g.x,g.y,p.x,p.y)<=1)return{ic:'fire',t:'蔦に火をつける',sub:'乾いた蔦を焼き落とす',f:()=>{ignite(g.x,g.y);G.shake=6;toast('蔦に火がついた。ぱちぱちと燃え広がっていく');learn('pz_vine','蔦の門：乾いた蔦は火で燃え落ちる。松明で火をつける、火矢を射る、燃え広がる草や油から火を回す。どれでもいい');ui()}}}}
- {if(hasFire()){const c=[[0,0],...DIRS].map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>burnable(x,y)&&!(G.fires||[]).some(f=>f.x==x&&f.y==y));
+ {if(hasFire()){const cs=[...DIRS,[0,0]].map(([a,b])=>[p.x+a,p.y+b]).filter(([x,y])=>burnable(x,y)&&!(G.fires||[]).some(f=>f.x==x&&f.y==y));const pri=([x,y])=>(x==p.x&&y==p.y)?9:(G.gim||[]).some(g=>!g.open&&g.type=='vine'&&g.x==x&&g.y==y)?0:(G.webs&&G.webs.has(x+','+y))?1:hasOil(x,y)?2:5;const c=cs.sort((u,v)=>pri(u)-pri(v))[0];
   if(c)return{ic:'fire',t:'火をつける',sub:(G.webs&&G.webs.has(c[0]+','+c[1]))?'蜘蛛の巣を焼く':hasOil(c[0],c[1])?'油に火を放つ':'草を焼く',f:()=>{ignite(c[0],c[1]);G.shake=6;toast('火がついた。草と蜘蛛の巣を焼いて道が開く。炎に触れた敵は焼ける。……風向き次第でこちらにも来る');learn('burn','火：松明があれば草や蜘蛛の巣を焼ける。燃え広がるので、自分の逃げ道も考えること');ui()}}}}
  {if(G.chest&&G.chest.x==p.x&&G.chest.y==p.y){const hk=G.bag.items.some(q=>q.id=='key');
   const tl=!hk&&G.bag.items.some(q=>['hammer','axe'].includes(q.id)||['hammer','axe'].includes(ITEM[q.id].base));return{ic:'hand',t:hk?'宝箱を開ける':tl?'錠を叩き壊す':'宝箱（鍵がいる）',sub:hk?'古い鍵を使う':tl?'大きな音が響き、宝がひとつ潰れる':'「古い鍵」をカバンに入れて来る',f:()=>openChest()}}}
@@ -4854,6 +4855,39 @@ async function slotUse(i){
  sfx('tick');toast(d.n+'：'+(d.d||'')+(lo?'　'+lo:''));
 }
 
+
+// ===== 蹴る：傷は与えないが、1マス押し出す。その先にある物が効く =====
+function kickDest(f){const p=G.p,D=FOE[f.k]||{};const dx=Math.sign(f.x-p.x),dy=Math.sign(f.y-p.y);if(!dx&&!dy)return null;const x=f.x+dx,y=f.y+dy,k=x+','+y;let w='',good=true;
+ if(D.heavy&&!(f.stun>0)){w='重くて動かない';good=false}
+ else if(isPit(x,y)&&!D.fly)w=(D.boss||f.max>=20)?'穴に足を取られる':'穴へ落ちる';
+ else if(G.lava&&G.lava.has(k)&&!D.fly)w='溶岩へ';
+ else if((G.fires||[]).some(q=>q.x==x&&q.y==y)&&!FIREOK(f.k))w='炎の中へ';
+ else if((G.thin||[]).some(t=>t.x==x&&t.y==y))w='薄い壁ごと崩す';
+ else if(foeAt(x,y))w='仲間にぶつける';
+ else if(!freeTile(x,y))w='壁に叩きつける';
+ else if(isIce(x,y))w='氷の上を滑っていく';
+ else if(inWater(x,y)&&!WETOK(f.k)&&!D.fly)w='水の中へ（足が重くなる）';
+ else if((G.traps||[]).some(t=>t.known&&!t.used&&t.x==x&&t.y==y))w='罠の上へ';
+ else if(hasOil(x,y))w='油の上へ';
+ else if(G.webs&&G.webs.has(k))w='糸の上へ';
+ else good=false;
+ return {x,y,dx,dy,w,good}}
+async function kick(){if(!G||!G.fight||G.busy)return;const t=tgtFoe();if(!t){sfx('no');return}
+ if(G.fight.webbed>0){sfx('no');toast('糸が絡みついて動けない');return}
+ if(cd(G.p.x,G.p.y,t.x,t.y)>1){sfx('no');toast('蹴るには、隣にいないと届かない');return}
+ G.busy=true;ui();G.guard=0;await lunge(G.p,t,4);sfx('thud');G.shake=Math.max(G.shake||0,5);const x0=t.x,y0=t.y;knockBack(t,G.p,1);
+ if(t.hp>0&&(t.x!=x0||t.y!=y0)){try{foeTrap(t)}catch(e){}if(hasOil(t.x,t.y))toast(t.n+'を油の上へ蹴り出した');}
+ learn('kick','蹴る：傷は与えないが、隣の相手を1マス押し出す。その先の穴・炎・溶岩・水・油・罠が効く。壁なら叩きつける。重い相手は動かない（ひるんでいれば動く）');
+ try{syncDist()}catch(e){}await wait(220);if(G.fight)await afterPlayer();else{G.busy=false;ui()}}
+// 戦いの中の予兆：狙っている相手が、押し出されたらどこへ行くか
+function drawKickOmen(t,sx,sy,z){if(typeof DEF!='undefined'&&DEF)return;const f=tgtFoe();if(!f||f.hp<=0)return;const p=G.p,dd=cd(p.x,p.y,f.x,f.y);if(dd>2)return;const K=kickDest(f);if(!K)return;
+ const S=T*z,cx=(f.rx+4-sx)*z,cy=(f.ry+4-sy)*z,tx=cx+K.dx*S,ty=cy+K.dy*S;sc.save();
+ if(!K.good&&K.w){sc.font='bold 11px sans-serif';sc.textAlign='center';const w=sc.measureText(K.w).width+10;sc.fillStyle='rgba(0,0,0,.7)';sc.fillRect(cx-w/2,cy-S*1.2-12,w,16);sc.fillStyle='#c8bca0';sc.fillText(K.w,cx,cy-S*1.2);sc.restore();return}
+ sc.strokeStyle=K.good?'rgba(255,211,90,.95)':'rgba(255,211,90,.35)';sc.fillStyle=sc.strokeStyle;sc.lineWidth=K.good?3:2;sc.setLineDash([6,4]);sc.lineDashOffset=-t*30;sc.beginPath();sc.moveTo(cx+K.dx*S*.3,cy+K.dy*S*.3);sc.lineTo(tx,ty);sc.stroke();sc.setLineDash([]);
+ const a=Math.atan2(ty-cy,tx-cx);sc.beginPath();sc.moveTo(tx,ty);sc.lineTo(tx-9*Math.cos(a-.5),ty-9*Math.sin(a-.5));sc.lineTo(tx-9*Math.cos(a+.5),ty-9*Math.sin(a+.5));sc.fill();
+ if(K.good){sc.strokeStyle='rgba(255,211,90,'+(.5+.4*Math.sin(t*6))+')';sc.lineWidth=2;sc.strokeRect(tx-S/2+2,ty-S/2+2,S-4,S-4);
+  const txt=(dd<=1?'蹴れば → ':'押し出せば → ')+K.w;sc.font='bold 11px sans-serif';sc.textAlign='left';const w=sc.measureText(txt).width+10;let lx=Math.max(4,Math.min(SW-w-4,cx-w/2)),ly=cy-S*1.7;sc.fillStyle='rgba(0,0,0,.78)';sc.fillRect(lx,ly-12,w,16);sc.fillStyle='#ffd35a';sc.fillText(txt,lx+5,ly)}
+ sc.restore()}
 async function bareHand(){if(!G||!G.fight||G.busy)return;const tgt=tgtFoe();
  if(!tgt){sfx('no');return}
  if(cd(G.p.x,G.p.y,tgt.x,tgt.y)>1){sfx('no');toast('素手では届かない。近づくしかない');return}
@@ -4867,7 +4901,7 @@ function renderFrow(){
  if(!G||G.over||!G.fight||$('modal').innerHTML||(G.sheet&&G.sheet!='closed')){el.classList.remove('on');document.body.classList.remove('infight');el.dataset.sig='';return}
  el.classList.toggle('def',!!DEF);
  show();const br=alive().some(f=>f.broken);const tg=tgtFoe();
- const sig=[G.fight.dist,br,G.busy,G.fight.webbed,tg&&tg.n,alive().length].join('|');
+ const sig=[G.fight.dist,br,G.busy,G.fight.webbed,tg&&tg.n,alive().length,tg&&cd(G.p.x,G.p.y,tg.x,tg.y)<=1].join('|');
  if(el.dataset.sig===sig)return;el.dataset.sig=sig;el.innerHTML='';
  if(br){const k=document.createElement('button');k.className='kill';k.textContent='決める（忍殺）';k.onclick=()=>{if(!G.busy)deathblow()};k.disabled=G.busy;el.append(k);return}
  const wb=G.fight.webbed>0,dd=G.fight.dist;
@@ -4877,6 +4911,7 @@ function renderFrow(){
  if(tg&&(KNOW['mercy_'+tg.k]||(sp&&(sp.free||(sp.need&&G.bag.items.some(q=>sp.need.includes(q.id)))))))el.append(mk('なだめる','なだめる',()=>spare()));
  {const hasW=G.bag.items.some(q=>ITEM[q.id].weapon);
   if(!hasW&&!wb)el.append(mk('素手','素手で殴る（2）',()=>{if(!G.busy)bareHand()}));}
+ if(!wb&&tg&&cd(G.p.x,G.p.y,tg.x,tg.y)<=1)el.append(mk('蹴る','蹴る（傷は与えず、1マス押し出す）',()=>kick()));
  if(!isBoss()){const nr=alive().some(f=>cd(f.x,f.y,G.p.x,G.p.y)<=1);el.append(mk(nr?'逃げる':'離れる',nr?'逃げる（50%）':'離れる（必ず成功）',()=>flee(false)))}
 }
 function renderBar(){
