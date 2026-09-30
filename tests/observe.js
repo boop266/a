@@ -143,7 +143,7 @@ function brain() {
     const kill = fb.find(b => /忍殺/.test(b.textContent)); if (kill) { kill.click(); return T('f-kill'); }
     if (hpR < .35 && heal >= 0) { act(heal); O.turns.item++; return T('f-heal'); }
     if (hpR < .2) { const fl = fb.find(b => /逃げる|離れる/.test(b.textContent)); if (fl) { fl.click(); return T('f-flee'); } }
-    try { if (tg && cd(p.x, p.y, tg.x, tg.y) <= 1) { const K = kickDest(tg); if (K && K.good && !/油|糸|罠/.test(K.w)) { kick(); return T('f-kick'); } } } catch (e) {}
+    try { if (tg && cd(p.x, p.y, tg.x, tg.y) <= 1) { const K = kickDest(tg); if (K && K.good && /穴へ|溶岩|炎|叩きつけ|崩す/.test(K.w)) { kick(); return T('f-kick'); } } } catch (e) {}
     const ws = its.map((q, i) => [q, i]).filter(([q]) => ITEM[q.id].weapon && !q.out && reachOK(q.id));
     if (ws.length) { ws.sort((a, b) => (parseInt(ITEM[b[0].id].d) || 0) - (parseInt(ITEM[a[0].id].d) || 0)); act(ws[0][1]); return T('f-atk'); }
     if (tg) { const dx = Math.sign(tg.x - p.x), dy = Math.sign(tg.y - p.y); if (cd(p.x, p.y, tg.x, tg.y) > 1) { step(dx, dy); return T('f-move'); } }
