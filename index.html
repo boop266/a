@@ -3696,6 +3696,17 @@ function showFall(list,total,cause,fl){try{
  let ready=false;setTimeout(()=>{ready=true;el.classList.add('done')},900+list.length*120);
  el.addEventListener('click',()=>{if(!ready){ready=true;el.classList.add('done');grid.querySelectorAll('.retit').forEach(e=>e.classList.add('on'));return}el.classList.add('out');setTimeout(()=>el.remove(),260)});
  }catch(e){}}
+
+// ===== 配合：体は一匹目から、性は二匹目から =====
+// 「雷の狼がほしい」なら、狼と、雷の性を持つ誰かを連れて帰ればいい。計画が立てられる
+const PLANN={humanoid:'人型',beast:'獣',serpent:'蛇',insect:'虫',bird:'鳥',blob:'ぷる',ghost:'霊',fish:'魚',plant:'草木',eye:'目玉',crab:'甲殻',frog:'蛙'};
+const ELN2={none:'癖なし',fire:'火',water:'水',volt:'雷',oil:'油',stone:'岩',shadow:'影',glass:'硝子',bell:'鈴',wind:'疾風',call:'群れ呼び',bow:'射手',web:'糸',split:'分かれ'};
+function monGene(k){const g=GEN[k];if(g)return{plan:g.plan,parts:g.parts||{},el:g.el};const F=FOE[k]||{};const fam=FAM[k];
+ const plan={dead:'humanoid',gob:'humanoid',doll:'humanoid',beast:'beast',bug:'insect',ooze:'blob',water:'fish',plant:'plant',fire:'beast'}[fam]||'blob';
+ const el=F.volt?'volt':F.oiler?'oil':F.breath?'fire':F.douse?'water':F.armor?'stone':F.shade?'shadow':F.reflect?'glass':F.bell?'bell':F.fast?'wind':F.caller?'call':F.ranged?'bow':F.spit?'web':F.split?'split':'none';return{plan,parts:{},el}}
+function breedCompose(a,b){const A=monGene(a),B=monGene(b);const c=Object.keys(GEN).filter(k=>GEN[k].plan==A.plan&&GEN[k].el==B.el&&k!=a&&k!=b);if(!c.length)return null;
+ const sc=k=>Object.keys(A.parts).filter(p=>GEN[k].parts&&GEN[k].parts[p]==A.parts[p]).length;c.sort((x,y)=>sc(y)-sc(x)||(x<y?-1:1));return c[0]}
+function breedSay(a,b){const A=monGene(a),B=monGene(b);return PLANN[A.plan]+'の体（'+ITEM[a].n+'）に、'+ELN2[B.el]+'の性（'+ITEM[b].n+'）'}
 const BREED={'puru+puru':'mochi','gyoro+puru':'medama','gyoro+gyoro':'ogyoro','koke+puru':'mochi','gyoro+koke':'ogyoro'};
 const lineOf=k=>({mochi:'puru',medama:'gyoro',ogyoro:'gyoro'}[k]||k);
 function spriteCanvas(a){const c=document.createElement('canvas');c.width=a[0].length;c.height=a.length;spr(c.getContext('2d'),a,0,0);c.style.width='20px';c.style.height='20px';return c}
@@ -3881,12 +3892,13 @@ try{Object.keys(BONLY).forEach(k=>{const b=BONLY[k];
 [['mochi',{wet:1,frail:1,heavy:1}],['medama',{aqua:1,wet:1,frail:1}],['ogyoro',{aqua:1,wet:1,heavy:1}]].forEach(([k,t])=>{if(ITEM[k]&&!FOE[k])FOE[k]={n:ITEM[k].n,hp:ITEM[k].hp,atk:ITEM[k].atk,...t}});
 function monTraits(k){const D=FOE[k]||{};return Object.keys(TRW).filter(t=>D[t])}
 function breedResult(a,b){
- try{const ta=monTraits(a),tb=monTraits(b);const both=ta.filter(t=>tb.includes(t));const all=[...new Set([...ta,...tb])];
+ try{if(GEN[a]||GEN[b]){const c=breedCompose(a,b);if(c)return c}const ta=monTraits(a),tb=monTraits(b);const both=ta.filter(t=>tb.includes(t));const all=[...new Set([...ta,...tb])];
   // 両親の性質を二つとも備えた「配合限定」がいれば、それが生まれる
   // 伝説（性質3つ）は、親のどちらかが配合限定の子のときだけ。同じ親の組からは、いつも同じ子が生まれる
   const cand=Object.keys(BONLY).filter(k=>{const B=BONLY[k];return k!=a&&k!=b&&B.tr.every(t=>all.includes(t))&&B.tr.some(t=>ta.includes(t))&&B.tr.some(t=>tb.includes(t))&&(!B.leg||ITEM[a].bonly||ITEM[b].bonly)});
   if(cand.length){const top=Math.max(...cand.map(k=>BONLY[k].tr.length));const cc=cand.filter(k=>BONLY[k].tr.length==top).sort();
    let h=0;for(const ch of [a,b].sort().join('+'))h=(Math.imul(h,31)+ch.charCodeAt(0))|0;return cc[Math.abs(h)%cc.length]}
+  {const c=breedCompose(a,b);if(c)return c}
   // 同じ性質を共有していれば、その性質を持つ中で一番強い者へ育つ
   const pool=Object.keys(ITEM).filter(k=>ITEM[k]&&ITEM[k].mon&&!ITEM[k].bonly);
   if(both.length){const c=pool.filter(k=>both.every(t=>(FOE[k]||{})[t])).sort((x,y)=>(ITEM[y].atk||0)-(ITEM[x].atk||0));
@@ -4209,9 +4221,11 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
    // 配合の前に、生まれる子を予告する（一度生まれた組は名前を、初めての組は性質を見せる）
    if(sel.length==2){const a=farm[sel[0]].k,b=farm[sel[1]].k;const ch=BREED[[lineOf(a),lineOf(b)].sort().join('+')]||breedResult(a,b);let br={};try{br=JSON.parse(store('yw70_breed')||'{}')||{}}catch(e){}
     const tw=k=>monTraits(k).map(t=>TRW[t]).join('・')||'癖なし';
-    if(br[[a,b].sort().join('+')])P('この組み合わせからは<b>'+ITEM[ch].n+'</b>が生まれる。');
-    else P(ITEM[a].n+'（'+tw(a)+'）× '+ITEM[b].n+'（'+tw(b)+'）。何が生まれるかは、まだ分からない。'+(ITEM[ch].leg?'<br><b style="color:var(--gold)">……ただならぬ気配がする。</b>':ITEM[ch].bonly?'<br>どこにもいない何かが、生まれそうだ。':''))}
-   if(sel.length==2)B('配合する',()=>{const a=farm[sel[0]].k,b=farm[sel[1]].k;const na=farm[sel[0]].name,nb=farm[sel[1]].name;const key=[lineOf(a),lineOf(b)].sort().join('+');const child=BREED[key]||breedResult(a,b);try{let br={};try{br=JSON.parse(store('yw70_breed')||'{}')}catch(e){}br[[a,b].sort().join('+')]=child;store('yw70_breed',JSON.stringify(br))}catch(e){}const pa0=farm_sel_parents(sel);farm=farm.filter((_,i)=>!sel.includes(i));{const pa=pa0;const best=pa.reduce((m,q)=>Math.max(m,(q.inst&&q.inst.sai)||0),0);const wz=pa.map(q=>q.inst&&q.inst.waza).filter(Boolean);const inh=best&&Math.random()<.6?best:(Math.random()<.2?1:0);farm.push({k:child,name:ITEM[child].n,trips:0,inst:{origin:'配合で生まれた・第'+runs+'回探索のあと',shiny:Math.random()<.1?1:0,sai:inh,waza:inh?(wz.length?pick(wz):pick(Object.keys(WAZA))):undefined}})}note('m:'+child);bring=null;saveMeta();sfx('rare');sel=[];h='配合';p=na+'と'+nb+'はいなくなり、'+ITEM[child].n+'（'+ITEM[child].sh.join('×')+'マス）が生まれた。';draw()},'sub');
+    P(breedSay(a,b)+'。'+(ITEM[ch].bonly?'':'<br>体は一匹目から、性は二匹目から受け継ぐ。'));if(br[a+'>'+b]||br[[a,b].sort().join('+')])P('この組み合わせからは<b>'+ITEM[ch].n+'</b>が生まれる。');
+    else P('何が生まれるかは、まだ分からない。'+(ITEM[ch].leg?'<br><b style="color:var(--gold)">……ただならぬ気配がする。</b>':ITEM[ch].bonly?'<br>どこにもいない何かが、生まれそうだ。':''))}
+   if(sel.length==2)B('体と性を入れ替える',()=>{sel=[sel[1],sel[0]];draw()},'sub');
+   if(sel.length==2)B('配合する',()=>{const a=farm[sel[0]].k,b=farm[sel[1]].k;const na=farm[sel[0]].name,nb=farm[sel[1]].name;const key=[lineOf(a),lineOf(b)].sort().join('+');const child=BREED[key]||breedResult(a,b);try{let br={};try{br=JSON.parse(store('yw70_breed')||'{}')}catch(e){}br[a+'>'+b]=child;store('yw70_breed',JSON.stringify(br))}catch(e){}const pa0=farm_sel_parents(sel);farm=farm.filter((_,i)=>!sel.includes(i));{const pa=pa0;const best=pa.reduce((m,q)=>Math.max(m,(q.inst&&q.inst.sai)||0),0);const wz=pa.map(q=>q.inst&&q.inst.waza).filter(Boolean);const inh=best;const nm=q=>q.name||ITEM[q.k].n;const line=[nm(pa[0])+(pa[0].inst&&pa[0].inst.line&&pa[0].inst.line[0]?'（その親 '+pa[0].inst.line[0]+'）':''),nm(pa[1])+(pa[1].inst&&pa[1].inst.line&&pa[1].inst.line[0]?'（その親 '+pa[1].inst.line[0]+'）':'')];const kuse=pa.map(q=>q.pers||(q.inst&&q.inst.kuse)).filter(Boolean)[0];
+    farm.push({k:child,name:ITEM[child].n,trips:0,pers:kuse,inst:{origin:'配合で生まれた・第'+runs+'回探索のあと。親は '+line.join('と '),line:[nm(pa[0]),nm(pa[1])],kuse,shiny:pa.some(q=>q.inst&&q.inst.shiny)?1:0,sai:inh,waza:wz.length?wz[0]:undefined}})}note('m:'+child);bring=null;saveMeta();sfx('rare');sel=[];h='配合';p=na+'と'+nb+'はいなくなり、'+ITEM[child].n+'（'+ITEM[child].sh.join('×')+'マス）が生まれた。';draw()},'sub');
   }
   if(tab=='home'){
    const cv=document.createElement('canvas');cv.width=160;cv.height=80;cv.style.cssText='width:100%;image-rendering:pixelated;border:1px solid #2d2636';tb.append(cv);drawHome(cv);
