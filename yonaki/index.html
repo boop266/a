@@ -293,6 +293,29 @@ function genWorld(seed) {
       }
     }
   }
+  // 窓とブロック塀
+  for (const h of W.houses) {
+    h.wins = []; h.lit = R() < .3;
+    for (const sd of ['N', 'S', 'W', 'E']) {
+      if (h.doors.includes(sd)) continue;
+      const len = sd === 'N' || sd === 'S' ? h.x1 - h.x0 : h.z1 - h.z0; if (len < 5 || R() < .25) continue;
+      h.wins.push({ sd, t: rf(.3, .7), sil: h.lit && R() < .55 });
+    }
+    if (R() < .45) {
+      const m = 1.15, bx0 = h.x0 - m, bz0 = h.z0 - m, bx1 = h.x1 + m, bz1 = h.z1 + m, GW = 1.15, T2 = .16, BH = 1.1;
+      const dg = h.gaps.slice(0, h.doors.length);
+      const run = (a0, a1, cuts, mk) => { let a = a0; for (const c of cuts.sort((p, q) => p - q)) { if (c - GW > a) mk(a, c - GW); a = Math.max(a, c + GW); } if (a < a1) mk(a, a1); };
+      run(bx0, bx1, dg.filter(g => Math.abs(g[1] - h.z0 - T / 2) < .3).map(g => g[0]), (a, b) => solid(a, bz0, b, bz0 + T2, BH, 'block'));
+      run(bx0, bx1, dg.filter(g => Math.abs(g[1] - h.z1 + T / 2) < .3).map(g => g[0]), (a, b) => solid(a, bz1 - T2, b, bz1, BH, 'block'));
+      run(bz0 + T2, bz1 - T2, dg.filter(g => Math.abs(g[0] - h.x0 - T / 2) < .3).map(g => g[1]), (a, b) => solid(bx0, a, bx0 + T2, b, BH, 'block'));
+      run(bz0 + T2, bz1 - T2, dg.filter(g => Math.abs(g[0] - h.x1 + T / 2) < .3).map(g => g[1]), (a, b) => solid(bx1 - T2, a, bx1, b, BH, 'block'));
+      h.block = 1;
+    }
+    // 家の角にドラム缶や木箱
+    for (const [cx, cz] of [[h.x0 - .55, h.z0 - .55], [h.x1 + .55, h.z0 - .55], [h.x0 - .55, h.z1 + .55], [h.x1 + .55, h.z1 + .55]]) {
+      const q = R(); if (q < .16) solid(cx - .3, cz - .3, cx + .3, cz + .3, .9, 'drum'); else if (q < .28) solid(cx - .35, cz - .35, cx + .35, cz + .35, R() < .5 ? .7 : 1.4, 'crate');
+    }
+  }
   // 家の中の空いた場所
   const houseSpot = (h) => {
     for (let k = 0; k < 30; k++) {
@@ -344,6 +367,32 @@ function genWorld(seed) {
   }
   const lampN = Math.min(4, poles.length);
   for (let k = 0; k < lampN; k++) { const p = poles[Math.floor((k + .5) * poles.length / lampN)]; W.lamps.push({ x: p[0] + p[2] * 1.1, z: p[1] + p[3] * 1.1, px: p[0], pz: p[1] }); }
+  W.poles = poles;
+  // 道ばたの物（地蔵・自販機・井戸・倒れた自転車・赤い水たまり）
+  const roadSpot = (o0, o1, pad = .8) => {
+    for (let k = 0; k < 40; k++) {
+      const r = pick(W.roads), i = ri(0, r.pl.length - 2), t = R(); const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1];
+      const L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L, nz = (bx - ax) / L, sd = R() < .5 ? 1 : -1, off = r.w / 2 + rf(o0, o1);
+      const x = lerp(ax, bx, t) + nx * sd * off, z = lerp(az, bz, t) + nz * sd * off;
+      if (x < 16 || z < 16 || x > S - 16 || z > S - 16 || onRiver(x, z, 1) || (o0 > 0 && onRoad(x, z, .2)) || hit(x - pad, z - pad, x + pad, z + pad)) continue;
+      return [x, z, Math.atan2(-nx * sd, -nz * sd)];
+    }
+    return null;
+  };
+  const snap = a => Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+  W.props = []; W.glows = [];
+  for (let k = 0; k < 6; k++) { const q = roadSpot(.8, 1.6); if (!q) continue; occ.push([q[0] - .6, q[1] - .6, q[0] + .6, q[1] + .6]); solid(q[0] - .18, q[1] - .18, q[0] + .18, q[1] + .18, .75, 'jizo', { see: 1 }); W.props.push({ k: 'jizo', x: q[0], z: q[1], yaw: q[2], n: ri(1, 3) }); }
+  for (let k = 0; k < 2; k++) {
+    const q = roadSpot(1, 1.6, 1.2); if (!q) continue; const yw = snap(q[2]), ax2 = Math.abs(Math.sin(yw)) > .5; occ.push([q[0] - 1.3, q[1] - 1.3, q[0] + 1.3, q[1] + 1.3]);
+    if (ax2) solid(q[0] - .35, q[1] - .45, q[0] + .35, q[1] + .45, 1.8, 'vend'); else solid(q[0] - .45, q[1] - .35, q[0] + .45, q[1] + .35, 1.8, 'vend');
+    W.props.push({ k: 'vend', x: q[0], z: q[1], yaw: yw }); W.glows.push([q[0] + Math.sin(yw) * .8, q[1] + Math.cos(yw) * .8]);
+  }
+  { const q = roadSpot(3, 6, 1.5); if (q) { occ.push([q[0] - 1.5, q[1] - 1.5, q[0] + 1.5, q[1] + 1.5]); solid(q[0] - .75, q[1] - .75, q[0] + .75, q[1] + .75, .8, 'well', { see: 1 }); W.props.push({ k: 'well', x: q[0], z: q[1] }); } }
+  for (let k = 0; k < 4; k++) { const q = roadSpot(-.8, 1.2, .5); if (q) W.props.push({ k: 'bike', x: q[0], z: q[1], yaw: rf(0, TAU) }); }
+  W.puddles = [];
+  for (let k = 0; k < 45; k++) { const q = roadSpot(-2.6, 3, .1); if (q) W.puddles.push([q[0], q[1], rf(.35, 1.2)]); }
+  W.grass = [];
+  for (let k = 0; k < 2600; k++) { const x = rf(9, S - 9), z = rf(9, S - 9); if (hit(x, z, x, z) || onRoad(x, z, .3) || onRiver(x, z, .5)) continue; W.grass.push([x, z, rf(.6, 1.4), rf(0, TAU)]); }
   // 森（外周）と木
   const gapOf = e => (e === xEnd ? gapW : 0);
   for (let x = -6; x < S + 6; x += 2.3) for (let z = -6; z < S + 6; z += 2.3) {
@@ -398,6 +447,17 @@ function genWorld(seed) {
     const route = roadRoute(W, R); if (route.length < 2 || !far(route[0][0], route[0][1])) continue;
     W.enemies.push({ id: eid++, kind: 'patrol', x: route[0][0], z: route[0][1], route, look: look() });
   }
+  // 仕掛け：押し入れの先客・鳴り出す黒電話・背後の鼻歌
+  const farC = W.closets.filter(c => Math.hypot(c.x - sp0[0], c.z - sp0[1]) > 25 && !W.enemies.some(e => Math.hypot(e.x - c.x, e.z - c.z) < 6)).sort(() => R() - .5);
+  for (const c of farC.slice(0, 2)) c.occ = 1;
+  W.phones = [];
+  for (const h of W.houses.slice().sort(() => R() - .5)) {
+    if (W.phones.length >= 2) break; const t = h.sol.find(s => s.k === 'table'); if (!t) continue;
+    const x = (t.x0 + t.x1) / 2, z = (t.z0 + t.z1) / 2; if (Math.hypot(x - sp0[0], z - sp0[1]) < 25) continue;
+    W.phones.push({ i: W.phones.length, x, z });
+  }
+  W.hums = [];
+  for (let k = 0; k < 4; k++) { const q = roadSpot(-1.5, 1.5, .1); if (q && Math.hypot(q[0] - sp0[0], q[1] - sp0[1]) > 20) W.hums.push([q[0], q[1]]); }
   W.area = pick(AREAS);
   W.onRiverF = (x, z) => plDist(x, z, W.river.pl) < W.river.w / 2;
   return W;
@@ -632,68 +692,118 @@ function lam(color, o = {}) { const k = color + JSON.stringify(o); if (!MATC.has
 
 // ================================================================ 人の形
 const HG = {};
+// 面取りした箱（顔の貼れる頭・手・足に使う）
+function roundBox(w, h, d, k = .45, seg = 3) {
+  const g = new THREE.BoxGeometry(1, 1, 1, seg, seg, seg), p = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = v.clone().normalize().multiplyScalar(.5 * 1.18); v.lerp(n, k); p.setXYZ(i, v.x * w, v.y * h, v.z * d); }
+  g.computeVertexNormals(); return g;
+}
+// 付け根から下へ垂れる手足
+function limbGeo(rt, rb, h, seg = 7, flat = 1) { const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1); g.scale(1, 1, flat); g.translate(0, -h / 2, 0); return g; }
 function humanGeos() {
-  if (HG.torso) return;
-  HG.torso = new THREE.BoxGeometry(.42, .6, .24); HG.head = new THREE.BoxGeometry(.24, .28, .26); HG.arm = new THREE.BoxGeometry(.11, .6, .12); HG.hand = new THREE.BoxGeometry(.09, .1, .09);
-  HG.leg = new THREE.BoxGeometry(.15, .92, .17); HG.pipe = new THREE.BoxGeometry(.045, .85, .045); HG.stick = new THREE.BoxGeometry(.035, 1.2, .035); HG.blade = new THREE.BoxGeometry(.02, .08, .22);
-  HG.hoe = new THREE.BoxGeometry(.2, .03, .14); HG.straw = new THREE.ConeGeometry(.3, .14, 8); HG.cap = new THREE.BoxGeometry(.27, .08, .3); HG.scarf = new THREE.BoxGeometry(.28, .3, .29);
+  if (HG.chest) return;
+  HG.chest = (() => { const g = new THREE.CylinderGeometry(.19, .15, .56, 9, 2); const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y > .2) p.setX(i, p.getX(i) * 1.12); } g.scale(1, 1, .6); g.translate(0, .3, 0); g.computeVertexNormals(); return g; })();
+  HG.shoulder = roundBox(.44, .13, .2, .6);
+  HG.pelvis = (() => { const g = new THREE.CylinderGeometry(.16, .15, .2, 9); g.scale(1, 1, .66); g.translate(0, .02, 0); return g; })();
+  HG.neck = (() => { const g = new THREE.CylinderGeometry(.045, .055, .12, 6); g.translate(0, .06, 0); return g; })();
+  HG.head = roundBox(.21, .26, .23, .5, 4);
+  HG.uarm = limbGeo(.062, .05, .3); HG.farm = limbGeo(.05, .04, .27);
+  HG.hand = (() => { const g = roundBox(.07, .1, .045, .5, 2); g.translate(0, -.05, 0); return g; })();
+  HG.thigh = limbGeo(.088, .064, .46, 8, .95); HG.shin = limbGeo(.062, .045, .43, 7);
+  HG.foot = (() => { const g = roundBox(.09, .065, .23, .5, 2); g.translate(0, -.035, .045); return g; })();
+  HG.pipe = new THREE.CylinderGeometry(.022, .022, .85, 6); HG.stick = new THREE.CylinderGeometry(.017, .017, 1.2, 5);
+  HG.blade = (() => { const s = new THREE.Shape(); s.moveTo(0, 0); s.quadraticCurveTo(.12, .02, .2, -.1); s.quadraticCurveTo(.1, -.02, 0, -.03); const g = new THREE.ExtrudeGeometry(s, { depth: .008, bevelEnabled: false }); g.rotateY(-Math.PI / 2); return g; })();
+  HG.hoe = new THREE.BoxGeometry(.2, .025, .14); HG.straw = new THREE.ConeGeometry(.3, .14, 10); HG.cap = roundBox(.24, .08, .27, .4);
+  HG.scarf = roundBox(.26, .3, .27, .5, 3);
+  HG.hair = (() => { const g = roundBox(.225, .15, .245, .55, 3); g.translate(0, .085, -.035); return g; })();
   HG.beam = new THREE.ConeGeometry(1.5, 7, 14, 1, true); HG.beam.translate(0, -3.5, 0); HG.beam.rotateX(-Math.PI / 2);
+}
+// 還り人の服：色をくすませ、泥と血の染みをつける
+const DIRTY = new Map();
+function dirtyMat(col) {
+  if (!DIRTY.has(col)) { const c = new THREE.Color(col), l = c.r * .3 + c.g * .59 + c.b * .11; c.lerp(new THREE.Color(l, l, l), .45).multiplyScalar(.8); DIRTY.set(col, new THREE.MeshLambertMaterial({ color: c, map: TEX.dirt })); }
+  return DIRTY.get(col);
 }
 function mkHuman(o) {
   humanGeos();
   const g = new THREE.Group();
-  const cm = lam(o.cloth), pm = lam(o.pants), sm = lam(o.skin || 0x8f8b82), hm = lam(o.hair || 0x151210);
-  const hip = new THREE.Group(); hip.position.y = .92; g.add(hip);
-  const up = new THREE.Group(); hip.add(up);
-  const torso = new THREE.Mesh(HG.torso, cm); torso.position.y = .3; up.add(torso);
-  const neck = new THREE.Group(); neck.position.y = .62; up.add(neck);
+  const cm = o.dirty ? dirtyMat(o.cloth) : lam(o.cloth), pm = o.dirty ? dirtyMat(o.pants) : lam(o.pants), sm = lam(o.skin || 0x8f8b82), hm = lam(o.hair || 0x151210), shoe = lam(0x141210);
+  const M = (geo, m, par, x = 0, y = 0, z = 0) => { const ms = new THREE.Mesh(geo, m); ms.position.set(x, y, z); par.add(ms); return ms; };
+  const J = (par, x = 0, y = 0, z = 0) => { const j = new THREE.Group(); j.position.set(x, y, z); par.add(j); return j; };
+  const hip = J(g, 0, .92, 0); M(HG.pelvis, pm, hip);
+  const up = J(hip, 0, .06, 0); M(HG.chest, cm, up); M(HG.shoulder, cm, up, 0, .54, 0);
+  const neck = J(up, 0, .58, 0); M(HG.neck, sm, neck);
   const fm = new THREE.MeshLambertMaterial({ map: o.face });
-  const head = new THREE.Mesh(HG.head, [hm, hm, hm, sm, fm, hm]); head.position.y = .15; neck.add(head);
-  const limb = (geo, m, x, y, par) => { const pv = new THREE.Group(); pv.position.set(x, y, 0); const ms = new THREE.Mesh(geo, m); ms.position.y = -geo.parameters.height / 2; pv.add(ms); par.add(pv); return pv; };
-  const aL = limb(HG.arm, cm, .28, .56, up), aR = limb(HG.arm, cm, -.28, .56, up);
-  for (const a of [aL, aR]) { const hd = new THREE.Mesh(HG.hand, sm); hd.position.y = -.64; a.add(hd); }
-  const lL = limb(HG.leg, pm, .11, 0, hip), lR = limb(HG.leg, pm, -.11, 0, hip);
-  const tool = new THREE.Group(); tool.position.y = -.64; aR.add(tool);
+  const head = M(HG.head, [sm, sm, sm, sm, fm, sm], neck, 0, .17, .005);
+  if (o.hat !== 'scarf') M(HG.hair, hm, head, 0, 0, 0);
+  const arm = (x, side) => { const s = J(up, x, .52, 0); M(HG.uarm, cm, s); const e = J(s, 0, -.3, 0); M(HG.farm, o.sleeve === 'short' ? sm : cm, e); const hd = J(e, 0, -.27, 0); M(HG.hand, sm, hd); return [s, e, hd]; };
+  const [aL, eL] = arm(.22, 1), [aR, eR, hR] = arm(-.22, -1);
+  const leg = x => { const t = J(hip, x, -.02, 0); M(HG.thigh, pm, t); const k = J(t, 0, -.46, 0); M(HG.shin, pm, k); const f = J(k, 0, -.43, 0); M(HG.foot, shoe, f); return [t, k, f]; };
+  const [lL, kL, fL] = leg(.095), [lR, kR, fR] = leg(-.095);
+  const tool = J(hR, 0, -.07, 0);
   const tm = lam(0x3a3632), wm = lam(0x3a2818);
-  if (o.tool === 'pipe') { const m = new THREE.Mesh(HG.pipe, tm); m.rotation.x = Math.PI / 2; m.position.z = .3; tool.add(m); }
-  if (o.tool === 'sickle') { const m = new THREE.Mesh(HG.pipe, wm); m.scale.y = .45; m.rotation.x = Math.PI / 2; m.position.z = .12; tool.add(m); const b = new THREE.Mesh(HG.blade, tm); b.position.set(0, .05, .3); tool.add(b); }
-  if (o.tool === 'hoe') { const m = new THREE.Mesh(HG.stick, wm); m.rotation.x = Math.PI / 2; m.position.z = .35; tool.add(m); const b = new THREE.Mesh(HG.hoe, tm); b.position.set(0, -.06, .92); tool.add(b); }
-  if (o.hat === 'straw') { const m = new THREE.Mesh(HG.straw, lam(0x6a5a38)); m.position.y = .2; head.add(m); }
-  if (o.hat === 'cap') { const m = new THREE.Mesh(HG.cap, lam(0x141824)); m.position.set(0, .15, .02); head.add(m); }
-  if (o.hat === 'scarf') { const m = new THREE.Mesh(HG.scarf, lam(o.scarf || 0x4a3a30)); m.position.set(0, .02, -.02); head.add(m); }
+  if (o.tool === 'pipe') { const m = M(HG.pipe, tm, tool, 0, 0, .3); m.rotation.x = Math.PI / 2; }
+  if (o.tool === 'sickle') { const m = M(HG.pipe, wm, tool, 0, 0, .12); m.scale.y = .42; m.rotation.x = Math.PI / 2; const b = M(HG.blade, tm, tool, 0, .01, .3); b.rotation.x = .3; }
+  if (o.tool === 'hoe') { const m = M(HG.stick, wm, tool, 0, 0, .35); m.rotation.x = Math.PI / 2; M(HG.hoe, tm, tool, 0, -.06, .92); }
+  if (o.hat === 'straw') M(HG.straw, lam(0x6a5a38), head, 0, .19, 0);
+  if (o.hat === 'cap') M(HG.cap, lam(0x141824), head, 0, .13, .02);
+  if (o.hat === 'scarf') M(HG.scarf, lam(o.scarf || 0x4a3a30), head, 0, .02, -.02);
   if (o.scale) g.scale.setScalar(o.scale);
-  return { g, hip, up, neck, head, aL, aR, lL, lR, tool, ph: Math.random() * 10, atk: 0, tilt: o.tilt || 0, jerk: 0, fm };
+  g.traverse(m => { if (m.isMesh) m.castShadow = true; });
+  return { g, hip, up, neck, head, aL, aR, eL, eR, lL, lR, kL, kR, fL, fR, tool, ph: Math.random() * 10, atk: 0, tilt: o.tilt || 0, jerk: 0, fm, drag: o.drag || 0, hunch: o.hunch || 0 };
 }
 // 0 立つ 1 歩く 2 走る 3 振る 4 耕す 5 祈る 6 倒れる 7 見回す 8 視界ジャック 9 しゃがむ
 function animHuman(h, a, dt, en) {
-  h.ph += dt * (a === 2 ? 10.5 : a === 1 ? (en ? 5.5 : 7) : a === 9 ? 5 : 2);
-  const s = Math.sin(h.ph);
-  h.g.rotation.x = 0; h.g.position.y = 0; h.hip.position.y = .92; h.hip.rotation.set(0, 0, 0); h.up.rotation.set(0, 0, 0);
-  h.neck.rotation.set(0, 0, h.tilt); h.aL.rotation.set(0, 0, .06); h.aR.rotation.set(0, 0, -.06); h.lL.rotation.set(0, 0, 0); h.lR.rotation.set(0, 0, 0);
-  if (en) { if (Math.random() < dt * .4) h.jerk = (Math.random() - .5) * 1.2; h.jerk *= Math.pow(.02, dt); h.neck.rotation.y += h.jerk; }
+  h.ph += dt * (a === 2 ? 10.5 : a === 1 ? (en ? 5.2 : 7) : a === 9 ? 5 : 2);
+  const s = Math.sin(h.ph), c = Math.cos(h.ph);
+  h.g.rotation.x = 0; h.g.position.y = 0; h.hip.position.y = .92; h.hip.rotation.set(0, 0, 0);
+  h.up.rotation.set(en ? .18 + h.hunch : 0, 0, 0);
+  h.neck.rotation.set(en ? -.1 : 0, 0, h.tilt);
+  h.aL.rotation.set(0, 0, .07); h.aR.rotation.set(0, 0, -.07); h.eL.rotation.set(en ? -.15 : -.2, 0, 0); h.eR.rotation.set(en ? -.15 : -.2, 0, 0);
+  h.lL.rotation.set(0, 0, 0); h.lR.rotation.set(0, 0, 0); h.kL.rotation.set(.04, 0, 0); h.kR.rotation.set(.04, 0, 0); h.fL.rotation.set(0, 0, 0); h.fR.rotation.set(0, 0, 0);
+  if (en) { if (Math.random() < dt * .4) h.jerk = (Math.random() - .5) * 1.3; h.jerk *= Math.pow(.02, dt); h.neck.rotation.y += h.jerk; }
   if (a === 3) h.atk += dt; else h.atk = 0;
   switch (a) {
-    case 0: h.aL.rotation.x = s * .04; h.aR.rotation.x = -s * .04; h.up.rotation.x = en ? .12 : 0; break;
-    case 1: { const A = en ? .38 : .55; h.lL.rotation.x = s * A; h.lR.rotation.x = -s * A; h.aL.rotation.x = -s * (en ? .12 : .4); h.aR.rotation.x = s * (en ? .12 : .4); h.hip.position.y = .92 + Math.abs(Math.cos(h.ph)) * .03; if (en) { h.up.rotation.x = .18; h.hip.rotation.z = s * .07; } break; }
-    case 2: h.lL.rotation.x = s * .95; h.lR.rotation.x = -s * .95; h.up.rotation.x = .3; h.hip.position.y = .9 + Math.abs(Math.cos(h.ph)) * .06;
-      if (en) { h.aL.rotation.x = -1.1 + s * .5; h.aR.rotation.x = -1.1 - s * .5; } else { h.aL.rotation.x = -s * .9; h.aR.rotation.x = s * .9; } break;
-    case 3: { const t = h.atk; h.aR.rotation.x = t < .4 ? -2.9 * (t / .4) : lerp(-2.9, .5, clamp((t - .4) / .2, 0, 1)); h.up.rotation.x = t < .4 ? -.1 : .3; h.aL.rotation.x = -.4; break; }
-    case 4: { const d = Math.sin(h.ph * 1.6); h.up.rotation.x = .35 + d * .25; h.aL.rotation.x = h.aR.rotation.x = -1.1 + d * .8; break; }
-    case 5: h.hip.position.y = .5; h.lL.rotation.x = h.lR.rotation.x = -1.35; h.up.rotation.x = .45 + s * .04; h.aL.rotation.x = h.aR.rotation.x = -.9; h.aL.rotation.z = -.35; h.aR.rotation.z = .35; break;
-    case 6: h.g.rotation.x = -Math.PI / 2; h.g.position.y = .14; h.aL.rotation.x = -2.8; h.aR.rotation.z = -.5; break;
-    case 7: h.neck.rotation.y = Math.sin(h.ph * .9) * .9; h.up.rotation.x = en ? .1 : 0; break;
-    case 8: h.hip.position.y = .62; h.lL.rotation.x = -.95; h.lR.rotation.x = -.7; h.up.rotation.x = .5; h.aL.rotation.set(-2.5, 0, -.6); h.aR.rotation.set(-2.5, 0, .6); h.neck.rotation.x = .3; break;
-    case 9: h.hip.position.y = .62; h.lL.rotation.x = -.9 + s * .25; h.lR.rotation.x = -.75 - s * .25; h.up.rotation.x = .55; h.aL.rotation.x = -.5; h.aR.rotation.x = -.5; break;
+    case 0: h.aL.rotation.x = s * .04; h.aR.rotation.x = -s * .04; h.up.rotation.x += s * .015; break;
+    case 1: {
+      const A = en ? .42 : .55, B = en ? .75 : .95, dr = en ? h.drag : 0;
+      h.lL.rotation.x = s * A; h.lR.rotation.x = -s * A * (1 - dr * .6);
+      h.kL.rotation.x = .05 + Math.max(0, c) * B; h.kR.rotation.x = .05 + Math.max(0, -c) * B * (1 - dr);
+      h.fL.rotation.x = -h.lL.rotation.x * .4; h.fR.rotation.x = -h.lR.rotation.x * .4;
+      h.aL.rotation.x = -s * (en ? .1 : .38); h.aR.rotation.x = s * (en ? .1 : .38); h.eL.rotation.x -= en ? 0 : Math.max(0, -s) * .3; h.eR.rotation.x -= en ? 0 : Math.max(0, s) * .3;
+      h.hip.position.y = .92 - Math.abs(s) * .025 - (en ? Math.max(0, -c) * dr * .05 : 0);
+      if (en) { h.hip.rotation.z = s * .06; h.up.rotation.z = -s * .08; }
+      break;
+    }
+    case 2: {
+      h.lL.rotation.x = s * .95; h.lR.rotation.x = -s * .95; h.kL.rotation.x = .1 + Math.max(0, c) * 1.5; h.kR.rotation.x = .1 + Math.max(0, -c) * 1.5;
+      h.up.rotation.x = .32; h.hip.position.y = .9 - Math.abs(s) * .05;
+      if (en) { h.aL.rotation.x = -1.2 + s * .4; h.aR.rotation.x = -1.2 - s * .4; h.eL.rotation.x = h.eR.rotation.x = -.15; h.neck.rotation.x = -.35; }
+      else { h.aL.rotation.x = -s * .95; h.aR.rotation.x = s * .95; h.eL.rotation.x = h.eR.rotation.x = -1.3; }
+      break;
+    }
+    case 3: { const t = h.atk; h.aR.rotation.x = t < .4 ? -2.8 * (t / .4) : lerp(-2.8, .35, clamp((t - .4) / .2, 0, 1)); h.eR.rotation.x = t < .4 ? -.7 : -.1; h.up.rotation.x = t < .4 ? -.08 : .35; h.aL.rotation.x = -.5; h.eL.rotation.x = -.9; h.lL.rotation.x = -.25; h.lR.rotation.x = .2; h.kR.rotation.x = .3; break; }
+    case 4: { const d = Math.sin(h.ph * 1.6); h.up.rotation.x = .4 + d * .25; h.aL.rotation.x = h.aR.rotation.x = -1.1 + d * .8; h.eL.rotation.x = h.eR.rotation.x = -.5; h.aL.rotation.z = -.2; h.aR.rotation.z = .2; h.lL.rotation.x = -.3; h.kL.rotation.x = .45; h.lR.rotation.x = .15; h.kR.rotation.x = .15; h.hip.position.y = .88; break; }
+    case 5: h.hip.position.y = .5; h.lL.rotation.x = -1.5; h.kL.rotation.x = 1.5; h.lR.rotation.x = .1; h.kR.rotation.x = 1.6; h.fR.rotation.x = -.2;
+      h.up.rotation.x = .45 + s * .04; h.aL.rotation.x = h.aR.rotation.x = -.7; h.eL.rotation.x = h.eR.rotation.x = -1.2; h.aL.rotation.z = -.28; h.aR.rotation.z = .28; h.neck.rotation.x = .35; break;
+    case 6: h.g.rotation.x = -Math.PI / 2; h.g.position.y = .12; h.aL.rotation.set(-2.6, 0, .3); h.eL.rotation.x = -.6; h.aR.rotation.z = -.5; h.lL.rotation.z = .12; h.kR.rotation.x = .5; h.neck.rotation.set(0, .6, 0); break;
+    case 7: h.neck.rotation.y = Math.sin(h.ph * .9) * .9; break;
+    case 8: h.hip.position.y = .55; h.lL.rotation.x = -1.3; h.kL.rotation.x = 1.9; h.lR.rotation.x = -1.1; h.kR.rotation.x = 1.8; h.fL.rotation.x = -.6; h.fR.rotation.x = -.7;
+      h.up.rotation.x = .5; h.aL.rotation.set(-2.1, 0, -.35); h.aR.rotation.set(-2.1, 0, .35); h.eL.rotation.x = h.eR.rotation.x = -1.9; h.neck.rotation.x = .35; break;
+    case 9: { const m = h.moving ? .22 : 0; h.hip.position.y = .56; h.lL.rotation.x = -1.3 + s * m; h.kL.rotation.x = 1.85 - s * m; h.lR.rotation.x = -1.1 - s * m; h.kR.rotation.x = 1.75 + s * m; h.fL.rotation.x = -.55; h.fR.rotation.x = -.65;
+      h.up.rotation.x = .5; h.aL.rotation.x = -.6; h.aR.rotation.x = -.6; h.eL.rotation.x = h.eR.rotation.x = -.9; break; }
   }
 }
 
 // ================================================================ 画面を組み立てる
+const SPOT_I = +Q.get('spot') || 60;
 let renderer, scene, camera, rt, postMat, postScene, postCam, rain, moon, riverMesh, groundCanvas;
-const DYN = { lamps: [], glints: [], gate: null, winchWheels: [], car: null, chain: null, carLight: null };
+const DYN = { lamps: [], glints: [], gate: null, winchWheels: [], car: null, chain: null, carLight: null, sils: [], vends: [], phones: [] };
 function initRenderer() {
   if (renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas: $('cv'), antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+  renderer.shadowMap.enabled = !Q.has('noshadow'); renderer.shadowMap.type = THREE.PCFShadowMap;
   camera = new THREE.PerspectiveCamera(66, 1, .08, 220);
   rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   postMat = new THREE.ShaderMaterial({
@@ -729,7 +839,100 @@ function resize() {
 function disposeScene() {
   if (!scene) return;
   scene.traverse(o => { if (o.geometry && !Object.values(HG).includes(o.geometry)) o.geometry.dispose(); });
-  DYN.lamps = []; DYN.glints = []; DYN.winchWheels = []; DYN.gate = DYN.car = DYN.chain = DYN.carLight = null;
+  DYN.lamps = []; DYN.glints = []; DYN.winchWheels = []; DYN.sils = []; DYN.vends = []; DYN.phones = []; DYN.gate = DYN.car = DYN.chain = DYN.carLight = null;
+}
+// 障子窓・自販機の絵
+function detailTextures() {
+  if (TEX.shoji) return;
+  const shoji = (paper, line, sil) => {
+    const c = cvs(64, 48), x = c.getContext('2d'); x.fillStyle = paper; x.fillRect(0, 0, 64, 48);
+    if (sil) { const g = x.createRadialGradient(30, 20, 2, 30, 26, 26); g.addColorStop(0, 'rgba(25,8,4,.95)'); g.addColorStop(.5, 'rgba(40,14,6,.75)'); g.addColorStop(1, 'rgba(60,20,8,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(31, 15, 6, 8, .25, 0, TAU); x.fill(); x.beginPath(); x.ellipse(30, 42, 17, 16, 0, 0, TAU); x.fill(); }
+    x.fillStyle = line; for (let i = 0; i <= 64; i += 8) x.fillRect(i - (i === 64 ? 2 : 0), 0, 2, 48); for (let j = 0; j <= 48; j += 12) x.fillRect(0, j - (j === 48 ? 2 : 0), 64, 2);
+    x.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 30; i++) x.fillRect(Math.random() * 64, Math.random() * 48, 3, 2);
+    return texOf(c);
+  };
+  TEX.shoji = shoji('#3e3a30', '#140e0a'); TEX.shojiLit = shoji('#d0a060', '#3a2210'); TEX.shojiSil = shoji('#d0a060', '#3a2210', 1);
+  let c = cvs(32, 64), x = c.getContext('2d'); x.fillStyle = '#a8a89c'; x.fillRect(0, 0, 32, 64); x.fillStyle = '#e8eee0'; x.fillRect(3, 4, 26, 30);
+  const cols = ['#b02020', '#2050a0', '#e0a020', '#208040', '#703010']; for (let r = 0; r < 3; r++) for (let k = 0; k < 5; k++) { x.fillStyle = cols[(r * 2 + k) % 5]; x.fillRect(4 + k * 5, 6 + r * 10, 4, 7); }
+  x.fillStyle = '#202020'; x.fillRect(4, 44, 24, 8); x.fillStyle = '#c03030'; for (let k = 0; k < 5; k++) x.fillRect(5 + k * 5, 37, 3, 2); TEX.vend = texOf(c);
+  c = cvs(16); x = c.getContext('2d'); x.fillStyle = '#8a1010'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#6a0808'; x.fillRect(0, 12, 16, 4); TEX.bib = texOf(c);
+}
+function buildDetails(W, mats) {
+  detailTextures();
+  const DB = { lit: new GB(), dark: new GB(), stone: new GB(), metal: new GB(), wood: new GB() };
+  // 窓（外と内の両面）
+  const winQuad = (gb, h, w, inner) => {
+    const T = .2, wd = 1.25, y0 = 1.0, y1 = 1.85, o = .025;
+    if (w.sd === 'N' || w.sd === 'S') {
+      const cx = lerp(h.x0 + 1, h.x1 - 1, w.t), z = w.sd === 'N' ? (inner ? h.z0 + T + o : h.z0 - o) : (inner ? h.z1 - T - o : h.z1 + o), n = (w.sd === 'N') !== inner ? -1 : 1;
+      gb.quadA([cx - wd / 2, y0, z], [cx + wd / 2, y0, z], [cx + wd / 2, y1, z], [cx - wd / 2, y1, z], [0, 0, n], n > 0 ? [0, 0, 1, 0, 1, 1, 0, 1] : [1, 0, 0, 0, 0, 1, 1, 1]);
+    } else {
+      const cz = lerp(h.z0 + 1, h.z1 - 1, w.t), x = w.sd === 'W' ? (inner ? h.x0 + T + o : h.x0 - o) : (inner ? h.x1 - T - o : h.x1 + o), n = (w.sd === 'W') !== inner ? -1 : 1;
+      gb.quadA([x, y0, cz - wd / 2], [x, y0, cz + wd / 2], [x, y1, cz + wd / 2], [x, y1, cz - wd / 2], [n, 0, 0], n < 0 ? [0, 0, 1, 0, 1, 1, 0, 1] : [1, 0, 0, 0, 0, 1, 1, 1]);
+    }
+  };
+  for (const h of W.houses) for (const w of h.wins) {
+    winQuad(DB.dark, h, w, true);
+    if (w.sil) { const gb = new GB(); winQuad(gb, h, w, false); const m = new THREE.Mesh(gb.geo(), new THREE.MeshBasicMaterial({ map: TEX.shojiSil })); scene.add(m); const c = w.sd === 'N' || w.sd === 'S' ? [lerp(h.x0 + 1, h.x1 - 1, w.t), w.sd === 'N' ? h.z0 : h.z1] : [w.sd === 'W' ? h.x0 : h.x1, lerp(h.z0 + 1, h.z1 - 1, w.t)]; DYN.sils.push({ m, x: c[0], z: c[1], gone: false }); }
+    else winQuad(h.lit ? DB.lit : DB.dark, h, w, false);
+  }
+  // 地蔵・自販機・井戸・自転車
+  for (const p of W.props) {
+    if (p.k === 'jizo') {
+      for (let i = 0; i < p.n; i++) {
+        const ox = (i - (p.n - 1) / 2) * .38, x = p.x + Math.cos(p.yaw) * ox, z = p.z - Math.sin(p.yaw) * ox;
+        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = p.yaw;
+        const st = mats.stone; const body = new THREE.Mesh(new THREE.CylinderGeometry(.11, .15, .42, 7), st); body.position.y = .27; g.add(body);
+        const hd = new THREE.Mesh(new THREE.SphereGeometry(.1, 7, 5), st); hd.position.y = .56; g.add(hd);
+        const bib = new THREE.Mesh(new THREE.CylinderGeometry(.13, .16, .14, 7, 1, true, -1.2, 2.4), new THREE.MeshLambertMaterial({ map: TEX.bib, side: THREE.DoubleSide })); bib.position.y = .38; g.add(bib);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(.3, .06, .3), st); base.position.y = .03; g.add(base);
+        g.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); scene.add(g);
+      }
+    }
+    if (p.k === 'vend') {
+      const g = new THREE.Group(); g.position.set(p.x, 0, p.z); g.rotation.y = p.yaw;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(.9, 1.8, .7), lam(0x8a8a80)); body.position.y = .9; body.castShadow = true; g.add(body);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(.8, 1.6), new THREE.MeshBasicMaterial({ map: TEX.vend })); face.position.set(0, .92, .352); g.add(face);
+      const pl = new THREE.PointLight(0xc8dcff, 9, 7, 1.3); pl.position.set(0, 1.2, .9); g.add(pl);
+      scene.add(g); DYN.vends.push({ face, pl });
+    }
+    if (p.k === 'well') {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(.75, .8, .8, 12, 1, true), new THREE.MeshLambertMaterial({ map: TEX.stone, side: THREE.DoubleSide })); ring.position.set(p.x, .4, p.z); ring.castShadow = true; scene.add(ring);
+      const water = new THREE.Mesh(new THREE.CircleGeometry(.72, 12), new THREE.MeshBasicMaterial({ color: 0x1a0202 })); water.rotation.x = -Math.PI / 2; water.position.set(p.x, .25, p.z); scene.add(water);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(.9, .04, .5), mats.wood2); lid.position.set(p.x + .2, .82, p.z); lid.rotation.y = .4; scene.add(lid);
+    }
+    if (p.k === 'bike') {
+      const g = new THREE.Group(); g.position.set(p.x, .03, p.z); g.rotation.set(0, p.yaw, 0); const mm = lam(0x2a2826);
+      const wg = new THREE.TorusGeometry(.3, .02, 4, 12); for (const x of [-.5, .5]) { const w = new THREE.Mesh(wg, mm); w.rotation.x = Math.PI / 2; w.position.set(x, 0, 0); g.add(w); }
+      const f = new THREE.Mesh(new THREE.BoxGeometry(1, .04, .04), mm); g.add(f); const f2 = new THREE.Mesh(new THREE.BoxGeometry(.04, .04, .5), mm); f2.position.set(.45, .02, .1); g.add(f2);
+      scene.add(g);
+    }
+  }
+  for (const s of W.solids) if (s.k === 'drum') { const m = new THREE.Mesh(new THREE.CylinderGeometry(.29, .29, .9, 10), mats.metal); m.position.set((s.x0 + s.x1) / 2, .45, (s.z0 + s.z1) / 2); m.castShadow = m.receiveShadow = true; scene.add(m); }
+  // 黒電話
+  for (const ph of W.phones) {
+    const g = new THREE.Group(); g.position.set(ph.x, .4, ph.z); const bk = lam(0x0c0c0c);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(.2, .09, .22), bk); b.position.y = .045; g.add(b);
+    const hs = new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .06), bk); hs.position.y = .12; g.add(hs); scene.add(g); DYN.phones.push({ g, hs });
+  }
+  for (const k in DB) if (DB[k].p.length) {
+    const mat = k === 'lit' ? new THREE.MeshBasicMaterial({ map: TEX.shojiLit }) : k === 'dark' ? new THREE.MeshLambertMaterial({ map: TEX.shoji }) : mats[k] || mats.stone;
+    const m = new THREE.Mesh(DB[k].geo(), mat); m.receiveShadow = true; scene.add(m);
+  }
+  // 電線
+  { const pos = [], P = W.poles;
+    for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d > 24) continue;
+      for (const o of [0, .35]) for (let k = 0; k < 8; k++) { const t0 = k / 8, t1 = (k + 1) / 8, y = t => 6.6 - o - Math.sin(t * Math.PI) * .7 * d / 18; pos.push(lerp(a[0], b[0], t0), y(t0), lerp(a[1], b[1], t0), lerp(a[0], b[0], t1), y(t1), lerp(a[1], b[1], t1)); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x050404 }))); }
+  // 赤い水たまり（光を照り返す）
+  { const pm = new THREE.MeshPhongMaterial({ color: 0x260303, specular: 0x9a5a50, shininess: 90, emissive: 0x0a0000 }), ig = new THREE.CircleGeometry(1, 10); ig.rotateX(-Math.PI / 2);
+    const im = new THREE.InstancedMesh(ig, pm, W.puddles.length), m = new THREE.Matrix4(), q = new THREE.Quaternion();
+    W.puddles.forEach((p, i) => { m.compose(new THREE.Vector3(p[0], .018 + i * .0002, p[1]), q, new THREE.Vector3(p[2], 1, p[2] * .75)); im.setMatrixAt(i, m); }); im.receiveShadow = true; scene.add(im); }
+  // 草
+  { const pos = []; for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3, c = Math.cos(a) * .12, s = Math.sin(a) * .12; pos.push(-c, 0, -s, c, 0, s, 0, .38, 0); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+    const im = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: 0x2c3a1c, side: THREE.DoubleSide }), W.grass.length), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    W.grass.forEach((t, i) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], 0, t[1]), q, new THREE.Vector3(t[2], t[2], t[2])); im.setMatrixAt(i, m); }); im.receiveShadow = true; scene.add(im); }
 }
 function buildScene(W) {
   makeTextures();
@@ -738,7 +941,7 @@ function buildScene(W) {
   const moonL = new THREE.DirectionalLight(0x9a6a70, +Q.get('moon') || 1.3); moonL.position.set(-40, 60, -30); scene.add(moonL);
   groundCanvas = drawGround(W);
   const gt = texOf(groundCanvas); gt.magFilter = THREE.NearestFilter;
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(S, S), new THREE.MeshLambertMaterial({ map: gt })); ground.rotation.x = -Math.PI / 2; ground.position.set(S / 2, 0, S / 2); scene.add(ground);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(S, S), new THREE.MeshLambertMaterial({ map: gt })); ground.rotation.x = -Math.PI / 2; ground.position.set(S / 2, 0, S / 2); ground.receiveShadow = true; scene.add(ground);
   const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), lam(0x14140e)); outer.rotation.x = -Math.PI / 2; outer.position.set(S / 2, -.02, S / 2); scene.add(outer);
   // 赤い川
   { const pl = W.river.pl, pos = [], idx = []; const w = W.river.w / 2 + .2;
@@ -759,6 +962,8 @@ function buildScene(W) {
       case 'pole': B.wood2.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1); break;
       case 'conc': B.conc.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.5); break;
       case 'winch': break;
+      case 'block': B.conc.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.2); B.conc.box(s.x0 - .03, s.y1, s.z0 - .03, s.x1 + .03, s.y1 + .06, s.z1 + .03, 1.2); break;
+      case 'crate': B.furn.box(s.x0, 0, s.z0, s.x1, Math.min(s.y1, .7), s.z1, .7); if (s.y1 > 1) B.furn.box(s.x0 + .08, .7, s.z0 + .05, s.x1 - .04, s.y1, s.z1 - .08, .7); break;
     }
   }
   for (const h of W.houses) {
@@ -780,15 +985,19 @@ function buildScene(W) {
     if (d.k === 'slide') { const R = RNG(Math.floor(d.at[0] * 100 + d.at[1])); for (let i = 0; i < 9; i++) { const ax = d.e === 'W' || d.e === 'E'; const o = (R() - .5) * 9, dd = (R() - .5) * 2, sz = .5 + R() * 1.1; const x = ax ? d.at[0] + dd : d.at[0] + o, z = ax ? d.at[1] + o : d.at[1] + dd; B.rock.box(x - sz, 0, z - sz * .8, x + sz, sz * 1.2, z + sz * .8, 1.3); } }
     if (d.k === 'scare') { const { x, z } = d; B.wood2.box(x - .6, 1.2, z - .04, x + .6, 1.28, z + .04, 1); B.furn.box(x - .18, 1.25, z - .12, x + .18, 1.55, z + .12, 1); B.stone.box(x - .25, 1.55, z - .25, x + .25, 1.62, z + .25, 1); }
   }
+  if (!TEX.dirt) { const c = cvs(64), x = c.getContext('2d'); x.fillStyle = '#b8b4ac'; x.fillRect(0, 0, 64, 64); speck(x, 64, 64, ['#a09a90', '#8a8478', '#c4c0b8', '#6a5a50'], 700, 2);
+    for (let i = 0; i < 7; i++) { x.fillStyle = `rgba(${90 + Math.random() * 40 | 0},10,8,${.5 + Math.random() * .4})`; const bx = Math.random() * 64, by = Math.random() * 64; for (let k = 0; k < 14; k++) x.fillRect(bx + (Math.random() - .5) * 10, by + Math.random() * 14, 2 + Math.random() * 3, 2 + Math.random() * 4); }
+    TEX.dirt = texOf(c, 1); }
   const mats = { wall: new THREE.MeshLambertMaterial({ map: TEX.wood }), roof: new THREE.MeshLambertMaterial({ map: TEX.roof, side: THREE.DoubleSide }), floor: new THREE.MeshLambertMaterial({ map: TEX.tatami }), furn: new THREE.MeshLambertMaterial({ map: TEX.furn }), stone: new THREE.MeshLambertMaterial({ map: TEX.stone }), red: new THREE.MeshLambertMaterial({ map: TEX.red }), conc: new THREE.MeshLambertMaterial({ map: TEX.conc }), metal: new THREE.MeshLambertMaterial({ map: TEX.metal }), wood2: new THREE.MeshLambertMaterial({ map: TEX.wood, color: 0x8a8a8a }), rock: new THREE.MeshLambertMaterial({ map: TEX.rock }) };
-  for (const k in B) if (B[k].p.length) scene.add(new THREE.Mesh(B[k].geo(), mats[k]));
+  for (const k in B) if (B[k].p.length) { const m = new THREE.Mesh(B[k].geo(), mats[k]); m.castShadow = k !== 'floor'; m.receiveShadow = true; scene.add(m); }
   // 杉
   { const tg = new THREE.CylinderGeometry(.16, .26, 3.2, 5); tg.translate(0, 1.6, 0); const cg = new THREE.ConeGeometry(1.5, 5, 6); cg.translate(0, 4.8, 0);
     const n = W.trees.length, ti = new THREE.InstancedMesh(tg, lam(0x2a1c14), n), ci = new THREE.InstancedMesh(cg, lam(0x0f1a12, { flatShading: true }), n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     W.trees.forEach((t, i) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], 0, t[1]), q, new THREE.Vector3(t[2], t[2] * (1 + (i % 5) * .08), t[2])); ti.setMatrixAt(i, m); ci.setMatrixAt(i, m); });
-    scene.add(ti, ci);
+    ti.castShadow = ci.castShadow = true; ti.receiveShadow = ci.receiveShadow = true; scene.add(ti, ci);
     const bg = new THREE.IcosahedronGeometry(1, 0), bi = new THREE.InstancedMesh(bg, lam(0x101a10, { flatShading: true }), W.bushes.length);
     W.bushes.forEach((b, i) => { m.compose(new THREE.Vector3(b[0], b[2] * .5, b[1]), q, new THREE.Vector3(b[2] * 1.4, b[2], b[2] * 1.4)); bi.setMatrixAt(i, m); }); scene.add(bi); }
+  buildDetails(W, mats);
   // 街灯
   for (const L of W.lamps) {
     const pl = new THREE.PointLight(0xffc890, 30, 16, 1.2); pl.position.set(L.x, 5.2, L.z); scene.add(pl);
@@ -865,7 +1074,8 @@ function mkPlayer(i, q) {
   const look = i === 0 ? { cloth: 0x2d3440, pants: 0x1d2026, hair: 0x14100e, skin: 0xb8927a } : { cloth: 0x5b4030, pants: 0x2a2622, hair: 0x201612, skin: 0xc9a58a };
   const h = mkHuman(Object.assign({ face: faceTexture('player', q.face, i) }, look));
   const pipe = new THREE.Mesh(HG.pipe, lam(0x55524e)); pipe.rotation.x = Math.PI / 2; pipe.position.z = .3; pipe.visible = false; h.tool.add(pipe);
-  const spot = new THREE.SpotLight(0xfff1d6, +Q.get('spot') || 60, 32, .42, .55, 1.2); spot.position.set(-.2, 1.25, .3); const tg = new THREE.Object3D(); tg.position.set(-.1, .3, 10); h.g.add(tg); spot.target = tg; h.g.add(spot);
+  const spot = new THREE.SpotLight(0xfff1d6, SPOT_I, 32, .42, .55, 1.2);
+  if (i === G.me && !Q.has('noshadow')) { spot.castShadow = true; spot.shadow.mapSize.set(512, 512); spot.shadow.camera.near = .4; spot.shadow.camera.far = 30; spot.shadow.bias = -.0015; spot.shadow.normalBias = .035; h.g.traverse(m => { if (m.isMesh) m.castShadow = false; }); } spot.position.set(-.2, 1.25, .3); const tg = new THREE.Object3D(); tg.position.set(-.1, .3, 10); h.g.add(tg); spot.target = tg; h.g.add(spot);
   const beam = new THREE.Mesh(HG.beam, new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: .045, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); beam.position.copy(spot.position); beam.rotation.x = .045; h.g.add(beam);
   scene.add(h.g);
   return { i, name: q.name || (i ? 'ふたり目' : 'ひとり目'), faceURL: q.face || null, x: sp[0], z: sp[1], tx: sp[0], tz: sp[1], yaw: W.spawnYaw, tyaw: W.spawnYaw, camYaw: W.spawnYaw, camPitch: 0,
@@ -877,7 +1087,7 @@ function spawnEnemy(d) {
   const L = LOOKS[d.look % LOOKS.length];
   const face = d.kind === 'turned' ? faceTexture('turned', d.face, d.pi || 0) : faceTexture('enemy', null, d.id);
   const look = d.kind === 'turned' ? (d.pi ? { cloth: 0x4b3428, pants: 0x221e1a } : { cloth: 0x252b34, pants: 0x181a1e }) : L;
-  const h = mkHuman(Object.assign({}, look, { face, skin: 0x7c7f78, tilt: (d.id % 2 ? 1 : -1) * (.2 + (d.id % 5) * .06), scale: .96 + (d.id % 7) * .015 }));
+  const h = mkHuman(Object.assign({}, look, { face, skin: 0x7c7f78, tilt: (d.id % 2 ? 1 : -1) * (.2 + (d.id % 5) * .06), scale: .96 + (d.id % 7) * .015, dirty: 1, drag: d.id % 3 === 0 ? .75 : .15, hunch: (d.id % 4) * .07, sleeve: L.n === '看護婦' ? 'short' : null }));
   h.g.position.set(d.x, 0, d.z); scene.add(h.g);
   const e = Object.assign({}, d, { m: h, yaw: d.yaw || (d.id * 1.7) % TAU, st: 'routine', sus: 0, hp: 3, down: 0, path: null, wait: Math.random() * 3, ri: 0, ai: 0, lostT: 99, chk: Math.random() * .1, anim: 0, mv: 0, stun: 0, tx: d.x, tz: d.z, tyaw: 0, stc: 0, tgt: -1,
     vbase: (d.kind === 'turned' ? 130 : L.v) * (.92 + (d.id % 5) * .04), name: d.kind === 'turned' ? d.name + 'だったもの' : '還り人（' + L.n + '）', stk: 0 });
@@ -888,7 +1098,7 @@ function spawnEnemy(d) {
 const enemyById = id => G.enemies.find(e => e.id === id);
 
 // ================================================================ 敵の頭脳（ホストだけが動かす）
-function nearLamp(p) { for (const L of G.W.lamps) if (Math.hypot(L.x - p.x, L.z - p.z) < 7) return true; return false; }
+function nearLamp(p) { for (const L of G.W.lamps) if (Math.hypot(L.x - p.x, L.z - p.z) < 7) return true; for (const g of G.W.glows) if (Math.hypot(g[0] - p.x, g[1] - p.z) < 4) return true; return false; }
 function seeScore(e, p) {
   const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz);
   if (d > 34) return 0;
@@ -1073,6 +1283,13 @@ function handleReq(o, from) {
       bcast({ t: 'ehit', id: e.id, down: e.down > 0 ? 1 : 0 }); break; }
     case 'noise': G.noises.push({ x: o.x, z: o.z, r: o.r }); break;
     case 'revive': { const q = G.players[o.i]; if (q && q.st === 'down') bcast({ t: 'revive', i: o.i }); break; }
+    case 'closet': {
+      const c = G.W.closets[o.id]; if (!c || G.obj['occ' + o.id]) return; bcast({ t: 'obj', k: 'occ' + o.id, v: 1 });
+      const id = G.nextId++; bcast({ t: 'spawn', def: { id, kind: 'house', x: c.x, z: c.z, yaw: c.yaw, anchor: [c.x, c.z], anchor2: [c.cx + Math.sin(c.yaw) * .9, c.cz + Math.cos(c.yaw) * .9], look: Math.floor(Math.random() * LOOKS.length) } });
+      const e = enemyById(id); e.yaw = c.yaw; startChase(e, from); e.stun = .5; break;
+    }
+    case 'phone': if (G.obj['ph' + o.i] == null) bcast({ t: 'obj', k: 'ph' + o.i, v: G.t }); break;
+    case 'phoneUp': if (G.obj['pu' + o.i] == null) bcast({ t: 'obj', k: 'pu' + o.i, v: G.t }); break;
     case 'turn': turnPlayer(from); break;
     case 'esc': bcast({ t: 'esc', i: from }); break;
     case 'polt': { const e = enemyById(o.id); if (!e || e.down > 0) return; const a = Math.random() * TAU, x = clamp(e.x + Math.sin(a) * 7, 12, S - 12), z = clamp(e.z + Math.cos(a) * 7, 12, S - 12); if (e.st !== 'chase' && e.st !== 'attack') { investigate(e, x, z); e.sus = Math.max(e.sus, .4); } bcast({ t: 'knock', x, z }); break; }
@@ -1144,6 +1361,27 @@ function downMe() {
 }
 function hide(c) { const p = me(); p.hidden = c.id; p.x = c.x; p.z = c.z; p.hideYaw = c.yaw; G.cam.yaw = c.yaw; G.cam.pitch = 0; if (isHost()) onHideHost(p); au.door(); sendP(); }
 function unhide() { const p = me(); if (p.hidden == null) return; const c = G.W.closets[p.hidden]; p.hidden = null; p.x = c.x; p.z = c.z; collide(p, .3); au.door(); sendP(); }
+// 仕掛け
+function openOcc(c) {
+  au.stinger(); au.scream(c.cx, c.cz); G.fx.shake = .7; G.fx.red = .5;
+  msg('押し入れの中に、誰かいた――！'); req('closet', { id: c.id });
+}
+const phoneRinging = ph => G.obj['ph' + ph.i] != null && G.obj['pu' + ph.i] == null && G.t - G.obj['ph' + ph.i] < 16;
+function scares(dt) {
+  const p = me(), W = G.W;
+  if (p.st === 'alive') {
+    for (const ph of W.phones) if (G.obj['ph' + ph.i] == null && !ph.asked && Math.hypot(ph.x - p.x, ph.z - p.z) < 7) { ph.asked = 1; req('phone', { i: ph.i }); }
+    W.hums.forEach((q, j) => { if (!q.done && Math.hypot(q[0] - p.x, q[1] - p.z) < 3.5) { q.done = 1; au.hum(p.x - Math.sin(p.yaw) * 2.2, p.z - Math.cos(p.yaw) * 2.2); } });
+    for (const s of DYN.sils) if (!s.gone && Math.hypot(s.x - p.x, s.z - p.z) < 9) { s.gone = true; s.m.material.map = TEX.shojiLit; s.m.material.needsUpdate = true; au.door(); }
+  }
+  // 鳴っている電話（音は全員、物音はホストが出す）
+  W.phones.forEach((ph, i) => {
+    const on = phoneRinging(ph), P = DYN.phones[i];
+    if (on && !ph.snd) ph.snd = au.ring(ph.x, ph.z); if (!on && ph.snd) { ph.snd.stop(); ph.snd = null; }
+    if (P) { P.hs.position.y = .12 + (on && Math.sin(G.time * 60) > 0 ? .01 : 0); P.hs.visible = G.obj['pu' + i] == null; }
+    if (on && isHost()) { const b = Math.floor((G.t - G.obj['ph' + i]) / 2); if (b !== ph.nb) { ph.nb = b; G.noises.push({ x: ph.x, z: ph.z, r: 18 }); } }
+  });
+}
 function inExitZone(p) {
   const e = G.W.exit, d = e.side === 'W' ? p.x : e.side === 'E' ? S - p.x : e.side === 'N' ? p.z : S - p.z;
   const o = (e.side === 'W' || e.side === 'E' ? p.z : p.x) - e.c;
@@ -1214,7 +1452,8 @@ function findInteract() {
   }
   if (O.chain && !G.obj.chain && Math.hypot(O.chain.c[0] - p.x, O.chain.c[1] - p.z) < 2.6) return G.team.has('cutter') ? { key: 'cut', label: '鎖を切る', need: 3, loud: 1, run: () => req('use', { what: 'cut' }) } : { key: 'x', label: '太い鎖が巻かれている', dis: 1 };
   if (O.gate && !G.obj.gate && Math.hypot(O.gate.c[0] - p.x, O.gate.c[1] - p.z) < 5) return { key: 'x', label: '鉄門は閉ざされている', dis: 1 };
-  for (const c of G.W.closets) { if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && fo(c.cx, c.cz) < 1.2 && !G.players.some(q => q.hidden === c.id)) return { key: 'hide' + c.id, label: '押し入れに隠れる', run: () => hide(c) }; }
+  for (const c of G.W.closets) { if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && fo(c.cx, c.cz) < 1.2 && !G.players.some(q => q.hidden === c.id)) return { key: 'hide' + c.id, label: '押し入れに隠れる', run: () => (c.occ && !G.obj['occ' + c.id]) ? openOcc(c) : hide(c) }; }
+  for (const ph of G.W.phones) if (phoneRinging(ph) && Math.hypot(ph.x - p.x, ph.z - p.z) < 1.7) return { key: 'ph' + ph.i, label: '受話器を取る', run: () => { req('phoneUp', { i: ph.i }); say('……たすけて……みずが……あかいの……', .3, .6, 1); msg('「……たすけて……みずが、あかいの……」'); } };
   if (p.med > 0 && p.hp < 100) return { key: 'med', label: '手当てする（' + p.med + '）', need: 2, run: () => { p.med--; p.hp = Math.min(100, p.hp + 55); msg('手当てをした'); } };
   return null;
 }
@@ -1413,6 +1652,26 @@ const au = {
   door() { shot({ filt: 'bandpass', ff: 500, q: 2, dur: .3, vol: .25 }); },
   gate() { shot({ filt: 'lowpass', ff: 140, dur: 4, vol: .9, atk: .4, rev: .5 }); for (let i = 0; i < 6; i++) au.metal(G.W.objs.gate.c[0], G.W.objs.gate.c[1], .3); },
   engine() { if (!AU.on || AU.eng) return; const C = AU.C, o = C.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 38; const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180; const g = C.createGain(); g.gain.value = .2; const c = G.W.objs.car, p = mkPan(c.x, .6, c.z); o.connect(f); f.connect(g); g.connect(p); p.connect(AU.M); o.start(); AU.eng = { o, g }; },
+  scream(x, z) { shot({ x, z, osc: 'sawtooth', f0: 520, f1: 260, filt: 'bandpass', ff: 1100, q: 2, dur: 1.4, vol: .7, atk: .02, rev: .8 }); shot({ x, z, filt: 'bandpass', ff: 1800, q: 1, dur: .9, vol: .5, rev: .5 }); au.thud(x, z); },
+  // 背後の鼻歌：ゆっくり節をつけて、最後に笑う
+  hum(x, z) {
+    if (!AU.on) return; const C = AU.C, t = C.currentTime, o = C.createOscillator(); o.type = 'sawtooth';
+    const f1 = C.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 430; f1.Q.value = 6; const g = C.createGain(); g.gain.value = 0; const p = mkPan(x, 1.6, z);
+    o.connect(f1); f1.connect(g); g.connect(p); p.connect(AU.M); const s = C.createGain(); s.gain.value = .6; p.connect(s); s.connect(AU.rev);
+    const notes = [196, 220, 196, 175, 196, 147]; notes.forEach((f, i) => o.frequency.setTargetAtTime(f, t + i * .45, .06));
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.28, t + .2); g.gain.setValueAtTime(.28, t + 2.4); g.gain.linearRampToValueAtTime(0, t + 2.8);
+    for (let k = 0; k < 5; k++) { const a = t + 3 + k * .16; o.frequency.setValueAtTime(390 + k * 12, a); g.gain.setValueAtTime(0, a); g.gain.linearRampToValueAtTime(.32, a + .03); g.gain.linearRampToValueAtTime(0, a + .12); }
+    o.start(t); o.stop(t + 4);
+  },
+  // 黒電話のベル（止められる）
+  ring(x, z) {
+    if (!AU.on) return { stop() { } }; const C = AU.C, t = C.currentTime, g = C.createGain(), am = C.createGain(); g.gain.value = 0; am.gain.value = .5;
+    const os = [1300, 1640].map(f => { const o = C.createOscillator(); o.frequency.value = f; o.connect(am); o.start(); return o; });
+    const lfo = C.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 17; const lg = C.createGain(); lg.gain.value = .5; lfo.connect(lg); lg.connect(am.gain); lfo.start();
+    const p = mkPan(x, .5, z); am.connect(g); g.connect(p); p.connect(AU.M); const s = C.createGain(); s.gain.value = .5; p.connect(s); s.connect(AU.rev);
+    for (let k = 0; k < 6; k++) { const a = t + k * 3; g.gain.setValueAtTime(.3, a); g.gain.setValueAtTime(0, a + .4); g.gain.setValueAtTime(.3, a + .6); g.gain.setValueAtTime(0, a + 1); }
+    return { stop() { try { g.gain.cancelScheduledValues(C.currentTime); g.gain.setValueAtTime(0, C.currentTime); os.forEach(o => o.stop()); lfo.stop(); } catch (e) { } } };
+  },
   heart(v) { shot({ osc: 'sine', f0: 62, f1: 38, dur: .16, vol: v }); shot({ osc: 'sine', f0: 58, f1: 36, dur: .14, vol: v * .6, at: .2 }); },
   siren(final) {
     if (!AU.on) return; const C = AU.C, t = C.currentTime, D = 21, g = C.createGain(), f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1500;
@@ -1471,10 +1730,10 @@ function updateModels(dt) {
     h.g.visible = vis; h.g.position.set(p.x, 0, p.z); h.g.rotation.y = p.yaw;
     const swing = p.i === G.me ? p.swing > 0 : p.swingF;
     const a = p.st === 'down' ? 6 : swing ? 3 : p.sj ? 8 : p.moving ? (p.crouch ? 9 : p.run ? 2 : 1) : p.crouch ? 9 : 0;
-    if (p.st === 'down') { h.g.rotation.x = 0; }
-    animHuman(h, a, p.moving || a !== 9 ? dt : 0, false);
+    h.moving = p.moving;
+    animHuman(h, a, dt, false);
     const lightOn = vis && p.light && p.st === 'alive';
-    p.spot.visible = lightOn; p.beam.visible = lightOn && !(G.sj.on && G.sj.view && G.sj.view.o === p);
+    p.spot.intensity = lightOn ? SPOT_I : 0; p.beam.visible = lightOn && !(G.sj.on && G.sj.view && G.sj.view.o === p);
     p.pipe.visible = !!p.weapon;
   }
   for (const e of G.enemies) {
@@ -1517,12 +1776,12 @@ function placeCamera() {
   }
   const hy = p.st === 'down' ? .5 : p.crouch ? 1.15 : 1.55, cy = Math.cos(G.cam.pitch), fx = Math.sin(G.cam.yaw) * cy, fyy = Math.sin(G.cam.pitch), fz = Math.cos(G.cam.yaw) * cy;
   const rx = -Math.cos(G.cam.yaw), rz = Math.sin(G.cam.yaw), back = camera.aspect < .8 ? 3.7 : 2.8;
-  const hx = p.x + rx * .3, hz = p.z + rz * .3;
-  let cx = hx - fx * back, cyy = hy + .45 - fyy * back, cz = hz - fz * back;
+  const sho = camera.aspect < .8 ? .62 : .5, hx = p.x + rx * sho, hz = p.z + rz * sho;
+  let cx = hx - fx * back, cyy = hy + .5 - fyy * back, cz = hz - fz * back;
   const t = rayT(p.x, hy, p.z, cx, cyy, cz, false); if (t < 1) { const tt = Math.max(0, t - .1); cx = p.x + (cx - p.x) * tt; cyy = hy + (cyy - hy) * tt; cz = p.z + (cz - p.z) * tt; }
   cyy = Math.max(.25, cyy);
   const sh = G.fx.shake * .15; camera.position.set(cx + (Math.random() - .5) * sh, cyy + (Math.random() - .5) * sh, cz);
-  camera.lookAt(hx + fx * 6, hy + .15 + fyy * 6, hz + fz * 6);
+  camera.lookAt(hx + fx * 6, hy + .45 + fyy * 6, hz + fz * 6);
   return null;
 }
 function draw(dt) {
@@ -1602,9 +1861,20 @@ function step(dt) {
   if (isHost()) { G.t += dt; hostSiren(); } else G.t += dt;
   updateMe(dt); updateInteract(dt); updateSJ(dt); interp(dt);
   if (isHost()) { aiAll(dt); checkEnd(); }
-  updateModels(dt); netTick(dt); updateFX(dt); hud(dt);
-  tutorial(dt);
+  scares(dt); updateModels(dt); netTick(dt); updateFX(dt); hud(dt);
+  tutorial(dt); autoQuality(dt);
   placeCamera(); audioTick(dt);
+}
+// 重い端末では影と草を切る
+function autoQuality(dt) {
+  const A = G.fps || (G.fps = { t: 0, n: 0, done: Q.has('shot') });
+  if (A.done || G.time < 2) return; A.t += dt; A.n++;
+  if (A.t < 4) return; A.done = true;
+  if (A.n / A.t < 24) lowQuality();
+}
+function lowQuality() {
+  if (!renderer.shadowMap.enabled) return;
+  renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); if (o.isInstancedMesh && o.count > 2000) o.visible = false; });
 }
 function tutorial() {
   const T = G.tut || (G.tut = { i: 0 }); const steps = [[1.5, '左側をなぞって歩く／右側をなぞって見回す'], [7, '［視界］を長押しして見回すと、近くにいる者の目を盗み見られる'], [14, 'ライトは目立つ。消せば見つかりにくいが、足元も見えない'], [21, '走ると足音が響く。しゃがめば音を立てずに動ける'], [30, '［地図］で脱出の場所を確かめよう']];
@@ -1635,6 +1905,7 @@ function endGame(v) {
   if (G.result) return; G.result = v; G.mode = 'end';
   try { speechSynthesis.cancel(); } catch (e) { }
   if (AU.eng) { try { AU.eng.o.stop(); } catch (e) { } AU.eng = null; }
+  for (const ph of G.W.phones) if (ph.snd) { ph.snd.stop(); ph.snd = null; }
   $('hud').classList.add('hide'); $('pad').classList.add('hide');
   const T = { all: ['脱出', 'ふたりとも、村を抜けた。\n振り返ると、赤い雨の向こうでサイレンがまだ鳴っていた。'], partial: ['生還', G.players.length > 1 ? 'ひとりだけが、村を抜けた。\nもうひとりは、今も村で鼻歌をうたっている。' : '村を抜けた。\n赤い雨の向こうで、サイレンがまだ鳴っていた。'], dead: ['死亡', '村は、あなたを帰さなかった。'], dawn: ['夜明けは来なかった', '午前四時。四度目のサイレンとともに、村は赤い水の底へ還った。'], lost: ['通信断', 'ホストとの通信が途切れました。'] }[v.why] || ['終わり', ''];
   if (Net.mode === 'solo' && v.why === 'partial') T[0] = '脱出';

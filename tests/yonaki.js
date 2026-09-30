@@ -116,6 +116,7 @@ const cases = {
     const p = await ctx.newPage(); await p.setViewportSize({ width: 390, height: 844 }); await p.goto(base + '?solo=1&fast=1&mute=1&seed=5&shot=1'); await ready(p);
     const r = await p.evaluate(async () => {
       const W8 = ms => new Promise(r => { const t0 = G.time; const f = () => (G.time - t0) * 1000 >= ms || G.mode !== 'game' ? r() : setTimeout(f, 20); f(); }); const P = me(), e = G.enemies[0];
+      G.enemies.forEach(o => { if (o !== e) { o.x = 3; o.z = 3; o.down = 999; } }); e.x = P.x + 18; e.z = P.z + 6; e.st = 'scan'; e.scanT = 99; await W8(100);
       G.cam.yaw = Math.atan2(e.x - P.x, e.z - P.z); G.in.sj = true; await W8(300);
       const a = { on: G.sj.on, id: G.sj.view && G.sj.view.o.id, clar: G.sj.clar, want: e.id };
       G.cam.yaw += Math.PI; await W8(200); a.away = G.sj.view ? G.sj.view.o.id : null; G.cam.yaw -= Math.PI; await W8(300);
@@ -124,6 +125,32 @@ const cases = {
     await p.screenshot({ path: path.join(OUT, 'ynk_sj.png') });
     await p.evaluate(() => { G.in.sj = false; });
     if (!r.on || r.id !== r.want || r.clar < .3) throw new Error(JSON.stringify(r));
+    await p.close();
+  },
+  // 仕掛け：押し入れの先客が飛び出して追ってくる／黒電話が鳴って敵を呼び、受話器を取ると止まる
+  async '仕掛け'(ctx, base) {
+    const p = await ctx.newPage(); await p.goto(base + '?solo=1&fast=1&mute=1&seed=61&god=1'); await ready(p);
+    const r = await p.evaluate(async () => {
+      const W8 = ms => new Promise(r => { const t0 = G.time; const f = () => (G.time - t0) * 1000 >= ms || G.mode !== 'game' ? r() : setTimeout(f, 20); f(); });
+      const o = {}; G.enemies.forEach(e => { e.x = 3; e.z = 3; e.down = 999; });
+      const c = G.W.closets.find(c => c.occ); o.hasOcc = !!c;
+      if (c) {
+        const n0 = G.enemies.length; G.debug.tp(c.x, c.z); me().yaw = Math.atan2(c.cx - c.x, c.cz - c.z); await W8(100);
+        const it = G.debug.findInteract(); o.label = it && it.label; it.run(); await W8(300);
+        const e = G.enemies[G.enemies.length - 1]; o.spawned = G.enemies.length === n0 + 1; o.hidden = me().hidden; o.chase = e.st === 'chase' || e.st === 'attack' || e.stun > 0;
+      }
+      o.phones = G.W.phones.length;
+      const ph = G.W.phones[0];
+      if (ph) {
+        const e = G.enemies[0]; e.down = 0; e.st = 'routine'; e.kind = 'grave'; e.x = ph.x + 8; e.z = ph.z; e.anchor = [e.x, e.z]; e.face = [e.x + 1, e.z];
+        G.debug.tp(ph.x + 5.5, ph.z); await W8(400); o.ring = G.obj['ph0'] != null; await W8(800); o.heard = e.st;
+        G.debug.tp(ph.x + .9, ph.z); await W8(100); const it = G.debug.findInteract(); o.pl = it && it.label; if (it) it.run(); await W8(200); o.up = G.obj['pu0'] != null;
+      }
+      return o;
+    });
+    if (!r.hasOcc || r.label !== '押し入れに隠れる' || !r.spawned || r.hidden != null || !r.chase) throw new Error('押し入れ: ' + JSON.stringify(r));
+    if (r.phones && (!r.ring || r.heard === 'routine' || r.pl !== '受話器を取る' || !r.up)) throw new Error('電話: ' + JSON.stringify(r));
+    const e = await errs(p); if (e.length) throw new Error(e.join('\n'));
     await p.close();
   },
   // 三つの脱出条件をそれぞれ最後まで通す
