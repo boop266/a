@@ -75,7 +75,7 @@ const cases = {
       const res = await p.evaluate(async t => {
         let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); }
         if (!g) return 'NONE'; G.foes = []; G.title = null;
-        const pk = new Set(g.pocket.map(q => q + '')); const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y));
+        const pk = new Set(g.pocket.map(q => q + '')); const same = (q, x, y) => q && q[0] == x && q[1] == y; const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y) && !same(G.down, x, y) && !same(G.up, x, y) && !same(G.exit, x, y) && !G.gim.some(q => q.levers && q.levers.some(l => l.x == x && l.y == y)));
         G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == G.p.x && i.y == G.p.y)); G.srcs = (G.srcs || []).filter(q => !(q.x == G.p.x && q.y == G.p.y)); const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
         if (passGim(g)) return '最初から通れる';
         if (t == 'brazier') { for (const b of g.brz) lightBrazier(g, b) } else { const m = mainAction(); if (!m) return '行動が出ない'; m.f() }
