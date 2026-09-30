@@ -3167,6 +3167,38 @@ function litHere(){const p=G.p;if(hasLight()||onGlow(p.x,p.y))return 1;const i=G
 // ===== 予兆：これから起きることを、地図に薄く描く（敵の視線・音の届く範囲・次に燃える所） =====
 function sightR(f){const u=bagUsed(),bs=bagDef().st||0;return 4+(u>=6?1:0)+(u>=10?1:0)+(u>=14?1:0)+bs+(bagAf('kou')?2:0)+litHere()+(f.alert>0?2:0)-(rxOn('D')?1:0)-(G.cond=='fog'||G.cond=='silent'?1:0)+(f.pers=='fierce'?2:0)-(f.pers=='lazy'?2:0)-(f.pers=='friendly'?1:0)}
 function watchers(){const p=G.p;if(G.hush>0)return[];return G.foes.filter(f=>f.hp>0&&f.alpha>0&&!f.aware&&!f.dormant&&!f.mhSleep&&!f.still&&!(f.stun>0)&&!(f.frozen>0)&&!(f.charm>0)&&!(f.conf>0)&&!(f.fear>0)&&f.k!='puru'&&f.k!='koke'&&cd(f.x,f.y,p.x,p.y)<=10&&G.seen.has(f.x+','+f.y)&&!(()=>{try{return feudOf(f)}catch(e){return null}})()).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y)).slice(0,6)}
+
+// ===== 次の予測：確実に分かる「次の一手」だけを、薄い矢印と数字で描く =====
+function foeNextTile(f){const p=G.p;if(f.hp<=0||f.dormant||f.lurk||f.mhSleep||f.still||f.stun>0||f.frozen>0||(f.charm>0)||(f.conf>0))return null;
+ if((f.slow||f.slowV)&&((G.steps||0)+1)%2)return null;if(inMud(f.x,f.y)&&!(FOE[f.k]||{}).fly&&((G.steps||0)+1)%2)return null;try{if(feudOf(f))return null}catch(e){}
+ const dd=cd(f.x,f.y,p.x,p.y);if(f.aware&&dd==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y))&&!(f.fear>0))return {x:p.x,y:p.y,atk:1};
+ const ok=(x,y,a,b)=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(q=>q.x==x&&q.y==y));
+ const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(o=>ok(...o));if(!opts.length)return null;
+ if(f.fear>0){const o=opts.sort((u,v)=>cd(v[0],v[1],p.x,p.y)-cd(u[0],u[1],p.x,p.y))[0];return {x:o[0],y:o[1],flee:1}}
+ let tg=null;const L=(G.lures||[]).filter(q=>cd(q.x,q.y,f.x,f.y)<=8).sort((u,v)=>cd(u.x,u.y,f.x,f.y)-cd(v.x,v.y,f.x,f.y))[0];
+ if(L)tg=L;else if(f.inv&&f.aware!=2&&f.inv.t>1)tg=f.inv;else if(f.aware)tg=p;if(!tg||cd(tg.x,tg.y,f.x,f.y)==0)return null;
+ const o=opts.sort((u,v)=>cd(u[0],u[1],tg.x,tg.y)-cd(v[0],v[1],tg.x,tg.y))[0];if(cd(o[0],o[1],tg.x,tg.y)>=cd(f.x,f.y,tg.x,tg.y))return null;return {x:o[0],y:o[1]}}
+function iceSlide(sx,sy,dx,dy){let x=sx,y=sy,n=0;while(n<12&&isIce(x,y)){const tx=x+dx,ty=y+dy;if(!walk(tx,ty)||(dx&&dy&&!diagOK(x,y,dx,dy))||foeAt(tx,ty)||(gimAt(tx,ty)&&!gOpen(gimAt(tx,ty)))||(G.chest&&G.chest.x==tx&&G.chest.y==ty)||(G.lava&&G.lava.has(tx+','+ty)))break;x=tx;y=ty;n++;if(isPit(x,y))break}return {x,y,n,pit:isPit(x,y)}}
+function drawNext(t,sx,sy,z){const p=G.p,S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z,CX=x=>X(x)+S/2,CY=y=>Y(y)+S/2;
+ const arrow=(x0,y0,x1,y1,c,w)=>{const a=Math.atan2(y1-y0,x1-x0),L=Math.max(4,S*.32);sc.strokeStyle=c;sc.fillStyle=c;sc.lineWidth=w||Math.max(1.2,z*.55);sc.setLineDash([S*.22,S*.16]);sc.lineDashOffset=-t*S*1.2;sc.beginPath();sc.moveTo(x0,y0);sc.lineTo(x1-Math.cos(a)*L*.6,y1-Math.sin(a)*L*.6);sc.stroke();sc.setLineDash([]);sc.beginPath();sc.moveTo(x1,y1);sc.lineTo(x1-L*Math.cos(a-.5),y1-L*Math.sin(a-.5));sc.lineTo(x1-L*Math.cos(a+.5),y1-L*Math.sin(a+.5));sc.fill()};
+ const num=(x,y,s,c)=>{sc.font='bold '+Math.round(S*.42)+'px sans-serif';sc.textAlign='center';const w=sc.measureText(s).width+4;sc.fillStyle='rgba(0,0,0,.65)';sc.fillRect(X(x)+S-w-1,Y(y)+1,w,S*.45);sc.fillStyle=c;sc.fillText(s,X(x)+S-w/2-1,Y(y)+S*.4)};
+ const near=(x,y,r)=>cd(x,y,p.x,p.y)<=(r||8)&&G.seen.has(x+','+y);sc.save();
+ // 敵の次の一歩（追う・誘われる・逃げる・隣なら襲う）
+ G.foes.forEach(f=>{if(f.hp<=0||f.alpha<=0||!near(f.x,f.y))return;const n=foeNextTile(f);if(!n)return;
+  if(n.atk)arrow(CX(f.x),CY(f.y),(CX(f.x)+CX(p.x))/2,(CY(f.y)+CY(p.y))/2,'rgba(255,70,50,.9)',Math.max(2,z));
+  else arrow(CX(f.x),CY(f.y),CX(n.x),CY(n.y),n.flee?'rgba(200,200,200,.6)':'rgba(255,110,90,.75)')});
+ // 水の流れ
+ if(G.cur&&G.cur.cells&&G.cur.dir){const[dx,dy]=G.cur.dir;[...G.cur.cells].forEach(k=>{const[x,y]=k.split(',').map(Number);if(!near(x,y,9)||(x+y)%2)return;arrow(CX(x)-dx*S*.3,CY(y)-dy*S*.3,CX(x)+dx*S*.45,CY(y)+dy*S*.45,'rgba(140,200,255,.55)')});
+  if(curAt(p.x,p.y)&&!onStair(p.x,p.y)&&bagUsed()<Math.ceil(bagCap()*.75)&&walk(p.x+dx,p.y+dy))arrow(CX(p.x),CY(p.y),CX(p.x+dx),CY(p.y+dy),'rgba(140,200,255,.95)',Math.max(2,z))}
+ // 風：あと何手で吹くか。毒気・湯気・自分が流される向き
+ if(G.wind){const W=G.wind,left=W.every-(W.t%W.every);(G.gas||[]).concat(G.steam||[]).forEach(g=>{if(!near(g.x,g.y,9))return;arrow(CX(g.x),CY(g.y),CX(g.x)+W.dx*S*.8,CY(g.y)+W.dy*S*.8,'rgba(200,150,240,.6)')});
+  if(left<=2&&walk(p.x+W.dx,p.y+W.dy)&&!isPit(p.x+W.dx,p.y+W.dy)){arrow(CX(p.x),CY(p.y),CX(p.x+W.dx),CY(p.y+W.dy),'rgba(220,220,200,.8)');num(p.x+W.dx,p.y+W.dy,'風'+left,'#e8e0c0')}}
+ // 氷：踏んだらどこまで滑るか
+ DIRS8.forEach(([dx,dy])=>{const nx=p.x+dx,ny=p.y+dy;if(!isIce(nx,ny)||!diagOK(p.x,p.y,dx,dy))return;const e=iceSlide(nx,ny,dx,dy);if(!e.n)return;arrow(CX(nx),CY(ny),CX(e.x),CY(e.y),e.pit?'rgba(255,90,70,.85)':'rgba(200,240,255,.6)');if(e.pit)num(e.x,e.y,'穴','#ff8a70')});
+ // 床のひび：あと何手で抜けるか。導火線：あと何手で爆ぜるか
+ (G.cracks||[]).forEach(c=>{if(c.st!=1||!near(c.x,c.y))return;const l=Math.max(1,c.need-c.t);num(c.x,c.y,l+'',l<=2?'#ff8a70':'#ffd35a')});
+ (G.gim||[]).forEach(g=>{if(g.fuse>0&&near(g.x,g.y))num(g.x,g.y,g.fuse+'','#ff8a70')});
+ sc.restore()}
 function drawOmens(t,sx,sy,z){const p=G.p,now=performance.now(),S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z;
  // 敵の視線：気づいていない敵が、いま見ている範囲
  const ws=watchers();let inSight=false;
@@ -3182,6 +3214,7 @@ function drawOmens(t,sx,sy,z){const p=G.p,now=performance.now(),S=T*z,X=x=>(x*T-
  (G.fires||[]).forEach(f=>{if(!G.seen.has(f.x+','+f.y)||f.t>=f.life)return;DIRS8.forEach(([a,b])=>{const x=f.x+a,y=f.y+b,k=x+','+y;if(burning.has(k)||!G.seen.has(k)||!burnable(x,y))return;const pr=hasOil(x,y)?.95:hasOil(f.x,f.y)?.5:.32;
    sc.strokeStyle='rgba(255,'+(150+Math.round(60*Math.sin(t*9+x+y)))+',60,'+(.25+pr*.6)+')';sc.lineWidth=Math.max(1,z*.5);sc.strokeRect(X(x)+1,Y(y)+1,S-2,S-2)});
   if(W){const cx=X(f.x)+S/2,cy=Y(f.y)+S/2,o=((t*14)%1)*S;sc.fillStyle='rgba(255,211,90,.8)';const ax=cx+W.dx*(S*.6+o),ay=cy+W.dy*(S*.6+o),L=S*.35;sc.beginPath();sc.moveTo(ax+W.dx*L,ay+W.dy*L);sc.lineTo(ax-W.dy*L*.7,ay+W.dx*L*.7);sc.lineTo(ax+W.dy*L*.7,ay-W.dx*L*.7);sc.fill()}});
+ try{drawNext(t,sx,sy,z)}catch(e){}
  // その場で止めて見せる：初めて見た反応
  const sp=G.spot;if(sp){const a=now-sp.t0;if(a>2600)G.spot=null;else{const k=a<160?a/160:a>2100?(2600-a)/500:1;const cx=X(sp.x)+S/2,cy=Y(sp.y)+S/2,rad=S*2.3;
   sc.save();sc.globalAlpha=k;sc.fillStyle='rgba(0,0,0,.5)';sc.beginPath();sc.rect(0,0,SW,SH);sc.arc(cx,cy,rad,0,6.283,true);sc.fill();

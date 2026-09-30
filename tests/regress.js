@@ -7,6 +7,19 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 次の予測：追ってくる敵の一歩・氷の滑り先
+  async '次の予測'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const H = G.m.length, W = G.m[0].length; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.seen.add(x + ',' + y);
+      const f = put('gob', 9, 8); f.aware = 2; f.alpha = 1; const n = foeNextTile(f);
+      G.ice = new Set(['6,10', '7,10', '8,10']); const s = iceSlide(6, 10, 1, 0);
+      const g = put('gob', 6, 8); g.aware = 2; const a = foeNextTile(g);
+      let err = null; try { drawNext(0, G.view.cx, G.view.cy, SW / G.view.vw) } catch (e) { err = e.message }
+      return { n, s, a, err };
+    });
+    if (!r.n || r.n.x != 8 || r.s.x != 9 || r.s.n != 3 || !r.a || !r.a.atk || r.err) throw new Error(JSON.stringify(r));
+  },
   // 蹴る：傷は与えずに押し出す。穴の手前なら落ちる。重い敵は動かない
   async '蹴って地形を使う'(p) {
     await arena(p);
