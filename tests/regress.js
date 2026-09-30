@@ -7,6 +7,16 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // タップで何でも調べられる（物・階段・罠・地面）
+  async 'タップで調べる'(p) {
+    await arena(p);
+    const r = await p.evaluate(() => {
+      G.items.push({ x: 10, y: 8, id: 'sword', drop: 0 }); G.traps = [{ x: 8, y: 10, k: 'noise', known: 1 }]; G.mud = new Set(['9,9']); G.garden = G.m.map(r => r.map(() => false)); G.bush = new Set(); G.glowm = new Set(); G.ice = new Set();
+      const n = (x, y) => { const I = tileInfo(x, y); return I.H.map(h => h[0]).join('|') + '/' + I.L.length; };
+      return { item: n(10, 8), trap: n(8, 10), down: n(G.down[0], G.down[1]), exit: n(G.exit[0], G.exit[1]), mud: n(9, 9), none: n(12, 12) };
+    });
+    if (!/長剣/.test(r.item) || !/鳴子/.test(r.trap) || !/階段/.test(r.down) || !/出口/.test(r.exit) || r.mud !== '/1' || r.none !== '/0') throw new Error(JSON.stringify(r));
+  },
   async '思い通りに動かす'(p) {
     await arena(p);
     const r = await p.evaluate(async () => {

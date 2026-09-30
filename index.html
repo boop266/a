@@ -2451,6 +2451,54 @@ async function travelTo(tx,ty){const me={};G.travel=me;const p=G.p;const bump=tr
   if(!(p.x==tx&&p.y==ty)&&G.items.some(i=>i.x==p.x&&i.y==p.y&&!i.ignore))break;
   await wait(55)}
  if(G.travel===me)G.travel=null;G.travelGoal=null;ui()}
+
+// ===== タップで何でも調べる：そのマスにある物・仕掛け・地面の説明 =====
+const GIMN={boulder:['岩の格子','近くの岩を押して、光る台座に乗せれば上がる'],levers:['レバーの格子','そばの3本のレバーを正しい順に引けば上がる。順番の書き置きが、この階のどこかにある'],plate:['重さの格子','台座に何かを乗せておけば上がる'],vine:['蔦の門','乾いた蔦。火で燃え落ちる。斧で切っても、毒気で枯らしてもいい'],crack:['ひび割れた壁','爆発で崩れる。槌で何度も叩いても崩れる'],volt:['雷の扉','錆びた歯車。電気を浴びせれば動く'],brazier:['燭台の門','そばの燭台すべてに火を灯すと開く']};
+const TRAPD={pit:'踏むと下の階へ落ちる',noise:'踏むと音が鳴り、まわりの敵が集まる',poison:'踏むと毒を受ける',spring:'踏むと弾き飛ばされる',seal:'踏むとしばらく動けなくなる'};
+function tileInfo(x,y){const k=x+','+y,H=[],L=[];const at=a=>a&&a[0]==x&&a[1]==y;const q=(t,d)=>H.push([t,d]);
+ try{G.items.filter(i=>i.x==x&&i.y==y).forEach(it=>{const d=ITEM[it.id];if(!d)return;const lo=LORE[it.id]||(d.base&&LORE[d.base]);let v=0;try{v=itemValue(it,new Map())}catch(e){}
+  q(d.n+(it.scout?'（仲間になりたそうだ）':''),(d.d||'')+'<br><span style="opacity:.75">大きさ '+(d.sh||[1,1]).join('×')+(v?'・価値 '+v:'')+(d.mon?'・仲間':'')+(d.curse?'・呪われている':'')+(it.how?'・'+it.how:'')+'</span>'+(lo?'<br><i style="opacity:.7">'+lo+'</i>':''))})}catch(e){}
+ try{(G.srcs||[]).filter(s=>s.x==x&&s.y==y).forEach(s=>q(SRCN[s.t]||'何か',s.done?'もう漁った':'上に立って「漁る」と中身が出てくる。一手かかり、物音が立つ'))}catch(e){}
+ if(at(G.down))q('下り階段',(THEMES[G.fi+1]?THEMES[G.fi+1].n+'へ。':'')+(G.oneway?'<b>戻れない階段</b>。':'')+'上に立って「降りる」');
+ if(at(G.up))q('上り階段','ひとつ上の階へ戻る');if(at(G.exit))q('出口','ここから地上へ帰れる。持ち帰った物の価値が、そのまま稼ぎになる');
+ if(G.chest&&G.chest.x==x&&G.chest.y==y)q('宝箱',G.chest.locked?'鍵がかかっている。「古い鍵」で開く。槌か斧があれば叩き壊せる（音が響き、冠は潰れる）':'開いている');
+ if(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))q('樽','ぶつかると割れる。何か入っていることも、空のことも、火薬樽のこともある');
+ if(G.peddler&&G.peddler.x==x&&G.peddler.y==y)q('行商人','ぶつかると取引できる');
+ if((G.evs||[]).some(e=>!e.gone&&e.x==x&&e.y==y))q('誰かがいる','ぶつかると話しかけられる');
+ if(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)q('船着き場','ぶつかると船に乗れる');
+ if(G.sc&&G.sc.some(d=>d.x==x&&d.y==y))q('近道の扉','一度開けば、次からここまで近道できる');
+ (G.traps||[]).filter(t=>t.known&&!t.used&&t.x==x&&t.y==y).forEach(t=>q('罠：'+TRAPN[t.k],TRAPD[t.k]+'。敵もかかる。小石を投げ込めば離れて作動させられる'));
+ try{const g=gimAt(x,y);if(g&&GIMN[g.type])q(GIMN[g.type][0]+(g.open?'（開いている）':''),GIMN[g.type][1])}catch(e){}
+ if((G.gim||[]).some(g=>g.type=='boulder'&&g.bx==x&&g.by==y))q('岩','押して動かせる。光る台座に乗せると格子が上がる');
+ if((G.anchors||[]).some(a=>at(a)))q('杭','鉤縄があれば、2〜4マス先の見通せる杭へ跳べる。穴も水も越えられる');
+ if(isPit(x,y))q('穴','飛び込めば下の階へ落ちる。渡し板を架ければ渡れる');
+ if(G.bridges&&G.bridges.has(k))q('渡し板','穴に架かった板。火がつくと燃え落ちる');
+ if(G.lava&&G.lava.has(k))q('溶岩','踏めば大やけど。水をかけると冷えて固まり、黒曜石が採れる。氷でも固まる');
+ if((G.fires||[]).some(f=>f.x==x&&f.y==y))q('炎','燃えている。草や油や糸を伝って広がり、風下へ流れる。水や泥で消える');
+ if(inGas(x,y))q('毒気','中にいると体が蝕まれる。風で流れ、火が入ると燃え上がる。氷で凍り、泥に沈む');
+ if((G.steam||[]).some(t=>t.x==x&&t.y==y)){const t=G.steam.find(t=>t.x==x&&t.y==y);q(t.smoke?'煙':t.dust?'砂埃':'湯気','中にいると見つかりにくく、視線もさえぎる。風で流れる')}
+ if(hasOil(x,y))q('油','踏むと滑る。火がつくと激しく燃え、油をかぶった者は燃え続ける。泥で吸い取れる');
+ if(G.webs&&G.webs.has(k))q('蜘蛛の糸','踏むと絡まって動けない。刃物で払えば一手遅れるだけで済む。火で焼ける');
+ if(inPWater(x,y))q('毒の水','中にいると体が蝕まれる。何も釣れない');
+ if((G.loose||[]).some(l=>l.x==x&&l.y==y))q('崩れかけた天井','大きな音や揺れで落ちてくる。下にいる者は潰される。小石を当てても落ちる');
+ if((G.cracks||[]).some(c=>c.x==x&&c.y==y&&c.st>=1))q('床のひび','少しずつ広がり、やがて穴になる');
+ if((G.thin||[]).some(t=>t.x==x&&t.y==y))q('薄い壁','強い揺れや爆発で崩れて、向こうへ抜けられる');
+ if((G.graves||[]).some(g=>g.x==x&&g.y==y&&!g.dug))q('墓','掘れば何か出るかもしれない。近づくと、起き上がってくるものもいる');
+ try{(G.corpses||[]).filter(c=>c[0]==x&&c[1]==y).forEach(c=>q('死体',CORPSE_T[c[3]]||'冒険者の成れの果て'))}catch(e){}
+ if(G.relic&&G.relic.x==x&&G.relic.y==y)q('倒れた相棒の亡骸','前の探索で倒れた相棒。風船があれば、残した荷ごと連れ帰れる');
+ if((G.lures||[]).some(l=>l.x==x&&l.y==y))q('糸人形','置いた場所へ、敵が寄っていく');
+ if(G.fire&&G.fire.x==x&&G.fire.y==y)q('焚き火','そばで休める。火種にもなる');
+ if((G.cocoons||[]).some(c=>c.x==x&&c.y==y&&!c.cut))q('繭','刃物で裂くと、中から何かが出てくる');
+ if((G.cannons||[]).some(c=>c[0]==x&&c[1]==y))q('砲台','まっすぐ弾を撃ってくる。射線に立たないこと');
+ // 地面（歩きながら一言）
+ if(isIce(x,y))L.push(TWIST.ice[2]);else if(inWater(x,y)&&!inPWater(x,y))L.push('水：歩ける。濡れると松明や火薬が湿る。雷をよく通し、氷で凍る');
+ if(inMud(x,y))L.push(TWIST.mud[2]);if(inBush(x,y))L.push(TWIST.bush[2]);if(onGlow(x,y))L.push(TWIST.glow[2]);
+ if(!inBush(x,y)&&G.garden&&G.garden[y]&&G.garden[y][x])L.push('草：火がつくと燃え広がる');
+ return {H,L}}
+function tileCard(x,y,I){const p=G.p;const can=!(x==p.x&&y==p.y)&&(walk(x,y)||trvBump(x,y))&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y));
+ $('modal').innerHTML='<div class="modal"><div class="box"><div style="text-align:left;line-height:1.7;max-height:60vh;overflow:auto">'+I.H.map(([t,d])=>'<h3 style="margin:.4em 0 .1em;color:#e8b64c">'+t+'</h3><div class="hint" style="text-align:left">'+d+'</div>').join('')+(I.L.length?'<div class="hint" style="text-align:left;opacity:.8;margin-top:.5em">'+I.L.join('<br>')+'</div>':'')+'</div><div class="btns">'+(can?'<button class="b go" id="tcGo">ここへ行く</button>':'')+'<button class="b sub" id="tcX">閉じる</button></div></div></div>';
+ sfx('tick');$('tcX').onclick=()=>{$('modal').innerHTML='';ui()};if(can)$('tcGo').onclick=()=>{$('modal').innerHTML='';ui();if(cd(x,y,p.x,p.y)==1&&(trvBump(x,y)||diagOK(p.x,p.y,x-p.x,y-p.y)))step(x-p.x,y-p.y);else travelTo(x,y)};
+ learn('lookall','調べる：地図の上の物・仕掛け・地面をタップすると、何なのかが分かる。手番は使わない。「ここへ行く」でそこまで歩く')}
 let SCRDN=null;
 function tapWorld(e){if(G&&G.map&&!G.fight&&!G.over&&!G.busy&&G.mapXf&&!$('modal').innerHTML){const rc=scr.getBoundingClientRect(),X=G.mapXf;const tx=Math.floor(((e.clientX-rc.left)/rc.width*SW-X.ox)/X.S),ty=Math.floor(((e.clientY-rc.top)/rc.height*SH-X.oy)/X.S);
   if(G.seen.has(tx+','+ty)&&(walk(tx,ty)||trvBump(tx,ty))&&!(tx==G.p.x&&ty==G.p.y)){G.map=false;ui();learn('maptravel','地図の上で行きたい場所をタップすると、見えている安全な道を通ってそこまで歩く。何か起きれば止まる');travelTo(tx,ty);return true}return false}
@@ -2460,10 +2508,12 @@ function tapWorld(e){if(G&&G.map&&!G.fight&&!G.over&&!G.busy&&G.mapXf&&!$('modal
  if(G.busy)return true;
  const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const p=G.p;
  if(G.aim){aimTap(tx,ty);return true}
- if(tx==p.x&&ty==p.y)return false;
+ if(tx==p.x&&ty==p.y){if(mainAction())return false;const I=tileInfo(tx,ty);if(I.H.length){tileCard(tx,ty,I);return true}if(I.L.length){toast(I.L.join('　'))}return true}
  const f=G.foes.find(f=>f.hp>0&&f.alpha>0&&(f.x==tx||(f.big&&Math.abs(f.x-tx)<=1))&&f.y==ty&&G.seen.has(f.x+','+f.y));if(f&&!(f.charm>0&&cd(f.x,f.y,p.x,p.y)==1)){foeInfo(f);return true}
  const ht=hookTargets().find(q=>q[0]==tx&&q[1]==ty);if(ht){hookTo(ht);return true}
  if(G.water[ty]&&G.water[ty][tx]&&Math.abs(tx-p.x)+Math.abs(ty-p.y)<=1&&!G.fishing){startFishing([tx,ty]);return true}
+ if(!G.seen.has(tx+','+ty)){sfx('no');toast('まだ見ていない場所だ');return true}
+ {const I=tileInfo(tx,ty);if(I.H.length){tileCard(tx,ty,I);return true}if(I.L.length&&G.lastTerr!==I.L[0]){G.lastTerr=I.L[0];toast(I.L[0])}}
  if(cd(tx,ty,p.x,p.y)==1){let dx=tx-p.x,dy=ty-p.y;if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){if(walk(p.x+dx,p.y))dy=0;else if(walk(p.x,p.y+dy))dx=0}step(dx,dy);return true}
  if(!G.seen.has(tx+','+ty)){sfx('no');toast('まだ見ていない場所だ');return true}
  if(!walk(tx,ty)&&!trvBump(tx,ty)){sfx('no');return true}
