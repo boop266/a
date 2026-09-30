@@ -1612,7 +1612,7 @@ function diagOK(x,y,dx,dy){if(!dx||!dy)return true;return walk(x+dx,y)&&walk(x,y
 function stepOK(x,y,dx,dy){return walk(x+dx,y+dy)&&diagOK(x,y,dx,dy)}
 const gimAt=(x,y)=>G.gim.find(g=>g.x==x&&g.y==y);
 const foeAt=(x,y)=>G.foes.find(f=>f.hp>0&&f.x==x&&f.y==y);
-const hasTorch=()=>G.bag.items.some(p=>ITEM[p.id].lit&&!p.wet);const litMul=()=>Math.max(0,...G.bag.items.map(p=>(p.wet?0:ITEM[p.id].lit||0)));
+const hasTorch=()=>G.bag.items.some(p=>ITEM[p.id].lit&&!p.wet&&!p.off);const litMul=()=>Math.max(0,...G.bag.items.map(p=>(p.wet||p.off?0:ITEM[p.id].lit||0)));
 function reveal(){const p=G.p;let rad=(hasLight()?5:3)+(rxOn('B')?2:0)-(G.cond=='fog'?1:0)-(G.dim||0)-(inSteam(p.x,p.y)?2:0)-(G.blur>0?1:0);rad=Math.max(1,rad);if(G.mstyle=='shiren'&&G.rid&&!(G.rid[p.y]&&G.rid[p.y][p.x]>=0&&G.rooms[G.rid[p.y][p.x]].lit))rad=hasLight()?2:1;for(let j=-rad;j<=rad;j++)for(let i=-rad;i<=rad;i++)if(i*i+j*j<=rad*rad+1)G.seen.add((p.x+i)+','+(p.y+j))}
 
 // ================= bag model
@@ -1815,6 +1815,8 @@ function render(now){
  G.cocoons&&G.cocoons.forEach(c=>{if(c.cut){wc.fillStyle='#bdb8c8';wc.fillRect(c.x*T+2,c.y*T+5,4,2);return}const sw=Math.round(Math.sin(t*1.3+c.x)*.8);wc.fillStyle='rgba(230,230,240,.6)';wc.fillRect(c.x*T+3+sw,c.y*T-4,1,4);spr(wc,SP.mayu,c.x*T+sw,c.y*T)});
  G.barrels&&G.barrels.forEach(b=>spr(wc,SP.barrel,b.x*T,b.y*T));
  G.anchors&&(()=>{const HT=(typeof hookTargets=='function'&&hasItem('hook'))?hookTargets():[];G.anchors.forEach(([x,y])=>{const X=x*T,Y=y*T;const hot=HT.some(q=>q[0]==x&&q[1]==y);if(hot){wc.globalAlpha=.75+Math.sin(t*5)*.25;wc.fillStyle='#ffd35a';wc.fillRect(X+1,Y-1,6,1);wc.fillRect(X,Y+8,8,1);wc.globalAlpha=1;const p2=G.p;wc.fillStyle='#f0c04e';const dx=Math.sign(x-p2.x),dy=Math.sign(y-p2.y);let X2=p2.x,Y2=p2.y,gu=0;while((X2!=x||Y2!=y)&&gu++<12){X2+=dx;Y2+=dy;if(Math.floor(t*6+X2+Y2)%2)wc.fillRect(X2*T+3,Y2*T+3,2,2)}}wc.fillStyle='#2a1a10';wc.fillRect(X+3,Y+1,3,7);wc.fillStyle='#8a5a34';wc.fillRect(X+3,Y+1,2,6);wc.fillStyle='#b9c3cf';wc.fillRect(X+2,Y+2,4,1);wc.fillRect(X+2,Y+3,1,1);wc.fillRect(X+5,Y+3,1,1)})})()
+ if(G.aim&&!G.fight){const p2=G.p;wc.fillStyle='#ffd35a';for(let j=-AIMR;j<=AIMR;j++)for(let i=-AIMR;i<=AIMR;i++){const x=p2.x+i,y=p2.y+j;if(aimOK(x,y)){wc.globalAlpha=.18+.08*Math.sin(t*4+i+j);wc.fillRect(x*T+1,y*T+1,6,6)}}wc.globalAlpha=1}
+ if(G.travelGoal){const[gx,gy]=G.travelGoal;wc.globalAlpha=.6+.3*Math.sin(t*8);wc.strokeStyle='#e8e0a0';wc.lineWidth=1;wc.strokeRect(gx*T+.5,gy*T+.5,7,7);wc.globalAlpha=1}
  G.cannons&&G.cannons.forEach(([x,y,d])=>spr(wc,SP.cannon,x*T,y*T+(d?1:0),d));
  if(G.sdoor){spr(wc,SP.sdoor,G.sdoor.x*T,G.sdoor.y*T-2);wc.fillStyle='#6fb0d0';if(Math.floor(t*2)%2)wc.fillRect(G.sdoor.x*T+3,G.sdoor.y*T+1,2,1)}
  if(G.ship&&G.start){wc.fillStyle='#9ad0ff';for(let a=0;a<3;a++)wc.fillRect(G.start[0]*T-5+a*2,G.start[1]*T+3+Math.round(Math.sin(t*3+a)),1,1)}
@@ -1966,7 +1968,7 @@ function mapPaper(w,h){const c=document.createElement('canvas');c.width=w;c.heig
   const st=vnoise(i/26+sd*2,j/26)>.72?.18:0;let v=1-n*.22-edge*.55-st;D[k]=Math.round(222*v+14);D[k+1]=Math.round(200*v+8);D[k+2]=Math.round(150*v);D[k+3]=ex<2+vnoise(i/2,j/2)*5?0:255}
  x.putImageData(d,0,0);return c}
 function drawMap(t){
- const pad=14,top=34;const S=Math.max(4,Math.floor(Math.min((SW-pad*2-8)/MW,(SH-top-pad-30)/MH)));const mw=MW*S,mh=MH*S,pw=mw+pad*2,ph=mh+top+pad+18,px=(SW-pw)>>1,py=Math.max(8,(SH-ph)>>1)-6,ox=px+pad,oy=py+top;
+ const pad=14,top=34;const S=Math.max(4,Math.floor(Math.min((SW-pad*2-8)/MW,(SH-top-pad-30)/MH)));const mw=MW*S,mh=MH*S,pw=mw+pad*2,ph=mh+top+pad+18,px=(SW-pw)>>1,py=Math.max(8,(SH-ph)>>1)-6,ox=px+pad,oy=py+top;G.mapXf={ox,oy,S};
  sc.fillStyle='rgba(4,3,6,.62)';sc.fillRect(0,0,SW,SH);
  if(!G.mapPaper||G.mapPaper.width!=pw||G.mapPaper.height!=ph)G.mapPaper=mapPaper(pw,ph);
  sc.save();sc.shadowColor='#000';sc.shadowBlur=18;sc.drawImage(G.mapPaper,px,py);sc.restore();
@@ -2342,7 +2344,131 @@ function shockSet(cells,dmg,src){const p=G.p;let n=0;
  learn('volt','雷：水につながっている限り、どこまでも走る。中にいる者は敵も自分も感電する。凍った水とゴム底の長靴は電気を通さない');
  if(!G.fight)G.foes=G.foes.filter(f=>f.hp>0);
  if(me&&G.p.hp<=0){G.p.hp=0;setTimeout(()=>{if(!G.over)die()},300)}return n}
-function throwStone(i){const pc=G.bag.items[i];const p=G.p;let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;let x=p.x,y=p.y,ceil=null;for(let k=0;k<6;k++){if(!walk(x+dx,y+dy))break;x+=dx;y+=dy;ceil=(G.loose||[]).find(l=>l.x==x&&l.y==y);if(ceil)break}
+
+// ===== 思い通りに動かす：タップで歩く・狙って投げる・相手を見る =====
+const AIMR=6;
+// 狙った先へ一直線。壁と、斜めにすり抜けられない角で止まる。狙いがなければ向いている方へ
+function aimPath(n){const p=G.p;const c=[];if(G.aimAt){let x=p.x,y=p.y;const x1=G.aimAt.x,y1=G.aimAt.y;const ax=Math.abs(x1-x),ay=Math.abs(y1-y),sx=x<x1?1:-1,sy=y<y1?1:-1;let e=ax-ay;
+  for(let i=0;i<n;i++){if(x==x1&&y==y1)break;const e2=2*e;let nx=x,ny=y;if(e2>-ay){e-=ay;nx+=sx}if(e2<ax){e+=ax;ny+=sy}if(!walk(nx,ny)||!diagOK(x,y,nx-x,ny-y))break;x=nx;y=ny;c.push([x,y])}return c}
+ let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;let x=p.x,y=p.y;for(let k=0;k<n;k++){if(!walk(x+dx,y+dy))break;x+=dx;y+=dy;c.push([x,y])}return c}
+function aimOK(x,y){const p=G.p;return walk(x,y)&&G.seen.has(x+','+y)&&cd(x,y,p.x,p.y)<=AIMR&&!(x==p.x&&y==p.y)&&losClear(p.x,p.y,x,y)}
+function canThrow(pc){const d=ITEM[pc.id];return !!d&&!d.mon&&!d.curse&&pc.id!='balloon'}
+function aimStart(pc){if(!pc||G.fight||G.over)return;if(!canThrow(pc)){sfx('no');toast(ITEM[pc.id].mon?'仲間は投げられない':'呪われていて手放せない');return}
+ G.aim={pc};G.travel=null;sfx('tick');toast(ITEM[pc.id].n+'：投げる先をタップ（見通せる'+AIMR+'マス以内）。自分をタップでやめる');learn('aim','狙って投げる：下の枠を長押しするか、カバンで「狙って投げる」を選ぶと、投げる先をタップで選べる。何でも投げられる。落ちた先で割れ、燃え、凍り、転がる');ui()}
+function aimTap(tx,ty){const pc=G.aim.pc,p=G.p;const i=G.bag.items.indexOf(pc);if(i<0){G.aim=null;ui();return}
+ if(tx==p.x&&ty==p.y){G.aim=null;sfx('tick');toast('投げるのをやめた');ui();return}
+ if(!aimOK(tx,ty)){sfx('no');toast(!G.seen.has(tx+','+ty)?'見えない所へは狙えない':cd(tx,ty,p.x,p.y)>AIMR?'遠すぎる（'+AIMR+'マスまで）':'そこへは投げ込めない（壁か、見通せない）');return}
+ G.aim=null;throwAt(i,tx,ty)}
+function throwAt(i,tx,ty){const pc=G.bag.items[i];if(!pc||G.busy||G.fight||G.over)return;const d=ITEM[pc.id],p=G.p;
+ if(!canThrow(pc)){sfx('no');toast(d.mon?'仲間は投げられない':'呪われていて手放せない');return}
+ G.faceX=Math.sign(tx-p.x);G.faceY=Math.sign(ty-p.y);if(tx!=p.x)p.flip=tx<p.x;G.aimAt={x:tx,y:ty};
+ try{
+  if(pc.id=='koishi'){throwStone(i);return}
+  if(pc.id=='konran'){throwPowder(i);return}
+  if(pc.id=='kaze'){useFan(i);return}
+  if(pc.id=='mizu'){useWaterBag(i);return}
+  if(pc.id=='doro'){useMudBall(i);return}
+  let x=p.x,y=p.y,hf=null;for(const[qx,qy]of aimPath(AIMR)){x=qx;y=qy;const f=foeAt(qx,qy);if(f&&!f.dormant){hf=f;break}}
+  if(x==p.x&&y==p.y){sfx('no');toast('そこへは投げられない');return}
+  // 餌：なつく相手に当たれば食べる。そうでなければ床に落ちて、匂いで獣を呼ぶ
+  if(d.food&&hf&&TAME.includes(hf.k)&&moodOK(hf)){feedFoe(i,hf);return}
+  if(pc.n!=null&&pc.n>1)pc.n--;else G.bag.items.splice(i,1);
+  fx({type:'bolt',x:p.rx+4,y:p.ry,tx:x*T+4,ty:y*T+4,life:.3});sfx('whoosh');
+  const k=x+','+y,wet=inWater(x,y)&&!isIce(x,y);let msg='',keep=true;const nb=[[0,0],...DIRS8];
+  if(pc.id=='hyouka'){keep=false;freezeAt(x,y,2);msg='氷の瓶が割れて、あたりが凍りついた'}
+  else if(pc.id=='raika'){keep=false;const w=nb.map(([a,b])=>[x+a,y+b]).find(([qx,qy])=>inWater(qx,qy));if(w)shockSet(waterBody(w[0],w[1]),7,'雷の瓶');else shockSet(new Set(nb.map(([a,b])=>(x+a)+','+(y+b))),6,'雷の瓶');
+   (G.gim||[]).forEach(g=>{if(g.type=='volt'&&!g.open&&cd(g.x,g.y,x,y)<=2)openGate(g,'雷の扉が動いた','― 電気を浴びて、錆びた歯車が回りだす ―')});msg='雷の瓶が弾けた'}
+  else if(d.vial){keep=false;const v=d.vial;
+   if(v=='fire'){spill(x,y,'oil',5);msg='瓶が割れて、油が広がった'}
+   else if(v=='poison'){spill(x,y,'gas',5);msg='瓶が割れて、毒気が立ちこめた'}
+   else if(v=='sleep'){let n=0;G.foes.forEach(f=>{if(moodOK(f)&&cd(f.x,f.y,x,y)<=1){f.stun=Math.max(f.stun||0,5);f.aware=0;n++}});msg='甘い匂いが広がった'+(n?'。'+n+'体が眠りこんだ':'')}
+   else if(v=='heal'){let n=0;G.foes.forEach(f=>{if(f.hp>0&&cd(f.x,f.y,x,y)<=1){f.hp=Math.min(f.max||f.hp+6,f.hp+6);n++}});msg=n?'……相手の傷が癒えてしまった':'瓶が割れて、いい匂いが漂った'}
+   else msg='瓶が割れて、しゅわりと泡が消えた';
+   try{identify(pc.id,'投げ割った')}catch(e){}}
+  else if(pc.id=='bomb'){keep=false;if(pc.wet>0||wet){msg='爆弾は湿っていて、ぽすんと転がった';keep=true}
+   else{sfx('boom');G.shake=14;fx({type:'boom',x:x*T+4,y:y*T+4});try{quakeAt(x,y,2,'bomb')}catch(e){}nb.forEach(([a,b])=>{const f=foeAt(x+a,y+b);if(f)hit(f,7);ignite(x+a,y+b,'quiet')});
+    (G.gim||[]).forEach(g=>{if(g.type=='crack'&&!g.open&&cd(g.x,g.y,x,y)<=1&&!g.fuse){g.fuse=1}});
+    if(cd(p.x,p.y,x,y)<=1){G.p.hp=Math.max(1,G.p.hp-4);G.hurt=8;msg='近すぎた！　爆風を浴びた（-4）'}else msg='爆弾が炸裂した';learn('bombthrow','爆弾は投げられる。落ちた所で爆ぜ、まわりに火がつき、ひび割れた壁も崩れる。水に落ちると湿って不発')}}
+  else if(pc.id=='flash'){keep=false;sfx('boom');G.flashW=performance.now()+300;let n=0;G.foes.forEach(f=>{if(f.hp>0&&cd(f.x,f.y,x,y)<=3){f.stun=Math.max(f.stun||0,3);f.aware=0;n++}});fx({type:'boom',x:x*T+4,y:y*T+4});msg=n?'閃光！　'+n+'体が目をくらませた':'閃光が走った'}
+  else if(pc.id=='steamb'||pc.id=='smoke'){keep=false;nb.forEach(([a,b])=>{if(walk(x+a,y+b))(G.steam=G.steam||[]).push({x:x+a,y:y+b,t:0,life:12,smoke:pc.id=='smoke'?1:0})});let n=0;G.foes.forEach(f=>{if(f.hp>0&&f.aware&&cd(f.x,f.y,x,y)<=3){f.aware=0;n++}});msg=(pc.id=='smoke'?'煙':'湯気')+'が立ちこめた'+(n?'。'+n+'体が見失った':'')}
+  else if(pc.id=='lure'){keep=false;(G.lures=G.lures||[]).push({x,y,t:0});sfx('summon');msg='糸人形が転がった。敵はそちらへ寄っていく'}
+  else if(d.lit){if(wet){msg=d.n+'は水に落ちて、じゅっと消えた';pc.wet=Math.max(pc.wet||0,3)}else{let n=0;nb.forEach(([a,b],j)=>{if((j==0||n==0)&&ignite(x+a,y+b,'quiet'))n++});if(hf){hf.burn=Math.max(hf.burn||0,3);hf.burned=1;hit(hf,2)}msg=n?d.n+'が落ちて、火が燃え移った':d.n+'が転がった'}}
+  if(keep){if(hf&&!d.food){const dm=d.weapon?Math.max(2,Math.round((parseInt(d.d)||3)/2)):1;hit(hf,dm);hf.stun=Math.max(hf.stun||0,1);msg=d.n+'が'+hf.n+'に当たった（'+dm+'）'}
+   const l=(G.loose||[]).find(q=>q.x==x&&q.y==y);if(l&&(d.weapon||(d.sh&&d.sh[0]*d.sh[1]>=2)))setTimeout(()=>{try{dropRock(l)}catch(e){}},250);
+   if(isPit(x,y)){msg=d.n+'は穴の底へ落ちていった'}else if(G.lava&&G.lava.has(k)){msg=d.n+'は溶岩に呑まれた'}
+   else{G.items.push({...carry(pc),x,y,id:pc.id,drop:now(),how:'投げた'});if(!msg)msg=d.n+'を投げた'}
+   if(d.food){let n=0;G.foes.forEach(f=>{if(f.hp>0&&!f.dormant&&(TAME.includes(f.k)||FAM[f.k]=='beast')&&cd(f.x,f.y,x,y)<=7){f.aware=0;f.inv={x,y,t:10};n++}});if(n)msg+='。匂いにつられて、'+n+'体が寄っていく';learn('foodlure','餌を投げると、獣やなつく魔物は匂いの方へ寄っていく。見張りをどかすのにも使える')}
+   try{makeNoise(x,y,d.weapon?5:3,'stone')}catch(e){}}
+  toast(msg);if(!G.fight)G.foes=G.foes.filter(f=>f.hp>0);
+  G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()});
+ }finally{G.aimAt=null}}
+// 松明を布で覆う：暗がりに紛れられるが、罠も足元も見えなくなる
+function toggleCover(pc){pc.off=pc.off?0:1;sfx('tick');toast(pc.off?ITEM[pc.id].n+'を布で覆った。……暗い。敵にも見つかりにくい':ITEM[pc.id].n+'の覆いを外した');learn('cover','松明を覆う：下の枠で松明をタップすると、覆ったり外したりできる。暗がりでは見つかりにくいが、罠も見えず、先も見通せない');try{reveal()}catch(e){}ui()}
+// 相手を見る（手番は使わない）
+const FLAGN={fly:'宙に浮く（穴も水も越える）',aqua:'水の中を泳ぐ',wet:'体が濡れている（雷がよく効く）',flam:'よく燃える',fireOK:'火に強い',heavy:'重い',frail:'脆い',armor:'硬い（刃が通りにくい）',ranged:'離れて撃ってくる',fast:'素早い',caller:'仲間を呼ぶ',volt:'電気を帯びている',breath:'火を吐く',oiler:'油をまく',douse:'水を浴びせてくる',shade:'影に潜む',reflect:'光を跳ね返す',bell:'鈴を鳴らす',split:'斬ると分かれる',spit:'糸を吐く',thief:'物を盗む'};
+function foeInfo(f){const D=FOE[f.k]||{};const r=f.hp/(f.max||f.hp||1);
+ const st=[];if(f.mhSleep||f.stun>2)st.push('眠っている／動けない');else if(f.stun>0)st.push('ひるんでいる');if(f.aware)st.push('こちらに気づいている');else st.push('こちらに気づいていない');
+ if(f.conf>0)st.push('混乱している');if(f.fear>0)st.push('怯えている');if(f.charm>0)st.push('なついている');if(f.frozen>0)st.push('凍りついている');if(f.burn>0)st.push('燃えている');if(f.wetC>0)st.push('濡れている');if(f.lead)st.push('群れの長（倒せば群れは散る）');
+ try{const fe=feudOf(f);if(fe)st.push(fe.n+'と縄張り争いをしている')}catch(e){}
+ const tr=Object.keys(FLAGN).filter(k=>D[k]||f[k]).map(k=>FLAGN[k]);
+ const hp=r>.8?'ほとんど無傷':r>.45?'傷ついている':'弱っている';
+ let jn='';if(D.cap&&!D.boss&&ITEM[f.k]){const c=JOIND[f.k];jn=c?'仲間になる：'+JOINC[c].d:'仲間になる：どう倒されれば認めるのかは、まだ分からない'}
+ const P=f.pers&&PERS.find(q=>q.k==f.pers);
+ $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(jn?'<br><b>'+jn+'</b>':'')+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
+ $('fiX').onclick=()=>{$('modal').innerHTML='';ui()};sfx('tick');learn('look','相手を見る：地図の上の魔物をタップすると、状態と性質が見られる。手番は使わない')}
+// タップした所まで歩く。見えている、安全な道だけを通る。何か起きたら止まる
+function trvCost(x,y,goal){if(!walk(x,y))return 0;const k=x+','+y;if(!G.seen.has(k))return 0;
+ if(isPit(x,y)||(G.lava&&G.lava.has(k))||(G.fires||[]).some(f=>f.x==x&&f.y==y))return 0;
+ if(!goal&&(G.traps||[]).some(t=>t.known&&!t.used&&t.x==x&&t.y==y))return 0;
+ if((G.chest&&G.chest.x==x&&G.chest.y==y)||(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))||(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)||(G.sc&&G.sc.some(d=>d.x==x&&d.y==y))||(G.evs||[]).some(e=>!e.gone&&e.x==x&&e.y==y)||(G.peddler&&G.peddler.x==x&&G.peddler.y==y))return 0;
+ const g=gimAt(x,y);if(g){if(['boulder','levers','plate'].includes(g.type)){if(!(gOpen(g)||inPocket(g)))return 0}else if(['vine','crack','volt','brazier'].includes(g.type)&&!g.open)return 0}
+ if((G.gim||[]).some(q=>q.type=='boulder'&&q.bx==x&&q.by==y))return 0;
+ const f=foeAt(x,y);if(f&&!(f.charm>0))return 0;
+ let c=1;if(inGas(x,y))c+=40;if(G.webs&&G.webs.has(k))c+=12;if(isIce(x,y))c+=6;if(hasOil(x,y))c+=4;if(inMud(x,y))c+=2;if(inWater(x,y)&&!isIce(x,y))c+=2;return c}
+function trvBump(x,y){return !!((G.chest&&G.chest.x==x&&G.chest.y==y&&G.chest.locked)||(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))||(G.evs||[]).some(e=>!e.gone&&e.x==x&&e.y==y)||(G.peddler&&G.peddler.x==x&&G.peddler.y==y)||(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)||(G.sc&&G.sc.some(d=>d.x==x&&d.y==y)))}
+function trvRoute(tx,ty,bump){const p=G.p,W=G.m[0].length,H=G.m.length;const D=new Float64Array(W*H).fill(1e9),P=new Int32Array(W*H).fill(-1),done=new Uint8Array(W*H);const id=(x,y)=>y*W+x;
+ const isGoal=(x,y)=>bump?(cd(x,y,tx,ty)==1&&diagOK(x,y,tx-x,ty-y)):(x==tx&&y==ty);
+ D[id(p.x,p.y)]=0;let end=-1;
+ for(let it=0;it<W*H;it++){let b=-1,bv=1e9;for(let q=0;q<W*H;q++)if(!done[q]&&D[q]<bv){bv=D[q];b=q}if(b<0)break;done[b]=1;const x=b%W,y=(b/W)|0;if(isGoal(x,y)){end=b;break}
+  for(const[a,c]of DIRS8){const nx=x+a,ny=y+c;if(nx<0||ny<0||nx>=W||ny>=H||done[id(nx,ny)])continue;if(!diagOK(x,y,a,c))continue;const w=trvCost(nx,ny,nx==tx&&ny==ty);if(!w)continue;const nd=bv+w+(a&&c?.01:0);if(nd<D[id(nx,ny)]){D[id(nx,ny)]=nd;P[id(nx,ny)]=b}}}
+ if(end<0)return null;const path=[];let q=end;while(q>=0&&q!=id(p.x,p.y)){path.unshift([q%W,(q/W)|0]);q=P[q]}return path}
+const trvSeen=()=>G.foes.filter(f=>f.hp>0&&f.alpha>0&&cd(f.x,f.y,G.p.x,G.p.y)<=7&&G.seen.has(f.x+','+f.y));
+async function travelTo(tx,ty){const me={};G.travel=me;const p=G.p;const bump=trvBump(tx,ty);
+ const seen0=new Set(trvSeen());const hp0=p.hp;let first=true;
+ {const r=trvRoute(tx,ty,bump);if(!r){G.travel=null;sfx('no');toast('そこまでの、見えている安全な道がない');return}if(!r.length&&!bump){G.travel=null;return}G.travelGoal=[tx,ty]}
+ for(let n=0;n<160&&G.travel===me;n++){
+  while(G.busy&&G.travel===me)await wait(40);if(G.travel!==me)break;
+  if(G.fight||G.over||$('modal').innerHTML||(G.sheet&&G.sheet!='closed')||G.stuck>0)break;
+  if(!bump&&p.x==tx&&p.y==ty)break;
+  if(bump&&cd(p.x,p.y,tx,ty)==1&&diagOK(p.x,p.y,tx-p.x,ty-p.y)){G.travel=null;G.travelGoal=null;await step(tx-p.x,ty-p.y);break}
+  const r=trvRoute(tx,ty,bump);if(!r||!r.length){if(!first)toast('道がふさがった。足を止めた');break}
+  const px=p.x,py=p.y;await step(r[0][0]-p.x,r[0][1]-p.y);first=false;
+  if(p.x==px&&p.y==py){await wait(80);if(p.x==px&&p.y==py&&!G.busy)break}
+  if(G.fight||G.over)break;
+  if(p.hp<hp0){toast('傷を負った。足を止めた');break}
+  const nw=trvSeen().filter(f=>!seen0.has(f));if(nw.length){toast(nw[0].n+'が見えた。足を止めた');break}
+  if(G.foes.some(f=>f.hp>0&&f.alpha>0&&f.aware&&!(f.charm>0)&&cd(f.x,f.y,p.x,p.y)<=2)){toast('敵が迫っている。足を止めた');break}
+  if(!(p.x==tx&&p.y==ty)&&G.items.some(i=>i.x==p.x&&i.y==p.y&&!i.ignore))break;
+  await wait(55)}
+ if(G.travel===me)G.travel=null;G.travelGoal=null;ui()}
+let SCRDN=null;
+function tapWorld(e){if(G&&G.map&&!G.fight&&!G.over&&!G.busy&&G.mapXf&&!$('modal').innerHTML){const rc=scr.getBoundingClientRect(),X=G.mapXf;const tx=Math.floor(((e.clientX-rc.left)/rc.width*SW-X.ox)/X.S),ty=Math.floor(((e.clientY-rc.top)/rc.height*SH-X.oy)/X.S);
+  if(G.seen.has(tx+','+ty)&&(walk(tx,ty)||trvBump(tx,ty))&&!(tx==G.p.x&&ty==G.p.y)){G.map=false;ui();learn('maptravel','地図の上で行きたい場所をタップすると、見えている安全な道を通ってそこまで歩く。何か起きれば止まる');travelTo(tx,ty);return true}return false}
+ if(!G||G.fight||G.over||G.map||!G.view||(G.sheet&&G.sheet!='closed')||$('modal').innerHTML||G.fishing||G.guest||(typeof DEF!='undefined'&&DEF))return false;
+ if(SCRDN&&Math.hypot(e.clientX-SCRDN.x,e.clientY-SCRDN.y)>12)return true;
+ if(G.travel){G.travel=null;G.travelGoal=null;sfx('tick');return true}
+ if(G.busy)return true;
+ const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const p=G.p;
+ if(G.aim){aimTap(tx,ty);return true}
+ if(tx==p.x&&ty==p.y)return false;
+ const f=G.foes.find(f=>f.hp>0&&f.alpha>0&&(f.x==tx||(f.big&&Math.abs(f.x-tx)<=1))&&f.y==ty&&G.seen.has(f.x+','+f.y));if(f&&!(f.charm>0&&cd(f.x,f.y,p.x,p.y)==1)){foeInfo(f);return true}
+ const ht=hookTargets().find(q=>q[0]==tx&&q[1]==ty);if(ht){hookTo(ht);return true}
+ if(G.water[ty]&&G.water[ty][tx]&&Math.abs(tx-p.x)+Math.abs(ty-p.y)<=1&&!G.fishing){startFishing([tx,ty]);return true}
+ if(cd(tx,ty,p.x,p.y)==1){let dx=tx-p.x,dy=ty-p.y;if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){if(walk(p.x+dx,p.y))dy=0;else if(walk(p.x,p.y+dy))dx=0}step(dx,dy);return true}
+ if(!G.seen.has(tx+','+ty)){sfx('no');toast('まだ見ていない場所だ');return true}
+ if(!walk(tx,ty)&&!trvBump(tx,ty)){sfx('no');return true}
+ travelTo(tx,ty);return true}
+function throwStone(i){const pc=G.bag.items[i];const p=G.p;let x=p.x,y=p.y,ceil=null;for(const[qx,qy]of aimPath(6)){x=qx;y=qy;ceil=(G.loose||[]).find(l=>l.x==x&&l.y==y);if(ceil)break}
  pc.n=(pc.n==null?5:pc.n)-1;if(pc.n<=0)G.bag.items.splice(i,1);fx({type:'bolt',x:p.rx+4,y:p.ry,tx:x*T+4,ty:y*T+4,life:.3});sfxAt('clack',(x-p.x)/6,.8);
  if(ceil){makeNoise(x,y,5,'stone');toast('小石が天井に当たった……！');setTimeout(()=>{try{dropRock(ceil)}catch(e){}},250);G.busy=true;ui();wait(420).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()});return}
  if(stoneTrap(x,y)){G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()});return}
@@ -2870,7 +2996,7 @@ function gust(dx,dy,cells,pow){const inA=(x,y)=>!cells||cells.has(x+','+y);pow=p
  const push=o=>{const a=o.x+dx,b=o.y+dy;if(walk(a,b)&&!isPit(a,b)&&!foeAt(a,b)&&!(a==p.x&&b==p.y)&&!(G.lava&&G.lava.has(a+','+b))){o.x=a;o.y=b;return true}return false};
  G.foes.forEach(f=>{if(f.hp>0&&!f.still&&!(FOE[f.k]||{}).boss&&inWater(f.x,f.y)&&inA(f.x,f.y)&&push(f))react('water+wind',f.x,f.y)});
  if(inWater(p.x,p.y)&&inA(p.x,p.y)&&cells){const a=p.x+dx,b=p.y+dy;if(walk(a,b)&&!isPit(a,b)&&!foeAt(a,b)){p.x=a;p.y=b;react('water+wind',p.x,p.y)}}}
-function aimLine(n){const p=G.p;let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;const c=[];let x=p.x,y=p.y;for(let k=0;k<n;k++){if(!walk(x+dx,y+dy))break;x+=dx;y+=dy;c.push([x,y])}return {dx,dy,c,x,y}}
+function aimLine(n){const p=G.p;let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;if(G.aimAt){dx=Math.sign(G.aimAt.x-p.x);dy=Math.sign(G.aimAt.y-p.y);n=Math.min(cd(G.aimAt.x,G.aimAt.y,p.x,p.y),Math.max(n,4))}const c=aimPath(n);const l=c[c.length-1]||[p.x,p.y];return {dx,dy,c,x:l[0],y:l[1]}}
 function afterUse(){if(G.fight)return;G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
 function useFan(i){const pc=G.bag.items[i];pc.n=(pc.n==null?3:pc.n)-1;if(pc.n<=0)G.bag.items.splice(i,1);const A=aimLine(5);const cells=new Set();cells.add(G.p.x+','+G.p.y);
  A.c.forEach(([x,y])=>{cells.add(x+','+y);DIRS.forEach(([a,b])=>{if(Math.abs(a)!=Math.abs(A.dx)||Math.abs(b)!=Math.abs(A.dy))cells.add((x+a)+','+(y+b))})});
@@ -2923,7 +3049,7 @@ function joinWhere(){return (G.fi+1)+'F・'+((THEMES[G.fi]||{}).n||'').split(' '
 const TAME=['rat','grat','thief','bat','burrow','gob','caller','slime','slimeB','puru','gyoro','frog','raiju','salam','eater','beetle','oilbug','mud'];
 const moodOK=f=>f.hp>0&&!f.dormant&&!(FOE[f.k]||{}).boss&&!(FOE[f.k]||{}).still;
 function tameTarget(){const p=G.p;return G.foes.filter(f=>moodOK(f)&&TAME.includes(f.k)&&!(f.charm>0&&!(FOE[f.k]||{}).cap)&&cd(f.x,f.y,p.x,p.y)<=4&&G.seen.has(f.x+','+f.y)&&losClear(p.x,p.y,f.x,f.y)).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0]||null}
-function feedFoe(i){const pc=G.bag.items[i];const f=tameTarget();if(!pc||!f)return;const p=G.p;G.bag.items.splice(i,1);
+function feedFoe(i,f0){const pc=G.bag.items[i];const f=f0||tameTarget();if(!pc||!f)return;const p=G.p;G.bag.items.splice(i,1);
  fx({type:'bolt',x:p.rx+4,y:p.ry+2,tx:f.rx+4,ty:f.ry+2,life:.35});sfx('pick');
  const again=f.charm>0;f.charm=25+(ITEM[pc.id].food||4)*2;f.aware=0;f.inv=null;f.conf=0;f.fear=0;
  if(again&&(FOE[f.k]||{}).cap){const k=G.foes.indexOf(f);if(k>=0)G.foes.splice(k,1);G.items.push({x:f.x,y:f.y,id:f.k,hp:ITEM[f.k].hp,drop:now(),mut:f.mut,scout:1,pers:f.pers});fx({type:'heal',x:f.rx+4,y:f.ry});sfx('rare');
@@ -2931,8 +3057,8 @@ function feedFoe(i){const pc=G.bag.items[i];const f=tameTarget();if(!pc||!f)retu
  else{fx({type:'heal',x:f.rx+4,y:f.ry});toast(f.n+'は'+ITEM[pc.id].n+'を食べた。……ついてくる');}
  learn('tame','餌付け：獣やぷるなどは、干し肉や魚を投げ与えるとなつき、しばらく一緒に戦ってくれる（相手の敵に噛みつく）。もう一度やれば仲間にできることも');
  G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
-function throwPowder(i){const pc=G.bag.items[i];const p=G.p;let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;let x=p.x,y=p.y;
- for(let k=0;k<5;k++){if(!walk(x+dx,y+dy))break;x+=dx;y+=dy;if(foeAt(x,y))break}
+function throwPowder(i){const pc=G.bag.items[i];const p=G.p;let x=p.x,y=p.y;
+ for(const[qx,qy]of aimPath(5)){x=qx;y=qy;if(foeAt(x,y))break}
  pc.n=(pc.n==null?2:pc.n)-1;if(pc.n<=0)G.bag.items.splice(i,1);
  fx({type:'bolt',x:p.rx+4,y:p.ry,tx:x*T+4,ty:y*T+4,life:.3});for(let k=0;k<8;k++)fx({type:'spark',x:x*T+4+Math.cos(k)*6,y:y*T+2+Math.sin(k)*5,c:'#c890f0',life:1});sfx('whoosh');
  let n=0;G.foes.forEach(f=>{if(moodOK(f)&&cd(f.x,f.y,x,y)<=1){f.conf=12;f.charm=0;f.aware=0;n++}});
@@ -3099,7 +3225,12 @@ function trade(){const pd=G.peddler;if(pd.done){toast('行商人は眠ってい�
  $('tx').onclick=()=>{$('modal').innerHTML=''}}
 function openChest(byMon){
  const c=G.chest;if(!c.locked)return;
- const k=byMon?-2:G.bag.items.findIndex(p=>p.id=='key');if(k==-1){sfx('no');toast('鍵がかかっている。「古い鍵」をカバンに入れて来れば開く。鍵はこの階のどこかに落ちていることが多い');learn('chest','宝箱：「古い鍵」がカバンに入っていないと開かない。鍵は1マス。開けると鍵は使われて消える');return}
+ const k=byMon?-2:G.bag.items.findIndex(p=>p.id=='key');const tool=k==-1&&G.bag.items.find(q=>['hammer','axe'].includes(q.id)||['hammer','axe'].includes(ITEM[q.id].base));
+ if(tool){if(!(G.chestAsk&&performance.now()-G.chestAsk<2600)){G.chestAsk=performance.now();sfx('tick');toast('鍵がない。もう一度で、'+ITEM[tool.id].n+'で錠を叩き壊す（大きな音が響き、中の宝がひとつ潰れる）');return}
+  G.chestAsk=0;c.locked=false;G.shake=14;sfx('boom');fx({type:'boom',x:c.x*T+4,y:c.y*T+4});let n=0;try{n=makeNoise(c.x,c.y,9,'bash')}catch(e){}
+  const sp=DIRS.map(([a,b])=>[c.x+a,c.y+b]).filter(([x,y])=>walk(x,y)&&!gimAt(x,y));const s0=sp[0]||[G.p.x,G.p.y];G.items.push({x:s0[0],y:s0[1],id:'idol',drop:now(),how:'錠を叩き壊して'});
+  toast('錠を叩き壊した。……冠は、ひしゃげてしまった'+(n?'。音を聞きつけて、'+n+'体が向かってくる':''));learn('chestbash','宝箱：鍵がなくても、槌か斧があれば錠を叩き壊せる。ただし大きな音が響き、中の冠は潰れてしまう');afterUse();ui();return}
+ if(k==-1){sfx('no');toast('鍵がかかっている。「古い鍵」をカバンに入れて来れば開く。鍵はこの階のどこかに落ちていることが多い');learn('chest','宝箱：「古い鍵」がカバンに入っていないと開かない。鍵は1マス。開けると鍵は使われて消える');return}
  if(k>=0)G.bag.items.splice(k,1);c.locked=false;fx({type:'boom',x:c.x*T+4,y:c.y*T+4});sfx('rare');
  const spots=DIRS.map(([a,b])=>[c.x+a,c.y+b]).filter(([x,y])=>walk(x,y)&&!gimAt(x,y));
  ['crown','idol'].forEach((id,i)=>{const s=spots[i%spots.length];G.items.push({x:s[0],y:s[1],id,drop:now(),how:'宝箱から'})});
@@ -4437,6 +4568,8 @@ function renderSheet(){try{syncDist()}catch(e){}
    if(ITEM[pc.id].mon)btn('名前をつける',()=>{pc.name=null;closeSheet();nameMon(pc)},'sub');
    if(pc.id=='potion'||pc.id=='rotten')btn('飲む',()=>{const hv=pc.id=='rotten'?2:10+(S.get(pc)&&S.get(pc).lab=='回復+3'?3:0);const gG=pc.id=='potion'&&rxOn('G');const hv2=gG?16:hv;if(gG)G.bag.items.forEach(q=>{if(ITEM[q.id].mon)q.hp=ITEM[q.id].hp});G.bag.items.splice(i,1);G.p.hp=Math.min(G.p.max,G.p.hp+hv2);sfx('heal');fx({type:'heal',x:G.p.rx+4,y:G.p.ry});G.sel=-1;renderSheet();ui()});
    if(ITEM[pc.id].mon&&pc.hp<ITEM[pc.id].hp){const pk=G.bag.items.findIndex(q=>q.id=='potion');if(pk>=0)btn('薬で回復（'+pc.hp+'/'+ITEM[pc.id].hp+'）',()=>{G.bag.items.splice(pk,1);pc.hp=Math.min(ITEM[pc.id].hp,pc.hp+12);sfx('heal');toast(ITEM[pc.id].n+'が元気になった');G.sel=G.bag.items.indexOf(pc);renderSheet();ui()});else{const e=document.createElement('p');e.className='hint';e.textContent='薬があれば回復できる（歩いていても少しずつ治る）';bt.append(e)}}
+   if(!G.fight&&canThrow(pc))btn('狙って投げる',()=>{G.sel=-1;closeSheet();aimStart(pc)},'sub');
+   if(ITEM[pc.id].lit)btn(pc.off?'覆いを外す（灯す）':'布で覆う（暗くする）',()=>{toggleCover(pc);renderSheet()},'sub');
    if(!G.fight){btn('回転',()=>{if(canPlace(pc.id,pc.rot^1,pc.x,pc.y,i)){pc.rot^=1;sfx('pick')}else{sfx('no');toast('ここでは回せない')}renderSheet()},'sub');
    btn('床へ置く',()=>dropToFloor(pc,i),'sub')}}
   {const cs=craftable();cs.forEach(c=>btn('調合　'+c.r.n+'\n'+c.r.t,()=>doCraft(c),'go'))}
@@ -4461,7 +4594,7 @@ function confirmFlee(){if(G.fleeAsk&&performance.now()-G.fleeAsk<2500){G.fleeAsk
 const CTRLS=[['stick','スティック','画面のどこでも押して、その方向へ倒す']];
 let CTRL='stick';
 // 歩き方の案内。タッチ端末ではスティック、キーボードがあれば矢印キーも案内する
-const MOVEHINT=()=>(matchMedia('(pointer:coarse)').matches?'画面を押したまま、行きたい方へ指をずらすと歩く':'矢印キー（WASD）か、画面を押して行きたい方へずらすと歩く');
+const MOVEHINT=()=>(matchMedia('(pointer:coarse)').matches?'画面を押したまま、行きたい方へ指をずらすと歩く。行きたい場所をタップすれば、そこまで歩いていく':'矢印キー（WASD）か、画面を押して行きたい方へずらすと歩く。行きたい場所をクリックすれば、そこまで歩いていく');
 function applyCtrl(){const p=$('pad');if(!p)return;p.className='pad'+(CTRL=='sm'?' sm':CTRL=='gh'?' gh':'')+((CTRL=='stick'||CTRL=='flick'||CTRL=='none')?' hide':'');}
 // 手に伝わる手応え。対応していない端末や、設定でオフのときは何もしない
 function buzz(pat){try{if(store('yw70_vib')==='0'||!navigator.vibrate)return;navigator.vibrate(pat)}catch(e){}}
@@ -4515,7 +4648,7 @@ function mainAction0(){const p=G.p;if(G.guest)return null;
  {if(hasFire()){const c=[[0,0],...DIRS].map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>burnable(x,y)&&!(G.fires||[]).some(f=>f.x==x&&f.y==y));
   if(c)return{ic:'fire',t:'火をつける',sub:(G.webs&&G.webs.has(c[0]+','+c[1]))?'蜘蛛の巣を焼く':hasOil(c[0],c[1])?'油に火を放つ':'草を焼く',f:()=>{ignite(c[0],c[1]);G.shake=6;toast('火がついた。草と蜘蛛の巣を焼いて道が開く。炎に触れた敵は焼ける。……風向き次第でこちらにも来る');learn('burn','火：松明があれば草や蜘蛛の巣を焼ける。燃え広がるので、自分の逃げ道も考えること');ui()}}}}
  {if(G.chest&&G.chest.x==p.x&&G.chest.y==p.y){const hk=G.bag.items.some(q=>q.id=='key');
-  return{ic:'hand',t:hk?'宝箱を開ける':'宝箱（鍵がいる）',sub:hk?'古い鍵を使う':'「古い鍵」をカバンに入れて来る',f:()=>openChest()}}}
+  const tl=!hk&&G.bag.items.some(q=>['hammer','axe'].includes(q.id)||['hammer','axe'].includes(ITEM[q.id].base));return{ic:'hand',t:hk?'宝箱を開ける':tl?'錠を叩き壊す':'宝箱（鍵がいる）',sub:hk?'古い鍵を使う':tl?'大きな音が響き、宝がひとつ潰れる':'「古い鍵」をカバンに入れて来る',f:()=>openChest()}}}
  {const gr=(G.graves||[]).find(g=>g.x==p.x&&g.y==p.y&&!g.dug);
   if(gr)return{ic:'hand',t:'掘る',sub:hasItem('shovel')?'シャベルで一度に':'素手で3ターン（音が出る）',f:()=>askGrave(gr)}}
  {const co=(G.cocoons||[]).find(c=>c.x==p.x&&c.y==p.y&&!c.cut);
@@ -4636,6 +4769,7 @@ async function slotUse(i){
  if(pc.id=='kikan'){if(!confirmHome('今すぐ地上へ帰る（価値はそのまま）'))return;G.bag.items.splice(i,1);sfx('rare');fx({type:'ring',x:G.p.rx+4,y:G.p.ry+2,c:'#c8fff0'});escape();return}
  if(pc.id=='bigpot'){G.bag.items.splice(i,1);G.p.hp=Math.min(G.p.max,G.p.hp+22);sfx('heal');fx({type:'heal',x:G.p.rx+4,y:G.p.ry});toast('濃い薬を飲んだ（+22）');ui();return}
  if(pc.id=='omamori'){if(!confirmHome('護符で帰る（持ち帰り価値は半分）'))return;G.bag.items.splice(i,1);G.halve=true;escape();return}
+ if(d.lit){toggleCover(pc);return}
  if(d.mon){fieldUse(i);return}
  const lo=LORE[pc.id]||(d.base&&LORE[d.base]);
  sfx('tick');toast(d.n+'：'+(d.d||'')+(lo?'　'+lo:''));
@@ -4686,9 +4820,9 @@ function renderBar(){
   if(pc.id=='ammo'){const e=document.createElement('em');e.textContent=(pc.n==null?3:pc.n);b.append(e)}
   const chargeable=()=>!!chgOf(pc.id)&&G.fight&&G.charging!==pc&&!G.charging;
   let tm=null;
-  b.addEventListener('pointerdown',e=>{if(G.busy||DEF)return;if(chargeable())tm=setTimeout(()=>{G.chargeReq=true;sfx('summon');b.classList.add('chg')},450)});
+  b.addEventListener('pointerdown',e=>{if(G.busy||DEF)return;b._lp=0;if(chargeable())tm=setTimeout(()=>{G.chargeReq=true;sfx('summon');b.classList.add('chg')},450);else if(!G.fight&&!G.over&&canThrow(pc))tm=setTimeout(()=>{b._lp=1;aimStart(pc)},450)});
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>clearTimeout(tm)));
-  b.addEventListener('click',()=>{audio();slotUse(i)});
+  b.addEventListener('click',()=>{audio();if(b._lp){b._lp=0;return}if(G.aim&&G.aim.pc===pc){G.aim=null;sfx('tick');toast('投げるのをやめた');ui();return}slotUse(i)});
   b.setAttribute('aria-label',(i+1)+'　'+(d.n));
   el.append(b);
  }
@@ -4721,7 +4855,8 @@ function ui(){
  if(G.up&&p.x==G.up[0]&&p.y==G.up[1])btn('上がる（'+THEMES[G.fi-1].n.split(' ')[0]+'へ）',()=>goUp());
 }
 // input
-scr.addEventListener('click',e=>{audio();if(CTRL=='flick'||CTRL=='stick'){if(G&&G.fight){}else if(!(G&&G.map)&&!(G&&G.sheet=='bag')){const rc0=scr.getBoundingClientRect();if(G&&G.view){const V0=G.view;const tx0=Math.floor((V0.cx+(e.clientX-rc0.left)/rc0.width*V0.vw)/T),ty0=Math.floor((V0.cy+(e.clientY-rc0.top)/rc0.height*V0.vh)/T);if(!(tx0==G.p.x&&ty0==G.p.y))return}}}if(G.sheet=='bag'){closeSheet();return}if(G.map){G.map=false;ui();return}if(G.fight&&G.view&&!G.busy&&alive().length<=1){const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const dx=tx-G.p.x,dy=ty-G.p.y;if(Math.max(Math.abs(dx),Math.abs(dy))==1){fightMove(dx,dy);return}}
+scr.addEventListener('pointerdown',e=>{SCRDN={x:e.clientX,y:e.clientY}},true);
+scr.addEventListener('click',e=>{audio();if(tapWorld(e))return;if(CTRL=='flick'||CTRL=='stick'){if(G&&G.fight){}else if(!(G&&G.map)&&!(G&&G.sheet=='bag')){const rc0=scr.getBoundingClientRect();if(G&&G.view){const V0=G.view;const tx0=Math.floor((V0.cx+(e.clientX-rc0.left)/rc0.width*V0.vw)/T),ty0=Math.floor((V0.cy+(e.clientY-rc0.top)/rc0.height*V0.vh)/T);if(!(tx0==G.p.x&&ty0==G.p.y))return}}}if(G.sheet=='bag'){closeSheet();return}if(G.map){G.map=false;ui();return}if(G.fight&&G.view&&!G.busy&&alive().length<=1){const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const dx=tx-G.p.x,dy=ty-G.p.y;if(Math.max(Math.abs(dx),Math.abs(dy))==1){fightMove(dx,dy);return}}
  if(G.fight&&G.view&&alive().length>1){const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const f=alive().find(f=>Math.abs(f.x-tx)<=(f.big?1:0)+0&&Math.abs(f.y-ty)<=1);if(f){G.fight.tgt=f;syncDist();sfx('tick');toast('狙い：'+f.n);ui()}return}if(G.busy||!G.view)return;const rc=scr.getBoundingClientRect(),V=G.view;const tx=Math.floor((V.cx+(e.clientX-rc.left)/rc.width*V.vw)/T),ty=Math.floor((V.cy+(e.clientY-rc.top)/rc.height*V.vh)/T);const p=G.p;
  if(G.fight){const h2=hookTargets().find(q=>q[0]==tx&&q[1]==ty);if(h2){const i2=G.bag.items.findIndex(q=>q.id=='hook');if(i2>=0){act(i2);return}}return}
  const ht=hookTargets().find(q=>q[0]==tx&&q[1]==ty);if(ht){hookTo(ht);return}
@@ -4749,7 +4884,7 @@ function runStop(dx,dy){if(!RUNW)return true;const p=G.p;
  return false}
 const visFoes=()=>G.foes.filter(f=>f.hp>0&&f.alpha>0&&Math.abs(f.x-G.p.x)<=5&&Math.abs(f.y-G.p.y)<=4&&G.seen.has(f.x+','+f.y)).length;
 const onFeature=()=>{const p=G.p;return G.items.some(i=>i.x==p.x&&i.y==p.y)||(G.exit&&p.x==G.exit[0]&&p.y==G.exit[1])||(G.down&&p.x==G.down[0]&&p.y==G.down[1])||(G.up&&p.x==G.up[0]&&p.y==G.up[1])||!!waterNear()&&!G.fishNear||hookTargets().length>0};
-async function holdMove(dx,dy){const me={};HOLD=me;let first=true;
+async function holdMove(dx,dy){const me={};HOLD=me;G.travel=null;let first=true;
  while(HOLD===me){const vb=visFoes(),pos=[G.p.x,G.p.y],z0=G.lastZone,wn=!!waterNear();await step(dx,dy);
   if(HOLD!==me)break;if(G.fight||G.over||$('modal').innerHTML||G.stuck>0||G.sheet!='closed')break;if(G.p.x==pos[0]&&G.p.y==pos[1]&&!first)break;
   try{if(isPit(G.p.x+dx,G.p.y+dy))break}catch(e){}
@@ -4757,7 +4892,7 @@ async function holdMove(dx,dy){const me={};HOLD=me;let first=true;
   await wait(first?180:95);first=false}
  if(HOLD===me)HOLD=null}
 document.querySelectorAll('#pad button').forEach(b=>{if(!b.dataset.d)return;const[x,y]=b.dataset.d.split(',').map(Number);b.addEventListener('pointerdown',e=>{e.preventDefault();audio();holdMove(x,y)});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{HOLD=null}));b.oncontextmenu=e=>e.preventDefault()});
-addEventListener('keydown',e=>{const k={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],q:[-1,-1],e:[1,-1],z:[-1,1],c:[1,1]}[e.key];if(k){e.preventDefault();step(...k)}else if(e.key=='m'){G.map=!G.map;ui()}else if(e.key=='b'&&!G.fight&&!G.fight){G.sheet=='closed'?openSheet('bag'):closeSheet()}});
+addEventListener('keydown',e=>{if(G)G.travel=null;const k={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],q:[-1,-1],e:[1,-1],z:[-1,1],c:[1,1]}[e.key];if(k){e.preventDefault();step(...k)}else if(e.key=='m'){G.map=!G.map;ui()}else if(e.key=='b'&&!G.fight&&!G.fight){G.sheet=='closed'?openSheet('bag'):closeSheet()}});
 addEventListener('resize',()=>{if(G&&G.sheet!='closed'&&!drag)renderSheet()});
 (function(){const mk=(w,h,f)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),d=x.createImageData(w,h);for(let j=0;j<h;j++)for(let i=0;i<w;i++){const v=f(i,j),k=(j*w+i)*4;d.data[k]=d.data[k+1]=d.data[k+2]=Math.max(0,Math.min(255,v));d.data[k+3]=255}x.putImageData(d,0,0);return 'url('+c.toDataURL()+')'};
  const R=document.documentElement.style;
@@ -4778,7 +4913,7 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  scr.addEventListener('pointerdown',e=>{
   if(CTRL!='stick')return;if(typeof DEF!='undefined'&&DEF)return;if(!G||G.over||G.map||G.fishing)return;
   if(document.getElementById('modal').innerHTML)return;if(G.sheet&&G.sheet!='closed')return;
-  S={x:e.clientX,y:e.clientY,d:null,moved:false};st.style.left=e.clientX+'px';st.style.top=e.clientY+'px';st.style.display='block';
+  S={x:e.clientX,y:e.clientY,d:null,moved:false};if(G.travel){G.travel=null;G.travelGoal=null}st.style.left=e.clientX+'px';st.style.top=e.clientY+'px';st.style.display='block';
   runWatch();rep=setInterval(async()=>{if(!S||!S.d)return;if(G.busy)return;
    if(S.pause&&Date.now()<S.pause)return;
    if(runStop(S.d[0],S.d[1])){S.pause=Date.now()+520;runWatch();return}

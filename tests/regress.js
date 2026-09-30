@@ -6,6 +6,24 @@ const { chromium } = require(path.join(execSync('npm root -g').toString().trim()
 const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '..', 'index.html'));
 
 const cases = {
+  // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  async '思い通りに動かす'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const W8 = ms => new Promise(r => setTimeout(r, ms)); const o = {};
+      const H = G.m.length, W = G.m[0].length; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.seen.add(x + ',' + y);
+      G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.traps = []; G.p.hp = G.p.max; G.spawnT = -1e9;
+      const add = id => { G.bag.items.push({ id, x: 0, y: 0, rot: 0 }); return G.bag.items.length - 1; };
+      G.traps = [{ x: 8, y: 8, k: 'pit', known: 1 }]; const rt = trvRoute(12, 8, false); o.avoid = !!rt && !rt.some(([x, y]) => x == 8 && y == 8) && rt[rt.length - 1][0] == 12;
+      G.lava = new Set(); for (let y = 2; y <= 14; y++) G.lava.add('7,' + y); o.lava = trvRoute(12, 8, false) === null; G.lava = new Set(); G.traps = [];
+      { const f = put('skel', 9, 8); const hp = f.hp; throwAt(add('bomb'), 9, 8); await W8(400); o.bomb = f.hp < hp; G.foes = []; G.busy = false; }
+      { throwAt(add('v_fire'), 10, 9); await W8(300); o.oil = hasOil(10, 9); G.busy = false; }
+      { const i = add('torch'); slotUse(i); o.cover = !hasTorch(); slotUse(i); o.uncover = hasTorch(); G.bag.items.splice(i, 1); }
+      { G.chest = { x: 6, y: 8, locked: true }; G.bag.items = G.bag.items.filter(q => q.id != 'key'); add('hammer'); openChest(); o.ask = G.chest.locked; openChest(); await W8(300); o.bash = !G.chest.locked && G.items.some(i => i.id == 'idol'); G.chest = null; G.busy = false; }
+      return o;
+    });
+    for (const k of ['avoid', 'lava', 'bomb', 'oil', 'cover', 'uncover', 'ask', 'bash']) if (!r[k]) throw new Error(k + ' が期待どおりでない: ' + JSON.stringify(r));
+  },
   // レシピ本と村の飾りがリロードで消えない
   async 'レシピと飾りの保存が残る'(p) {
     await p.evaluate(() => { localStorage.setItem('yw65_rec', JSON.stringify({ potion2: 1 })); localStorage.setItem('yw63_deco', JSON.stringify([{ id: 'potion', x: 8, y: 14 }])); });
