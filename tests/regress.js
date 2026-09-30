@@ -7,6 +7,21 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 世界が勝手に反応を起こす：壺と樽・性質を持ち歩く敵・性質のぶつかる敵同士
+  async '壺と樽と、性質を持つ敵'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; G.p.x = 5; G.p.y = 8; G.oil = new Set(); G.gas = []; G.mud = new Set();
+      G.pots = [{ x: 6, y: 8, k: 'oil' }]; await step(1, 0); await new Promise(r => setTimeout(r, 400)); o.bump = !G.pots.length && hasOil(6, 8); G.busy = false;
+      G.pots = [{ x: 5, y: 9, k: 'poison' }]; const m = mainAction(); o.lift = m && m.t == '持ち上げる'; m.f(); const i = G.bag.items.findIndex(q => q.id == 'pot_poison');
+      o.inBag = i >= 0; throwAt(i, 9, 8); await new Promise(r => setTimeout(r, 400)); o.thrown = inGas(9, 8); G.busy = false;
+      G.pots = [{ x: 12, y: 12, k: 'oil' }]; ignite(12, 12, 'quiet'); o.fire = !G.pots.length;
+      G.foes = []; const a = put('salam', 10, 5), b = put('frog', 11, 5); o.rival = !!rivalWhy(a, b); G.steam = []; feudStep(); o.steam = G.steam.length > 0;
+      G.foes = []; G.fires = []; for (let x = 3; x <= 12; x++) G.garden[3][x] = true; const s = put('salam', 3, 3); for (let k = 0; k < 8; k++) { s.x++; envFoeStep() } o.trail = (G.fires || []).length > 0;
+      return o;
+    });
+    for (const k of ['bump', 'lift', 'inBag', 'thrown', 'fire', 'rival', 'steam', 'trail']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+  },
   // 化学反応が、その場の敵に状態を起こす（28すべてに割り当て）
   async '反応が状態を起こす'(p) {
     await arena(p);
