@@ -153,6 +153,8 @@ function brain() {
   }
   // 探索
   if (hpR < .45 && heal >= 0 && !(ITEM[its[heal].id] || {}).mon) { slotUse(heal); O.turns.item++; return T('heal'); }
+  // 仕掛け：見えている敵に、手持ちと地形で反応を起こせるなら、戦う前に使う
+  try { const g = gimmick(); if (g) { O.turns.gim = (O.turns.gim || 0) + 1; O.gim = O.gim || {}; O.gim[g] = (O.gim[g] || 0) + 1; return T(g); } } catch (e) { O.gErr = String(e.message); }
   try {
     const m = mainAction();
     const goHome = G.exit && (hpR < .25 || (bagUsed() >= bagCap() - 1 && G.fi >= 2));
@@ -179,6 +181,25 @@ function brain() {
   }
   const d = DIRS8[Math.floor(Math.random() * 8)]; step(d[0], d[1]); return T('wander');
 
+  function gimmick() {
+    const idx = id => its.findIndex(q => q.id == id && !q.wet);
+    const foes = G.foes.filter(f => f.hp > 0 && f.alpha > 0 && !f.dormant && !(f.charm > 0) && f.k != 'puru' && f.k != 'koke' && cd(f.x, f.y, p.x, p.y) >= 2 && cd(f.x, f.y, p.x, p.y) <= AIMR && G.seen.has(f.x + ',' + f.y) && losClear(p.x, p.y, f.x, f.y))
+      .sort((a, b) => cd(a.x, a.y, p.x, p.y) - cd(b.x, b.y, p.x, p.y));
+    if (!foes.length) return null;
+    const around = (f, pred) => [[0, 0], ...DIRS8].some(([a, b]) => pred(f.x + a, f.y + b));
+    const tryT = (i, x, y, why) => { if (i < 0 || !aimOK(x, y)) return null; throwAt(i, x, y); return why; };
+    const fire = () => { let i = idx('firearrow'); if (i >= 0) return i; i = its.findIndex(q => ITEM[q.id].lit && !q.wet && !q.off); return i; };
+    for (const f of foes) {
+      let r; const buddies = G.foes.filter(o => o !== f && o.hp > 0 && cd(o.x, o.y, f.x, f.y) <= 1).length;
+      if (inWater(f.x, f.y) || f.wetC > 0) { if (r = tryT(idx('raika'), f.x, f.y, 'g-雷')) return r; if (r = tryT(idx('hyouka'), f.x, f.y, 'g-氷')) return r; }
+      if (hasOil(f.x, f.y) || around(f, (x, y) => inGas(x, y)) || (burnable(f.x, f.y) && !FIREOK(f.k))) { if (r = tryT(fire(), f.x, f.y, 'g-火')) return r; }
+      if (buddies >= 1) { if (r = tryT(idx('bomb'), f.x, f.y, 'g-爆弾')) return r; if (r = tryT(idx('konran'), f.x, f.y, 'g-混乱')) return r; }
+      const pot = (G.pots || []).find(q => cd(q.x, q.y, f.x, f.y) <= 1 && aimOK(q.x, q.y));
+      if (pot) { if (r = tryT(idx('koishi'), pot.x, pot.y, 'g-壺を割る')) return r; }
+      for (const id of ['pot_oil', 'pot_poison', 'pot_fire', 'pot_sand', 'pot_water', 'v_poison', 'v_fire', 'doro', 'mizu']) { if (r = tryT(idx(id), f.x, f.y, 'g-' + (ITEM[id] || {}).n)) return r; }
+    }
+    return null;
+  }
   // 見えている床のうち、まだ見ていない所に接している一番近い場所
   function frontier() {
     let best = null, bd = 1e9;
@@ -231,6 +252,9 @@ function brain() {
   console.log('\n===== 観察の要約（' + RUNS + '回 × ' + STEPS + '手） =====');
   console.log('最深の階', all.map(o => o.maxF + 'F').join(' / '));
   console.log('手の使い方  探索 ' + mapT + ' 手 ／ 戦闘 ' + fightT + ' 手（うちパリィの受け ' + parry + ' 回）／ 蹴り ' + sum(o => o.turns.kick) + ' ／ 待つ ' + sum(o => o.turns.wait) + ' ／ 道具 ' + sum(o => o.turns.item));
+  { const gim = sum(o => (o.turns.gim || 0) + o.turns.kick), fgt = sum(o => o.turns.fight) - sum(o => o.turns.kick); const k = sum(o => o.kills.env), w = sum(o => o.kills.weapon);
+    console.log('★ ギミックと戦闘  手の数 ' + gim + ' 対 ' + fgt + '（ギミック ' + pct(gim, gim + fgt) + '）／ 倒した敵 ' + k + ' 対 ' + w + '（ギミック ' + pct(k, k + w) + '）');
+    console.log('  使ったギミック: ' + merge(o => o.gim).map(([k, v]) => k + ':' + v).join(' ')); }
   console.log('戦闘  ' + sum(o => o.fights) + ' 回、1戦あたり平均 ' + (ft.length ? (ft.reduce((a, b) => a + b, 0) / ft.length).toFixed(1) : '-') + ' 手');
   console.log('敵の倒れ方  武器 ' + sum(o => o.kills.weapon) + ' ／ 環境 ' + sum(o => o.kills.env) + '（' + merge(o => o.kills.envBy).map(([k, v]) => k + ':' + v).join(' ') + '）');
   console.log('化学反応  自然に起きた ' + sum(o => o.reactEvents) + ' 回、うち目の前 ' + sum(o => o.reactNearN) + ' 回、敵を巻き込んだ ' + sum(o => o.reactHit) + ' 回');
