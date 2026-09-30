@@ -3002,7 +3002,7 @@ const REACT=[
  ['oil','earth','土が油を吸い取る'],
  ['poison','wind','毒気が風下へ流されていく'],
  ['poison','earth','毒が泥に染みて、毒の泥になる'],
- ['wind','earth','泥や瓦礫から砂埃が舞い、風下の視界をふさぐ']].map(([a,b,r])=>({k:a+'+'+b,a,b,r}));
+ ['wind','earth','泥や瓦礫から砂埃が舞い、風下の視界をふさぐ']].map(([a,b,r])=>({k:a+'+'+b,a,b,r0:r,r}));
 const REACT_ALIAS={oilfire:'fire+oil',gasfire:'fire+poison',steam:'fire+water',melt:'fire+ice',dry:'fire+earth',freeze:'water+ice',shock:'water+volt',wetshock:'water+volt',poisonwater:'water+poison',windgas:'poison+wind'};
 let MAPD={};try{MAPD=JSON.parse(store('yw71_maps')||'{}')||{}}catch(e){}
 const TWN=()=>['none',...Object.keys(TWIST)];
@@ -3012,7 +3012,29 @@ function mapTable(){const L=Object.keys(LAYN),B=TWN();const tot=L.length*B.lengt
  const na=FLOORDEF.filter((_,i)=>MAPD['#'+i]).length;
  return '<h2>名前つきの階（'+na+'/'+FLOORDEF.length+'）</h2><p style="font-size:13px">'+FLOORDEF.map((D,i)=>MAPD['#'+i]?D.n:'？').join('・')+'</p><h2>歩いた地形（'+n+'/'+tot+'）</h2><p style="font-size:13px">地図の形 '+lay.length+'/'+L.length+'：'+L.map(a=>lay.includes(a)?LAYN[a]:'？').join('・')+'</p><p style="font-size:13px">地形の性格 '+bio.length+'/'+B.length+'：'+B.map(b=>bio.includes(b)?(b=='none'?'ふつう':TWIST[b][0]):'？').join('・')+'</p>'}
 let REACTD={};try{REACTD=JSON.parse(store('yw70_react')||'{}')||{}}catch(e){}
-function react(k,x,y){try{k=REACT_ALIAS[k]||k;const R=REACT.find(q=>q.k==k);if(!R)return;if(x!=null&&!(G.seen&&G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=9))return;
+
+// ===== 反応が、そこにいる者に「状態」を起こす =====
+// 見失う＝こちらを見失い、反応の起きた所を探しに行く／混乱＝敵味方の区別を失う／しびれ・足止め＝動けない／怯え＝逃げ出す／濡れる＝雷がよく効く／押し流す
+const RST={blind:['見失う','#bfe0ff'],conf:['混乱','#e0b0ff'],stun:['しびれ','#fff0a0'],hold:['足止め','#c8f0ff'],fear:['怯える','#ffb13a'],wet:['濡れる','#9ad0ff'],push:['押し流す','#9ad0ff'],trip:['転ぶ','#e8e0c0']};
+const REFF={'fire+water':['blind',3],'fire+ice':['wet',4],'fire+volt':['fear',3],'fire+oil':['fear',4],'fire+poison':['conf',5],'fire+wind':['fear',3],'fire+earth':['blind',2],
+ 'water+ice':['hold',3],'water+volt':['stun',2],'water+oil':['trip',1],'water+poison':['conf',3],'water+wind':['push',1],'water+earth':['hold',2],
+ 'ice+volt':['trip',1],'ice+oil':['hold',2],'ice+poison':['hold',1],'ice+wind':['hold',2],'ice+earth':['trip',2],
+ 'volt+oil':['conf',3],'volt+poison':['conf',4],'volt+wind':['stun',1],'volt+earth':['stun',2],
+ 'oil+poison':['conf',2],'oil+wind':['trip',1],'oil+earth':['blind',1],'poison+wind':['conf',3],'poison+earth':['hold',1],'wind+earth':['blind',3]};
+REACT.forEach(R=>{const E=REFF[R.k];if(E)R.r=R.r0+' → '+RST[E[0]][0]});
+function reactEffect(k,x,y){const E=REFF[k];if(!E||x==null)return;const[st,n]=E;const now=G.steps||0;let hitN=0,who=null;
+ G.foes.forEach(f=>{if(f.hp<=0||f.dormant||cd(f.x,f.y,x,y)>1)return;const D=FOE[f.k]||{};if(D.boss&&st!='wet')return;if(f.rxT==now&&f.rxK==k)return;f.rxT=now;f.rxK=k;
+  const inF=G.fight&&G.fight.foes.includes(f);
+  if(st=='blind'){if(inF)f.stun=Math.max(f.stun||0,1);else{f.aware=0;f.blind=Math.max(f.blind||0,n);f.inv={x,y,t:4}}}
+  else if(st=='conf'){if(!moodOK(f))return;f.conf=Math.max(f.conf||0,n*(inF?1:2));f.charm=0}
+  else if(st=='stun'||st=='hold'||st=='trip'){if(st=='hold'&&D.fly)return;f.stun=Math.max(f.stun||0,n)}
+  else if(st=='fear'){if(!moodOK(f)||FIREOK(f.k))return;f.fear=Math.max(f.fear||0,n*(inF?1:2));if(inF)f.flee=true}
+  else if(st=='wet'){f.wetC=Math.max(f.wetC||0,n)}
+  else if(st=='push'){const W=G.wind,dx=W?W.dx:Math.sign(f.x-x)||1,dy=W?W.dy:Math.sign(f.y-y);const nx=f.x+dx,ny=f.y+dy;if(freeTile(nx,ny)&&!(nx==G.p.x&&ny==G.p.y)){f.x=nx;f.y=ny}}
+  hitN++;who=f;if(G.seen.has(f.x+','+f.y))fx({type:'num',s:RST[st][0],x:f.rx+4,y:f.ry-12,c:RST[st][1]})});
+ if(hitN&&who&&G.seen.has(who.x+','+who.y)&&cd(x,y,G.p.x,G.p.y)<=9&&G.rxToastT!==now){G.rxToastT=now;const R=REACT.find(q=>q.k==k);setTimeout(()=>toast((hitN>1?hitN+'体が':who.n+'が')+RST[st][0].replace('しびれ','しびれた').replace('足止め','動けなくなった').replace('混乱','混乱した').replace('怯える','怯えた').replace('見失う','こちらを見失った').replace('濡れる','ずぶ濡れになった').replace('押し流す','押し流された').replace('転ぶ','転んだ')+'（'+ELN[R.a]+'×'+ELN[R.b]+'）'),250);
+  learn('reff','反応は、その場にいる者に効く：見失う・混乱・しびれ・足止め・怯える・濡れる・転ぶ。どの反応で何が起きるかは反応表に残る')}}
+function react(k,x,y){try{k=REACT_ALIAS[k]||k;const R=REACT.find(q=>q.k==k);if(!R)return;try{reactEffect(k,x,y)}catch(e){}if(x!=null&&!(G.seen&&G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=9))return;
  if(REACTD[k])return;REACTD[k]=1;store('yw70_react',JSON.stringify(REACTD));const n=Object.keys(REACTD).length;
  if(x!=null&&!G.fight){G.spot={x,y,t0:performance.now(),a:ELN[R.a],b:ELN[R.b],r:R.r,n};G.stop=performance.now()+650;sfx('rare')}else setTimeout(()=>{sfx('rare');toast('反応を見つけた！　'+ELN[R.a]+' × '+ELN[R.b]+'：'+R.r+'（'+n+'/'+REACT.length+'）')},400);learn('react','化学反応：火・水・氷・雷・油・毒・風・土の8つの性質は、どの二つが出会っても何かが起きる（28通り）。見つけた反応は「覚えたこと」の反応表に残る')}catch(e){}}
 function reactTable(){const n=REACT.filter(R=>REACTD[R.k]).length;const E=ELEM.map(e=>e[0]);const cell=(a,b)=>{if(a==b)return '<td style="color:#554">・</td>';const k=E.indexOf(a)<E.indexOf(b)?a+'+'+b:b+'+'+a;return '<td style="color:'+(REACTD[k]?'#ffd35a':'#554')+'">'+(REACTD[k]?'◆':'？')+'</td>'};
@@ -3166,7 +3188,7 @@ function litHere(){const p=G.p;if(hasLight()||onGlow(p.x,p.y))return 1;const i=G
 
 // ===== 予兆：これから起きることを、地図に薄く描く（敵の視線・音の届く範囲・次に燃える所） =====
 function sightR(f){const u=bagUsed(),bs=bagDef().st||0;return 4+(u>=6?1:0)+(u>=10?1:0)+(u>=14?1:0)+bs+(bagAf('kou')?2:0)+litHere()+(f.alert>0?2:0)-(rxOn('D')?1:0)-(G.cond=='fog'||G.cond=='silent'?1:0)+(f.pers=='fierce'?2:0)-(f.pers=='lazy'?2:0)-(f.pers=='friendly'?1:0)}
-function watchers(){const p=G.p;if(G.hush>0)return[];return G.foes.filter(f=>f.hp>0&&f.alpha>0&&!f.aware&&!f.dormant&&!f.mhSleep&&!f.still&&!(f.stun>0)&&!(f.frozen>0)&&!(f.charm>0)&&!(f.conf>0)&&!(f.fear>0)&&f.k!='puru'&&f.k!='koke'&&cd(f.x,f.y,p.x,p.y)<=10&&G.seen.has(f.x+','+f.y)&&!(()=>{try{return feudOf(f)}catch(e){return null}})()).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y)).slice(0,6)}
+function watchers(){const p=G.p;if(G.hush>0)return[];return G.foes.filter(f=>f.hp>0&&f.alpha>0&&!f.aware&&!(f.blind>0)&&!f.dormant&&!f.mhSleep&&!f.still&&!(f.stun>0)&&!(f.frozen>0)&&!(f.charm>0)&&!(f.conf>0)&&!(f.fear>0)&&f.k!='puru'&&f.k!='koke'&&cd(f.x,f.y,p.x,p.y)<=10&&G.seen.has(f.x+','+f.y)&&!(()=>{try{return feudOf(f)}catch(e){return null}})()).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y)).slice(0,6)}
 
 // ===== 次の予測：確実に分かる「次の一手」だけを、薄い矢印と数字で描く =====
 function foeNextTile(f){const p=G.p;if(f.hp<=0||f.dormant||f.lurk||f.mhSleep||f.still||f.stun>0||f.frozen>0||(f.charm>0)||(f.conf>0))return null;
@@ -3257,12 +3279,12 @@ function feudStep(){if(G.fight)return;const p=G.p;const done=new Set(),dead=[];G
   if(G.seen&&G.seen.has(f.x+','+f.y)){toast(f.n+'は'+k.n+'に倒された'+(k.hp<=k.max/2?'。……'+k.n+'も傷ついている':''));fx({type:'ring',x:f.rx+4,y:f.ry+2,c:'#ffd0a0'})}}
  if(dead.length)G.foes=G.foes.filter(f=>f.hp>0)}
 async function enemiesMove(){
- const p=G.p;G.foes.forEach(f=>{f.px0=f.x;f.py0=f.y});try{bodyCheck()}catch(e){}G.foes.forEach(f=>{if(f.alert>0)f.alert--;if(f.conf>0)f.conf--;if(f.fear>0)f.fear--;if(f.charm>0){f.charm--;if(!f.charm&&f.hp>0){f.aware=2;if(G.seen.has(f.x+','+f.y))toast(f.n+'は我に返った。……こちらを睨んでいる')}}});try{feudStep()}catch(e){}
+ const p=G.p;G.foes.forEach(f=>{f.px0=f.x;f.py0=f.y});try{bodyCheck()}catch(e){}G.foes.forEach(f=>{if(f.blind>0)f.blind--;if(f.alert>0)f.alert--;if(f.conf>0)f.conf--;if(f.fear>0)f.fear--;if(f.charm>0){f.charm--;if(!f.charm&&f.hp>0){f.aware=2;if(G.seen.has(f.x+','+f.y))toast(f.n+'は我に返った。……こちらを睨んでいる')}}});try{feudStep()}catch(e){}
  if(G.hasteT>0){G.hasteT--;G.hasteSkip=!G.hasteSkip;if(G.hasteSkip)return}
  for(const f of G.foes){if(f.hp<=0||f.dormant||f.lurk||f.mhSleep)continue;if(f.stun>0){f.stun--;continue}
   const dd=cd(f.x,f.y,p.x,p.y);
   const shy0=f.k=='puru'||f.k=='koke';
-  if(!shy0){if(!f.aware&&!(G.hush>0)&&!(inBush(p.x,p.y)&&dd>1)&&!feudOf(f)&&!(f.conf>0)&&!(f.fear>0)&&!(f.charm>0)){const u=bagUsed(),bs=bagDef().st||0,R=sightR(f);if((dd<=R&&inFront(f,p.x,p.y)&&losClear(f.x,f.y,p.x,p.y))||(bs>=0&&!rxOn('D')&&u>=10&&dd<=2)||(bs>0&&u>=6&&dd<=1)){f.aware=1;f.flip=p.x<f.x;sfxAt('spot',(f.x-p.x)/6);continue}}
+  if(!shy0){if(!f.aware&&!(G.hush>0)&&!(f.blind>0)&&!(inBush(p.x,p.y)&&dd>1)&&!feudOf(f)&&!(f.conf>0)&&!(f.fear>0)&&!(f.charm>0)){const u=bagUsed(),bs=bagDef().st||0,R=sightR(f);if((dd<=R&&inFront(f,p.x,p.y)&&losClear(f.x,f.y,p.x,p.y))||(bs>=0&&!rxOn('D')&&u>=10&&dd<=2)||(bs>0&&u>=6&&dd<=1)){f.aware=1;f.flip=p.x<f.x;sfxAt('spot',(f.x-p.x)/6);continue}}
    else if(f.aware==1){f.aware=2}else if(dd>9){f.aware=0}}
   if(f.still||((f.slow||f.slowV)&&(G.steps||0)%2))continue;
   if(inMud(f.x,f.y)&&!(FOE[f.k]||{}).fly&&(G.steps||0)%2)continue;
@@ -3286,7 +3308,7 @@ async function enemiesMove(){
   else if((f.k=='wisp'||shy||(!f.aware&&!f.still&&Math.random()<.25))&&opts.length&&Math.random()<.4){const o=pick(opts);f.flip=o[0]<f.x;f.x=o[0];f.y=o[1]}
  }
  try{G.foes.slice().forEach(f=>{if(f.px0!=null&&(f.x!==f.px0||f.y!==f.py0))foeTrap(f)})}catch(e){}
- const adj=G.foes.filter(f=>f.hp>0&&!f.dormant&&f.k!='puru'&&f.k!='koke'&&!(f.charm>0)&&!(f.fear>0)&&!(f.conf>0)&&cd(f.x,f.y,p.x,p.y)==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y)));
+ const adj=G.foes.filter(f=>f.hp>0&&!f.dormant&&f.k!='puru'&&f.k!='koke'&&!(f.charm>0)&&!(f.fear>0)&&!(f.conf>0)&&!(f.blind>0)&&cd(f.x,f.y,p.x,p.y)==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y)));
  {const mv=G.foes.filter(f=>f.moved&&f.hp>0&&f.aware==2).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0];if(mv){const d=cd(mv.x,mv.y,p.x,p.y);if(d<=8){const k={skel:'clack',lskel:'clack',spider:'skitter',spitter:'skitter',mother:'skitter',ghost:'whoosh',capt:'whoosh',wisp:'whoosh',zombie:'wetstep'}[mv.k]||(mv.mut?'wetstep':'thud');sfxAt(k,(mv.x-p.x)/6,Math.max(.25,1-d/9))}}}
  const mode=adj.some(f=>f.moved)?'enemy':contactMode(adj[0]);G.foes.forEach(f=>f.moved=0);
  if(adj.length){await wait(120);await startFight(adj,mode);return}

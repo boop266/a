@@ -7,6 +7,19 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 化学反応が、その場の敵に状態を起こす（28すべてに割り当て）
+  async '反応が状態を起こす'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = { all: REACT.every(R => REFF[R.k] && RST[REFF[R.k][0]]) };
+      const a = put('gob', 9, 8); a.aware = 2; react('fire+water', 9, 8); o.blind = a.aware == 0 && a.blind > 0;
+      await enemiesMove(); o.noFight = !G.fight; G.foes = []; G.fight = null; G.busy = false;
+      const b = put('gob', 9, 8); react('fire+poison', 9, 8); o.conf = b.conf > 0; const c1 = b.conf; react('fire+poison', 9, 8); o.once = b.conf == c1; G.foes = [];
+      const c = put('gob', 9, 8); react('water+volt', 9, 8); o.stun = c.stun >= 2; G.foes = [];
+      return o;
+    });
+    for (const k of ['all', 'blind', 'noFight', 'conf', 'once', 'stun']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+  },
   // 次の予測：追ってくる敵の一歩・氷の滑り先
   async '次の予測'(p) {
     await arena(p);
@@ -49,7 +62,7 @@ const cases = {
   async 'タップで調べる'(p) {
     await arena(p);
     const r = await p.evaluate(() => {
-      G.items.push({ x: 10, y: 8, id: 'sword', drop: 0 }); G.traps = [{ x: 8, y: 10, k: 'noise', known: 1 }]; G.mud = new Set(['9,9']); G.garden = G.m.map(r => r.map(() => false)); G.bush = new Set(); G.glowm = new Set(); G.ice = new Set();
+      G.items.push({ x: 10, y: 8, id: 'sword', drop: 0 }); G.traps = [{ x: 8, y: 10, k: 'noise', known: 1 }]; G.mud = new Set(['9,9']); G.garden = G.m.map(r => r.map(() => false)); G.bush = new Set(); G.glowm = new Set(); G.ice = new Set(); G.anchors = []; G.loose = []; G.thin = []; G.cracks = []; G.graves = []; G.corpses = []; G.cocoons = [];
       const n = (x, y) => { const I = tileInfo(x, y); return I.H.map(h => h[0]).join('|') + '/' + I.L.length; };
       return { item: n(10, 8), trap: n(8, 10), down: n(G.down[0], G.down[1]), exit: n(G.exit[0], G.exit[1]), mud: n(9, 9), none: n(12, 12) };
     });
