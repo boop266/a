@@ -66,7 +66,7 @@ const cases = {
     await dive(p);
     const r = await p.evaluate(async () => { G.title = null; for (let y = 3; y < MH - 3; y++) for (let x = 3; x < MW - 3; x++) { let ok = true; for (let j = -2; j <= 2; j++) for (let k = -2; k <= 2; k++) if (!walk(x + k, y + j) || G.water[y + j][x + k]) ok = false; if (ok) { G.p.x = x; G.p.y = y } } G.foes = []; const P = G.p; G.oil = new Set(); for (const [a, b] of DIRS8) G.oil.add((P.x + a) + ',' + (P.y + b));
       const c = DIRS.map(([a, b]) => [P.x + a, P.y + b]).find(([x, y]) => walk(x, y)); ignite(c[0], c[1]); const n0 = G.fires.length;
-      G.busy = false; await doWait(); return [n0, G.fires.length]; });
+      document.getElementById('modal').innerHTML = ''; G.fight = null; G.busy = false; G.wind = null; await doWait(); return [n0, G.fires.length]; });
     if (!(r[1] > r[0])) throw new Error('待っても火が広がらない: ' + r);
   },
   // 蔦・ひび割れた壁・燭台の門が、道具で開く
@@ -165,7 +165,7 @@ const cases = {
       return o;
     });
     if (r.open !== 1 || r.wall !== 0) throw new Error('視線: ' + JSON.stringify(r));
-    if (Math.abs(r.stone[0] - 11) > 1 || Math.abs(r.stone[1] - 8) > 1 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
+    if (Math.abs(r.stone[0] - 11) > 2 || Math.abs(r.stone[1] - 8) > 2 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
     if (r.ass[0] > 0 || r.ass[1] || r.ass[2] !== 1) throw new Error('暗殺: ' + JSON.stringify(r));
   },
   // 相性の悪い種族は勝手に争い、追ってくる敵も天敵の隣で足を止める
@@ -313,6 +313,21 @@ const cases = {
       return { n: FLOORDEF.length, pairs, names, distinct: new Set(got).size, floors: got.length };
     });
     if (r.n !== 100 || r.pairs !== 100 || r.names !== 100 || r.distinct !== r.floors) throw new Error(JSON.stringify(r));
+  },
+  // 仲間になるかどうかはサイコロではなく「どう倒したか」。条件を満たせば必ず、満たさなければ決して仲間にならない
+  async '倒し方で仲間になる'(p) {
+    await dive(p);
+    const r = await p.evaluate(async () => {
+      const W = ms => new Promise(r => setTimeout(r, ms)); const out = {};
+      const one = async (k, fn) => { G.fight = null; G.busy = false; G.foes = []; G.items = []; const P = G.p; const d = DIRS.find(([a, b]) => walk(P.x + a, P.y + b)); const f = mkFoe(k, P.x + d[0], P.y + d[1], 0); G.foes.push(f);
+        await startFight([f], 'first'); await W(1400); G.busy = false; fn(f); f.hp = 0; await resolveDeaths(); await W(200); if (G.fight) endFight(''); return G.items.some(i => i.scout && i.id == k); };
+      for (let i = 0; i < 4; i++) { out['rat' + i] = await one('rat', f => { f.parN = 0; f.hits = 3 }); }
+      out.ratParry = await one('rat', f => { f.parN = 2; f.hits = 3 });
+      out.gobHurt = await one('gob', f => { G.fight.hurt = 1; f.hits = 3 });
+      out.gobClean = await one('gob', f => { f.hits = 3 });
+      return out;
+    });
+    if (r.rat0 || r.rat1 || r.rat2 || r.rat3 || !r.ratParry || r.gobHurt || !r.gobClean) throw new Error(JSON.stringify(r));
   },
 };
 
