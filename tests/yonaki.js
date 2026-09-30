@@ -81,7 +81,7 @@ const cases = {
       const W8 = ms => new Promise(r => { const t0 = G.time; const f = () => (G.time - t0) * 1000 >= ms || G.mode !== 'game' ? r() : setTimeout(f, 20); f(); }); const P = me();
       // 開けた道の上を探す
       const W = G.W; let spot = null;
-      for (const rd of W.roads) for (const q of rd.pl) { if (q[0] < 30 || q[1] < 30 || q[0] > 114 || q[1] > 114) continue; if (G.debug.los(q[0], 1.5, q[1], q[0] + 6, 1.5, q[1]) && !G.W.nav[Math.floor(q[1] / .5) * 288 + Math.floor((q[0] + 6) / .5)]) { spot = q; break; } }
+      for (const rd of W.roads) for (const q of rd.pl) { if (q[0] < 30 || q[1] < 30 || q[0] > 114 || q[1] > 114) continue; const y0 = G.debug.gy(q[0], q[1]), y1 = G.debug.gy(q[0] + 6, q[1]); if (Math.abs(y0 - y1) < .1 && G.debug.los(q[0], y0 + 1.5, q[1], q[0] + 6, y1 + 1.5, q[1]) && G.debug.navOk(q[0] + 6, q[1]) && G.debug.navOk(q[0] + 3, q[1])) { spot = q; break; } }
       if (!spot) return { skip: 1 };
       G.enemies.forEach(e => { e.x = 5; e.z = 5; e.st = 'routine'; e.kind = 'grave'; e.anchor = [5, 5]; e.face = [5, 6]; });
       const e = G.enemies[0]; e.x = spot[0] + 6; e.z = spot[1]; e.yaw = -Math.PI / 2; e.st = 'routine'; e.kind = 'grave'; e.anchor = [e.x, e.z]; e.face = [spot[0], spot[1]];
@@ -152,6 +152,55 @@ const cases = {
     if (r.phones && (!r.ring || r.heard === 'routine' || r.pl !== '受話器を取る' || !r.up)) throw new Error('電話: ' + JSON.stringify(r));
     const e = await errs(p); if (e.length) throw new Error(e.join('\n'));
     await p.close();
+  },
+  // 協力の仕掛け：肩車（相棒がいれば登れる）・梯子（上から下ろす）・閂（内側からだけ開く）
+  async '協力の仕掛け'(ctx, base) {
+    const room = 'K' + Math.floor(Math.random() * 1e6);
+    const h = await ctx.newPage(), c = await ctx.newPage();
+    await h.goto(base + `?net=local&room=${room}&role=host&autostart=1&fast=1&mute=1&seed=77&god=1`);
+    await c.goto(base + `?net=local&room=${room}&role=join&fast=1&mute=1&god=1`);
+    await ready(h); await ready(c);
+    const info = await h.evaluate(() => ({ b: G.W.boosts.length, l: G.W.ladders.length, bars: G.W.bars.length }));
+    if (!info.b || !info.l || !info.bars) throw new Error('仕掛けが生成されない ' + JSON.stringify(info));
+    await h.evaluate(() => G.enemies.forEach(e => { e.x = 3; e.z = 3; e.down = 999; }));
+    // ひとりでは登れない
+    const solo = await c.evaluate(async () => { const b = G.W.boosts[0]; G.debug.tp(b.bx, b.bz); await new Promise(r => setTimeout(r, 300)); const it = G.debug.findInteract(); return it && it.label; });
+    if (!/届かない/.test(solo || '')) throw new Error('ひとりで登れてしまう: ' + solo);
+    // ホストが下にいれば、ゲストは肩を借りて登れる
+    await h.evaluate(() => { const b = G.W.boosts[0]; G.debug.tp(b.bx + .4, b.bz + .4); });
+    await WG(h, .5);
+    const up = await c.evaluate(async () => {
+      const b = G.W.boosts[0]; G.debug.tp(b.bx, b.bz); await new Promise(r => setTimeout(r, 200)); const it = G.debug.findInteract(); const lab = it && it.label;
+      G.in.act = true; G.in.actTap = true; await new Promise(r => { const t0 = G.time; const f = () => G.time - t0 > 1.6 ? r() : setTimeout(f, 20); f(); }); G.in.act = false;
+      return { lab, y: G.debug.gy(me().x, me().z), top: G.debug.gy(b.tx, b.tz) };
+    });
+    if (up.lab !== '肩を借りて登る' || Math.abs(up.y - up.top) > .2) throw new Error('肩車で登れない ' + JSON.stringify(up));
+    // 上のゲストが、下のホストを引き上げる
+    await c.evaluate(async () => { const b = G.W.boosts[0]; G.debug.tp(b.tx, b.tz); await new Promise(r => setTimeout(r, 200)); G.in.act = true; G.in.actTap = true; await new Promise(r => { const t0 = G.time; const f = () => G.time - t0 > 2.2 ? r() : setTimeout(f, 20); f(); }); G.in.act = false; });
+    await WG(h, .6);
+    const hy = await h.evaluate(() => { const b = G.W.boosts[0]; return [G.debug.gy(me().x, me().z), G.debug.gy(b.tx, b.tz)]; });
+    if (Math.abs(hy[0] - hy[1]) > .3) throw new Error('引き上げられない ' + hy);
+    // 梯子：上から下ろすと、下から登れる（相手の画面でも下りている）
+    const lad = await h.evaluate(async () => {
+      const l = G.W.ladders[0]; G.debug.tp(l.bx, l.bz); await new Promise(r => setTimeout(r, 200)); const before = G.debug.findInteract().label;
+      G.debug.tp(l.tx, l.tz); await new Promise(r => setTimeout(r, 200)); const lab = G.debug.findInteract().label;
+      G.in.act = true; G.in.actTap = true; await new Promise(r => { const t0 = G.time; const f = () => G.time - t0 > 1.9 ? r() : setTimeout(f, 20); f(); }); G.in.act = false;
+      G.debug.tp(l.bx, l.bz); await new Promise(r => setTimeout(r, 200)); const after = G.debug.findInteract().label;
+      return { before, lab, after, on: !!G.obj['ld0'] };
+    });
+    if (!/畳んで/.test(lad.before) || lad.lab !== '梯子を下ろす' || lad.after !== '梯子を登る' || !lad.on) throw new Error('梯子 ' + JSON.stringify(lad));
+    await WG(h, .4);
+    if (!(await c.evaluate(() => !!G.obj['ld0']))) throw new Error('梯子がゲストに伝わらない');
+    // 閂：外からは開かず、内側からは開く。開くと通れる
+    const bar = await h.evaluate(async () => {
+      const b = G.W.bars[0]; G.debug.tp(b.x - b.nx * 1, b.z - b.nz * 1); await new Promise(r => setTimeout(r, 200)); const out = G.debug.findInteract().label;
+      G.debug.tp(b.x + b.nx * 1, b.z + b.nz * 1); await new Promise(r => setTimeout(r, 200)); const inn = G.debug.findInteract().label;
+      G.in.act = true; G.in.actTap = true; await new Promise(r => { const t0 = G.time; const f = () => G.time - t0 > 1.4 ? r() : setTimeout(f, 20); f(); }); G.in.act = false;
+      return { out, inn, open: !!G.obj['bar0'], pass: G.debug.navOk(b.x, b.z) };
+    });
+    if (!/向こう側/.test(bar.out) || bar.inn !== '閂を外す' || !bar.open || !bar.pass) throw new Error('閂 ' + JSON.stringify(bar));
+    for (const p of [h, c]) { const e = await errs(p); if (e.length) throw new Error(e.join('\n')); }
+    await h.close(); await c.close();
   },
   // 三つの脱出条件をそれぞれ最後まで通す
   async '脱出できる'(ctx, base) {

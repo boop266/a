@@ -175,67 +175,193 @@ const me = () => G.players[G.me];
 const isHost = () => Net.role === 'host';
 
 // ================================================================ 村をつくる（種から毎回同じものができる）
+// 地面は1m格子。各マスが四隅の高さを持ち、段差が大きい所には石垣（壁）が自動でできる。
+const LH = 2.6, TN = S, DW = 1.3, WT = .2;
+const GK = { grass: 0, road: 1, alley: 2, stair: 3, field: 4, yard: 5, river: 6, floor: 7, stone: 8, gravel: 9, path: 10 };
+const DTYPE_N = { town: '住宅地', shops: '商店街', school: '学校', mansion: '旧家', paddy: '棚田', shrine: '神社', grave: '墓地' };
+function gyW(W, x, z) {
+  const i = clamp(Math.floor(x), 0, TN - 1), j = clamp(Math.floor(z), 0, TN - 1), fx = clamp(x - i, 0, 1), fz = clamp(z - j, 0, 1), k = (j * TN + i) * 4, h = W.hc;
+  return (h[k] * (1 - fx) + h[k + 1] * fx) * (1 - fz) + (h[k + 3] * (1 - fx) + h[k + 2] * fx) * fz;
+}
+const gy = (x, z) => gyW(G.W, x, z);
 function genWorld(seed) {
-  const R = RNG(seed), rf = (a, b) => a + R() * (b - a), ri = (a, b) => Math.floor(rf(a, b + 1)), pick = a => a[Math.floor(R() * a.length)];
-  const W = { seed, solids: [], houses: [], items: [], closets: [], lamps: [], trees: [], bushes: [], graves: [], fields: [], enemies: [], deco: [], objs: {} };
-  const solid = (x0, z0, x1, z1, y1, k, ex) => { const s = Object.assign({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), y1, k }, ex); W.solids.push(s); return s; };
-  const wave = (n, c0, amp, lo, hi) => { const o = []; let v = 0; for (let i = 0; i < n; i++) { v = clamp(v + rf(-amp, amp), -amp * 1.5, amp * 1.5); o.push(clamp(c0 + v, lo, hi)); } return o; };
-  const K = 7, step = (S + 16) / (K - 1);
-  const ew = wave(K, rf(S * .4, S * .6), 8, 36, S - 36).map((z, i) => [-8 + i * step, z]);
-  const ns = wave(K, rf(S * .4, S * .6), 8, 36, S - 36).map((x, i) => [x, -8 + i * step]);
-  // 道の端（村の外へ出る所）は外側へまっすぐ伸ばす
-  ew[0][1] = ew[1][1]; ew[K - 1][1] = ew[K - 2][1]; ns[0][0] = ns[1][0]; ns[K - 1][0] = ns[K - 2][0];
-  W.roads = [{ pl: ew, w: 5 }, { pl: ns, w: 5 }];
-  for (let b = 0; b < 3; b++) {
-    const base = pick([ew, ns]); const [bx, bz] = base[ri(2, 4)]; let x = bx, z = bz, a = R() * TAU; const pl = [[x, z]];
-    for (let s = 0; s < 3; s++) { a += rf(-.6, .6); x = clamp(x + Math.sin(a) * 12, 20, S - 20); z = clamp(z + Math.cos(a) * 12, 20, S - 20); pl.push([x, z]); }
-    W.roads.push({ pl, w: 3.5 });
-  }
-  const rx0 = R() < .5 ? rf(22, 32) : rf(S - 32, S - 22);
-  W.river = { pl: wave(K, rx0, 6, 16, S - 16).map((x, i) => [x, -8 + i * step]), w: 6 };
-  const onRoad = (x, z, p = 0) => W.roads.some(r => plDist(x, z, r.pl) < r.w / 2 + p), onRiver = (x, z, p = 0) => plDist(x, z, W.river.pl) < W.river.w / 2 + p;
-  const occ = [];
-  const hit = (x0, z0, x1, z1) => occ.some(r => x0 < r[2] && x1 > r[0] && z0 < r[3] && z1 > r[1]);
-  const clear = (x0, z0, x1, z1, rp = .5, m = 13) => {
-    if (x0 < m || z0 < m || x1 > S - m || z1 > S - m || hit(x0, z0, x1, z1)) return false;
-    const nx = Math.ceil((x1 - x0) / 1.2), nz = Math.ceil((z1 - z0) / 1.2);
-    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) { const x = lerp(x0, x1, i / nx), z = lerp(z0, z1, j / nz); if (onRoad(x, z, rp) || onRiver(x, z, 1)) return false; }
-    return true;
+  for (let a = 0; a < 12; a++) { const W = genTry(seed, a, false); if (W) return W; }
+  return genTry(seed, 99, true);
+}
+function genTry(seed, attempt, force) {
+  const R = RNG(((seed >>> 0) ^ Math.imul(attempt + 1, 0x9E3779B1)) >>> 0), rf = (a, b) => a + R() * (b - a), ri = (a, b) => Math.floor(rf(a, b + 1)), pick = a => a[Math.floor(R() * a.length)];
+  const shuf = a => a.map(v => [R(), v]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+  const W = { seed, solids: [], houses: [], items: [], closets: [], lamps: [], trees: [], bushes: [], graves: [], fields: [], enemies: [], deco: [], objs: {}, props: [], glows: [], puddles: [], grass: [], flowers: [], phones: [], hums: [], boosts: [], ladders: [], bars: [], signs: [], boards: [], stairs: [], cliffs: [], rails: [], roads: [], bridges: [], lanterns: [], poles: [],
+    hc: new Float32Array(TN * TN * 4), gk: new Uint8Array(TN * TN), res: new Uint8Array(TN * TN) };
+  const hc = W.hc, gk = W.gk, res = W.res;
+  const hAt = (x, z) => gyW(W, x, z);
+  const solid = (x0, z0, x1, z1, h, k, ex = {}) => { const y0 = ex.y0 != null ? ex.y0 : hAt((x0 + x1) / 2, (z0 + z1) / 2); const s = Object.assign({}, ex, { x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), y0, y1: y0 + h, k }); W.solids.push(s); return s; };
+  const cells = (x0, z0, x1, z1, f) => { for (let j = Math.max(0, Math.floor(z0)); j <= Math.min(TN - 1, Math.ceil(z1) - 1); j++) for (let i = Math.max(0, Math.floor(x0)); i <= Math.min(TN - 1, Math.ceil(x1) - 1); i++) f(j * TN + i, i, j); };
+  const setH = (c, h) => { const k = c * 4; hc[k] = hc[k + 1] = hc[k + 2] = hc[k + 3] = h; };
+  const isFlat = c => { const k = c * 4, a = hc[k]; return Math.abs(hc[k + 1] - a) < .01 && Math.abs(hc[k + 2] - a) < .01 && Math.abs(hc[k + 3] - a) < .01; };
+  const flatFree = (x0, z0, x1, z1, lv = 2) => {
+    if (x0 < 1 || z0 < 1 || x1 > TN - 1 || z1 > TN - 1) return false; let h = null, ok = true;
+    cells(x0, z0, x1, z1, c => { if (!ok) return; if (res[c] >= lv || !isFlat(c)) { ok = false; return; } const a = hc[c * 4]; if (h == null) h = a; else if (Math.abs(a - h) > .01) ok = false; });
+    return ok;
   };
-  // 村の四方の出口
-  const along = (pl, ax, v) => { for (let i = 0; i < pl.length - 1; i++) { const a = pl[i], b = pl[i + 1]; if ((a[ax] - v) * (b[ax] - v) <= 0) { const t = (v - a[ax]) / ((b[ax] - a[ax]) || 1); return lerp(a[1 - ax], b[1 - ax], t); } } return pl[0][1 - ax]; };
-  const ends = [{ side: 'W', c: along(ew, 0, 10) }, { side: 'E', c: along(ew, 0, S - 10) }, { side: 'N', c: along(ns, 1, 10) }, { side: 'S', c: along(ns, 1, S - 10) }];
+  const reserve = (x0, z0, x1, z1, v = 2) => cells(x0, z0, x1, z1, c => { if (res[c] < v) res[c] = v; });
+  const paint = (x0, z0, x1, z1, k) => cells(x0, z0, x1, z1, c => { gk[c] = k; });
+
+  // ---------------------------------------------------------------- 地区（3×3）と高さ
+  const D0 = BAND + 2, DS = (S - 2 * D0) / 3;
+  const hiSide = pick(['N', 'S', 'E', 'W']);
+  const alongHi = (i, j) => hiSide === 'N' ? 2 - j : hiSide === 'S' ? j : hiSide === 'W' ? 2 - i : i;
+  const D = [];
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) D.push({ i, j, id: j * 3 + i, x0: D0 + i * DS, z0: D0 + j * DS, x1: D0 + (i + 1) * DS, z1: D0 + (j + 1) * DS, cx: D0 + (i + .5) * DS + rf(-4, 4), cz: D0 + (j + .5) * DS + rf(-4, 4), lv: alongHi(i, j) + (R() < .3 ? 1 : 0), type: null, links: [] });
+  const adj = (a, b) => Math.abs(a.i - b.i) + Math.abs(a.j - b.j) === 1;
+  for (let it = 0; it < 6; it++) for (const a of D) for (const b of D) if (adj(a, b) && a.lv - b.lv > 1) a.lv--;
+  const dAt = (x, z) => D[clamp(Math.floor((z - D0) / DS), 0, 2) * 3 + clamp(Math.floor((x - D0) / DS), 0, 2)];
+  W.D = D; W.hiSide = hiSide;
+  const top = D.slice().sort((a, b) => b.lv - a.lv || R() - .5)[0]; top.type = 'shrine';
+  const kinds = shuf(['school', 'mansion', 'shops', 'paddy', R() < .6 ? 'grave' : 'town', 'town', 'town', 'town']);
+  shuf(D.filter(d => !d.type)).forEach((d, k) => d.type = kinds[k]);
+  // 入口と出口（向かい合う辺の真ん中の地区）
+  const sides = ['N', 'S', 'W', 'E'], opp = { N: 'S', S: 'N', W: 'E', E: 'W' };
+  const sSide = pick(sides), xSide = opp[sSide];
+  const midOf = sd => sd === 'N' ? D[1] : sd === 'S' ? D[7] : sd === 'W' ? D[3] : D[5];
+  const sD = midOf(sSide), xD = midOf(xSide);
+  // ---------------------------------------------------------------- 地区をつなぐ道（輪ができるように木＋余分な辺）
+  const E = []; for (const a of D) for (const b of D) if (a.id < b.id && adj(a, b)) E.push([a, b]);
+  const par = D.map((_, i) => i), fd = x => par[x] === x ? x : (par[x] = fd(par[x]));
+  const tree = [], extra = [];
+  for (const e of shuf(E)) { const ra = fd(e[0].id), rb = fd(e[1].id); if (ra !== rb) { par[ra] = rb; tree.push(e); } else extra.push(e); }
+  const links = tree.concat(extra.slice(0, 3));
+  const roads = W.roads;
+  const mkRoad = (pl, w, kind, ha, hb, s0, s1) => {
+    const p2 = [pl[0]]; for (let i = 1; i < pl.length; i++) if (Math.hypot(pl[i][0] - p2[p2.length - 1][0], pl[i][1] - p2[p2.length - 1][1]) > .05) p2.push(pl[i]);
+    const cum = [0]; for (let i = 1; i < p2.length; i++) cum.push(cum[i - 1] + Math.hypot(p2[i][0] - p2[i - 1][0], p2[i][1] - p2[i - 1][1]));
+    const r = { pl: p2, w, kind, ha, hb, s0: s0 == null ? 1e9 : s0, s1: s1 == null ? 1e9 : s1, cum, len: cum[cum.length - 1] }; roads.push(r); return r;
+  };
+  // A→B（隣どうし）の道：Z字に折れ、境目の直線部分が坂か石段になる
+  const linkRoad = (A, B) => {
+    const horiz = A.j === B.j; if ((horiz && A.i > B.i) || (!horiz && A.j > B.j)) { const t = A; A = B; B = t; }
+    const dl = B.lv - A.lv, toShrine = A.type === 'shrine' || B.type === 'shrine';
+    let kind, w, Lr;
+    if (dl === 0) { kind = toShrine || R() < .3 ? 'alley' : 'street'; w = kind === 'street' ? 4.6 : 2.4; Lr = 0; }
+    else { kind = toShrine || R() < .45 ? 'stairs' : 'slope'; w = kind === 'stairs' ? 2.8 : 4.2; Lr = kind === 'stairs' ? 5.6 : 13; }
+    const U = p => horiz ? p : [p[1], p[0]];
+    const au = horiz ? A.cx : A.cz, av = horiz ? A.cz : A.cx, bu = horiz ? B.cx : B.cz, bv = horiz ? B.cz : B.cx;
+    const ub = horiz ? A.x1 : A.z1, vlo = horiz ? A.z0 : A.x0, vhi = horiz ? A.z1 : A.x1;
+    const vc = clamp(lerp(av, bv, .5) + rf(-4, 4), vlo + 5, vhi - 5);
+    const ua = ub - Lr / 2 - 1.5, ubb = ub + Lr / 2 + 1.5, m1 = (au + ua) / 2, m2 = (ubb + bu) / 2;
+    const pl = [[au, av], [m1, av], [m1, vc], [ua, vc], [ubb, vc], [m2, vc], [m2, bv], [bu, bv]].map(U);
+    const r = mkRoad(pl, w, kind, A.lv * LH, B.lv * LH, 0, 0);
+    let s = 0; for (let i = 0; i < r.pl.length - 1; i++) { const a = r.pl[i], b = r.pl[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]); const ca = horiz ? a[0] : a[1], cb = horiz ? b[0] : b[1]; if (ca <= ub - Lr / 2 && cb >= ub + Lr / 2) { r.s0 = s + (ub - Lr / 2 - ca); r.s1 = r.s0 + Lr; break; } s += l; }
+    if (dl === 0) { r.s0 = r.s1 = 1e9; }
+    if (kind === 'stairs') { const p0 = U([ub - Lr / 2, vc]), p1 = U([ub + Lr / 2, vc]); W.stairs.push({ x0: p0[0], z0: p0[1], x1: p1[0], z1: p1[1], w, ha: A.lv * LH, hb: B.lv * LH }); }
+    A.links.push(B.id); B.links.push(A.id);
+    return r;
+  };
+  for (const [a, b] of links) linkRoad(a, b);
+  // 外へ出る道（入口・出口）
+  const outRoad = (d, sd) => { const p = sd === 'N' ? [d.cx, -12] : sd === 'S' ? [d.cx, S + 12] : sd === 'W' ? [-12, d.cz] : [S + 12, d.cz]; return mkRoad([[d.cx, d.cz], p], 4.6, 'street', d.lv * LH, d.lv * LH); };
+  outRoad(sD, sSide); outRoad(xD, xSide);
+  // 住宅地・商店街には行き止まりの路地を足す
+  for (const d of D) if (d.type === 'town' || d.type === 'shops') {
+    const dirs = shuf([[1, 0], [-1, 0], [0, 1], [0, -1]]);
+    for (const [ux, uz] of dirs.slice(0, d.type === 'town' ? 2 : 1)) {
+      const L = rf(11, 16), ex = clamp(d.cx + ux * L, d.x0 + 3, d.x1 - 3), ez = clamp(d.cz + uz * L, d.z0 + 3, d.z1 - 3);
+      mkRoad([[d.cx, d.cz], [ex, ez]], 2.2, 'alley', d.lv * LH, d.lv * LH);
+    }
+  }
+  // ---------------------------------------------------------------- 高さを決める
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) setH(j * TN + i, dAt(i + .5, j + .5).lv * LH);
+  // 棚田：坂の下へ向かって一段ずつ下がる
+  for (const d of D) if (d.type === 'paddy') {
+    const ax = hiSide === 'N' || hiSide === 'S' ? 'z' : 'x', dirHi = hiSide === 'N' || hiSide === 'W' ? -1 : 1; // 高い側へ向かう座標の向き
+    const lo = ax === 'z' ? d.z0 : d.x0, n = 3, w = DS / n;
+    for (let k = 0; k < n; k++) {
+      const a = lo + k * w, b = a + w, drop = (dirHi > 0 ? (n - 1 - k) : k) * .85;
+      if (ax === 'z') cells(d.x0, a, d.x1, b, c => setH(c, d.lv * LH - drop)); else cells(a, d.z0, b, d.z1, c => setH(c, d.lv * LH - drop));
+      const f = ax === 'z' ? [d.x0 + 1.2, a + .8, d.x1 - 1.2, b - .8] : [a + .8, d.z0 + 1.2, b - .8, d.z1 - 1.2];
+      W.fields.push({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], ax: ax === 'x', h: d.lv * LH - drop, d: d.id });
+      if (k < n - 1) { // 段と段のあいだの小道
+        const nd = (dirHi > 0 ? (n - 2 - k) : k + 1) * .85, t = rf(.25, .75);
+        const pa = ax === 'z' ? [lerp(d.x0, d.x1, t), b - 3.2] : [b - 3.2, lerp(d.z0, d.z1, t)], pb = ax === 'z' ? [pa[0], b + 3.2] : [b + 3.2, pa[1]];
+        const r = mkRoad([pa, pb], 2, 'path', d.lv * LH - drop, d.lv * LH - nd, 1.7, 4.7);
+      }
+    }
+  }
+  // 川：坂の下の地区を横切る。渡れるのは橋だけ
+  {
+    const lowSide = opp[hiSide], horizR = lowSide === 'N' || lowSide === 'S';
+    const inner = lowSide === 'S' ? D0 + 2 * DS : lowSide === 'N' ? D0 + DS : lowSide === 'E' ? D0 + 2 * DS : D0 + DS;
+    const c0 = inner + (lowSide === 'S' || lowSide === 'E' ? 1 : -1) * DS * .27;
+    const pl = []; let v = 0; for (let k = 0; k <= 8; k++) { v = clamp(v + rf(-1.5, 1.5), -2.5, 2.5); const u = -10 + k * (S + 20) / 8; pl.push(horizR ? [u, c0 + v] : [c0 + v, u]); }
+    W.river = { pl, w: 5.2 };
+    for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) { const d = plDist(i + .5, j + .5, pl); if (d < W.river.w / 2) { const c = j * TN + i; setH(c, dAt(i + .5, j + .5).lv * LH - 1.1); gk[c] = GK.river; } if (d < W.river.w / 2 + 1.3) res[j * TN + i] = Math.max(res[j * TN + i], 2); }
+  }
+  // 道：道の上は道の高さ（坂・石段は滑らかにつながる）
+  const roadProj = (r, x, z) => { let best = 1e9, bs = 0; for (let i = 0; i < r.pl.length - 1; i++) { const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz, t = l2 ? clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1) : 0, d = Math.hypot(x - ax - dx * t, z - az - dz * t); if (d < best - 1e-9) { best = d; bs = r.cum[i] + Math.sqrt(l2) * t; } } return [best, bs]; };
+  const roadH = (r, s) => s <= r.s0 ? r.ha : s >= r.s1 ? r.hb : lerp(r.ha, r.hb, (s - r.s0) / (r.s1 - r.s0));
+  const RK = { street: GK.road, slope: GK.road, alley: GK.alley, stairs: GK.stair, path: GK.path };
+  for (const r of roads) {
+    let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9; for (const p of r.pl) { x0 = Math.min(x0, p[0]); z0 = Math.min(z0, p[1]); x1 = Math.max(x1, p[0]); z1 = Math.max(z1, p[1]); }
+    const m = r.w / 2 + 1.2;
+    cells(x0 - m, z0 - m, x1 + m, z1 + m, (c, i, j) => {
+      const [d, s] = roadProj(r, i + .5, j + .5);
+      if (d < r.w / 2 + .9) res[c] = Math.max(res[c], 1);
+      if (d >= r.w / 2) return;
+      if (gk[c] === GK.river) W.bridges.push(c);
+      const k = c * 4; const cs = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+      for (let q = 0; q < 4; q++) hc[k + q] = roadH(r, roadProj(r, cs[q][0], cs[q][1])[1]);
+      gk[c] = r.kind === 'stairs' && s > r.s0 - .3 && s < r.s1 + .3 ? GK.stair : (r.kind === 'stairs' ? GK.alley : RK[r.kind]);
+      res[c] = Math.max(res[c], 1);
+    });
+  }
+  // ---------------------------------------------------------------- 段差に石垣（壁）をつくる
+  const cornerEdge = (c, side) => { const k = c * 4; return side === 'E' ? [hc[k + 1], hc[k + 2]] : side === 'W' ? [hc[k], hc[k + 3]] : side === 'S' ? [hc[k + 3], hc[k + 2]] : [hc[k], hc[k + 1]]; };
+  const runs = [];
+  for (let i = 0; i < TN - 1; i++) { let run = null; for (let j = 0; j < TN; j++) {
+    const a = j * TN + i, b = a + 1, ea = cornerEdge(a, 'E'), eb = cornerEdge(b, 'W'), df = Math.max(Math.abs(ea[0] - eb[0]), Math.abs(ea[1] - eb[1]));
+    if (df > .55) { const lowA = ea[0] + ea[1] < eb[0] + eb[1]; W.cliffs.push({ x0: i + 1, z0: j, x1: i + 1, z1: j + 1, l0: Math.min(ea[0], eb[0]), l1: Math.min(ea[1], eb[1]), h0: Math.max(ea[0], eb[0]), h1: Math.max(ea[1], eb[1]), nx: lowA ? -1 : 1, nz: 0 });
+      if (run && run.lowA === lowA && j - run.j0 < 10) { run.j1 = j + 1; run.lo = Math.min(run.lo, ...ea, ...eb); run.hi = Math.max(run.hi, ...ea, ...eb); } else { if (run) runs.push(run); run = { v: 1, i: i + 1, j0: j, j1: j + 1, lowA, lo: Math.min(...ea, ...eb), hi: Math.max(...ea, ...eb) }; } }
+    else if (run) { runs.push(run); run = null; }
+  } if (run) runs.push(run); }
+  for (let j = 0; j < TN - 1; j++) { let run = null; for (let i = 0; i < TN; i++) {
+    const a = j * TN + i, b = a + TN, ea = cornerEdge(a, 'S'), eb = cornerEdge(b, 'N'), df = Math.max(Math.abs(ea[0] - eb[0]), Math.abs(ea[1] - eb[1]));
+    if (df > .55) { const lowA = ea[0] + ea[1] < eb[0] + eb[1]; W.cliffs.push({ x0: i, z0: j + 1, x1: i + 1, z1: j + 1, l0: Math.min(ea[0], eb[0]), l1: Math.min(ea[1], eb[1]), h0: Math.max(ea[0], eb[0]), h1: Math.max(ea[1], eb[1]), nx: 0, nz: lowA ? -1 : 1 });
+      if (run && run.lowA === lowA && i - run.i0 < 10) { run.i1 = i + 1; run.lo = Math.min(run.lo, ...ea, ...eb); run.hi = Math.max(run.hi, ...ea, ...eb); } else { if (run) runs.push(run); run = { v: 0, j: j + 1, i0: i, i1: i + 1, lowA, lo: Math.min(...ea, ...eb), hi: Math.max(...ea, ...eb) }; } }
+    else if (run) { runs.push(run); run = null; }
+  } if (run) runs.push(run); }
+  for (const r of runs) {
+    const s = r.v ? solid(r.i - .1, r.j0, r.i + .1, r.j1, r.hi - r.lo + .9, 'cliff', { y0: r.lo, run: r }) : solid(r.i0, r.j - .1, r.i1, r.j + .1, r.hi - r.lo + .9, 'cliff', { y0: r.lo, run: r });
+    s.lip = r.hi; // 上の地面の高さ（見通しはここまでで切る）
+    if (r.hi - r.lo > 1.0) W.rails.push(r.v ? { x0: r.i + (r.lowA ? .12 : -.12), z0: r.j0, x1: r.i + (r.lowA ? .12 : -.12), z1: r.j1 } : { x0: r.i0, z0: r.j + (r.lowA ? .12 : -.12), x1: r.i1, z1: r.j + (r.lowA ? .12 : -.12) });
+  }
+  W.runs = runs;
+  // ---------------------------------------------------------------- 外周の森・入口と出口
+  const ends = [{ side: sSide, c: sSide === 'N' || sSide === 'S' ? sD.cx : sD.cz, d: sD }, { side: xSide, c: xSide === 'N' || xSide === 'S' ? xD.cx : xD.cz, d: xD }];
   const P = (e, d, o) => e.side === 'W' ? [d, e.c + o] : e.side === 'E' ? [S - d, e.c + o] : e.side === 'N' ? [e.c + o, d] : [e.c + o, S - d];
   const inward = e => e.side === 'W' ? [1, 0] : e.side === 'E' ? [-1, 0] : e.side === 'N' ? [0, 1] : [0, -1];
   W.P = P; W.ends = ends;
-  const sEnd = pick(ends);
-  const sp0 = P(sEnd, BAND + 6, 0);
-  let xEnd = ends[0], bd = -1; for (const e of ends) { if (e === sEnd) continue; const q = P(e, 10, 0), d = Math.hypot(q[0] - sp0[0], q[1] - sp0[1]); if (d > bd) { bd = d; xEnd = e; } }
+  const sEnd = ends[0], xEnd = ends[1];
   W.obj = Q.get('obj') || pick(['car', 'gate', 'tunnel']);
   W.exit = xEnd; W.startEnd = sEnd;
-  const inw = inward(sEnd);
+  const sp0 = P(sEnd, BAND + 5, 0), inw = inward(sEnd);
   W.spawn = [[sp0[0] - inw[1] * .9, sp0[1] + inw[0] * .9], [sp0[0] + inw[1] * .9, sp0[1] - inw[0] * .9]];
   W.spawnYaw = Math.atan2(inw[0], inw[1]);
   const gapW = W.obj === 'gate' ? 6 : W.obj === 'tunnel' ? 2.4 : 0;
-  for (const e of ends) {
+  for (const sd of sides) {
+    const e = ends.find(q => q.side === sd) || { side: sd, c: S / 2 };
     const g = e === xEnd ? gapW : 0, lo = -30 - e.c, hi = S + 30 - e.c;
-    const band = (o0, o1) => { const a = P(e, -30, o0), b = P(e, BAND, o1); solid(a[0], a[1], b[0], b[1], 4, 'band'); };
+    const band = (o0, o1) => { const a = P(e, -30, o0), b = P(e, BAND, o1); solid(a[0], a[1], b[0], b[1], 60, 'band', { y0: -20 }); };
     if (g) { band(lo, -g); band(g, hi); } else band(lo, hi);
-    const a = P(e, -30, lo), b = P(e, .6, hi); solid(a[0], a[1], b[0], b[1], 6, 'band');
-    if (e !== xEnd || W.obj === 'car') { // 土砂崩れで塞がれた道
-      const a2 = P(e, BAND - .2, -4.5), b2 = P(e, BAND + 1.6, 4.5); solid(a2[0], a2[1], b2[0], b2[1], 1.4, 'slide');
-      W.deco.push({ k: 'slide', e: e.side, c: e.c, at: P(e, BAND + .7, 0) });
-    }
+    const a = P(e, -30, lo), b = P(e, .6, hi); solid(a[0], a[1], b[0], b[1], 60, 'band', { y0: -20 });
+    if (ends.includes(e) && (e !== xEnd || W.obj === 'car')) { const a2 = P(e, BAND - .2, -4.5), b2 = P(e, BAND + 1.6, 4.5); solid(a2[0], a2[1], b2[0], b2[1], 1.4, 'slide'); W.deco.push({ k: 'slide', e: e.side, c: e.c, at: P(e, BAND + .7, 0) }); }
   }
-  occ.push([sp0[0] - 7, sp0[1] - 7, sp0[0] + 7, sp0[1] + 7]);
-  // 脱出の仕掛け
-  const xin = inward(xEnd), yawIn = Math.atan2(xin[0], xin[1]);
-  const along2 = xEnd.side === 'W' || xEnd.side === 'E';
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) { const d = Math.min(i, j, TN - 1 - i, TN - 1 - j); if (d < BAND + 1) res[j * TN + i] = Math.max(res[j * TN + i], 3); }
+  reserve(sp0[0] - 5, sp0[1] - 5, sp0[0] + 5, sp0[1] + 5, 3);
+  const xin = inward(xEnd), yawIn = Math.atan2(xin[0], xin[1]), along2 = xEnd.side === 'W' || xEnd.side === 'E';
   if (W.obj === 'car') {
-    const [cx, cz] = P(xEnd, BAND + 5, .8); const L = 2.1, Wd = .95;
-    W.objs.car = { x: cx, z: cz, yaw: yawIn + Math.PI };
+    const [cx, cz] = P(xEnd, BAND + 5, .8); const L = 2.1, Wd = .95; W.objs.car = { x: cx, z: cz, yaw: yawIn + Math.PI };
     if (along2) solid(cx - L, cz - Wd, cx + L, cz + Wd, 1.5, 'car', { see: 1 }); else solid(cx - Wd, cz - L, cx + Wd, cz + L, 1.5, 'car', { see: 1 });
-    occ.push([cx - 6, cz - 6, cx + 6, cz + 6]);
+    reserve(cx - 5, cz - 5, cx + 5, cz + 5, 3);
   } else if (W.obj === 'gate') {
     const a = P(xEnd, BAND - 1, -6), b = P(xEnd, BAND, 6); W.objs.gate = { s: solid(a[0], a[1], b[0], b[1], 3, 'gate', { see: 1 }), c: P(xEnd, BAND - .5, 0), yaw: yawIn };
     for (const o of [-6.6, 6.6]) { const q = P(xEnd, BAND - .5, o); solid(q[0] - .35, q[1] - .35, q[0] + .35, q[1] + .35, 3.4, 'conc'); }
@@ -243,230 +369,356 @@ function genWorld(seed) {
     const a = P(xEnd, BAND - 3.3, -2.4), b = P(xEnd, BAND - 3.0, 2.4); W.objs.chain = { s: solid(a[0], a[1], b[0], b[1], 4.5, 'chain', { see: 1 }), c: P(xEnd, BAND - 3.15, 0), yaw: yawIn };
     W.objs.tunnel = { c: P(xEnd, BAND - 1.5, 0), yaw: yawIn };
   }
-  // 家
-  let tries = 0;
-  const DW = 1.3, T = .2;
-  while (W.houses.length < 22 && tries++ < 900) {
-    const r = pick(W.roads); const si = ri(0, r.pl.length - 2), t = R(); const [ax, az] = r.pl[si], [bx, bz] = r.pl[si + 1];
-    const px = lerp(ax, bx, t), pz = lerp(az, bz, t), L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L, nz = (bx - ax) / L;
-    const side = R() < .5 ? 1 : -1, off = r.w / 2 + rf(4.5, 8.5);
-    const w = ri(6, 9) + (R() < .5 ? .5 : 0), d = ri(5, 7);
-    const cx = px + nx * side * off, cz = pz + nz * side * off, x0 = cx - w / 2, z0 = cz - d / 2, x1 = cx + w / 2, z1 = cz + d / 2;
-    if (!clear(x0 - 1.4, z0 - 1.4, x1 + 1.4, z1 + 1.4)) continue;
-    occ.push([x0 - 1.4, z0 - 1.4, x1 + 1.4, z1 + 1.4]);
-    const tx = -nx * side, tz = -nz * side;
-    const door = Math.abs(tx) > Math.abs(tz) ? (tx > 0 ? 'E' : 'W') : (tz > 0 ? 'S' : 'N');
-    const opp = { N: 'S', S: 'N', E: 'W', W: 'E' }[door];
-    const h = { x0, z0, x1, z1, doors: [door], gaps: [], rooms: [], sol: [] }; W.houses.push(h);
-    if (R() < .55) h.doors.push(opp);
-    const wall = (a, b, c, d2) => h.sol.push(solid(a, b, c, d2, WALL_H, 'wall'));
-    const sides = { N: [x0, z0, x1, z0 + T, 'x'], S: [x0, z1 - T, x1, z1, 'x'], W: [x0, z0, x0 + T, z1, 'z'], E: [x1 - T, z0, x1, z1, 'z'] };
-    for (const k in sides) {
-      const [a, b, c, d2, ax2] = sides[k];
-      if (h.doors.includes(k)) {
-        if (ax2 === 'x') { const g = rf(a + 1, c - 1 - DW); wall(a, b, g, d2); wall(g + DW, b, c, d2); h.gaps.push([g + DW / 2, (b + d2) / 2]); }
-        else { const g = rf(b + 1, d2 - 1 - DW); wall(a, b, c, g); wall(a, g + DW, c, d2); h.gaps.push([(a + c) / 2, g + DW / 2]); }
-      } else wall(a, b, c, d2);
-    }
-    if (w >= 7) {
-      const px2 = rf(x0 + 3, x1 - 3), g = rf(z0 + 1, z1 - 1 - DW);
-      wall(px2 - T / 2, z0, px2 + T / 2, g); wall(px2 - T / 2, g + DW, px2 + T / 2, z1); h.gaps.push([px2, g + DW / 2]);
-      h.rooms = [[x0, z0, px2, z1], [px2, z0, x1, z1]];
-    } else h.rooms = [[x0, z0, x1, z1]];
-    // 家具（押し入れ・卓袱台）
-    for (const rm of h.rooms) {
-      for (let k = 0; k < 8; k++) {
-        const sd = pick(['N', 'S', 'W', 'E']); const [r0, s0, r1, s1] = [rm[0] + T, rm[1] + T, rm[2] - T, rm[3] - T];
-        let c;
-        if (sd === 'N' || sd === 'S') { const x = rf(r0 + .6, r1 - .6), z = sd === 'N' ? s0 : s1 - .6; c = [x - .55, z, x + .55, z + .6, sd === 'N' ? 0 : Math.PI]; }
-        else { const z = rf(s0 + .6, s1 - .6), x = sd === 'W' ? r0 : r1 - .6; c = [x, z - .55, x + .6, z + .55, sd === 'W' ? Math.PI / 2 : -Math.PI / 2]; }
-        if (c[0] < r0 - .01 || c[2] > r1 + .01 || c[1] < s0 - .01 || c[3] > s1 + .01) continue;
-        if (h.gaps.some(g => Math.hypot(g[0] - (c[0] + c[2]) / 2, g[1] - (c[1] + c[3]) / 2) < 1.9)) continue;
-        const s = solid(c[0], c[1], c[2], c[3], 1.8, 'closet'); h.sol.push(s);
-        const yaw = c[4], fx = (c[0] + c[2]) / 2 + Math.sin(yaw) * .75, fz = (c[1] + c[3]) / 2 + Math.cos(yaw) * .75;
-        W.closets.push({ id: W.closets.length, x: fx, z: fz, cx: (c[0] + c[2]) / 2, cz: (c[1] + c[3]) / 2, yaw });
-        break;
-      }
-      if (R() < .6) {
-        const x = (rm[0] + rm[2]) / 2 + rf(-.5, .5), z = (rm[1] + rm[3]) / 2 + rf(-.5, .5);
-        if (!h.gaps.some(g => Math.hypot(g[0] - x, g[1] - z) < 1.8)) h.sol.push(solid(x - .45, z - .35, x + .45, z + .35, .4, 'table'));
-      }
-    }
-  }
-  // 窓とブロック塀
-  for (const h of W.houses) {
-    h.wins = []; h.lit = R() < .3;
-    for (const sd of ['N', 'S', 'W', 'E']) {
-      if (h.doors.includes(sd)) continue;
-      const len = sd === 'N' || sd === 'S' ? h.x1 - h.x0 : h.z1 - h.z0; if (len < 5 || R() < .25) continue;
-      h.wins.push({ sd, t: rf(.3, .7), sil: h.lit && R() < .55 });
-    }
-    if (R() < .45) {
-      const m = 1.15, bx0 = h.x0 - m, bz0 = h.z0 - m, bx1 = h.x1 + m, bz1 = h.z1 + m, GW = 1.15, T2 = .16, BH = 1.1;
-      const dg = h.gaps.slice(0, h.doors.length);
-      const run = (a0, a1, cuts, mk) => { let a = a0; for (const c of cuts.sort((p, q) => p - q)) { if (c - GW > a) mk(a, c - GW); a = Math.max(a, c + GW); } if (a < a1) mk(a, a1); };
-      run(bx0, bx1, dg.filter(g => Math.abs(g[1] - h.z0 - T / 2) < .3).map(g => g[0]), (a, b) => solid(a, bz0, b, bz0 + T2, BH, 'block'));
-      run(bx0, bx1, dg.filter(g => Math.abs(g[1] - h.z1 + T / 2) < .3).map(g => g[0]), (a, b) => solid(a, bz1 - T2, b, bz1, BH, 'block'));
-      run(bz0 + T2, bz1 - T2, dg.filter(g => Math.abs(g[0] - h.x0 - T / 2) < .3).map(g => g[1]), (a, b) => solid(bx0, a, bx0 + T2, b, BH, 'block'));
-      run(bz0 + T2, bz1 - T2, dg.filter(g => Math.abs(g[0] - h.x1 + T / 2) < .3).map(g => g[1]), (a, b) => solid(bx1 - T2, a, bx1, b, BH, 'block'));
-      h.block = 1;
-    }
-    // 家の角にドラム缶や木箱
-    for (const [cx, cz] of [[h.x0 - .55, h.z0 - .55], [h.x1 + .55, h.z0 - .55], [h.x0 - .55, h.z1 + .55], [h.x1 + .55, h.z1 + .55]]) {
-      const q = R(); if (q < .16) solid(cx - .3, cz - .3, cx + .3, cz + .3, .9, 'drum'); else if (q < .28) solid(cx - .35, cz - .35, cx + .35, cz + .35, R() < .5 ? .7 : 1.4, 'crate');
-    }
-  }
-  // 家の中の空いた場所
-  const houseSpot = (h) => {
-    for (let k = 0; k < 30; k++) {
-      const rm = pick(h.rooms); const x = rf(rm[0] + .6, rm[2] - .6), z = rf(rm[1] + .6, rm[3] - .6);
-      if (h.sol.some(s => x > s.x0 - .45 && x < s.x1 + .45 && z > s.z0 - .45 && z < s.z1 + .45)) continue;
-      if (h.gaps.some(g => Math.hypot(g[0] - x, g[1] - z) < 1)) continue;
-      return [x, z];
-    }
-    return null;
+  // ---------------------------------------------------------------- 建物
+  const nearRoadDist = (x, z, ux, uz, base) => { // (x,z)から(ux,uz)方向に道まで何mか。出てすぐ段差や建物なら∞
+    for (let s = 1; s <= 12; s++) { const c = Math.floor(z + uz * s) * TN + Math.floor(x + ux * s); if (c < 0 || c >= TN * TN) return Infinity; if (s <= 2 && (res[c] >= 3 || Math.abs(hc[c * 4] - base) > .45)) return Infinity; const k = gk[c]; if (k === GK.road || k === GK.alley || k === GK.path || k === GK.stair) return s; }
+    return 13;
   };
-  // 神社と墓
-  for (let k = 0; k < 120; k++) {
-    const x = rf(26, S - 26), z = rf(26, S - 26);
-    if (!clear(x - 7, z - 7, x + 7, z + 7, 2)) continue;
-    occ.push([x - 7, z - 7, x + 7, z + 7]);
-    W.shrine = { x, z };
-    solid(x - 2, z - 4.5, x + 2, z - 1.3, 2.2, 'hall');
-    solid(x - 1.8, z + 2.6, x - 1.5, z + 2.9, 3.3, 'torii'); solid(x + 1.5, z + 2.6, x + 1.8, z + 2.9, 3.3, 'torii');
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
-      if (R() < .2) continue;
-      const gx = x + 3.6 + j * 1.3 + rf(-.15, .15), gz = z - 4 + i * 1.7 + rf(-.2, .2);
-      solid(gx - .22, gz - .16, gx + .22, gz + .16, .8 + rf(-.1, .3), 'grave'); W.graves.push([gx, gz]);
+  const sideScore = (x0, z0, x1, z1, base) => ({ N: nearRoadDist((x0 + x1) / 2, z0 - .01, 0, -1, base), S: nearRoadDist((x0 + x1) / 2, z1 + .01, 0, 1, base), W: nearRoadDist(x0 - .01, (z0 + z1) / 2, -1, 0, base), E: nearRoadDist(x1 + .01, (z0 + z1) / 2, 1, 0, base) });
+  const bsp = (h, a, b, c, d, mn, depth, wall) => {
+    const w = c - a, e = d - b, canV = w >= 2 * mn + WT, canH = e >= 2 * mn + WT;
+    if (depth <= 0 || (!canV && !canH) || (depth === 1 && R() < .2)) { h.rooms.push([a, b, c, d]); return; }
+    const vert = canV && (!canH || R() < w / (w + e));
+    for (let t = 0; t < 14; t++) {
+      if (vert) { const s = rf(a + mn, c - mn); if (h.gaps.some(g => Math.abs(g[0] - s) < DW / 2 + .6 && g[1] > b - .6 && g[1] < d + .6)) continue; const g = rf(b + .35, d - .35 - DW); wall(s - WT / 2, b, s + WT / 2, g); wall(s - WT / 2, g + DW, s + WT / 2, d); h.gaps.push([s, g + DW / 2]); bsp(h, a, b, s - WT / 2, d, mn, depth - 1, wall); bsp(h, s + WT / 2, b, c, d, mn, depth - 1, wall); return; }
+      else { const s = rf(b + mn, d - mn); if (h.gaps.some(g => Math.abs(g[1] - s) < DW / 2 + .6 && g[0] > a - .6 && g[0] < c + .6)) continue; const g = rf(a + .35, c - .35 - DW); wall(a, s - WT / 2, g, s + WT / 2); wall(g + DW, s - WT / 2, c, s + WT / 2); h.gaps.push([g + DW / 2, s]); bsp(h, a, b, c, s - WT / 2, mn, depth - 1, wall); bsp(h, a, s + WT / 2, c, d, mn, depth - 1, wall); return; }
     }
-    break;
-  }
-  // 田畑
-  for (let k = 0; k < 90 && W.fields.length < 5; k++) {
-    const h = pick(W.houses); if (!h) break;
-    const w = rf(9, 14), d = rf(7, 10), x = (h.x0 + h.x1) / 2 + rf(-16, 16), z = (h.z0 + h.z1) / 2 + rf(-16, 16);
-    if (!clear(x - w / 2, z - d / 2, x + w / 2, z + d / 2, 1)) continue;
-    occ.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2]);
-    W.fields.push({ x0: x - w / 2, z0: z - d / 2, x1: x + w / 2, z1: z + d / 2, ax: R() < .5 });
-    if (R() < .7) { const sx = x + rf(-w / 3, w / 3), sz = z + rf(-d / 3, d / 3); solid(sx - .1, sz - .1, sx + .1, sz + .1, 1.6, 'pole', { see: 1 }); W.deco.push({ k: 'scare', x: sx, z: sz, yaw: rf(0, TAU) }); }
-  }
-  // 電柱と街灯
-  const poles = [];
-  for (const r of W.roads.slice(0, 2)) {
-    let acc = 0, sideS = 1;
-    for (let i = 0; i < r.pl.length - 1; i++) {
-      const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1], L = Math.hypot(bx - ax, bz - az);
-      for (let s = 0; s < L; s += 1) {
-        acc += 1; if (acc < 17) continue; acc = 0; sideS = -sideS;
-        const t = s / L, px = lerp(ax, bx, t), pz = lerp(az, bz, t), nx = -(bz - az) / L, nz = (bx - ax) / L;
-        const x = px + nx * sideS * (r.w / 2 + 1), z = pz + nz * sideS * (r.w / 2 + 1);
-        if (x < 16 || z < 16 || x > S - 16 || z > S - 16 || onRiver(x, z, 1) || hit(x - .3, z - .3, x + .3, z + .3)) continue;
-        solid(x - .15, z - .15, x + .15, z + .15, 7, 'pole'); poles.push([x, z, -nx * sideS, -nz * sideS]);
+    h.rooms.push([a, b, c, d]);
+  };
+  const furnish = (h, rm, o = {}) => {
+    const [r0, s0, r1, s1] = rm;
+    const nearGap = (x, z, r) => h.gaps.some(g => Math.hypot(g[0] - x, g[1] - z) < r);
+    if (o.closet !== false) for (let k = 0; k < 10; k++) {
+      const sd = pick(['N', 'S', 'W', 'E']); let c;
+      if (sd === 'N' || sd === 'S') { if (r1 - r0 < 1.5) continue; const x = rf(r0 + .6, r1 - .6), z = sd === 'N' ? r0 * 0 + s0 : s1 - .6; c = [x - .55, z, x + .55, z + .6, sd === 'N' ? 0 : Math.PI]; }
+      else { if (s1 - s0 < 1.5) continue; const z = rf(s0 + .6, s1 - .6), x = sd === 'W' ? r0 : r1 - .6; c = [x, z - .55, x + .6, z + .55, sd === 'W' ? Math.PI / 2 : -Math.PI / 2]; }
+      if (nearGap((c[0] + c[2]) / 2, (c[1] + c[3]) / 2, 1.9)) continue;
+      const s = solid(c[0], c[1], c[2], c[3], 1.8, o.locker ? 'locker' : 'closet', { y0: h.base }); h.sol.push(s);
+      const yaw = c[4], fx = (c[0] + c[2]) / 2 + Math.sin(yaw) * .75, fz = (c[1] + c[3]) / 2 + Math.cos(yaw) * .75;
+      W.closets.push({ id: W.closets.length, x: fx, z: fz, cx: (c[0] + c[2]) / 2, cz: (c[1] + c[3]) / 2, yaw, h: h.base, locker: !!o.locker });
+      break;
+    }
+    if (o.table !== false && R() < .65 && r1 - r0 > 2.4 && s1 - s0 > 2.4) { const x = (r0 + r1) / 2 + rf(-.4, .4), z = (s0 + s1) / 2 + rf(-.4, .4); if (!nearGap(x, z, 1.8)) h.sol.push(solid(x - .45, z - .35, x + .45, z + .35, .4, 'table', { y0: h.base })); }
+    if (o.butsu || (o.butsu !== false && R() < .18)) for (let k = 0; k < 6; k++) { const sd = pick(['N', 'S']); const x = rf(r0 + .6, r1 - .6), z = sd === 'N' ? s0 : s1 - .5; if (nearGap(x, z + .25, 1.8) || h.sol.some(s => x + .5 > s.x0 && x - .5 < s.x1 && z + .5 > s.z0 && z < s.z1)) continue; h.sol.push(solid(x - .45, z, x + .45, z + .5, 1.25, 'butsu', { y0: h.base, face: sd === 'N' ? 0 : Math.PI })); break; }
+  };
+  // 家をひとつ建てる。o.doors：[{sd,at,w,bar}]、o.plan：間取りを自分で作る関数
+  const building = (x0, z0, x1, z1, o = {}) => {
+    const base = hAt((x0 + x1) / 2, (z0 + z1) / 2);
+    let doors = o.doors;
+    if (!doors) { const sc = sideScore(x0, z0, x1, z1, base), order = ['N', 'S', 'W', 'E'].filter(k => sc[k] < Infinity).sort((a, b) => sc[a] - sc[b]); if (!order.length) return null; doors = [{ sd: order[0] }]; if (order.length > 1 && R() < .6) doors.push({ sd: order.find(k => k === opp[order[0]]) || order[1] }); }
+    const h = { x0, z0, x1, z1, base, kind: o.kind || 'house', doors: [], gaps: [], ext: [], rooms: [], sol: [], wins: [], lit: R() < .3, wh: o.wh || WALL_H, d: dAt((x0 + x1) / 2, (z0 + z1) / 2).id, name: o.name };
+    W.houses.push(h); reserve(x0 - .3, z0 - .3, x1 + .3, z1 + .3, 3); paint(x0, z0, x1, z1, GK.floor);
+    const wall = (a, b, c, d) => { const s = solid(a, b, c, d, h.wh, o.wallK || 'wall', { y0: base }); h.sol.push(s); return s; };
+    const SD = { N: [x0, z0, x1, z0 + WT, 'x'], S: [x0, z1 - WT, x1, z1, 'x'], W: [x0, z0, x0 + WT, z1, 'z'], E: [x1 - WT, z0, x1, z1, 'z'] };
+    for (const sd of ['N', 'S', 'W', 'E']) {
+      const [a, b, c, d, ax] = SD[sd], lo = ax === 'x' ? a : b, hi = ax === 'x' ? c : d;
+      const gs = doors.filter(q => q.sd === sd).map(q => { const w = q.w || DW, at = q.at != null ? clamp(q.at, lo + .5 + w / 2, hi - .5 - w / 2) : rf(lo + .9 + w / 2, hi - .9 - w / 2); return [at - w / 2, at + w / 2, q]; }).sort((p, q) => p[0] - q[0]);
+      let cur = lo;
+      for (const [g0, g1, q] of gs) {
+        if (g0 < cur + .05) continue;
+        ax === 'x' ? wall(cur, b, g0, d) : wall(a, cur, c, g0);
+        const gp = ax === 'x' ? [(g0 + g1) / 2, (b + d) / 2] : [(a + c) / 2, (g0 + g1) / 2];
+        h.gaps.push(gp); h.ext.push({ sd, x: gp[0], z: gp[1], w: g1 - g0, q });
+        if (q.bar) { const bs = ax === 'x' ? solid(g0, b - .05, g1, d + .05, h.wh - .3, 'bar', { y0: base }) : solid(a - .05, g0, c + .05, g1, h.wh - .3, 'bar', { y0: base }); const nn = { N: [0, 1], S: [0, -1], W: [1, 0], E: [-1, 0] }[sd]; W.bars.push({ id: W.bars.length, s: bs, x: gp[0], z: gp[1], nx: nn[0] * (q.inside === false ? -1 : 1), nz: nn[1] * (q.inside === false ? -1 : 1), sd }); }
+        cur = g1;
+      }
+      if (cur < hi - .01) ax === 'x' ? wall(cur, b, hi, d) : wall(a, cur, c, hi);
+    }
+    h.doors = [...new Set(h.ext.map(e => e.sd))];
+    const inner = [x0 + WT, z0 + WT, x1 - WT, z1 - WT];
+    if (o.plan) o.plan(h, inner, wall); else bsp(h, ...inner, o.minRoom || 2.9, o.depth != null ? o.depth : 2, wall);
+    if (!o.noFurn) h.rooms.forEach((rm, k) => furnish(h, rm, { butsu: o.butsuRoom === k ? true : undefined }));
+    for (const sd of ['N', 'S', 'W', 'E']) { if (h.doors.includes(sd) || o.noWin) continue; const len = sd === 'N' || sd === 'S' ? x1 - x0 : z1 - z0; if (len < 4) continue; const n = len > 9 ? 2 : 1; for (let k = 0; k < n; k++) if (R() < .75) h.wins.push({ sd, t: n === 1 ? rf(.3, .7) : (k + .5) / n + rf(-.08, .08), sil: h.lit && R() < .5 }); }
+    return h;
+  };
+  // 空いた場所に長方形を探す
+  const fitRect = (d, w, e, tries = 80, m = 1) => { for (let t = 0; t < tries; t++) { const sw = R() < .5, W2 = sw ? e : w, E2 = sw ? w : e; const x = rf(d.x0 + 1.5, d.x1 - 1.5 - W2), z = rf(d.z0 + 1.5, d.z1 - 1.5 - E2); if (flatFree(x - m, z - m, x + W2 + m, z + E2 + m)) return [x, z, x + W2, z + E2]; } return null; };
+  const guill = (a, b, c, d, mn, mx, out) => { const w = c - a, e = d - b; if (w < mn || e < mn) return; if (w <= mx && e <= mx) { out.push([a, b, c, d]); return; } const gap = rf(1.7, 2.6); if (w >= e) { const s = rf(a + mn, c - mn - gap); if (s < a + mn - 1e-6 || c - s - gap < mn) { out.push([a, b, c, d]); return; } guill(a, b, s, d, mn, mx, out); guill(s + gap, b, c, d, mn, mx, out); } else { const s = rf(b + mn, d - mn - gap); if (s < b + mn - 1e-6 || d - s - gap < mn) { out.push([a, b, c, d]); return; } guill(a, b, c, s, mn, mx, out); guill(a, s + gap, c, d, mn, mx, out); } };
+  const townLots = (d, prob = .8) => {
+    const out = []; guill(d.x0 + 1.2, d.z0 + 1.2, d.x1 - 1.2, d.z1 - 1.2, 6, 11, out);
+    for (const l of shuf(out)) {
+      if (R() > prob) { if (flatFree(l[0], l[1], l[2], l[3], 1)) W.deco.push({ k: 'vacant', r: l }); continue; }
+      for (let t = 0; t < 6; t++) { const w = Math.min(l[2] - l[0] - .6, rf(6, 10)), e = Math.min(l[3] - l[1] - .6, rf(5.5, 8.5)); if (w < 5.5 || e < 5) break; const x = rf(l[0] + .3, l[2] - .3 - w), z = rf(l[1] + .3, l[3] - .3 - e); if (flatFree(x - .6, z - .6, x + w + .6, z + e + .6)) { building(x, z, x + w, z + e, { depth: w * e > 60 ? 2 : 1 }); break; } }
+    }
+  };
+  const inD = (d, x, z, m = 0) => x > d.x0 + m && x < d.x1 - m && z > d.z0 + m && z < d.z1 - m;
+  for (const d of shuf(D.slice())) {
+    const base = d.lv * LH;
+    if (d.type === 'school') {
+      let placed = false;
+      for (const [L, Dp] of [[24, 10.5], [21, 9.5], [18, 9]]) {
+        const r = fitRect(d, L, Dp, 120, 1.4); if (!r) continue;
+        const along = r[2] - r[0] >= r[3] - r[1], sc = sideScore(r[0], r[1], r[2], r[3], hAt(r[0] + 1, r[1] + 1));
+        const yard = along ? (sc.N <= sc.S ? 'N' : 'S') : (sc.W <= sc.E ? 'W' : 'E');
+        const [x0, z0, x1, z1] = r, Lw = along ? x1 - x0 : z1 - z0, Dd = along ? z1 - z0 : x1 - x0, CW = 2.5, nR = Lw > 22 ? 3 : 2;
+        const T2 = (u, v) => yard === 'N' ? [x0 + u, z0 + v] : yard === 'S' ? [x0 + u, z1 - v] : yard === 'W' ? [x0 + v, z0 + u] : [x1 - v, z0 + u];
+        const Rct = (u0, v0, u1, v1) => { const a = T2(u0, v0), b = T2(u1, v1); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; };
+        const at = (u, v) => { const p = T2(u, v); return along ? p[0] : p[1]; }, atV = v => { const p = T2(0, v); return along ? p[1] : p[0]; };
+        const endA = along ? 'W' : 'N', endB = along ? 'E' : 'S';
+        const roomW = (Lw - WT * 2) / (nR + 1);
+        const doors = [{ sd: endA, at: atV(WT + CW / 2), w: 1.6 }, { sd: endB, at: atV(WT + CW / 2), w: 1.3, bar: 1 }, { sd: yard, at: at(WT + roomW * .5, 0), w: 1.6 }, { sd: yard, at: at(Lw - WT - roomW * .7, 0), w: 1.3 }];
+        building(x0, z0, x1, z1, {
+          kind: 'school', name: '学校', doors, noFurn: true, wh: 3,
+          plan: (h, inner, wall) => {
+            const vC = WT + CW; const cw = Rct(WT, vC, Lw - WT, vC + WT); // 廊下と教室のあいだの壁
+            const roomsU = []; for (let k = 0; k <= nR; k++) roomsU.push([WT + k * roomW, WT + (k + 1) * roomW]);
+            // 廊下側の壁（各部屋に戸がふたつ）
+            let cur = WT; const cuts = [];
+            roomsU.forEach(([u0, u1]) => { cuts.push(u0 + .9, u1 - .9 - 1.2); });
+            for (const cu of cuts.sort((a, b) => a - b)) { if (cu > cur + .05) wall(...Rct(cur, vC, cu, vC + WT)); const gp = T2(cu + .6, vC + WT / 2); h.gaps.push(gp); cur = cu + 1.2; }
+            if (cur < Lw - WT) wall(...Rct(cur, vC, Lw - WT, vC + WT));
+            h.rooms.push(Rct(WT, WT, Lw - WT, vC)); // 廊下
+            roomsU.forEach(([u0, u1], k) => {
+              if (k < nR) wall(...Rct(u1 - WT / 2, vC + WT, u1 + WT / 2, Dd - WT));
+              const rm = Rct(u0 + (k ? WT / 2 : 0), vC + WT, u1 - (k < nR ? WT / 2 : 0), Dd - WT); h.rooms.push(rm);
+              const staff = k === nR;
+              if (!staff) { // 教室：机が並ぶ
+                for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) { const cu = u0 + 1.4 + a * (roomW - 2.6) / 2, cv = vC + WT + 1.9 + b * 1.35; if (cv > Dd - WT - 1.4) continue; const q = Rct(cu - .32, cv - .22, cu + .32, cv + .22); h.sol.push(solid(q[0], q[1], q[2], q[3], .72, 'desk', { y0: h.base })); }
+                const bb = T2((u0 + u1) / 2, Dd - WT - .03); W.boards.push({ x: bb[0], z: bb[1], y: h.base + 1.1, yaw: Math.atan2(...(() => { const p0 = T2(0, Dd), p1 = T2(0, 0); return [p1[0] - p0[0], p1[1] - p0[1]]; })()), w: roomW - 1.6, along });
+                furnish(h, rm, { locker: true, table: false, butsu: false });
+              } else { // 職員室
+                for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) { const cu = u0 + 1.6 + a * 1.9, cv = vC + WT + 1.6 + b * 2.2; if (cv > Dd - WT - 1) continue; const q = Rct(cu - .5, cv - .35, cu + .5, cv + .35); h.sol.push(solid(q[0], q[1], q[2], q[3], .75, 'desk', { y0: h.base })); }
+                furnish(h, rm, { table: false, butsu: false }); h.staff = rm;
+              }
+            });
+          },
+        });
+        // 校庭
+        const yr = along ? [x0, yard === 'N' ? z0 - 12 : z1 + .5, x1, yard === 'N' ? z0 - .5 : z1 + 12] : [yard === 'W' ? x0 - 12 : x1 + .5, z0, yard === 'W' ? x0 - .5 : x1 + 12, z1];
+        cells(yr[0], yr[1], yr[2], yr[3], c => { if (!res[c] && isFlat(c) && Math.abs(hc[c * 4] - hAt(x0 + 1, z0 + 1)) < .01) { gk[c] = GK.yard; res[c] = 2; } });
+        const yc = [(yr[0] + yr[2]) / 2, (yr[1] + yr[3]) / 2];
+        if (flatFree(yc[0] - 1, yc[1] - 1, yc[0] + 1, yc[1] + 1, 3)) { solid(yc[0] - .45, yc[1] - .45, yc[0] + .45, yc[1] + .45, 1.1, 'pedestal'); W.props.push({ k: 'statue', x: yc[0], z: yc[1], yaw: Math.atan2(x0 - yc[0] + (x1 - x0) / 2, z0 - yc[1] + (z1 - z0) / 2) }); }
+        const bx = lerp(yr[0], yr[2], .2), bz = lerp(yr[1], yr[3], .3); if (flatFree(bx - 1.3, bz - .3, bx + 1.3, bz + .3, 3)) { solid(bx - 1.2, bz - .05, bx - 1.1, bz + .05, 1.5, 'post'); solid(bx + 1.1, bz - .05, bx + 1.2, bz + .05, 1.5, 'post'); W.props.push({ k: 'tetsubo', x: bx, z: bz }); }
+        placed = true; break;
+      }
+      if (!placed) d.type = 'town';
+    }
+    if (d.type === 'mansion') {
+      let placed = false;
+      for (const [A, B] of [[19, 16], [16, 14], [14, 12]]) {
+        const r = fitRect(d, A, B, 120, 1); if (!r) continue;
+        const [x0, z0, x1, z1] = r, sc = sideScore(x0, z0, x1, z1, hAt(x0 + 1, z0 + 1)), order = ['N', 'S', 'W', 'E'].filter(k => sc[k] < Infinity).sort((a, b) => sc[a] - sc[b]);
+        if (!order.length) continue;
+        const front = order[0], back = opp[front];
+        reserve(x0, z0, x1, z1, 3); paint(x0, z0, x1, z1, GK.gravel);
+        const T3 = .2, FH = 2.1, wall = (a, b, c, e) => solid(a, b, c, e, FH, 'fence');
+        const seg = (sd, gaps) => { const horiz = sd === 'N' || sd === 'S', lo = horiz ? x0 : z0, hi = horiz ? x1 : z1, fixed = sd === 'N' ? z0 : sd === 'S' ? z1 - T3 : sd === 'W' ? x0 : x1 - T3; let cur = lo; for (const [g0, g1, bar] of gaps.sort((a, b) => a[0] - b[0])) { horiz ? wall(cur, fixed, g0, fixed + T3) : wall(fixed, cur, fixed + T3, g0); const gp = horiz ? [(g0 + g1) / 2, fixed + T3 / 2] : [fixed + T3 / 2, (g0 + g1) / 2]; if (bar) { const bs = horiz ? solid(g0, fixed - .05, g1, fixed + T3 + .05, FH - .2, 'bar') : solid(fixed - .05, g0, fixed + T3 + .05, g1, FH - .2, 'bar'); const nn = { N: [0, 1], S: [0, -1], W: [1, 0], E: [-1, 0] }[sd]; W.bars.push({ id: W.bars.length, s: bs, x: gp[0], z: gp[1], nx: nn[0], nz: nn[1], sd }); } else W.deco.push({ k: 'mongate', x: gp[0], z: gp[1], horiz, w: g1 - g0 }); cur = g1; } horiz ? wall(cur, fixed, hi, fixed + T3) : wall(fixed, cur, fixed + T3, hi); };
+        const mid = sd => (sd === 'N' || sd === 'S') ? (x0 + x1) / 2 + rf(-2, 2) : (z0 + z1) / 2 + rf(-2, 2);
+        for (const sd of sides) { if (sd === front) { const m = mid(sd); seg(sd, [[m - 1.6, m + 1.6, 0]]); } else if (sd === back) { const m = mid(sd) + rf(-3, 3); seg(sd, [[m - .65, m + .65, 1]]); } else seg(sd, []); }
+        // 母屋
+        const hw = Math.min(11, A - 5), hd = Math.min(8, B - 6);
+        const inset = 1.2; let hx0, hz0;
+        if (front === 'N') { hx0 = x0 + rf(inset, A - hw - inset); hz0 = z1 - inset - hd; } else if (front === 'S') { hx0 = x0 + rf(inset, A - hw - inset); hz0 = z0 + inset; }
+        else if (front === 'W') { hx0 = x1 - inset - (hd > hw ? hw : hw); hz0 = z0 + rf(inset, B - hd - inset); } else { hx0 = x0 + inset; hz0 = z0 + rf(inset, B - hd - inset); }
+        const fr = front;
+        cells(x0 + .3, z0 + .3, x1 - .3, z1 - .3, c => { res[c] = 1; });
+        const mh = building(hx0, hz0, hx0 + hw, hz0 + hd, { kind: 'mansion', name: '旧家', doors: [{ sd: fr, w: 1.6 }, { sd: pick(fr === 'N' || fr === 'S' ? ['W', 'E'] : ['N', 'S']) }], depth: 3, minRoom: 2.8, butsuRoom: 0 });
+        // 蔵
+        const kw = 4.4, kd = 5; let kr = null;
+        for (let t = 0; t < 40 && !kr; t++) { const x = rf(x0 + 1, x1 - 1 - kw), z = rf(z0 + 1, z1 - 1 - kd); if (flatFree(x - .6, z - .6, x + kw + .6, z + kd + .6, 3)) kr = [x, z]; }
+        if (kr) { building(kr[0], kr[1], kr[0] + kw, kr[1] + kd, { kind: 'kura', name: '蔵', wallK: 'kura', doors: [{ sd: fr, w: 1.1 }], depth: 0, noWin: true, wh: 3.2 }); }
+        // 庭：池・石灯籠・松
+        for (let t = 0; t < 30; t++) { const pw = rf(3, 4.5), pd = rf(2.2, 3.2), x = rf(x0 + 1, x1 - 1 - pw), z = rf(z0 + 1, z1 - 1 - pd); if (flatFree(x - .8, z - .8, x + pw + .8, z + pd + .8, 3)) { solid(x, z, x + pw, z + pd, .45, 'pond'); reserve(x - .5, z - .5, x + pw + .5, z + pd + .5, 3); W.props.push({ k: 'pond', x0: x, z0: z, x1: x + pw, z1: z + pd }); break; } }
+        for (let n = 0, t = 0; n < 3 && t < 40; t++) { const x = rf(x0 + 1, x1 - 1), z = rf(z0 + 1, z1 - 1); if (flatFree(x - .6, z - .6, x + .6, z + .6, 3)) { solid(x - .22, z - .22, x + .22, z + .22, 1.3, 'lantern', { see: 1 }); reserve(x - .6, z - .6, x + .6, z + .6, 3); W.lanterns.push([x, z]); n++; } }
+        for (let n = 0, t = 0; n < 2 && t < 40; t++) { const x = rf(x0 + 1.5, x1 - 1.5), z = rf(z0 + 1.5, z1 - 1.5); if (flatFree(x - 1, z - 1, x + 1, z + 1, 3)) { W.trees.push([x, z, rf(.7, .9), rf(0, TAU), 1]); solid(x - .2, z - .2, x + .2, z + .2, 3, 'trunk'); reserve(x - 1, z - 1, x + 1, z + 1, 3); n++; } }
+        cells(x0 + .3, z0 + .3, x1 - .3, z1 - .3, c => { if (res[c] < 3) res[c] = 2; });
+        placed = true; d.compound = [x0, z0, x1, z1]; break;
+      }
+      if (!placed) d.type = 'town';
+    }
+    if (d.type === 'shops') {
+      let best = null, bl = 0;
+      for (const r of roads) { if (r.kind !== 'street' && r.kind !== 'alley') continue; for (let i = 0; i < r.pl.length - 1; i++) { const a = r.pl[i], b = r.pl[i + 1]; const ca = [clamp(a[0], d.x0 + 2, d.x1 - 2), clamp(a[1], d.z0 + 2, d.z1 - 2)], cb = [clamp(b[0], d.x0 + 2, d.x1 - 2), clamp(b[1], d.z0 + 2, d.z1 - 2)]; if (!inD(d, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 1)) continue; const l = Math.hypot(cb[0] - ca[0], cb[1] - ca[1]); if (l > bl) { bl = l; best = [ca, cb, r]; } } }
+      if (best && bl > 12) {
+        const [a, b, r] = best, horiz = Math.abs(b[0] - a[0]) > Math.abs(b[1] - a[1]), u0 = horiz ? Math.min(a[0], b[0]) : Math.min(a[1], b[1]), u1 = horiz ? Math.max(a[0], b[0]) : Math.max(a[1], b[1]), v = horiz ? a[1] : a[0];
+        const SIGNS = ['米', '酒', '薬', 'たばこ', '理容', '呉服', '食堂', '豆腐', '菓子', '金物', '写真', '郵便'];
+        for (const side of [-1, 1]) { let u = u0 + rf(0, 2);
+          while (u < u1 - 4) { const w = rf(4.6, 6), dep = rf(6, 7.5), off = r.w / 2 + .9; const vv0 = side < 0 ? v - off - dep : v + off, vv1 = vv0 + dep;
+            const rc = horiz ? [u, vv0, u + w, vv1] : [vv0, u, vv1, u + w];
+            if (flatFree(rc[0] - .1, rc[1] - .1, rc[2] + .1, rc[3] + .1)) {
+              const fsd = horiz ? (side < 0 ? 'S' : 'N') : (side < 0 ? 'E' : 'W'), bsd = opp[fsd];
+              const hh = building(rc[0], rc[1], rc[2], rc[3], { kind: 'shop', name: '商店', doors: [{ sd: fsd, w: Math.min(2.6, w - 1.6) }].concat(R() < .5 ? [{ sd: bsd }] : []), noFurn: true, plan: (h, inn, wall) => {
+                const [a0, b0, a1, b1] = inn; // 表の店と奥の間
+                if (horiz) { const s = lerp(b0, b1, fsd === 'N' ? .55 : .45), g = rf(a0 + .3, a1 - .3 - DW); wall(a0, s - WT / 2, g, s + WT / 2); wall(g + DW, s - WT / 2, a1, s + WT / 2); h.gaps.push([g + DW / 2, s]); const fr2 = fsd === 'N' ? [a0, b0, a1, s - WT / 2] : [a0, s + WT / 2, a1, b1], bk = fsd === 'N' ? [a0, s + WT / 2, a1, b1] : [a0, b0, a1, s - WT / 2]; h.rooms.push(fr2, bk); const cz = fsd === 'N' ? s - 1.3 : s + 1.3; if (a1 - a0 > 3.2) h.sol.push(solid(a0 + .4, cz - .25, a0 + .4 + Math.min(2, a1 - a0 - 2.2), cz + .25, .9, 'counter', { y0: h.base })); furnish(h, bk, { butsu: false }); }
+                else { const s = lerp(a0, a1, fsd === 'W' ? .55 : .45), g = rf(b0 + .3, b1 - .3 - DW); wall(s - WT / 2, b0, s + WT / 2, g); wall(s - WT / 2, g + DW, s + WT / 2, b1); h.gaps.push([s, g + DW / 2]); const fr2 = fsd === 'W' ? [a0, b0, s - WT / 2, b1] : [s + WT / 2, b0, a1, b1], bk = fsd === 'W' ? [s + WT / 2, b0, a1, b1] : [a0, b0, s - WT / 2, b1]; h.rooms.push(fr2, bk); const cx = fsd === 'W' ? s - 1.3 : s + 1.3; if (b1 - b0 > 3.2) h.sol.push(solid(cx - .25, b0 + .4, cx + .25, b0 + .4 + Math.min(2, b1 - b0 - 2.2), .9, 'counter', { y0: h.base })); furnish(h, bk, { butsu: false }); }
+              } });
+              if (hh) { const e = hh.ext[0]; W.signs.push({ x: e.x, z: e.z, y: hh.base + 2.75, sd: fsd, t: pick(SIGNS), w: Math.min(2.6, w - 1) }); }
+              u += w + rf(0, .6);
+            } else u += 1.5;
+          }
+        }
+      }
+      townLots(d, .7);
+    }
+    if (d.type === 'paddy') {
+      for (let n = 0, t = 0; n < 2 && t < 40; t++) { const f = W.fields.filter(f => f.d === d.id); if (!f.length) break; const q = pick(f), x = rf(q.x0 + 1, q.x1 - 1), z = rf(q.z0 + 1, q.z1 - 1); if (!res[Math.floor(z) * TN + Math.floor(x)]) { solid(x - .1, z - .1, x + .1, z + .1, 1.6, 'pole', { see: 1 }); W.deco.push({ k: 'scare', x, z, yaw: rf(0, TAU) }); n++; } }
+      const r = fitRect(d, 4, 4, 60, .8); if (r) building(r[0], r[1], r[2], r[3], { kind: 'hut', name: '小屋', depth: 0 });
+      for (const f of W.fields) if (f.d === d.id) cells(f.x0, f.z0, f.x1, f.z1, c => { if (!res[c] && gk[c] === GK.grass) { gk[c] = GK.field; res[c] = 1; } });
+    }
+    if (d.type === 'shrine') {
+      const r = fitRect(d, 6, 7, 120, 3);
+      if (r) {
+        const [x0, z0, x1, z1] = r, sc = sideScore(x0, z0, x1, z1, base), fs = ['N', 'S', 'W', 'E'].filter(k => sc[k] < Infinity).sort((a, b) => sc[a] - sc[b])[0] || 'S';
+        const hx = (x0 + x1) / 2, hz = (z0 + z1) / 2, fv = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] }[fs];
+        solid(hx - 2, hz - 2.2, hx + 2, hz + 2.2, 2.3, 'hall', { face: fs }); W.shrine = { x: hx, z: hz, fs };
+        paint(x0 - 3, z0 - 3, x1 + 3, z1 + 3, GK.gravel); reserve(x0 - 2, z0 - 2, x1 + 2, z1 + 2, 3);
+        const tx = hx + fv[0] * 4.8, tz = hz + fv[1] * 4.8, px = fv[1], pz = -fv[0];
+        for (const s of [-1, 1]) { const x = tx + px * 1.7 * s, z = tz + pz * 1.7 * s; solid(x - .16, z - .16, x + .16, z + .16, 3.3, 'torii', { face: fs }); }
+        W.deco.push({ k: 'torii', x: tx, z: tz, px, pz, y: hAt(tx, tz) });
+        for (const s of [-1, 1]) { const x = hx + fv[0] * 3 + px * 2.4 * s, z = hz + fv[1] * 3 + pz * 2.4 * s; solid(x - .2, z - .2, x + .2, z + .2, 1.3, 'lantern', { see: 1 }); W.lanterns.push([x, z]); }
+        // 御神木
+        for (let t = 0; t < 30; t++) { const x = hx + rf(-8, 8), z = hz + rf(-8, 8); if (flatFree(x - 1.4, z - 1.4, x + 1.4, z + 1.4, 3) || (!res[Math.floor(z) * TN + Math.floor(x)] && isFlat(Math.floor(z) * TN + Math.floor(x)))) { W.trees.push([x, z, 2.1, rf(0, TAU), 2]); solid(x - .6, z - .6, x + .6, z + .6, 6, 'trunk'); reserve(x - 1.5, z - 1.5, x + 1.5, z + 1.5, 3); break; } }
       }
     }
+    if (d.type === 'grave' || d.type === 'shrine') {
+      const n0 = W.graves.length, gx0 = d.x0 + 2, gz0 = d.z0 + 2, cnt = d.type === 'grave' ? 70 : 22;
+      for (let z = gz0; z < d.z1 - 2 && W.graves.length - n0 < cnt; z += 1.9) for (let x = gx0; x < d.x1 - 2 && W.graves.length - n0 < cnt; x += 1.35) {
+        if (R() < .28) continue; if (!flatFree(x - .5, z - .5, x + .5, z + .5, 1)) continue;
+        solid(x - .22, z - .16, x + .22, z + .16, .8 + rf(-.1, .35), 'grave'); W.graves.push([x, z, d.id]); reserve(x - .3, z - .3, x + .3, z + .3, 3); paint(x - .5, z - .6, x + .5, z + .6, GK.gravel);
+      }
+    }
+    if (d.type === 'town') townLots(d, .78);
   }
-  const lampN = Math.min(4, poles.length);
+  // ---------------------------------------------------------------- 協力の仕掛け：肩車で登れる石垣・上から下ろす梯子
+  const walkable = (x, z) => { const c = Math.floor(z) * TN + Math.floor(x); return c >= 0 && c < TN * TN && res[c] < 2 && isFlat(c); };
+  const cand = [];
+  for (const r of runs) {
+    const len = r.v ? r.j1 - r.j0 : r.i1 - r.i0, dh = r.hi - r.lo; if (len < 3 || dh < 1.9) continue;
+    const m = r.v ? [r.i, (r.j0 + r.j1) / 2] : [(r.i0 + r.i1) / 2, r.j];
+    const n = r.v ? [r.lowA ? -1 : 1, 0] : [0, r.lowA ? -1 : 1]; // 低い側へ
+    const lo = [m[0] + n[0] * .75, m[1] + n[1] * .75], hi = [m[0] - n[0] * .75, m[1] - n[1] * .75];
+    if (!walkable(lo[0], lo[1]) || !walkable(hi[0], hi[1]) || !walkable(lo[0] + n[0], lo[1] + n[1])) continue;
+    if (Math.abs(hAt(lo[0], lo[1]) - r.lo) > .1 || Math.abs(hAt(hi[0], hi[1]) - r.hi) > .1) continue;
+    cand.push({ bx: lo[0], bz: lo[1], tx: hi[0], tz: hi[1], dh, yaw: Math.atan2(-n[0], -n[1]) });
+  }
+  const spread = (list, n, minD, into) => { for (const c of shuf(list)) { if (into.length >= n) break; if ([...W.boosts, ...W.ladders].some(q => Math.hypot(q.bx - c.bx, q.bz - c.bz) < minD)) continue; into.push(c); } };
+  spread(cand.filter(c => c.dh < 3.3), 5, 18, W.boosts);
+  spread(cand, 3, 18, W.ladders);
+  W.boosts.forEach((b, i) => { b.id = i; reserve(b.bx - .6, b.bz - .6, b.bx + .6, b.bz + .6, 3); });
+  W.ladders.forEach((b, i) => { b.id = i; reserve(b.bx - .6, b.bz - .6, b.bx + .6, b.bz + .6, 3); });
+  // ---------------------------------------------------------------- 電柱と街灯（通りぞい）
+  const poles = W.poles;
+  for (const r of roads) { if (r.kind !== 'street' && r.kind !== 'slope') continue; let acc = 8, sideS = 1;
+    for (let i = 0; i < r.pl.length - 1; i++) { const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1], L = Math.hypot(bx - ax, bz - az); if (L < .1) continue;
+      for (let s = 0; s < L; s += 1) { acc += 1; if (acc < 15) continue;
+        const t = s / L, px = lerp(ax, bx, t), pz = lerp(az, bz, t), nx = -(bz - az) / L, nz = (bx - ax) / L; sideS = -sideS;
+        const x = px + nx * sideS * (r.w / 2 + .6), z = pz + nz * sideS * (r.w / 2 + .6), c = Math.floor(z) * TN + Math.floor(x);
+        if (x < BAND + 2 || z < BAND + 2 || x > S - BAND - 2 || z > S - BAND - 2 || c < 0 || res[c] >= 2 || gk[c] === GK.river) continue;
+        acc = 0; solid(x - .15, z - .15, x + .15, z + .15, 7, 'pole'); reserve(x - .4, z - .4, x + .4, z + .4, 2); poles.push([x, z, -nx * sideS, -nz * sideS]);
+      } } }
+  const lampN = Math.min(5, poles.length);
   for (let k = 0; k < lampN; k++) { const p = poles[Math.floor((k + .5) * poles.length / lampN)]; W.lamps.push({ x: p[0] + p[2] * 1.1, z: p[1] + p[3] * 1.1, px: p[0], pz: p[1] }); }
-  W.poles = poles;
-  // 道ばたの物（地蔵・自販機・井戸・倒れた自転車・赤い水たまり）
-  const roadSpot = (o0, o1, pad = .8) => {
-    for (let k = 0; k < 40; k++) {
-      const r = pick(W.roads), i = ri(0, r.pl.length - 2), t = R(); const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1];
+  // ---------------------------------------------------------------- 道ばたの物
+  const roadSpot = (o0, o1, pad = .6, kinds = [GK.road, GK.alley]) => {
+    for (let k = 0; k < 50; k++) {
+      const r = pick(roads), i = ri(0, r.pl.length - 2), t = R(); const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1];
       const L = Math.hypot(bx - ax, bz - az) || 1, nx = -(bz - az) / L, nz = (bx - ax) / L, sd = R() < .5 ? 1 : -1, off = r.w / 2 + rf(o0, o1);
       const x = lerp(ax, bx, t) + nx * sd * off, z = lerp(az, bz, t) + nz * sd * off;
-      if (x < 16 || z < 16 || x > S - 16 || z > S - 16 || onRiver(x, z, 1) || (o0 > 0 && onRoad(x, z, .2)) || hit(x - pad, z - pad, x + pad, z + pad)) continue;
+      if (x < BAND + 3 || z < BAND + 3 || x > S - BAND - 3 || z > S - BAND - 3) continue;
+      let ok = true; cells(x - pad, z - pad, x + pad, z + pad, c => { if (res[c] >= 2 || !isFlat(c) || gk[c] === GK.river) ok = false; }); if (!ok) continue;
       return [x, z, Math.atan2(-nx * sd, -nz * sd)];
     }
     return null;
   };
   const snap = a => Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
-  W.props = []; W.glows = [];
-  for (let k = 0; k < 6; k++) { const q = roadSpot(.8, 1.6); if (!q) continue; occ.push([q[0] - .6, q[1] - .6, q[0] + .6, q[1] + .6]); solid(q[0] - .18, q[1] - .18, q[0] + .18, q[1] + .18, .75, 'jizo', { see: 1 }); W.props.push({ k: 'jizo', x: q[0], z: q[1], yaw: q[2], n: ri(1, 3) }); }
-  for (let k = 0; k < 2; k++) {
-    const q = roadSpot(1, 1.6, 1.2); if (!q) continue; const yw = snap(q[2]), ax2 = Math.abs(Math.sin(yw)) > .5; occ.push([q[0] - 1.3, q[1] - 1.3, q[0] + 1.3, q[1] + 1.3]);
+  for (const st of W.stairs) { const lowEnd = st.ha < st.hb ? [st.x0, st.z0] : [st.x1, st.z1], hiEnd = st.ha < st.hb ? [st.x1, st.z1] : [st.x0, st.z0], dx = hiEnd[0] - lowEnd[0], dz = hiEnd[1] - lowEnd[1], L = Math.hypot(dx, dz) || 1; const x = lowEnd[0] - dx / L * 1.2 + dz / L * (st.w / 2 + .6), z = lowEnd[1] - dz / L * 1.2 - dx / L * (st.w / 2 + .6); if (walkable(x, z)) { solid(x - .18, z - .18, x + .18, z + .18, .75, 'jizo', { see: 1 }); reserve(x - .5, z - .5, x + .5, z + .5, 3); W.props.push({ k: 'jizo', x, z, yaw: Math.atan2(-dz / L, -dx / L) + Math.PI / 2, n: ri(1, 3) }); } }
+  for (let k = 0; k < 3; k++) { const q = roadSpot(.6, 1.4); if (!q) continue; solid(q[0] - .18, q[1] - .18, q[0] + .18, q[1] + .18, .75, 'jizo', { see: 1 }); reserve(q[0] - .6, q[1] - .6, q[0] + .6, q[1] + .6, 3); W.props.push({ k: 'jizo', x: q[0], z: q[1], yaw: q[2], n: ri(1, 3) }); }
+  for (let k = 0; k < 3; k++) {
+    const q = roadSpot(.7, 1.2, 1); if (!q) continue; const yw = snap(q[2]), ax2 = Math.abs(Math.sin(yw)) > .5; reserve(q[0] - 1, q[1] - 1, q[0] + 1, q[1] + 1, 3);
     if (ax2) solid(q[0] - .35, q[1] - .45, q[0] + .35, q[1] + .45, 1.8, 'vend'); else solid(q[0] - .45, q[1] - .35, q[0] + .45, q[1] + .35, 1.8, 'vend');
     W.props.push({ k: 'vend', x: q[0], z: q[1], yaw: yw }); W.glows.push([q[0] + Math.sin(yw) * .8, q[1] + Math.cos(yw) * .8]);
   }
-  { const q = roadSpot(3, 6, 1.5); if (q) { occ.push([q[0] - 1.5, q[1] - 1.5, q[0] + 1.5, q[1] + 1.5]); solid(q[0] - .75, q[1] - .75, q[0] + .75, q[1] + .75, .8, 'well', { see: 1 }); W.props.push({ k: 'well', x: q[0], z: q[1] }); } }
-  for (let k = 0; k < 4; k++) { const q = roadSpot(-.8, 1.2, .5); if (q) W.props.push({ k: 'bike', x: q[0], z: q[1], yaw: rf(0, TAU) }); }
-  W.puddles = [];
-  for (let k = 0; k < 45; k++) { const q = roadSpot(-2.6, 3, .1); if (q) W.puddles.push([q[0], q[1], rf(.35, 1.2)]); }
-  W.grass = [];
-  for (let k = 0; k < 2600; k++) { const x = rf(9, S - 9), z = rf(9, S - 9); if (hit(x, z, x, z) || onRoad(x, z, .3) || onRiver(x, z, .5)) continue; W.grass.push([x, z, rf(.6, 1.4), rf(0, TAU)]); }
-  // 森（外周）と木
-  const gapOf = e => (e === xEnd ? gapW : 0);
-  for (let x = -6; x < S + 6; x += 2.3) for (let z = -6; z < S + 6; z += 2.3) {
-    const jx = x + rf(-.9, .9), jz = z + rf(-.9, .9);
-    const d = Math.min(jx, jz, S - jx, S - jz); if (d > BAND - .4) continue;
-    let inGap = false;
-    for (const e of ends) { const g = gapOf(e); if (!g) continue; const lo = e.side === 'W' ? jx : e.side === 'E' ? S - jx : e.side === 'N' ? jz : S - jz; const o = (e.side === 'W' || e.side === 'E' ? jz : jx) - e.c; if (lo < BAND + 1 && Math.abs(o) < g + 1.2) inGap = true; }
-    if (inGap) continue;
-    W.trees.push([jx, jz, rf(.8, 1.35), rf(0, TAU)]);
-    if (d > BAND - 2.2 && R() < .6) W.bushes.push([jx + rf(-1, 1), jz + rf(-1, 1), rf(.7, 1.3)]);
+  for (let k = 0; k < 2; k++) { const q = roadSpot(2, 4, 1.2); if (q) { reserve(q[0] - 1.3, q[1] - 1.3, q[0] + 1.3, q[1] + 1.3, 3); solid(q[0] - .75, q[1] - .75, q[0] + .75, q[1] + .75, .8, 'well', { see: 1 }); W.props.push({ k: 'well', x: q[0], z: q[1] }); } }
+  for (let k = 0; k < 5; k++) { const q = roadSpot(-1, .6, .4); if (q) W.props.push({ k: 'bike', x: q[0], z: q[1], yaw: rf(0, TAU) }); }
+  for (const h of W.houses) for (const [cx, cz] of [[h.x0 - .5, h.z0 - .5], [h.x1 + .5, h.z0 - .5], [h.x0 - .5, h.z1 + .5], [h.x1 + .5, h.z1 + .5]]) {
+    const q = R(); if (q > .3) continue; let ok = true; cells(cx - .35, cz - .35, cx + .35, cz + .35, c => { if (res[c] >= 2 && res[c] !== 3 || !isFlat(c) || Math.abs(hc[c * 4] - h.base) > .05 || gk[c] === GK.road || gk[c] === GK.stair) ok = false; });
+    if (!ok || W.solids.some(s => s.k !== 'band' && cx + .35 > s.x0 && cx - .35 < s.x1 && cz + .35 > s.z0 && cz - .35 < s.z1)) continue;
+    if (q < .16) solid(cx - .3, cz - .3, cx + .3, cz + .3, .9, 'drum'); else solid(cx - .35, cz - .35, cx + .35, cz + .35, R() < .5 ? .7 : 1.4, 'crate');
   }
-  for (let k = 0; k < 160 && k < 999; k++) {
-    const x = rf(15, S - 15), z = rf(15, S - 15);
-    if (!clear(x - 1, z - 1, x + 1, z + 1, 1.2, 14)) continue;
-    occ.push([x - 1.2, z - 1.2, x + 1.2, z + 1.2]);
-    const s = rf(.8, 1.3); W.trees.push([x, z, s, rf(0, TAU)]); solid(x - .28, z - .28, x + .28, z + .28, 4, 'trunk');
-    if (W.trees.length > 99999) break;
+  for (let k = 0; k < 55; k++) { const q = roadSpot(-2.4, 1, .1, []); if (q) W.puddles.push([q[0], q[1], rf(.35, 1.1)]); }
+  // ---------------------------------------------------------------- 木・草・彼岸花
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) {
+    const c = j * TN + i, d = Math.min(i, j, TN - 1 - i, TN - 1 - j), x = i + R(), z = j + R();
+    if (d < BAND - .4) { let inGap = false; for (const e of ends) { const g = e === xEnd ? gapW : 0; if (!g) continue; const lo = e.side === 'W' ? x : e.side === 'E' ? S - x : e.side === 'N' ? z : S - z, o = (e.side === 'W' || e.side === 'E' ? z : x) - e.c; if (lo < BAND + 1 && Math.abs(o) < g + 1.2) inGap = true; } if (!inGap && R() < .19) W.trees.push([x, z, rf(.8, 1.35), rf(0, TAU)]); if (d > BAND - 2.4 && R() < .12) W.bushes.push([x, z, rf(.7, 1.3)]); continue; }
+    if (d < BAND + 1 || res[c] >= 2 || gk[c] !== GK.grass || !isFlat(c)) continue;
+    const dt = dAt(x, z).type, tp = dt === 'shrine' ? .09 : dt === 'grave' ? .03 : dt === 'paddy' ? .012 : .012;
+    if (!res[c] && R() < tp) { W.trees.push([x, z, rf(.8, 1.3), rf(0, TAU)]); solid(x - .28, z - .28, x + .28, z + .28, 4, 'trunk'); res[c] = 3; continue; }
+    if (R() < .35) W.grass.push([x, z, rf(.6, 1.5), rf(0, TAU)]);
+    if (R() < (dt === 'shrine' || dt === 'grave' || dt === 'paddy' ? .05 : .012)) for (let k = 0; k < 5; k++) W.flowers.push([x + rf(-.5, .5), z + rf(-.5, .5), rf(.8, 1.2), rf(0, TAU)]);
   }
-  // 巻き上げ機（鉄門のとき）
+  for (const v of W.deco) if (v.k === 'vacant') cells(v.r[0], v.r[1], v.r[2], v.r[3], (c, i, j) => { if (gk[c] === GK.grass) for (let k = 0; k < 3; k++) W.grass.push([i + R(), j + R(), rf(1.4, 2.4), rf(0, TAU)]); });
+  // ---------------------------------------------------------------- 巻き上げ機（鉄門のとき）：別々の地区に
   if (W.obj === 'gate') {
-    const gc = W.objs.gate.c; const cand = [];
-    for (const r of W.roads) for (let i = 0; i < r.pl.length - 1; i++) for (let t = .1; t < 1; t += .2) {
-      const [ax, az] = r.pl[i], [bx, bz] = r.pl[i + 1], L = Math.hypot(bx - ax, bz - az) || 1;
-      const nx = -(bz - az) / L, nz = (bx - ax) / L, px = lerp(ax, bx, t), pz = lerp(az, bz, t);
-      const x = px + nx * (r.w / 2 + 1.4), z = pz + nz * (r.w / 2 + 1.4);
-      if (x < 20 || z < 20 || x > S - 20 || z > S - 20 || onRiver(x, z, 1.5) || hit(x - .6, z - .6, x + .6, z + .6)) continue;
-      if (Math.hypot(x - gc[0], z - gc[1]) < 30) continue;
-      cand.push([x, z, Math.atan2(-nx, -nz)]);
+    const gc = W.objs.gate.c, got = [];
+    for (const d of shuf(D.slice())) { if (got.length >= 2) break; if (Math.hypot(d.cx - gc[0], d.cz - gc[1]) < 30) continue; if (got.some(g => Math.hypot(g.x - d.cx, g.z - d.cz) < 40)) continue;
+      const q = (() => { for (let t = 0; t < 60; t++) { const x = rf(d.x0 + 3, d.x1 - 3), z = rf(d.z0 + 3, d.z1 - 3); let ok = true; cells(x - 1.2, z - 1.2, x + 1.2, z + 1.2, c => { if (res[c] >= 2 || !isFlat(c) || gk[c] === GK.river) ok = false; }); if (ok && flatFree(x - 1.2, z - 1.2, x + 1.2, z + 1.2, 2)) { let yaw = 0, bd2 = 99; for (const [k, v] of [[0, [0, 1]], [Math.PI, [0, -1]], [Math.PI / 2, [1, 0]], [-Math.PI / 2, [-1, 0]]]) { const dd = nearRoadDist(x, z, v[0], v[1], hAt(x, z)); if (dd < bd2) { bd2 = dd; yaw = k; } } return [x, z, yaw]; } } return null; })();
+      if (q) { solid(q[0] - .45, q[1] - .45, q[0] + .45, q[1] + .45, 1.1, 'winch'); reserve(q[0] - 1, q[1] - 1, q[0] + 1, q[1] + 1, 3); got.push({ id: got.length, x: q[0], z: q[1], yaw: q[2], d: d.id }); }
     }
-    let best = null, bd2 = 0;
-    for (let k = 0; k < 200 && cand.length > 1; k++) { const a = pick(cand), b = pick(cand), d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d > bd2 && d < 95) { bd2 = d; best = [a, b]; } }
-    W.objs.winches = (best || [cand[0] || [40, 40, 0], cand[1] || [100, 100, 0]]).map((w, i) => { solid(w[0] - .45, w[1] - .45, w[0] + .45, w[1] + .45, 1.1, 'winch'); occ.push([w[0] - 1, w[1] - 1, w[0] + 1, w[1] + 1]); return { id: i, x: w[0], z: w[1], yaw: w[2] }; });
+    if (got.length < 2 && !force) return null;
+    while (got.length < 2) got.push({ id: got.length, x: S / 2, z: S / 2, yaw: 0 });
+    W.objs.winches = got;
   }
-  // 拾える物
+  // ---------------------------------------------------------------- 拾える物（地区をばらして置く）
   let uid = 1;
-  const put = (id, extra) => {
-    const hs = W.houses.filter(h => Math.hypot((h.x0 + h.x1) / 2 - sp0[0], (h.z0 + h.z1) / 2 - sp0[1]) > 20);
-    for (let k = 0; k < 20; k++) { const h = pick(hs.length ? hs : W.houses); const s = h && houseSpot(h); if (s && !W.items.some(i => Math.hypot(i.x - s[0], i.z - s[1]) < 1.2)) { W.items.push(Object.assign({ uid: uid++, id, x: s[0], z: s[1], r: rf(0, TAU) }, extra)); return; } }
+  const houseSpot = (h, rm) => {
+    for (let k = 0; k < 40; k++) { const r = rm || pick(h.rooms); if (!r) return null; const x = rf(r[0] + .5, r[2] - .5), z = rf(r[1] + .5, r[3] - .5);
+      if (h.sol.some(s => x > s.x0 - .45 && x < s.x1 + .45 && z > s.z0 - .45 && z < s.z1 + .45)) continue; if (h.gaps.some(g => Math.hypot(g[0] - x, g[1] - z) < 1)) continue; if (W.items.some(i => Math.hypot(i.x - x, i.z - z) < 1.2)) continue; return [x, z]; }
+    return null;
   };
-  if (W.obj === 'car') { put('key'); put('gas'); } else if (W.obj === 'tunnel') put('cutter');
-  put('pipe'); put('pipe'); put('med'); put('med'); put('med');
-  const nidx = NOTES.map((_, i) => i).sort(() => R() - .5).slice(0, 3); for (const n of nidx) put('note', { note: n });
-  // 還り人（かえりびと）
+  const usedD = new Set([sD.id]);
+  const putIn = (id, h, rm, extra) => { const s = houseSpot(h, rm); if (!s) return false; W.items.push(Object.assign({ uid: uid++, id, x: s[0], z: s[1], y: h.base, r: rf(0, TAU), where: h.name || DTYPE_N[D[h.d].type] }, extra)); return true; };
+  const putFar = (id, extra, prefer) => {
+    const hs = shuf(W.houses.filter(h => h.kind !== 'kura' || id !== 'note')); const pr = prefer ? hs.filter(prefer) : [];
+    for (const h of pr.concat(hs.filter(h => !usedD.has(h.d))).concat(hs)) { if (h.d === sD.id && hs.some(q => q.d !== sD.id)) continue; if (putIn(id, h, h.staff && id !== 'note' ? h.staff : null, extra)) { usedD.add(h.d); return; } }
+  };
+  const special = h => h.kind === 'school' || h.kind === 'kura' || h.kind === 'shop' || h.kind === 'mansion';
+  if (W.obj === 'car') { putFar('key', null, special); putFar('gas', null, special); } else if (W.obj === 'tunnel') putFar('cutter', null, special);
+  usedD.clear(); usedD.add(sD.id);
+  putFar('pipe'); putFar('pipe'); putFar('med'); putFar('med'); putFar('med');
+  shuf(NOTES.map((_, i) => i)).slice(0, 3).forEach(n => putFar('note', { note: n }));
+  // ---------------------------------------------------------------- 還り人
   let eid = 1;
   const far = (x, z) => Math.hypot(x - sp0[0], z - sp0[1]) > 30;
-  const look = () => ri(0, LOOKS.length - 1);
-  for (const f of W.fields.slice(0, 3)) { const x = (f.x0 + f.x1) / 2, z = (f.z0 + f.z1) / 2; if (far(x, z)) W.enemies.push({ id: eid++, kind: 'field', x, z, anchor: [x, z], look: pick([0, 4, 6]) }); }
-  if (W.shrine) for (let k = 0; k < 2 && W.graves.length; k++) { const g = W.graves[ri(0, W.graves.length - 1)]; const x = g[0] - .8, z = g[1]; if (far(x, z)) W.enemies.push({ id: eid++, kind: 'grave', x, z, anchor: [x, z], face: g, look: pick([5, 6, 2]) }); }
-  const hs = W.houses.filter(h => far((h.x0 + h.x1) / 2, (h.z0 + h.z1) / 2)).sort(() => R() - .5);
-  for (const h of hs.slice(0, 3)) { const a = houseSpot(h), b = houseSpot(h); if (a && b) W.enemies.push({ id: eid++, kind: 'house', x: a[0], z: a[1], anchor: a, anchor2: b, look: pick([2, 3, 6, 4]) }); }
-  for (let k = 0; k < 60 && W.enemies.length < 12; k++) {
-    const route = roadRoute(W, R); if (route.length < 2 || !far(route[0][0], route[0][1])) continue;
-    W.enemies.push({ id: eid++, kind: 'patrol', x: route[0][0], z: route[0][1], route, look: look() });
+  const houseEnemy = (h, looks) => { const a = houseSpot(h), b = houseSpot(h); if (a && b && far(a[0], a[1])) { W.enemies.push({ id: eid++, kind: 'house', x: a[0], z: a[1], anchor: a, anchor2: b, look: pick(looks) }); return true; } return false; };
+  for (const d of D) {
+    const hs = shuf(W.houses.filter(h => h.d === d.id));
+    if (d.type === 'school') { const sch = hs.find(h => h.kind === 'school'); if (sch) { houseEnemy(sch, [3]); houseEnemy(sch, [3, 3, 5]); } }
+    else if (d.type === 'mansion') { const m = hs.find(h => h.kind === 'mansion'); if (m) houseEnemy(m, [6, 4, 5]); }
+    else if (d.type === 'paddy') { for (const f of W.fields.filter(f => f.d === d.id).slice(0, 2)) { const x = (f.x0 + f.x1) / 2, z = (f.z0 + f.z1) / 2; if (far(x, z)) W.enemies.push({ id: eid++, kind: 'field', x, z, anchor: [x, z], look: pick([0, 4, 6]) }); } }
+    else if (d.type === 'shrine' || d.type === 'grave') { const gs = W.graves.filter(g => g[2] === d.id); for (let k = 0; k < (d.type === 'grave' ? 2 : 1) && gs.length; k++) { const g = pick(gs), x = g[0] - .75, z = g[1]; if (far(x, z) && walkable(x, z)) W.enemies.push({ id: eid++, kind: 'grave', x, z, anchor: [x, z], face: g, look: pick([5, 6, 2]) }); } }
+    else if (hs.length) houseEnemy(hs[0], [2, 3, 6, 4, 0]);
   }
-  // 仕掛け：押し入れの先客・鳴り出す黒電話・背後の鼻歌
-  const farC = W.closets.filter(c => Math.hypot(c.x - sp0[0], c.z - sp0[1]) > 25 && !W.enemies.some(e => Math.hypot(e.x - c.x, e.z - c.z) < 6)).sort(() => R() - .5);
-  for (const c of farC.slice(0, 2)) c.occ = 1;
-  W.phones = [];
-  for (const h of W.houses.slice().sort(() => R() - .5)) {
-    if (W.phones.length >= 2) break; const t = h.sol.find(s => s.k === 'table'); if (!t) continue;
-    const x = (t.x0 + t.x1) / 2, z = (t.z0 + t.z1) / 2; if (Math.hypot(x - sp0[0], z - sp0[1]) < 25) continue;
-    W.phones.push({ i: W.phones.length, x, z });
-  }
-  W.hums = [];
-  for (let k = 0; k < 4; k++) { const q = roadSpot(-1.5, 1.5, .1); if (q && Math.hypot(q[0] - sp0[0], q[1] - sp0[1]) > 20) W.hums.push([q[0], q[1]]); }
+  for (let k = 0; k < 80 && W.enemies.length < 14; k++) { const route = roadRoute(W, R); if (route.length < 2 || !far(route[0][0], route[0][1])) continue; W.enemies.push({ id: eid++, kind: 'patrol', x: route[0][0], z: route[0][1], route, look: ri(0, LOOKS.length - 1) }); }
+  // ---------------------------------------------------------------- 仕掛け
+  const farC = shuf(W.closets.filter(c => Math.hypot(c.x - sp0[0], c.z - sp0[1]) > 25 && !W.enemies.some(e => Math.hypot(e.x - c.x, e.z - c.z) < 6)));
+  for (const c of farC.slice(0, 3)) c.occ = 1;
+  for (const h of shuf(W.houses.slice())) { if (W.phones.length >= 2) break; const t = h.sol.find(s => s.k === 'table'); if (!t) continue; const x = (t.x0 + t.x1) / 2, z = (t.z0 + t.z1) / 2; if (Math.hypot(x - sp0[0], z - sp0[1]) < 25) continue; W.phones.push({ i: W.phones.length, x, z, y: h.base }); }
+  for (let k = 0; k < 5; k++) { const q = roadSpot(-1.5, 0, .1, []); if (q && Math.hypot(q[0] - sp0[0], q[1] - sp0[1]) > 20) W.hums.push([q[0], q[1]]); }
   W.area = pick(AREAS);
-  W.onRiverF = (x, z) => plDist(x, z, W.river.pl) < W.river.w / 2;
+  W.onRiverF = () => false;
+  // ---------------------------------------------------------------- ひとりでも全部にたどり着けるか確かめる
+  if (!force) {
+    buildNav(W); const N = W.nav, seen = new Uint8Array(NW * NW), st = [];
+    const c0 = Math.floor(sp0[1] / NR) * NW + Math.floor(sp0[0] / NR); if (N[c0]) return null; st.push(c0); seen[c0] = 1;
+    while (st.length) { const c = st.pop(), i = c % NW, j = (c / NW) | 0; for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = i + di, b = j + dj; if (a < 0 || b < 0 || a >= NW || b >= NW) continue; const k = b * NW + a; if (!seen[k] && !N[k]) { seen[k] = 1; st.push(k); } } }
+    const ok = (x, z) => { for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) { const i = Math.floor(x / NR) + dx, j = Math.floor(z / NR) + dz; if (i >= 0 && j >= 0 && i < NW && j < NW && seen[j * NW + i]) return true; } return false; };
+    const goals = W.items.filter(i => ITEMS[i.id].team).map(i => [i.x, i.z]);
+    const O = W.objs; if (O.car) goals.push([O.car.x, O.car.z + 0], [O.car.x + 2.5, O.car.z], [O.car.x - 2.5, O.car.z], [O.car.x, O.car.z + 2.5], [O.car.x, O.car.z - 2.5]);
+    if (O.gate) { goals.push(W.P(xEnd, BAND + 1.5, 0)); for (const w of O.winches) goals.push([w.x + 1, w.z], [w.x - 1, w.z], [w.x, w.z + 1], [w.x, w.z - 1]); }
+    if (O.chain) goals.push(W.P(xEnd, BAND - 1.5, 0));
+    if (O.car) { const it = goals.slice(0, goals.length - 5); if (!it.every(g => ok(g[0], g[1]))) return null; if (!goals.slice(-4).some(g => ok(g[0], g[1]))) return null; }
+    else if (O.gate) { const it = goals.slice(0, goals.length - 8); if (!it.every(g => ok(g[0], g[1]))) return null; for (let w = 0; w < 2; w++) if (!goals.slice(goals.length - 8 + w * 4, goals.length - 4 + w * 4).some(g => ok(g[0], g[1]))) return null; }
+    else if (!goals.every(g => ok(g[0], g[1]))) return null;
+    if (W.items.filter(i => ITEMS[i.id].team).length < (W.obj === 'car' ? 2 : W.obj === 'tunnel' ? 1 : 0)) return null;
+    W.reach = seen;
+  }
   return W;
 }
 function roadRoute(W, R) {
-  const r = W.roads[Math.floor(R() * W.roads.length)], pts = [];
+  const rs = W.roads.filter(r => r.kind !== 'path'), r = rs[Math.floor(R() * rs.length)], pts = [];
   for (let j = 0; j < 5; j++) {
     const i = Math.floor(R() * (r.pl.length - 1)), t = R(); const x = lerp(r.pl[i][0], r.pl[i + 1][0], t), z = lerp(r.pl[i][1], r.pl[i + 1][1], t);
-    if (x > 17 && z > 17 && x < S - 17 && z < S - 17) pts.push([x, z]);
+    if (x > BAND + 4 && z > BAND + 4 && x < S - BAND - 4 && z < S - BAND - 4) pts.push([x, z]);
   }
   return pts;
 }
@@ -492,7 +744,7 @@ function forNear(x0, z0, x1, z1, cb) {
 }
 function collide(o, r) {
   for (let it = 0; it < 2; it++) forNear(o.x - r, o.z - r, o.x + r, o.z + r, s => {
-    if (s.y1 <= .3) return;
+    if (s.y1 - s.y0 <= .3) return;
     const cx = clamp(o.x, s.x0, s.x1), cz = clamp(o.z, s.z0, s.z1), dx = o.x - cx, dz = o.z - cz, d2 = dx * dx + dz * dz;
     if (d2 >= r * r) return;
     if (d2 > 1e-9) { const d = Math.sqrt(d2); o.x = cx + dx / d * r; o.z = cz + dz / d * r; }
@@ -501,7 +753,7 @@ function collide(o, r) {
 }
 function segBox(ax, ay, az, dx, dy, dz, s) {
   let t0 = 0, t1 = 1;
-  const ax3 = [ax, ay, az], d3 = [dx, dy, dz], mn = [s.x0, 0, s.z0], mx = [s.x1, s.y1, s.z1];
+  const ax3 = [ax, ay, az], d3 = [dx, dy, dz], mn = [s.x0, s.y0, s.z0], mx = [s.x1, s.y1, s.z1];
   for (let i = 0; i < 3; i++) {
     if (Math.abs(d3[i]) < 1e-9) { if (ax3[i] < mn[i] || ax3[i] > mx[i]) return 2; }
     else { let ta = (mn[i] - ax3[i]) / d3[i], tb = (mx[i] - ax3[i]) / d3[i]; if (ta > tb) { const q = ta; ta = tb; tb = q; } if (ta > t0) t0 = ta; if (tb < t1) t1 = tb; if (t0 > t1) return 2; }
@@ -519,7 +771,7 @@ function rayT(ax, ay, az, bx, by, bz, see) {
   STAMP++; let best = 1;
   for (let n = 0; n < 80; n++) {
     const a = H.get(hk(cx, cz));
-    if (a) for (const s of a) { if (s._st === STAMP) continue; s._st = STAMP; if (s.y1 <= 0 || (see && s.see)) continue; const t = segBox(ax, ay, az, dx, dy, dz, s); if (t < best) best = t; }
+    if (a) for (const s of a) { if (s._st === STAMP) continue; s._st = STAMP; if (s.y1 - s.y0 <= .01 || (see && s.see)) continue; const t = segBox(ax, ay, az, dx, dy, dz, s); if (t < best) best = t; }
     if (best <= Math.min(tmx, tmz) || (cx === ex && cz === ez)) break;
     if (tmx < tmz) { cx += sx; tmx += tdx; } else { cz += sz; tmz += tdz; }
   }
@@ -532,7 +784,7 @@ function buildNav(W) {
   W.nav = new Uint8Array(NW * NW);
   const inf = .3;
   for (const s of W.solids) {
-    if (s.y1 <= .3) continue;
+    if (s.y1 - s.y0 <= .3) continue;
     const i0 = Math.max(0, Math.floor((s.x0 - inf) / NR)), i1 = Math.min(NW - 1, Math.floor((s.x1 + inf) / NR));
     const j0 = Math.max(0, Math.floor((s.z0 - inf) / NR)), j1 = Math.min(NW - 1, Math.floor((s.z1 + inf) / NR));
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const cx = (i + .5) * NR, cz = (j + .5) * NR; if (cx > s.x0 - inf && cx < s.x1 + inf && cz > s.z0 - inf && cz < s.z1 + inf) W.nav[j * NW + i] = 1; }
@@ -616,24 +868,20 @@ function makeTextures() {
 }
 function drawGround(W) {
   const c = cvs(1024), x = c.getContext('2d'), k = 1024 / S;
-  x.fillStyle = '#23251a'; x.fillRect(0, 0, 1024, 1024);
-  speck(x, 1024, 1024, ['#1d1f15', '#2c2d1f', '#303020', '#18190f', '#2a2a1a'], 26000, 3);
+  const COL = { 0: ['#23251a', '#272a1c', '#1f2217'], 1: ['#48433a', '#4d483e', '#433f36'], 2: ['#37322a', '#3b352c', '#332e26'], 3: ['#4a4844', '#4a4844'], 4: ['#2a2016', '#2e2318'], 5: ['#4a4232', '#4e4636', '#453e2f'], 6: ['#3c0707', '#420808'], 7: ['#17120c', '#17120c'], 8: ['#4c4a44', '#504e48'], 9: ['#555048', '#5a554c', '#4e4a42'], 10: ['#3a3024', '#3e3428'] };
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) { const g = W.gk[j * TN + i], cs = COL[g] || COL[0]; x.fillStyle = cs[(i * 7 + j * 13) % cs.length]; x.fillRect(Math.floor(i * k), Math.floor(j * k), Math.ceil(k) + 1, Math.ceil(k) + 1); }
+  speck(x, 1024, 1024, ['rgba(0,0,0,.18)', 'rgba(255,255,255,.035)', 'rgba(40,50,20,.2)'], 26000, 2);
   for (const f of W.fields) {
-    x.fillStyle = '#2a2016'; x.fillRect(f.x0 * k, f.z0 * k, (f.x1 - f.x0) * k, (f.z1 - f.z0) * k);
-    x.fillStyle = '#3a2d1c';
-    if (f.ax) for (let z = f.z0; z < f.z1; z += .9) x.fillRect(f.x0 * k, z * k, (f.x1 - f.x0) * k, 2);
-    else for (let xx = f.x0; xx < f.x1; xx += .9) x.fillRect(xx * k, f.z0 * k, 2, (f.z1 - f.z0) * k);
-    for (let i = 0; i < 200; i++) { x.fillStyle = Math.random() < .5 ? '#34401f' : '#2c3519'; x.fillRect((f.x0 + Math.random() * (f.x1 - f.x0)) * k, (f.z0 + Math.random() * (f.z1 - f.z0)) * k, 2, 2); }
+    x.fillStyle = 'rgba(60,46,28,.8)';
+    if (f.ax) for (let xx = f.x0; xx < f.x1; xx += .9) x.fillRect(xx * k, f.z0 * k, 2, (f.z1 - f.z0) * k);
+    else for (let z = f.z0; z < f.z1; z += .9) x.fillRect(f.x0 * k, z * k, (f.x1 - f.x0) * k, 2);
+    for (let i = 0; i < 260; i++) { x.fillStyle = Math.random() < .5 ? '#34401f' : '#2c3519'; x.fillRect((f.x0 + Math.random() * (f.x1 - f.x0)) * k, (f.z0 + Math.random() * (f.z1 - f.z0)) * k, 2, 2); }
   }
-  const stroke = (pl, w, col) => { x.strokeStyle = col; x.lineWidth = w * k; x.lineCap = 'round'; x.lineJoin = 'round'; x.beginPath(); pl.forEach((p, i) => i ? x.lineTo(p[0] * k, p[1] * k) : x.moveTo(p[0] * k, p[1] * k)); x.stroke(); };
-  stroke(W.river.pl, W.river.w + 2.2, '#2a1a12'); stroke(W.river.pl, W.river.w, '#3c0707'); stroke(W.river.pl, W.river.w * .45, '#520b0a');
-  for (const r of W.roads) { stroke(r.pl, r.w + 1.4, '#322e25'); stroke(r.pl, r.w, '#48433a'); }
-  for (const r of W.roads) { stroke(r.pl, .5, 'rgba(30,26,20,.55)'); }
-  speck(x, 1024, 1024, ['rgba(90,84,70,.25)', 'rgba(20,18,14,.3)'], 9000, 2);
-  if (W.shrine) { x.fillStyle = '#4c4840'; x.fillRect((W.shrine.x - 3) * k, (W.shrine.z - 5) * k, 6 * k, 9 * k); speck(x, 1024, 1024, [], 0); }
-  for (const h of W.houses) { x.fillStyle = '#17120c'; x.fillRect((h.x0 - .5) * k, (h.z0 - .5) * k, (h.x1 - h.x0 + 1) * k, (h.z1 - h.z0 + 1) * k); }
+  for (const r of W.roads) if (r.kind === 'street' || r.kind === 'slope') { x.strokeStyle = 'rgba(25,22,18,.4)'; x.lineWidth = 1.5; for (const o of [-.9, .9]) { x.beginPath(); r.pl.forEach((p, i) => { const q = r.pl[Math.min(i + 1, r.pl.length - 1)], s = r.pl[Math.max(i - 1, 0)], dx = q[0] - s[0], dz = q[1] - s[1], L = Math.hypot(dx, dz) || 1; const X = (p[0] - dz / L * o) * k, Z = (p[1] + dx / L * o) * k; i ? x.lineTo(X, Z) : x.moveTo(X, Z); }); x.stroke(); } }
+  for (const b of W.bridges) { const i = b % TN, j = (b / TN) | 0; x.fillStyle = '#3a2c1e'; x.fillRect(i * k, j * k, k + 1, k + 1); x.fillStyle = '#20160e'; for (let q = 0; q < k; q += 2.4) x.fillRect(i * k, j * k + q, k + 1, 1); }
   return c;
 }
+
 // 顔（写真があれば写真、なければ描く。敵は色を抜いて赤い涙を流させる）
 function faceTexture(mode, url, variant = 0) {
   const c = cvs(64), x = c.getContext('2d'), tex = texOf(c);
@@ -670,14 +918,14 @@ function faceTexture(mode, url, variant = 0) {
 class GB {
   constructor() { this.p = []; this.n = []; this.u = []; this.ix = []; }
   q(a, b, c, d, n, uv) { const i = this.p.length / 3; for (const v of [a, b, c, d]) this.p.push(v[0], v[1], v[2]); for (let k = 0; k < 4; k++) this.n.push(n[0], n[1], n[2]); this.u.push(...uv); this.ix.push(i, i + 1, i + 2, i, i + 2, i + 3); }
-  box(x0, y0, z0, x1, y1, z1, s = 1) {
+  box(x0, y0, z0, x1, y1, z1, s = 1, bot = false) {
     const u = (a, b) => [a / s, b / s];
     this.q([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], [...u(z1, y0), ...u(z0, y0), ...u(z0, y1), ...u(z1, y1)]);
     this.q([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], [...u(z0, y0), ...u(z1, y0), ...u(z1, y1), ...u(z0, y1)]);
     this.q([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], [...u(x0, y0), ...u(x1, y0), ...u(x1, y1), ...u(x0, y1)]);
     this.q([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], [...u(x1, y0), ...u(x0, y0), ...u(x0, y1), ...u(x1, y1)]);
     this.q([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], [...u(x0, z1), ...u(x1, z1), ...u(x1, z0), ...u(x0, z0)]);
-    if (y0 > .01) this.q([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [...u(x0, z0), ...u(x1, z0), ...u(x1, z1), ...u(x0, z1)]);
+    if (bot) this.q([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [...u(x0, z0), ...u(x1, z0), ...u(x1, z1), ...u(x0, z1)]);
   }
   quadA(a, b, c, d, want, uv) {
     const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
@@ -730,7 +978,7 @@ function mkHuman(o) {
   const cm = o.dirty ? dirtyMat(o.cloth) : lam(o.cloth), pm = o.dirty ? dirtyMat(o.pants) : lam(o.pants), sm = lam(o.skin || 0x8f8b82), hm = lam(o.hair || 0x151210), shoe = lam(0x141210);
   const M = (geo, m, par, x = 0, y = 0, z = 0) => { const ms = new THREE.Mesh(geo, m); ms.position.set(x, y, z); par.add(ms); return ms; };
   const J = (par, x = 0, y = 0, z = 0) => { const j = new THREE.Group(); j.position.set(x, y, z); par.add(j); return j; };
-  const hip = J(g, 0, .92, 0); M(HG.pelvis, pm, hip);
+  const body = J(g); const hip = J(body, 0, .92, 0); M(HG.pelvis, pm, hip);
   const up = J(hip, 0, .06, 0); M(HG.chest, cm, up); M(HG.shoulder, cm, up, 0, .54, 0);
   const neck = J(up, 0, .58, 0); M(HG.neck, sm, neck);
   const fm = new THREE.MeshLambertMaterial({ map: o.face });
@@ -750,13 +998,13 @@ function mkHuman(o) {
   if (o.hat === 'scarf') M(HG.scarf, lam(o.scarf || 0x4a3a30), head, 0, .02, -.02);
   if (o.scale) g.scale.setScalar(o.scale);
   g.traverse(m => { if (m.isMesh) m.castShadow = true; });
-  return { g, hip, up, neck, head, aL, aR, eL, eR, lL, lR, kL, kR, fL, fR, tool, ph: Math.random() * 10, atk: 0, tilt: o.tilt || 0, jerk: 0, fm, drag: o.drag || 0, hunch: o.hunch || 0 };
+  return { g, body, hip, up, neck, head, aL, aR, eL, eR, lL, lR, kL, kR, fL, fR, tool, ph: Math.random() * 10, atk: 0, tilt: o.tilt || 0, jerk: 0, fm, drag: o.drag || 0, hunch: o.hunch || 0 };
 }
 // 0 立つ 1 歩く 2 走る 3 振る 4 耕す 5 祈る 6 倒れる 7 見回す 8 視界ジャック 9 しゃがむ
 function animHuman(h, a, dt, en) {
   h.ph += dt * (a === 2 ? 10.5 : a === 1 ? (en ? 5.2 : 7) : a === 9 ? 5 : 2);
   const s = Math.sin(h.ph), c = Math.cos(h.ph);
-  h.g.rotation.x = 0; h.g.position.y = 0; h.hip.position.y = .92; h.hip.rotation.set(0, 0, 0);
+  h.body.rotation.x = 0; h.body.position.y = 0; h.hip.position.y = .92; h.hip.rotation.set(0, 0, 0);
   h.up.rotation.set(en ? .18 + h.hunch : 0, 0, 0);
   h.neck.rotation.set(en ? -.1 : 0, 0, h.tilt);
   h.aL.rotation.set(0, 0, .07); h.aR.rotation.set(0, 0, -.07); h.eL.rotation.set(en ? -.15 : -.2, 0, 0); h.eR.rotation.set(en ? -.15 : -.2, 0, 0);
@@ -786,7 +1034,7 @@ function animHuman(h, a, dt, en) {
     case 4: { const d = Math.sin(h.ph * 1.6); h.up.rotation.x = .4 + d * .25; h.aL.rotation.x = h.aR.rotation.x = -1.1 + d * .8; h.eL.rotation.x = h.eR.rotation.x = -.5; h.aL.rotation.z = -.2; h.aR.rotation.z = .2; h.lL.rotation.x = -.3; h.kL.rotation.x = .45; h.lR.rotation.x = .15; h.kR.rotation.x = .15; h.hip.position.y = .88; break; }
     case 5: h.hip.position.y = .5; h.lL.rotation.x = -1.5; h.kL.rotation.x = 1.5; h.lR.rotation.x = .1; h.kR.rotation.x = 1.6; h.fR.rotation.x = -.2;
       h.up.rotation.x = .45 + s * .04; h.aL.rotation.x = h.aR.rotation.x = -.7; h.eL.rotation.x = h.eR.rotation.x = -1.2; h.aL.rotation.z = -.28; h.aR.rotation.z = .28; h.neck.rotation.x = .35; break;
-    case 6: h.g.rotation.x = -Math.PI / 2; h.g.position.y = .12; h.aL.rotation.set(-2.6, 0, .3); h.eL.rotation.x = -.6; h.aR.rotation.z = -.5; h.lL.rotation.z = .12; h.kR.rotation.x = .5; h.neck.rotation.set(0, .6, 0); break;
+    case 6: h.body.rotation.x = -Math.PI / 2; h.body.position.y = .12; h.aL.rotation.set(-2.6, 0, .3); h.eL.rotation.x = -.6; h.aR.rotation.z = -.5; h.lL.rotation.z = .12; h.kR.rotation.x = .5; h.neck.rotation.set(0, .6, 0); break;
     case 7: h.neck.rotation.y = Math.sin(h.ph * .9) * .9; break;
     case 8: h.hip.position.y = .55; h.lL.rotation.x = -1.3; h.kL.rotation.x = 1.9; h.lR.rotation.x = -1.1; h.kR.rotation.x = 1.8; h.fL.rotation.x = -.6; h.fR.rotation.x = -.7;
       h.up.rotation.x = .5; h.aL.rotation.set(-2.1, 0, -.35); h.aR.rotation.set(-2.1, 0, .35); h.eL.rotation.x = h.eR.rotation.x = -1.9; h.neck.rotation.x = .35; break;
@@ -798,7 +1046,7 @@ function animHuman(h, a, dt, en) {
 // ================================================================ 画面を組み立てる
 const SPOT_I = +Q.get('spot') || 60;
 let renderer, scene, camera, rt, postMat, postScene, postCam, rain, moon, riverMesh, groundCanvas;
-const DYN = { lamps: [], glints: [], gate: null, winchWheels: [], car: null, chain: null, carLight: null, sils: [], vends: [], phones: [] };
+const DYN = { lamps: [], glints: [], gate: null, winchWheels: [], car: null, chain: null, carLight: null, sils: [], vends: [], phones: [], ladders: [], bars: [] };
 function initRenderer() {
   if (renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas: $('cv'), antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
@@ -839,9 +1087,9 @@ function resize() {
 function disposeScene() {
   if (!scene) return;
   scene.traverse(o => { if (o.geometry && !Object.values(HG).includes(o.geometry)) o.geometry.dispose(); });
-  DYN.lamps = []; DYN.glints = []; DYN.winchWheels = []; DYN.sils = []; DYN.vends = []; DYN.phones = []; DYN.gate = DYN.car = DYN.chain = DYN.carLight = null;
+  DYN.lamps = []; DYN.glints = []; DYN.winchWheels = []; DYN.sils = []; DYN.vends = []; DYN.phones = []; DYN.ladders = []; DYN.bars = []; DYN.gate = DYN.car = DYN.chain = DYN.carLight = null;
 }
-// 障子窓・自販機の絵
+// 障子窓・自販機・看板・黒板・石垣の絵
 function detailTextures() {
   if (TEX.shoji) return;
   const shoji = (paper, line, sil) => {
@@ -856,13 +1104,27 @@ function detailTextures() {
   const cols = ['#b02020', '#2050a0', '#e0a020', '#208040', '#703010']; for (let r = 0; r < 3; r++) for (let k = 0; k < 5; k++) { x.fillStyle = cols[(r * 2 + k) % 5]; x.fillRect(4 + k * 5, 6 + r * 10, 4, 7); }
   x.fillStyle = '#202020'; x.fillRect(4, 44, 24, 8); x.fillStyle = '#c03030'; for (let k = 0; k < 5; k++) x.fillRect(5 + k * 5, 37, 3, 2); TEX.vend = texOf(c);
   c = cvs(16); x = c.getContext('2d'); x.fillStyle = '#8a1010'; x.fillRect(0, 0, 16, 16); x.fillStyle = '#6a0808'; x.fillRect(0, 12, 16, 4); TEX.bib = texOf(c);
+  // 石垣：不揃いな石
+  c = cvs(64); x = c.getContext('2d'); x.fillStyle = '#1e1c19'; x.fillRect(0, 0, 64, 64);
+  for (let y = 0; y < 64; y += 11) for (let xx = -(y % 22) / 2; xx < 64; xx += 12 + Math.random() * 6) { const w = 10 + Math.random() * 6, h = 8 + Math.random() * 3, v = 60 + Math.random() * 30 | 0; x.fillStyle = `rgb(${v},${v - 3},${v - 8})`; x.fillRect(xx + 1, y + 1, w - 2, h - 1); x.fillStyle = 'rgba(255,255,255,.06)'; x.fillRect(xx + 1, y + 1, w - 2, 2); }
+  speck(x, 64, 64, ['rgba(20,30,15,.5)', 'rgba(0,0,0,.3)'], 300, 2); TEX.ishi = texOf(c, 1);
+  c = cvs(64); x = c.getContext('2d'); x.fillStyle = '#b8b2a4'; x.fillRect(0, 0, 64, 64); speck(x, 64, 64, ['#aaa496', '#c4bfb2', '#8a8274'], 600, 2); x.fillStyle = 'rgba(60,40,30,.35)'; for (let i = 0; i < 6; i++) x.fillRect(Math.random() * 64, 40 + Math.random() * 20, 1 + Math.random() * 3, 24); TEX.plaster = texOf(c, 1);
+  c = cvs(64, 32); x = c.getContext('2d'); x.fillStyle = '#1c2a20'; x.fillRect(0, 0, 64, 32); x.fillStyle = 'rgba(220,220,200,.35)'; x.font = '9px serif'; x.fillText('しずかに', 6, 12); x.fillText('かえれない', 20, 25); speck(x, 64, 32, ['rgba(255,255,255,.06)'], 80, 2); x.fillStyle = '#3a2a1a'; x.fillRect(0, 30, 64, 2); TEX.board = texOf(c);
+  c = cvs(32); x = c.getContext('2d'); x.fillStyle = '#403a30'; x.fillRect(0, 0, 32, 32); for (let i = 0; i < 32; i += 4) { x.fillStyle = i % 8 ? '#4a4438' : '#35302a'; x.fillRect(0, i, 32, 3); } TEX.shutter = texOf(c, 1);
+}
+const SIGN_TEX = new Map();
+function signTex(t) {
+  if (SIGN_TEX.has(t)) return SIGN_TEX.get(t);
+  const c = cvs(128, 32), x = c.getContext('2d'); x.fillStyle = '#2a1a10'; x.fillRect(0, 0, 128, 32); x.fillStyle = '#cdb890'; x.fillRect(3, 3, 122, 26); x.fillStyle = '#1a0e08'; x.font = 'bold 20px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, 64, 17);
+  speck(x, 128, 32, ['rgba(0,0,0,.25)', 'rgba(90,40,20,.3)'], 160, 2); const tx = texOf(c); SIGN_TEX.set(t, tx); return tx;
 }
 function buildDetails(W, mats) {
   detailTextures();
-  const DB = { lit: new GB(), dark: new GB(), stone: new GB(), metal: new GB(), wood: new GB() };
+  const Y = (x, z) => gyW(W, x, z);
+  const DB = { lit: new GB(), dark: new GB(), stone: new GB(), metal: new GB(), wood: new GB(), rope: new GB() };
   // 窓（外と内の両面）
   const winQuad = (gb, h, w, inner) => {
-    const T = .2, wd = 1.25, y0 = 1.0, y1 = 1.85, o = .025;
+    const T = .2, wd = 1.25, y0 = h.base + 1.0, y1 = h.base + 1.85, o = .025;
     if (w.sd === 'N' || w.sd === 'S') {
       const cx = lerp(h.x0 + 1, h.x1 - 1, w.t), z = w.sd === 'N' ? (inner ? h.z0 + T + o : h.z0 - o) : (inner ? h.z1 - T - o : h.z1 + o), n = (w.sd === 'N') !== inner ? -1 : 1;
       gb.quadA([cx - wd / 2, y0, z], [cx + wd / 2, y0, z], [cx + wd / 2, y1, z], [cx - wd / 2, y1, z], [0, 0, n], n > 0 ? [0, 0, 1, 0, 1, 1, 0, 1] : [1, 0, 0, 0, 0, 1, 1, 1]);
@@ -876,12 +1138,21 @@ function buildDetails(W, mats) {
     if (w.sil) { const gb = new GB(); winQuad(gb, h, w, false); const m = new THREE.Mesh(gb.geo(), new THREE.MeshBasicMaterial({ map: TEX.shojiSil })); scene.add(m); const c = w.sd === 'N' || w.sd === 'S' ? [lerp(h.x0 + 1, h.x1 - 1, w.t), w.sd === 'N' ? h.z0 : h.z1] : [w.sd === 'W' ? h.x0 : h.x1, lerp(h.z0 + 1, h.z1 - 1, w.t)]; DYN.sils.push({ m, x: c[0], z: c[1], gone: false }); }
     else winQuad(h.lit ? DB.lit : DB.dark, h, w, false);
   }
-  // 地蔵・自販機・井戸・自転車
+  const YAW = { N: Math.PI, S: 0, W: -Math.PI / 2, E: Math.PI / 2 }, NV = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] };
+  // 店の看板とシャッター
+  for (const sg of W.signs) {
+    const n = NV[sg.sd], m = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(1.4, sg.w), .45), new THREE.MeshLambertMaterial({ map: signTex(sg.t) }));
+    m.position.set(sg.x + n[0] * .13, sg.y, sg.z + n[1] * .13); m.rotation.y = YAW[sg.sd]; scene.add(m);
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(1.2, sg.w + .2), .9), new THREE.MeshLambertMaterial({ map: TEX.shutter, side: THREE.DoubleSide })); sh.position.set(sg.x + n[0] * .06, sg.y - .72, sg.z + n[1] * .06); sh.rotation.y = YAW[sg.sd]; scene.add(sh);
+  }
+  // 黒板
+  for (const b of W.boards) { const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(1.5, b.w), 1.1), new THREE.MeshLambertMaterial({ map: TEX.board })); m.position.set(b.x, b.y + .35, b.z); m.rotation.y = b.yaw; scene.add(m); }
+  // 地蔵・自販機・井戸・自転車・像・鉄棒・池
   for (const p of W.props) {
     if (p.k === 'jizo') {
       for (let i = 0; i < p.n; i++) {
         const ox = (i - (p.n - 1) / 2) * .38, x = p.x + Math.cos(p.yaw) * ox, z = p.z - Math.sin(p.yaw) * ox;
-        const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = p.yaw;
+        const g = new THREE.Group(); g.position.set(x, Y(p.x, p.z), z); g.rotation.y = p.yaw;
         const st = mats.stone; const body = new THREE.Mesh(new THREE.CylinderGeometry(.11, .15, .42, 7), st); body.position.y = .27; g.add(body);
         const hd = new THREE.Mesh(new THREE.SphereGeometry(.1, 7, 5), st); hd.position.y = .56; g.add(hd);
         const bib = new THREE.Mesh(new THREE.CylinderGeometry(.13, .16, .14, 7, 1, true, -1.2, 2.4), new THREE.MeshLambertMaterial({ map: TEX.bib, side: THREE.DoubleSide })); bib.position.y = .38; g.add(bib);
@@ -890,126 +1161,203 @@ function buildDetails(W, mats) {
       }
     }
     if (p.k === 'vend') {
-      const g = new THREE.Group(); g.position.set(p.x, 0, p.z); g.rotation.y = p.yaw;
+      const g = new THREE.Group(); g.position.set(p.x, Y(p.x, p.z), p.z); g.rotation.y = p.yaw;
       const body = new THREE.Mesh(new THREE.BoxGeometry(.9, 1.8, .7), lam(0x8a8a80)); body.position.y = .9; body.castShadow = true; g.add(body);
       const face = new THREE.Mesh(new THREE.PlaneGeometry(.8, 1.6), new THREE.MeshBasicMaterial({ map: TEX.vend })); face.position.set(0, .92, .352); g.add(face);
       const pl = new THREE.PointLight(0xc8dcff, 9, 7, 1.3); pl.position.set(0, 1.2, .9); g.add(pl);
       scene.add(g); DYN.vends.push({ face, pl });
     }
     if (p.k === 'well') {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(.75, .8, .8, 12, 1, true), new THREE.MeshLambertMaterial({ map: TEX.stone, side: THREE.DoubleSide })); ring.position.set(p.x, .4, p.z); ring.castShadow = true; scene.add(ring);
-      const water = new THREE.Mesh(new THREE.CircleGeometry(.72, 12), new THREE.MeshBasicMaterial({ color: 0x1a0202 })); water.rotation.x = -Math.PI / 2; water.position.set(p.x, .25, p.z); scene.add(water);
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(.9, .04, .5), mats.wood2); lid.position.set(p.x + .2, .82, p.z); lid.rotation.y = .4; scene.add(lid);
+      const y = Y(p.x, p.z);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(.75, .8, .8, 12, 1, true), new THREE.MeshLambertMaterial({ map: TEX.stone, side: THREE.DoubleSide })); ring.position.set(p.x, y + .4, p.z); ring.castShadow = true; scene.add(ring);
+      const water = new THREE.Mesh(new THREE.CircleGeometry(.72, 12), new THREE.MeshBasicMaterial({ color: 0x1a0202 })); water.rotation.x = -Math.PI / 2; water.position.set(p.x, y + .25, p.z); scene.add(water);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(.9, .04, .5), mats.wood2); lid.position.set(p.x + .2, y + .82, p.z); lid.rotation.y = .4; scene.add(lid);
     }
     if (p.k === 'bike') {
-      const g = new THREE.Group(); g.position.set(p.x, .03, p.z); g.rotation.set(0, p.yaw, 0); const mm = lam(0x2a2826);
+      const g = new THREE.Group(); g.position.set(p.x, Y(p.x, p.z) + .03, p.z); g.rotation.set(0, p.yaw, 0); const mm = lam(0x2a2826);
       const wg = new THREE.TorusGeometry(.3, .02, 4, 12); for (const x of [-.5, .5]) { const w = new THREE.Mesh(wg, mm); w.rotation.x = Math.PI / 2; w.position.set(x, 0, 0); g.add(w); }
       const f = new THREE.Mesh(new THREE.BoxGeometry(1, .04, .04), mm); g.add(f); const f2 = new THREE.Mesh(new THREE.BoxGeometry(.04, .04, .5), mm); f2.position.set(.45, .02, .1); g.add(f2);
       scene.add(g);
     }
+    if (p.k === 'statue') { // 薪を背負って本を読む少年の像
+      const g = new THREE.Group(); g.position.set(p.x, Y(p.x, p.z) + 1.1, p.z); g.rotation.y = p.yaw; const st = mats.stone;
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, .7, 7), st); b.position.y = .35; g.add(b);
+      const hd = new THREE.Mesh(new THREE.SphereGeometry(.12, 7, 5), st); hd.position.y = .82; hd.rotation.x = .4; g.add(hd);
+      const bk = new THREE.Mesh(new THREE.BoxGeometry(.18, .02, .13), st); bk.position.set(0, .6, .2); bk.rotation.x = -.6; g.add(bk);
+      const wd = new THREE.Mesh(new THREE.BoxGeometry(.34, .5, .2), st); wd.position.set(0, .6, -.22); g.add(wd);
+      g.traverse(m => { if (m.isMesh) m.castShadow = true; }); scene.add(g);
+    }
+    if (p.k === 'tetsubo') { const y = Y(p.x, p.z); const m = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 2.4, 6), mats.metal); m.rotation.z = Math.PI / 2; m.position.set(p.x, y + 1.45, p.z); scene.add(m); }
+    if (p.k === 'pond') { const y = Y((p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2); const m = new THREE.Mesh(new THREE.PlaneGeometry(p.x1 - p.x0 - .2, p.z1 - p.z0 - .2), new THREE.MeshPhongMaterial({ color: 0x1a0404, specular: 0x805050, shininess: 80, emissive: 0x0a0000 })); m.rotation.x = -Math.PI / 2; m.position.set((p.x0 + p.x1) / 2, y + .3, (p.z0 + p.z1) / 2); scene.add(m); }
   }
-  for (const s of W.solids) if (s.k === 'drum') { const m = new THREE.Mesh(new THREE.CylinderGeometry(.29, .29, .9, 10), mats.metal); m.position.set((s.x0 + s.x1) / 2, .45, (s.z0 + s.z1) / 2); m.castShadow = m.receiveShadow = true; scene.add(m); }
+  for (const s of W.solids) {
+    if (s.k === 'drum') { const m = new THREE.Mesh(new THREE.CylinderGeometry(.29, .29, .9, 10), mats.metal); m.position.set((s.x0 + s.x1) / 2, s.y0 + .45, (s.z0 + s.z1) / 2); m.castShadow = m.receiveShadow = true; scene.add(m); }
+    if (s.k === 'lantern') { const x = (s.x0 + s.x1) / 2, z = (s.z0 + s.z1) / 2, y = s.y0, G2 = DB.stone; G2.box(x - .25, y, z - .25, x + .25, y + .15, z + .25); G2.box(x - .09, y + .15, z - .09, x + .09, y + .75, z + .09); G2.box(x - .22, y + .75, z - .22, x + .22, y + 1.05, z + .22); G2.box(x - .3, y + 1.05, z - .3, x + .3, y + 1.15, z + .3); G2.box(x - .06, y + 1.15, z - .06, x + .06, y + 1.3, z + .06); }
+  }
   // 黒電話
   for (const ph of W.phones) {
-    const g = new THREE.Group(); g.position.set(ph.x, .4, ph.z); const bk = lam(0x0c0c0c);
+    const g = new THREE.Group(); g.position.set(ph.x, (ph.y != null ? ph.y : Y(ph.x, ph.z)) + .4, ph.z); const bk = lam(0x0c0c0c);
     const b = new THREE.Mesh(new THREE.BoxGeometry(.2, .09, .22), bk); b.position.y = .045; g.add(b);
     const hs = new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .06), bk); hs.position.y = .12; g.add(hs); scene.add(g); DYN.phones.push({ g, hs });
   }
-  for (const k in DB) if (DB[k].p.length) {
-    const mat = k === 'lit' ? new THREE.MeshBasicMaterial({ map: TEX.shojiLit }) : k === 'dark' ? new THREE.MeshLambertMaterial({ map: TEX.shoji }) : mats[k] || mats.stone;
-    const m = new THREE.Mesh(DB[k].geo(), mat); m.receiveShadow = true; scene.add(m);
+  // 肩車の場所：届かない高さに縄が垂れている
+  for (const b of W.boosts) { const x = (b.bx + b.tx) / 2, z = (b.bz + b.tz) / 2, top = Y(b.tx, b.tz), len = Math.max(.3, b.dh - 1.5); DB.rope.box(x - .025, top - len, z - .025, x + .025, top + .1, z + .025, 1); DB.rope.box(x - .05, top - len - .08, z - .05, x + .05, top - len, z + .05, 1); }
+  // 梯子（上に畳んである／下ろすと立てかかる）
+  for (const l of W.ladders) {
+    const x = (l.bx + l.tx) / 2, z = (l.bz + l.tz) / 2, top = Y(l.tx, l.tz), bot = Y(l.bx, l.bz), yaw = l.yaw;
+    const folded = new THREE.Mesh(new THREE.BoxGeometry(.5, .15, 1.6), mats.wood2); folded.position.set(l.tx - Math.sin(yaw) * .1, top + .08, l.tz - Math.cos(yaw) * .1); folded.rotation.y = yaw + Math.PI / 2; scene.add(folded);
+    const g = new THREE.Group(), L = Math.hypot(top - bot, .9) + .4, lb = new GB();
+    for (const sx of [-.22, .22]) lb.box(sx - .03, 0, -.03, sx + .03, L, .03, 1);
+    for (let y = .3; y < L; y += .32) lb.box(-.22, y - .02, -.02, .22, y + .02, .02, 1);
+    g.add(new THREE.Mesh(lb.geo(), mats.wood2)); g.position.set(l.bx + Math.sin(yaw) * .15, bot, l.bz + Math.cos(yaw) * .15); g.rotation.order = 'YXZ'; g.rotation.y = yaw; g.rotation.x = Math.atan2(.55, top - bot); g.visible = false; scene.add(g);
+    DYN.ladders.push({ folded, g, id: l.id });
   }
+  // 閂のかかった裏口（開くと戸が外へ倒れる）
+  for (const b of W.bars) {
+    const s = b.s, g = new THREE.Group(), w = Math.max(s.x1 - s.x0, s.z1 - s.z0), horiz = s.x1 - s.x0 > s.z1 - s.z0, pan = new GB();
+    pan.box(-w / 2, 0, -.04, w / 2, s.y1 - s.y0, .04, 1); pan.box(-w / 2, (s.y1 - s.y0) * .55, .04, w / 2, (s.y1 - s.y0) * .55 + .1, .1, 1);
+    const m = new THREE.Mesh(pan.geo(), mats.wood2); m.position.x = w / 2; g.add(m);
+    g.position.set(horiz ? s.x0 : (s.x0 + s.x1) / 2, s.y0, horiz ? (s.z0 + s.z1) / 2 : s.z0); g.rotation.y = horiz ? 0 : -Math.PI / 2; scene.add(g);
+    DYN.bars.push({ g, id: b.id, base: g.rotation.y });
+  }
+  const DBM = { lit: new THREE.MeshBasicMaterial({ map: TEX.shojiLit }), dark: new THREE.MeshLambertMaterial({ map: TEX.shoji }), rope: lam(0x6a5a38) };
+  for (const k in DB) if (DB[k].p.length) { const m = new THREE.Mesh(DB[k].geo(), DBM[k] || mats[k] || mats.stone); m.receiveShadow = true; m.castShadow = k === 'stone'; scene.add(m); }
   // 電線
   { const pos = [], P = W.poles;
-    for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d > 24) continue;
-      for (const o of [0, .35]) for (let k = 0; k < 8; k++) { const t0 = k / 8, t1 = (k + 1) / 8, y = t => 6.6 - o - Math.sin(t * Math.PI) * .7 * d / 18; pos.push(lerp(a[0], b[0], t0), y(t0), lerp(a[1], b[1], t0), lerp(a[0], b[0], t1), y(t1), lerp(a[1], b[1], t1)); } }
+    for (let i = 0; i < P.length - 1; i++) { const a = P[i], b = P[i + 1], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d > 24) continue; const ya = Y(a[0], a[1]), yb = Y(b[0], b[1]);
+      for (const o of [0, .35]) for (let k = 0; k < 8; k++) { const t0 = k / 8, t1 = (k + 1) / 8, y = t => lerp(ya, yb, t) + 6.6 - o - Math.sin(t * Math.PI) * .7 * d / 18; pos.push(lerp(a[0], b[0], t0), y(t0), lerp(a[1], b[1], t0), lerp(a[0], b[0], t1), y(t1), lerp(a[1], b[1], t1)); } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); scene.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x050404 }))); }
+  const inst = (geo, mat, list, f) => { const im = new THREE.InstancedMesh(geo, mat, Math.max(1, list.length)), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(); im.count = list.length; list.forEach((t, i) => f(t, i, m, q, e) || im.setMatrixAt(i, m)); im.receiveShadow = true; scene.add(im); return im; };
   // 赤い水たまり（光を照り返す）
-  { const pm = new THREE.MeshPhongMaterial({ color: 0x260303, specular: 0x9a5a50, shininess: 90, emissive: 0x0a0000 }), ig = new THREE.CircleGeometry(1, 10); ig.rotateX(-Math.PI / 2);
-    const im = new THREE.InstancedMesh(ig, pm, W.puddles.length), m = new THREE.Matrix4(), q = new THREE.Quaternion();
-    W.puddles.forEach((p, i) => { m.compose(new THREE.Vector3(p[0], .018 + i * .0002, p[1]), q, new THREE.Vector3(p[2], 1, p[2] * .75)); im.setMatrixAt(i, m); }); im.receiveShadow = true; scene.add(im); }
-  // 草
+  { const ig = new THREE.CircleGeometry(1, 10); ig.rotateX(-Math.PI / 2);
+    inst(ig, new THREE.MeshPhongMaterial({ color: 0x260303, specular: 0x9a5a50, shininess: 90, emissive: 0x0a0000 }), W.puddles, (p, i, m, q) => { m.compose(new THREE.Vector3(p[0], Y(p[0], p[1]) + .018 + i * .0002, p[1]), q, new THREE.Vector3(p[2], 1, p[2] * .75)); }); }
+  // 草と彼岸花
   { const pos = []; for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3, c = Math.cos(a) * .12, s = Math.sin(a) * .12; pos.push(-c, 0, -s, c, 0, s, 0, .38, 0); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
-    const im = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial({ color: 0x2c3a1c, side: THREE.DoubleSide }), W.grass.length), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    W.grass.forEach((t, i) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], 0, t[1]), q, new THREE.Vector3(t[2], t[2], t[2])); im.setMatrixAt(i, m); }); im.receiveShadow = true; scene.add(im); }
+    inst(g, new THREE.MeshLambertMaterial({ color: 0x2c3a1c, side: THREE.DoubleSide }), W.grass, (t, i, m, q, e) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], Y(t[0], t[1]), t[1]), q, new THREE.Vector3(t[2], t[2], t[2])); });
+    const fp = []; fp.push(-.01, 0, 0, .01, 0, 0, 0, .42, 0); for (let k = 0; k < 6; k++) { const a = k * TAU / 6, c = Math.cos(a), s = Math.sin(a); fp.push(0, .4, 0, c * .12, .5, s * .12, c * .07 - s * .03, .44, s * .07 + c * .03); }
+    const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3)); fg.computeVertexNormals();
+    inst(fg, new THREE.MeshLambertMaterial({ color: 0xb01410, emissive: 0x300000, side: THREE.DoubleSide }), W.flowers, (t, i, m, q, e) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], Y(t[0], t[1]), t[1]), q, new THREE.Vector3(t[2], t[2], t[2])); }); }
 }
 function buildScene(W) {
-  makeTextures();
+  makeTextures(); detailTextures();
+  const Y = (x, z) => gyW(W, x, z);
   scene = new THREE.Scene(); scene.background = new THREE.Color(0x120808); scene.fog = new THREE.FogExp2(0x120808, .05);
   scene.add(new THREE.HemisphereLight(0x8a5a58, 0x2a1c16, +Q.get('amb') || 3.2));
   const moonL = new THREE.DirectionalLight(0x9a6a70, +Q.get('moon') || 1.3); moonL.position.set(-40, 60, -30); scene.add(moonL);
   groundCanvas = drawGround(W);
-  const gt = texOf(groundCanvas); gt.magFilter = THREE.NearestFilter;
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(S, S), new THREE.MeshLambertMaterial({ map: gt })); ground.rotation.x = -Math.PI / 2; ground.position.set(S / 2, 0, S / 2); ground.receiveShadow = true; scene.add(ground);
-  const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), lam(0x14140e)); outer.rotation.x = -Math.PI / 2; outer.position.set(S / 2, -.02, S / 2); scene.add(outer);
-  // 赤い川
-  { const pl = W.river.pl, pos = [], idx = []; const w = W.river.w / 2 + .2;
+  const gt = texOf(groundCanvas);
+  // 地面：1mごとの四角を四隅の高さで張る
+  { const pos = [], nrm = [], uv = [], idx = [], H = W.hc;
+    for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) {
+      const k = (j * TN + i) * 4, a = [i, H[k], j], b = [i + 1, H[k + 1], j], c = [i + 1, H[k + 2], j + 1], d = [i, H[k + 3], j + 1];
+      const e1 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]], e2 = [d[0] - b[0], d[1] - b[1], d[2] - b[2]]; let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]; const l = Math.hypot(...n) || 1; n = n.map(v => v / l); if (n[1] < 0) n = n.map(v => -v);
+      const v0 = pos.length / 3; for (const p of [a, b, c, d]) { pos.push(p[0], p[1], p[2]); nrm.push(...n); uv.push(p[0] / S, 1 - p[2] / S); } idx.push(v0, v0 + 3, v0 + 2, v0, v0 + 2, v0 + 1);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeBoundingSphere();
+    const ground = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: gt })); ground.receiveShadow = true; scene.add(ground); }
+  let minH = 1e9; for (let k = 0; k < W.hc.length; k++) minH = Math.min(minH, W.hc[k]);
+  const outer = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), lam(0x14140e)); outer.rotation.x = -Math.PI / 2; outer.position.set(S / 2, minH - .3, S / 2); scene.add(outer);
+  // 赤い川（水面は岸より低い）
+  { const pl = W.river.pl, pos = [], idx = []; const w = W.river.w / 2 + .1;
     const pts = []; for (let i = 0; i < pl.length - 1; i++) for (let t = 0; t < 1; t += .1) pts.push([lerp(pl[i][0], pl[i + 1][0], t), lerp(pl[i][1], pl[i + 1][1], t)]); pts.push(pl[pl.length - 1]);
-    pts.forEach((p, i) => { const q = pts[Math.min(i + 1, pts.length - 1)], r = pts[Math.max(i - 1, 0)]; const dx = q[0] - r[0], dz = q[1] - r[1], L = Math.hypot(dx, dz) || 1; const nx = -dz / L * w, nz = dx / L * w; pos.push(p[0] + nx, 0, p[1] + nz, p[0] - nx, 0, p[1] - nz); if (i) { const b = i * 2; idx.push(b - 2, b - 1, b, b - 1, b + 1, b); } });
+    pts.forEach((p, i) => { const q = pts[Math.min(i + 1, pts.length - 1)], r = pts[Math.max(i - 1, 0)]; const dx = q[0] - r[0], dz = q[1] - r[1], L = Math.hypot(dx, dz) || 1; const nx = -dz / L * w, nz = dx / L * w, y = Y(clamp(p[0], 0, S - .01), clamp(p[1], 0, S - .01)) + .35; pos.push(p[0] + nx, y, p[1] + nz, p[0] - nx, y, p[1] - nz); if (i) { const b = i * 2; idx.push(b - 2, b - 1, b, b - 1, b + 1, b); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
-    riverMesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x4a0606, emissive: 0x1a0000, transparent: true, opacity: .88, side: THREE.DoubleSide })); riverMesh.position.y = .04; scene.add(riverMesh); }
+    riverMesh = new THREE.Mesh(g, new THREE.MeshPhongMaterial({ color: 0x4a0606, emissive: 0x1a0000, specular: 0x7a3030, shininess: 60, transparent: true, opacity: .9, side: THREE.DoubleSide })); scene.add(riverMesh); }
   // 固い物をまとめて描く
-  const B = { wall: new GB(), roof: new GB(), floor: new GB(), furn: new GB(), stone: new GB(), red: new GB(), conc: new GB(), metal: new GB(), wood2: new GB(), rock: new GB() };
+  const B = { wall: new GB(), roof: new GB(), floor: new GB(), furn: new GB(), stone: new GB(), red: new GB(), conc: new GB(), metal: new GB(), wood2: new GB(), rock: new GB(), ishi: new GB(), plaster: new GB(), gold: new GB(), fence: new GB() };
   for (const s of W.solids) {
+    const { x0, z0, x1, z1, y0, y1 } = s;
     switch (s.k) {
-      case 'wall': B.wall.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.6); break;
-      case 'closet': B.furn.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.1); break;
-      case 'table': B.furn.box(s.x0, .32, s.z0, s.x1, s.y1, s.z1, 1); B.furn.box(s.x0 + .05, 0, s.z0 + .05, s.x0 + .12, .32, s.z0 + .12, 1); B.furn.box(s.x1 - .12, 0, s.z1 - .12, s.x1 - .05, .32, s.z1 - .05, 1); break;
-      case 'grave': B.stone.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1); B.stone.box(s.x0 - .08, 0, s.z0 - .06, s.x1 + .08, .15, s.z1 + .06, 1); break;
-      case 'hall': B.wood2.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.4); break;
-      case 'torii': B.red.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1); break;
-      case 'pole': B.wood2.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1); break;
-      case 'conc': B.conc.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.5); break;
-      case 'winch': break;
-      case 'block': B.conc.box(s.x0, 0, s.z0, s.x1, s.y1, s.z1, 1.2); B.conc.box(s.x0 - .03, s.y1, s.z0 - .03, s.x1 + .03, s.y1 + .06, s.z1 + .03, 1.2); break;
-      case 'crate': B.furn.box(s.x0, 0, s.z0, s.x1, Math.min(s.y1, .7), s.z1, .7); if (s.y1 > 1) B.furn.box(s.x0 + .08, .7, s.z0 + .05, s.x1 - .04, s.y1, s.z1 - .08, .7); break;
+      case 'wall': B.wall.box(x0, y0, z0, x1, y1, z1, 1.6); break;
+      case 'kura': B.plaster.box(x0, y0, z0, x1, y1, z1, 2); B.conc.box(x0 - .02, y0, z0 - .02, x1 + .02, y0 + .7, z1 + .02, 1.5); break;
+      case 'fence': B.fence.box(x0, y0, z0, x1, y1, z1, 1.6); B.roof.box(x0 - .12, y1, z0 - .12, x1 + .12, y1 + .12, z1 + .12, 1.5); break;
+      case 'closet': B.furn.box(x0, y0, z0, x1, y1, z1, 1.1); break;
+      case 'locker': B.metal.box(x0, y0, z0, x1, y1, z1, 1.2); break;
+      case 'table': B.furn.box(x0, y0 + .32, z0, x1, y1, z1, 1, true); B.furn.box(x0 + .05, y0, z0 + .05, x0 + .12, y0 + .32, z0 + .12, 1); B.furn.box(x1 - .12, y0, z1 - .12, x1 - .05, y0 + .32, z1 - .05, 1); break;
+      case 'desk': B.furn.box(x0, y1 - .06, z0, x1, y1, z1, .8, true); B.metal.box(x0 + .03, y0, z0 + .03, x1 - .03, y1 - .06, z0 + .07, 1); B.metal.box(x0 + .03, y0, z1 - .07, x1 - .03, y1 - .06, z1 - .03, 1); break;
+      case 'counter': B.furn.box(x0, y0, z0, x1, y1, z1, .9); break;
+      case 'butsu': B.furn.box(x0, y0, z0, x1, y1, z1, 1); B.gold.box(x0 + .08, y0 + .55, z0 + .08, x1 - .08, y0 + 1.05, z1 - .08, .5); break;
+      case 'grave': B.stone.box(x0, y0, z0, x1, y1, z1, 1); B.stone.box(x0 - .08, y0, z0 - .06, x1 + .08, y0 + .15, z1 + .06, 1); break;
+      case 'hall': { B.wood2.box(x0, y0, z0, x1, y1, z1, 1.4); const o = .5, ry = y1 + 1.2, fsN = s.face === 'N' || s.face === 'S';
+        if (fsN) { const cx = (x0 + x1) / 2; B.roof.quadA([x0 - o, y1 - .1, z0 - o], [x0 - o, y1 - .1, z1 + o], [cx, ry, z1 + o], [cx, ry, z0 - o], [-1, 1, 0], [0, 0, 3, 0, 3, 1.5, 0, 1.5]); B.roof.quadA([x1 + o, y1 - .1, z0 - o], [x1 + o, y1 - .1, z1 + o], [cx, ry, z1 + o], [cx, ry, z0 - o], [1, 1, 0], [0, 0, 3, 0, 3, 1.5, 0, 1.5]); B.wall.tri([x0, y1, z0], [x1, y1, z0], [cx, ry, z0], [0, 0, -1], [0, 0, 2, 0, 1, 1]); B.wall.tri([x0, y1, z1], [x1, y1, z1], [cx, ry, z1], [0, 0, 1], [0, 0, 2, 0, 1, 1]); }
+        else { const cz = (z0 + z1) / 2; B.roof.quadA([x0 - o, y1 - .1, z0 - o], [x1 + o, y1 - .1, z0 - o], [x1 + o, ry, cz], [x0 - o, ry, cz], [0, 1, -1], [0, 0, 3, 0, 3, 1.5, 0, 1.5]); B.roof.quadA([x0 - o, y1 - .1, z1 + o], [x1 + o, y1 - .1, z1 + o], [x1 + o, ry, cz], [x0 - o, ry, cz], [0, 1, 1], [0, 0, 3, 0, 3, 1.5, 0, 1.5]); B.wall.tri([x0, y1, z0], [x0, y1, z1], [x0, ry, cz], [-1, 0, 0], [0, 0, 2, 0, 1, 1]); B.wall.tri([x1, y1, z0], [x1, y1, z1], [x1, ry, cz], [1, 0, 0], [0, 0, 2, 0, 1, 1]); }
+        break; }
+      case 'torii': B.red.box(x0, y0, z0, x1, y1, z1, 1); break;
+      case 'pole': B.wood2.box(x0, y0, z0, x1, y1, z1, 1); break;
+      case 'post': B.metal.box(x0, y0, z0, x1, y1, z1, 1); break;
+      case 'pedestal': B.stone.box(x0, y0, z0, x1, y1, z1, 1); break;
+      case 'pond': B.stone.box(x0 - .15, y0, z0 - .15, x1 + .15, y0 + .4, z0 + .05, 1); B.stone.box(x0 - .15, y0, z1 - .05, x1 + .15, y0 + .4, z1 + .15, 1); B.stone.box(x0 - .15, y0, z0, x0 + .05, y0 + .4, z1, 1); B.stone.box(x1 - .05, y0, z0, x1 + .15, y0 + .4, z1, 1); break;
+      case 'conc': B.conc.box(x0, y0, z0, x1, y1, z1, 1.5); break;
+      case 'crate': B.furn.box(x0, y0, z0, x1, y0 + Math.min(y1 - y0, .7), z1, .7); if (y1 - y0 > 1) B.furn.box(x0 + .08, y0 + .7, z0 + .05, x1 - .04, y1, z1 - .08, .7); break;
     }
   }
+  // 家の床と屋根
   for (const h of W.houses) {
-    B.floor.box(h.x0 + .1, 0, h.z0 + .1, h.x1 - .1, .04, h.z1 - .1, 1.8);
-    const o = .4, y0 = WALL_H, rh = 1.35, w = h.x1 - h.x0, d = h.z1 - h.z0, x0 = h.x0, x1 = h.x1, z0 = h.z0, z1 = h.z1;
+    const by = h.base;
+    B.floor.box(h.x0 + .1, by, h.z0 + .1, h.x1 - .1, by + .04, h.z1 - .1, h.kind === 'school' ? 1.2 : 1.8);
+    if (h.kind === 'school') B.wall.box(h.x0 + .1, by, h.z0 + .1, h.x1 - .1, by + .045, h.z1 - .1, 1.2);
+    const o = .4, y0 = by + h.wh, rh = h.kind === 'school' ? 1.8 : h.kind === 'kura' ? 1.2 : 1.35, w = h.x1 - h.x0, d = h.z1 - h.z0, x0 = h.x0, x1 = h.x1, z0 = h.z0, z1 = h.z1, GW2 = h.kind === 'kura' ? B.plaster : B.wall;
     if (w >= d) { const cz = (z0 + z1) / 2, sl = d / 2 + o;
       B.roof.quadA([x0 - o, y0 - .15, z0 - o], [x1 + o, y0 - .15, z0 - o], [x1 + o, y0 + rh, cz], [x0 - o, y0 + rh, cz], [0, 1, -1], [0, 0, (w + 2 * o) / 1.5, 0, (w + 2 * o) / 1.5, sl / 1.5, 0, sl / 1.5]);
       B.roof.quadA([x0 - o, y0 - .15, z1 + o], [x1 + o, y0 - .15, z1 + o], [x1 + o, y0 + rh, cz], [x0 - o, y0 + rh, cz], [0, 1, 1], [0, 0, (w + 2 * o) / 1.5, 0, (w + 2 * o) / 1.5, sl / 1.5, 0, sl / 1.5]);
-      B.wall.tri([x0, y0, z0], [x0, y0, z1], [x0, y0 + rh, cz], [-1, 0, 0], [0, 0, d / 1.6, 0, d / 3.2, rh / 1.6]); B.wall.tri([x1, y0, z0], [x1, y0, z1], [x1, y0 + rh, cz], [1, 0, 0], [0, 0, d / 1.6, 0, d / 3.2, rh / 1.6]);
+      GW2.tri([x0, y0, z0], [x0, y0, z1], [x0, y0 + rh, cz], [-1, 0, 0], [0, 0, d / 1.6, 0, d / 3.2, rh / 1.6]); GW2.tri([x1, y0, z0], [x1, y0, z1], [x1, y0 + rh, cz], [1, 0, 0], [0, 0, d / 1.6, 0, d / 3.2, rh / 1.6]);
     } else { const cx = (x0 + x1) / 2, sl = w / 2 + o;
       B.roof.quadA([x0 - o, y0 - .15, z0 - o], [x0 - o, y0 - .15, z1 + o], [cx, y0 + rh, z1 + o], [cx, y0 + rh, z0 - o], [-1, 1, 0], [0, 0, (d + 2 * o) / 1.5, 0, (d + 2 * o) / 1.5, sl / 1.5, 0, sl / 1.5]);
       B.roof.quadA([x1 + o, y0 - .15, z0 - o], [x1 + o, y0 - .15, z1 + o], [cx, y0 + rh, z1 + o], [cx, y0 + rh, z0 - o], [1, 1, 0], [0, 0, (d + 2 * o) / 1.5, 0, (d + 2 * o) / 1.5, sl / 1.5, 0, sl / 1.5]);
-      B.wall.tri([x0, y0, z0], [x1, y0, z0], [cx, y0 + rh, z0], [0, 0, -1], [0, 0, w / 1.6, 0, w / 3.2, rh / 1.6]); B.wall.tri([x0, y0, z1], [x1, y0, z1], [cx, y0 + rh, z1], [0, 0, 1], [0, 0, w / 1.6, 0, w / 3.2, rh / 1.6]);
+      GW2.tri([x0, y0, z0], [x1, y0, z0], [cx, y0 + rh, z0], [0, 0, -1], [0, 0, w / 1.6, 0, w / 3.2, rh / 1.6]); GW2.tri([x0, y0, z1], [x1, y0, z1], [cx, y0 + rh, z1], [0, 0, 1], [0, 0, w / 1.6, 0, w / 3.2, rh / 1.6]);
     }
   }
-  if (W.shrine) { const { x, z } = W.shrine; B.roof.quadA([x - 2.6, 2.1, z - 5.1], [x + 2.6, 2.1, z - 5.1], [x + 2.6, 3.2, z - 2.9], [x - 2.6, 3.2, z - 2.9], [0, 1, -1], [0, 0, 3, 0, 3, 1.5, 0, 1.5]); B.roof.quadA([x - 2.6, 2.1, z - .7], [x + 2.6, 2.1, z - .7], [x + 2.6, 3.2, z - 2.9], [x - 2.6, 3.2, z - 2.9], [0, 1, 1], [0, 0, 3, 0, 3, 1.5, 0, 1.5]);
-    B.red.box(x - 2.4, 3.05, z + 2.55, x + 2.4, 3.3, z + 2.95, 1); B.red.box(x - 2.1, 2.6, z + 2.65, x + 2.1, 2.75, z + 2.85, 1); }
+  // 石垣（段差の壁）と柵
+  for (const c of W.cliffs) {
+    const a = [c.x0, c.l0, c.z0], b = [c.x1, c.l1, c.z1], cc = [c.x1, c.h1, c.z1], d = [c.x0, c.h0, c.z0], u0 = (c.x0 + c.z0) / 1.6, u1 = (c.x1 + c.z1) / 1.6;
+    B.ishi.quadA(a, b, cc, d, [c.nx, 0, c.nz], [u0, c.l0 / 1.3, u1, c.l1 / 1.3, u1, c.h1 / 1.3, u0, c.h0 / 1.3]);
+  }
+  for (const r of W.rails) {
+    const L = Math.hypot(r.x1 - r.x0, r.z1 - r.z0), n = Math.max(1, Math.round(L / 2));
+    for (let k = 0; k <= n; k++) { const x = lerp(r.x0, r.x1, k / n), z = lerp(r.z0, r.z1, k / n), y = Y(clamp(x + (r.x0 === r.x1 ? (x > Math.floor(x) + .5 ? 0 : 0) : 0), .01, S - .01), clamp(z, .01, S - .01)); const hy = Math.max(y, Y(clamp(x + .15, 0, S - .01), clamp(z + .15, 0, S - .01)), Y(clamp(x - .15, 0, S - .01), clamp(z - .15, 0, S - .01))); B.fence.box(x - .05, hy, z - .05, x + .05, hy + .9, z + .05, 1); }
+    const ya = Math.max(Y(clamp(r.x0, 0, S - .01), clamp(r.z0, 0, S - .01)), Y(clamp(r.x0 + .15, 0, S - .01), clamp(r.z0 + .15, 0, S - .01))), yb = Math.max(Y(clamp(r.x1 - .01, 0, S - .01), clamp(r.z1 - .01, 0, S - .01)), Y(clamp(r.x1 - .15, 0, S - .01), clamp(r.z1 - .15, 0, S - .01)));
+    const vert = r.x0 === r.x1; B.fence.box(vert ? r.x0 - .03 : r.x0, Math.min(ya, yb) + .78, vert ? r.z0 : r.z0 - .03, vert ? r.x0 + .03 : r.x1, Math.max(ya, yb) + .86, vert ? r.z1 : r.z0 + .03, 1);
+  }
+  // 石段
+  for (const st of W.stairs) {
+    const dx = st.x1 - st.x0, dz = st.z1 - st.z0, L = Math.hypot(dx, dz), n = Math.max(2, Math.ceil(Math.abs(st.hb - st.ha) / .2)), horiz = Math.abs(dx) > Math.abs(dz), lo = Math.min(st.ha, st.hb) - .15;
+    for (let k = 0; k < n; k++) { const t0 = k / n, t1 = (k + 1) / n, h = Math.max(lerp(st.ha, st.hb, t0), lerp(st.ha, st.hb, t1)); const ax = lerp(st.x0, st.x1, t0), az = lerp(st.z0, st.z1, t0), bx = lerp(st.x0, st.x1, t1), bz = lerp(st.z0, st.z1, t1);
+      if (horiz) B.stone.box(Math.min(ax, bx), lo, st.z0 - st.w / 2, Math.max(ax, bx), h, st.z0 + st.w / 2, 1); else B.stone.box(st.x0 - st.w / 2, lo, Math.min(az, bz), st.x0 + st.w / 2, h, Math.max(az, bz), 1); }
+  }
   for (const d of W.deco) {
-    if (d.k === 'slide') { const R = RNG(Math.floor(d.at[0] * 100 + d.at[1])); for (let i = 0; i < 9; i++) { const ax = d.e === 'W' || d.e === 'E'; const o = (R() - .5) * 9, dd = (R() - .5) * 2, sz = .5 + R() * 1.1; const x = ax ? d.at[0] + dd : d.at[0] + o, z = ax ? d.at[1] + o : d.at[1] + dd; B.rock.box(x - sz, 0, z - sz * .8, x + sz, sz * 1.2, z + sz * .8, 1.3); } }
-    if (d.k === 'scare') { const { x, z } = d; B.wood2.box(x - .6, 1.2, z - .04, x + .6, 1.28, z + .04, 1); B.furn.box(x - .18, 1.25, z - .12, x + .18, 1.55, z + .12, 1); B.stone.box(x - .25, 1.55, z - .25, x + .25, 1.62, z + .25, 1); }
+    if (d.k === 'slide') { const R = RNG(Math.floor(d.at[0] * 100 + d.at[1])), y = Y(clamp(d.at[0], 0, S - .01), clamp(d.at[1], 0, S - .01)); for (let i = 0; i < 9; i++) { const ax = d.e === 'W' || d.e === 'E'; const o = (R() - .5) * 9, dd = (R() - .5) * 2, sz = .5 + R() * 1.1; const x = ax ? d.at[0] + dd : d.at[0] + o, z = ax ? d.at[1] + o : d.at[1] + dd; B.rock.box(x - sz, y - .2, z - sz * .8, x + sz, y + sz * 1.2, z + sz * .8, 1.3); } }
+    if (d.k === 'scare') { const { x, z } = d, y = Y(x, z); B.wood2.box(x - .6, y + 1.2, z - .04, x + .6, y + 1.28, z + .04, 1); B.furn.box(x - .18, y + 1.25, z - .12, x + .18, y + 1.55, z + .12, 1); B.stone.box(x - .25, y + 1.55, z - .25, x + .25, y + 1.62, z + .25, 1); }
+    if (d.k === 'torii') { const { x, z, px, pz, y } = d, e = 2.4; const a = [x - px * e, z - pz * e], b = [x + px * e, z + pz * e]; B.red.box(Math.min(a[0], b[0]) - .12, y + 3.05, Math.min(a[1], b[1]) - .12, Math.max(a[0], b[0]) + .12, y + 3.3, Math.max(a[1], b[1]) + .12, 1); const e2 = 2.1, a2 = [x - px * e2, z - pz * e2], b2 = [x + px * e2, z + pz * e2]; B.red.box(Math.min(a2[0], b2[0]) - .08, y + 2.6, Math.min(a2[1], b2[1]) - .08, Math.max(a2[0], b2[0]) + .08, y + 2.75, Math.max(a2[1], b2[1]) + .08, 1); }
+    if (d.k === 'mongate') { const { x, z, horiz, w } = d, y = Y(x, z) + 2.5, hw = w / 2 + .7; if (horiz) { B.roof.box(x - hw, y, z - .9, x + hw, y + .15, z + .9, 1.5); B.wood2.box(x - hw + .3, y - .2, z - .15, x + hw - .3, y, z + .15, 1); } else { B.roof.box(x - .9, y, z - hw, x + .9, y + .15, z + hw, 1.5); B.wood2.box(x - .15, y - .2, z - hw + .3, x + .15, y, z + hw - .3, 1); } }
   }
   if (!TEX.dirt) { const c = cvs(64), x = c.getContext('2d'); x.fillStyle = '#b8b4ac'; x.fillRect(0, 0, 64, 64); speck(x, 64, 64, ['#a09a90', '#8a8478', '#c4c0b8', '#6a5a50'], 700, 2);
     for (let i = 0; i < 7; i++) { x.fillStyle = `rgba(${90 + Math.random() * 40 | 0},10,8,${.5 + Math.random() * .4})`; const bx = Math.random() * 64, by = Math.random() * 64; for (let k = 0; k < 14; k++) x.fillRect(bx + (Math.random() - .5) * 10, by + Math.random() * 14, 2 + Math.random() * 3, 2 + Math.random() * 4); }
     TEX.dirt = texOf(c, 1); }
-  const mats = { wall: new THREE.MeshLambertMaterial({ map: TEX.wood }), roof: new THREE.MeshLambertMaterial({ map: TEX.roof, side: THREE.DoubleSide }), floor: new THREE.MeshLambertMaterial({ map: TEX.tatami }), furn: new THREE.MeshLambertMaterial({ map: TEX.furn }), stone: new THREE.MeshLambertMaterial({ map: TEX.stone }), red: new THREE.MeshLambertMaterial({ map: TEX.red }), conc: new THREE.MeshLambertMaterial({ map: TEX.conc }), metal: new THREE.MeshLambertMaterial({ map: TEX.metal }), wood2: new THREE.MeshLambertMaterial({ map: TEX.wood, color: 0x8a8a8a }), rock: new THREE.MeshLambertMaterial({ map: TEX.rock }) };
-  for (const k in B) if (B[k].p.length) { const m = new THREE.Mesh(B[k].geo(), mats[k]); m.castShadow = k !== 'floor'; m.receiveShadow = true; scene.add(m); }
-  // 杉
+  const mats = { wall: new THREE.MeshLambertMaterial({ map: TEX.wood }), roof: new THREE.MeshLambertMaterial({ map: TEX.roof, side: THREE.DoubleSide }), floor: new THREE.MeshLambertMaterial({ map: TEX.tatami }), furn: new THREE.MeshLambertMaterial({ map: TEX.furn }), stone: new THREE.MeshLambertMaterial({ map: TEX.stone }), red: new THREE.MeshLambertMaterial({ map: TEX.red }), conc: new THREE.MeshLambertMaterial({ map: TEX.conc }), metal: new THREE.MeshLambertMaterial({ map: TEX.metal }), wood2: new THREE.MeshLambertMaterial({ map: TEX.wood, color: 0x8a8a8a }), rock: new THREE.MeshLambertMaterial({ map: TEX.rock }), ishi: new THREE.MeshLambertMaterial({ map: TEX.ishi }), plaster: new THREE.MeshLambertMaterial({ map: TEX.plaster }), gold: lam(0x8a6a20), fence: new THREE.MeshLambertMaterial({ map: TEX.wood, color: 0x6a6a6a }) };
+  for (const k in B) if (B[k].p.length) { const m = new THREE.Mesh(B[k].geo(), mats[k]); m.castShadow = k !== 'floor' && k !== 'ishi'; m.receiveShadow = true; scene.add(m); }
+  // 杉（御神木にはしめ縄）
   { const tg = new THREE.CylinderGeometry(.16, .26, 3.2, 5); tg.translate(0, 1.6, 0); const cg = new THREE.ConeGeometry(1.5, 5, 6); cg.translate(0, 4.8, 0);
     const n = W.trees.length, ti = new THREE.InstancedMesh(tg, lam(0x2a1c14), n), ci = new THREE.InstancedMesh(cg, lam(0x0f1a12, { flatShading: true }), n), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    W.trees.forEach((t, i) => { e.set(0, t[3], 0); q.setFromEuler(e); m.compose(new THREE.Vector3(t[0], 0, t[1]), q, new THREE.Vector3(t[2], t[2] * (1 + (i % 5) * .08), t[2])); ti.setMatrixAt(i, m); ci.setMatrixAt(i, m); });
+    W.trees.forEach((t, i) => { e.set(0, t[3], 0); q.setFromEuler(e); const y = Y(clamp(t[0], 0, S - .01), clamp(t[1], 0, S - .01)); m.compose(new THREE.Vector3(t[0], y - .1, t[1]), q, new THREE.Vector3(t[2], t[2] * (1 + (i % 5) * .08) * (t[4] === 1 ? .55 : 1), t[2])); ti.setMatrixAt(i, m); ci.setMatrixAt(i, m);
+      if (t[4] === 2) { const r = new THREE.Mesh(new THREE.TorusGeometry(.6, .06, 5, 12), lam(0xb8a878)); r.rotation.x = Math.PI / 2; r.position.set(t[0], y + 1.7, t[1]); scene.add(r); } });
     ti.castShadow = ci.castShadow = true; ti.receiveShadow = ci.receiveShadow = true; scene.add(ti, ci);
-    const bg = new THREE.IcosahedronGeometry(1, 0), bi = new THREE.InstancedMesh(bg, lam(0x101a10, { flatShading: true }), W.bushes.length);
-    W.bushes.forEach((b, i) => { m.compose(new THREE.Vector3(b[0], b[2] * .5, b[1]), q, new THREE.Vector3(b[2] * 1.4, b[2], b[2] * 1.4)); bi.setMatrixAt(i, m); }); scene.add(bi); }
+    const bg = new THREE.IcosahedronGeometry(1, 0), bi = new THREE.InstancedMesh(bg, lam(0x101a10, { flatShading: true }), Math.max(1, W.bushes.length)); bi.count = W.bushes.length;
+    W.bushes.forEach((b, i) => { m.compose(new THREE.Vector3(b[0], Y(clamp(b[0], 0, S - .01), clamp(b[1], 0, S - .01)) + b[2] * .5, b[1]), q, new THREE.Vector3(b[2] * 1.4, b[2], b[2] * 1.4)); bi.setMatrixAt(i, m); }); scene.add(bi); }
   buildDetails(W, mats);
   // 街灯
   for (const L of W.lamps) {
-    const pl = new THREE.PointLight(0xffc890, 30, 16, 1.2); pl.position.set(L.x, 5.2, L.z); scene.add(pl);
-    const bulb = new THREE.Mesh(new THREE.BoxGeometry(.3, .12, .3), new THREE.MeshBasicMaterial({ color: 0xffe0b0 })); bulb.position.set(L.x, 5.5, L.z); scene.add(bulb);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1.2), mats.wood2); arm.position.set((L.x + L.px) / 2, 5.6, (L.z + L.pz) / 2); arm.lookAt(L.x, 5.6, L.z); scene.add(arm);
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.glow, color: 0xffb070, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.set(2.4, 2.4, 1); halo.position.set(L.x, 5.4, L.z); scene.add(halo);
+    const y = Y(L.px, L.pz);
+    const pl = new THREE.PointLight(0xffc890, 30, 16, 1.2); pl.position.set(L.x, y + 5.2, L.z); scene.add(pl);
+    const bulb = new THREE.Mesh(new THREE.BoxGeometry(.3, .12, .3), new THREE.MeshBasicMaterial({ color: 0xffe0b0 })); bulb.position.set(L.x, y + 5.5, L.z); scene.add(bulb);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.08, .08, 1.2), mats.wood2); arm.position.set((L.x + L.px) / 2, y + 5.6, (L.z + L.pz) / 2); arm.lookAt(L.x, y + 5.6, L.z); scene.add(arm);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.glow, color: 0xffb070, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.set(2.4, 2.4, 1); halo.position.set(L.x, y + 5.4, L.z); scene.add(halo);
     DYN.lamps.push({ pl, bulb, halo, base: 30, f: 0 });
   }
   // 脱出の仕掛け
   const O = W.objs;
   if (O.car) {
-    const g = new THREE.Group(); g.position.set(O.car.x, 0, O.car.z); g.rotation.y = O.car.yaw;
+    const g = new THREE.Group(); g.position.set(O.car.x, Y(O.car.x, O.car.z), O.car.z); g.rotation.y = O.car.yaw;
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, .75, 4), lam(0x2a342a)); body.position.y = .7; g.add(body);
     const cab = new THREE.Mesh(new THREE.BoxGeometry(1.5, .6, 2), lam(0x1a201a)); cab.position.set(0, 1.35, -.3); g.add(cab);
     const wg = new THREE.CylinderGeometry(.32, .32, .22, 8); wg.rotateZ(Math.PI / 2);
@@ -1019,14 +1367,14 @@ function buildScene(W) {
     scene.add(g); DYN.car = { g, hlM, cl };
   }
   if (O.gate) {
-    const g = new THREE.Group(); g.position.set(O.gate.c[0], 0, O.gate.c[1]); g.rotation.y = O.gate.yaw;
+    const g = new THREE.Group(); g.position.set(O.gate.c[0], Y(clamp(O.gate.c[0], 0, S - .01), clamp(O.gate.c[1], 0, S - .01)), O.gate.c[1]); g.rotation.y = O.gate.yaw;
     const panel = new THREE.Group(); const bm = new GB();
     for (let x = -6; x <= 6.01; x += .32) bm.box(x - .03, 0, -.03, x + .03, 2.9, .03, 1);
     for (const y of [.2, 1.5, 2.8]) bm.box(-6, y - .05, -.06, 6, y + .05, .06, 1);
     panel.add(new THREE.Mesh(bm.geo(), mats.metal)); g.add(panel); scene.add(g); DYN.gate = { panel, y: 0 };
   }
   if (O.winches) for (const w of O.winches) {
-    const g = new THREE.Group(); g.position.set(w.x, 0, w.z); g.rotation.y = w.yaw;
+    const g = new THREE.Group(); g.position.set(w.x, Y(w.x, w.z), w.z); g.rotation.y = w.yaw;
     const b = new THREE.Mesh(new THREE.BoxGeometry(.8, .9, .7), mats.metal); b.position.y = .45; g.add(b);
     const wh = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .06, 10), lam(0x5a2a1a)); wh.rotation.x = Math.PI / 2; wh.position.set(0, .9, .4); g.add(wh);
     const sp = new THREE.Mesh(new THREE.BoxGeometry(.06, .7, .06), lam(0x5a2a1a)); sp.position.copy(wh.position); g.add(sp);
@@ -1034,7 +1382,7 @@ function buildScene(W) {
     scene.add(g); DYN.winchWheels.push({ wh, sp, lamp, id: w.id });
   }
   if (O.chain) {
-    const xE = W.exit, g = new THREE.Group(); const c = W.P(xE, BAND - 1.5, 0); g.position.set(c[0], 0, c[1]); g.rotation.y = O.tunnel.yaw;
+    const xE = W.exit, g = new THREE.Group(); const c = W.P(xE, BAND - 1.5, 0); g.position.set(c[0], Y(clamp(c[0], 0, S - .01), clamp(c[1], 0, S - .01)), c[1]); g.rotation.y = O.tunnel.yaw;
     const rk = mats.rock, dark = new THREE.MeshBasicMaterial({ color: 0x030202 });
     const mk = (w, h, d, x, y, z, m) => { const ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); ms.position.set(x, y, z); g.add(ms); return ms; };
     mk(8, 9, 3, -6.4, 4.5, 0, rk); mk(8, 9, 3, 6.4, 4.5, 0, rk); mk(4.8, 4.5, 3, 0, 6.75, 0, rk);
@@ -1044,11 +1392,11 @@ function buildScene(W) {
     for (let y = .1; y < 4.5; y += .2) bm.box(-2.4, y - .015, -.015, 2.4, y + .015, .015, 1);
     cg.add(new THREE.Mesh(bm.geo(), mats.metal)); const lock = new THREE.Mesh(new THREE.BoxGeometry(.5, .12, .12), lam(0x8a7a50)); lock.position.set(0, 1.2, .05); cg.add(lock);
     g.add(cg); scene.add(g); DYN.chain = { cg, lock };
-    const tl = new THREE.PointLight(0x8090a0, 1.2, 8, 1); tl.position.set(c[0], 2, c[1]); scene.add(tl);
+    const tl = new THREE.PointLight(0x8090a0, 1.2, 8, 1); tl.position.set(c[0], g.position.y + 2, c[1]); scene.add(tl);
   }
   // 拾える物
   for (const it of W.items) {
-    const g = new THREE.Group(); g.position.set(it.x, .06, it.z); g.rotation.y = it.r;
+    const g = new THREE.Group(); g.position.set(it.x, (it.y != null ? it.y : Y(it.x, it.z)) + .06, it.z); g.rotation.y = it.r;
     const add = (w, h, d, col, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lam(col)); m.position.set(x, y + h / 2, z); g.add(m); };
     switch (it.id) {
       case 'key': add(.14, .02, .05, 0xb8963a); add(.06, .02, .06, 0xb8963a, .08); break;
@@ -1088,7 +1436,7 @@ function spawnEnemy(d) {
   const face = d.kind === 'turned' ? faceTexture('turned', d.face, d.pi || 0) : faceTexture('enemy', null, d.id);
   const look = d.kind === 'turned' ? (d.pi ? { cloth: 0x4b3428, pants: 0x221e1a } : { cloth: 0x252b34, pants: 0x181a1e }) : L;
   const h = mkHuman(Object.assign({}, look, { face, skin: 0x7c7f78, tilt: (d.id % 2 ? 1 : -1) * (.2 + (d.id % 5) * .06), scale: .96 + (d.id % 7) * .015, dirty: 1, drag: d.id % 3 === 0 ? .75 : .15, hunch: (d.id % 4) * .07, sleeve: L.n === '看護婦' ? 'short' : null }));
-  h.g.position.set(d.x, 0, d.z); scene.add(h.g);
+  h.g.position.set(d.x, gy(d.x, d.z), d.z); scene.add(h.g);
   const e = Object.assign({}, d, { m: h, yaw: d.yaw || (d.id * 1.7) % TAU, st: 'routine', sus: 0, hp: 3, down: 0, path: null, wait: Math.random() * 3, ri: 0, ai: 0, lostT: 99, chk: Math.random() * .1, anim: 0, mv: 0, stun: 0, tx: d.x, tz: d.z, tyaw: 0, stc: 0, tgt: -1,
     vbase: (d.kind === 'turned' ? 130 : L.v) * (.92 + (d.id % 5) * .04), name: d.kind === 'turned' ? d.name + 'だったもの' : '還り人（' + L.n + '）', stk: 0 });
   e.tyaw = e.yaw;
@@ -1109,7 +1457,7 @@ function seeScore(e, p) {
   let dazzle = false;
   if (p.light && d < 24 && Math.abs(angDiff(p.yaw, Math.atan2(-dx, -dz))) < .38) dazzle = true;
   if (!((inCone && d < range) || dazzle)) return 0;
-  if (!los(e.x, 1.55, e.z, p.x, p.crouch ? .75 : 1.3, p.z)) return 0;
+  if (!los(e.x, gy(e.x, e.z) + 1.55, e.z, p.x, gy(p.x, p.z) + (p.crouch ? .75 : 1.3), p.z)) return 0;
   return (dazzle && !inCone ? .8 : 1) * (1 - d / (range + 10));
 }
 function goTo(e, x, z) { e.path = findPath(e.x, e.z, x, z) || [[x, z]]; }
@@ -1227,7 +1575,7 @@ function processNoises() {
   for (const n of G.noises) for (const e of G.enemies) {
     if (e.down > 0 || e.st === 'chase' || e.st === 'attack' || e.st === 'pull') continue;
     const d = Math.hypot(e.x - n.x, e.z - n.z); if (d > n.r) continue;
-    if (d > n.r * .55 && !los(e.x, 1.2, e.z, n.x, 1, n.z)) continue;
+    if (d > n.r * .55 && !los(e.x, gy(e.x, e.z) + 1.2, e.z, n.x, gy(n.x, n.z) + 1, n.z)) continue;
     investigate(e, n.x, n.z); e.sus = Math.max(e.sus, .5);
   }
   G.noises.length = 0;
@@ -1292,6 +1640,9 @@ function handleReq(o, from) {
     case 'phoneUp': if (G.obj['pu' + o.i] == null) bcast({ t: 'obj', k: 'pu' + o.i, v: G.t }); break;
     case 'turn': turnPlayer(from); break;
     case 'esc': bcast({ t: 'esc', i: from }); break;
+    case 'lift': { const q = G.players[o.i]; if (q && q.st === 'alive') bcast({ t: 'lift', i: o.i, x: o.x, z: o.z }); break; }
+    case 'ladder': if (!G.obj['ld' + o.id]) bcast({ t: 'obj', k: 'ld' + o.id, v: 1 }); break;
+    case 'bar': if (!G.obj['bar' + o.id]) { bcast({ t: 'obj', k: 'bar' + o.id, v: 1 }); const b = G.W.bars[o.id]; if (b) G.noises.push({ x: b.x, z: b.z, r: 9 }); } break;
     case 'polt': { const e = enemyById(o.id); if (!e || e.down > 0) return; const a = Math.random() * TAU, x = clamp(e.x + Math.sin(a) * 7, 12, S - 12), z = clamp(e.z + Math.cos(a) * 7, 12, S - 12); if (e.st !== 'chase' && e.st !== 'attack') { investigate(e, x, z); e.sus = Math.max(e.sus, .4); } bcast({ t: 'knock', x, z }); break; }
     case 'use': {
       const O = G.obj;
@@ -1340,6 +1691,7 @@ function applyEv(v) {
     case 'esc': { const p = P[v.i]; p.st = 'escaped'; p.hidden = null; if (v.i === G.me) msg(G.W.obj === 'car' ? '車に乗り込んだ…' : '村を抜けた…'); else msg(p.name + 'が脱出した'); break; }
     case 'end': endGame(v); break;
     case 'knock': au.knock(v.x, v.z); break;
+    case 'lift': if (v.i === G.me) { tpMe(v.x, v.z); msg('引き上げてもらった'); } break;
     case 'pull': { if (v.i === G.me) { const p = me(); unhide(); if (!G.god) { p.hp -= 30; G.fx.red = 1; au.hurt(); if (p.hp <= 0) downMe(); } msg('引きずり出された！'); } break; }
   }
 }
@@ -1347,8 +1699,10 @@ function setObj(k, v) {
   const O = G.obj; O[k] = v;
   if (k === 'fuel') { G.team.delete('gas'); msg('ガソリンを入れた'); au.metal(G.W.objs.car.x, G.W.objs.car.z); }
   if (k === 'engine') { msg('エンジンがかかった！　乗り込め'); if (DYN.car) { DYN.car.hlM.color.setHex(0xfff6d8); DYN.car.cl.intensity = 10; } au.engine(); }
-  if (k === 'chain') { G.team.delete('cutter'); msg('鎖を切った！　隧道へ'); au.metal(G.W.objs.chain.c[0], G.W.objs.chain.c[1]); G.W.objs.chain.s.y1 = 0; buildNav(G.W); }
-  if (k === 'gate') { msg('鉄門が上がっていく…！'); au.gate(); G.W.objs.gate.s.y1 = 0; buildNav(G.W); }
+  if (k === 'chain') { G.team.delete('cutter'); msg('鎖を切った！　隧道へ'); au.metal(G.W.objs.chain.c[0], G.W.objs.chain.c[1]); G.W.objs.chain.s.y1 = G.W.objs.chain.s.y0; buildNav(G.W); }
+  if (k === 'gate') { msg('鉄門が上がっていく…！'); au.gate(); G.W.objs.gate.s.y1 = G.W.objs.gate.s.y0; buildNav(G.W); }
+  if (k.startsWith('bar')) { const b = G.W.bars[+k.slice(3)]; if (b) { b.s.y1 = b.s.y0; buildNav(G.W); au.door(); msg('閂を外した。裏口が開いた'); } }
+  if (k.startsWith('ld')) { const l = G.W.ladders[+k.slice(2)]; if (l) { au.metal(l.tx, l.tz, .2); msg('梯子を下ろした'); } }
   if (k[0] === 'w' && k.length === 2 && !O.gate) { const w = G.W.objs.winches[+k[1]]; au.metal(w.x, w.z); msg(Net.mode === 'solo' ? '巻き上げた。急いでもう一方も！' : '巻き上げた。もう一方を同時に！'); }
 }
 
@@ -1361,6 +1715,7 @@ function downMe() {
 }
 function hide(c) { const p = me(); p.hidden = c.id; p.x = c.x; p.z = c.z; p.hideYaw = c.yaw; G.cam.yaw = c.yaw; G.cam.pitch = 0; if (isHost()) onHideHost(p); au.door(); sendP(); }
 function unhide() { const p = me(); if (p.hidden == null) return; const c = G.W.closets[p.hidden]; p.hidden = null; p.x = c.x; p.z = c.z; collide(p, .3); au.door(); sendP(); }
+function tpMe(x, z) { const p = me(); p.x = x; p.z = z; collide(p, .3); au.step(x, z, .3, false); sendP(); }
 // 仕掛け
 function openOcc(c) {
   au.stinger(); au.scream(c.cx, c.cz); G.fx.shake = .7; G.fx.red = .5;
@@ -1452,6 +1807,23 @@ function findInteract() {
   }
   if (O.chain && !G.obj.chain && Math.hypot(O.chain.c[0] - p.x, O.chain.c[1] - p.z) < 2.6) return G.team.has('cutter') ? { key: 'cut', label: '鎖を切る', need: 3, loud: 1, run: () => req('use', { what: 'cut' }) } : { key: 'x', label: '太い鎖が巻かれている', dis: 1 };
   if (O.gate && !G.obj.gate && Math.hypot(O.gate.c[0] - p.x, O.gate.c[1] - p.z) < 5) return { key: 'x', label: '鉄門は閉ざされている', dis: 1 };
+  // 肩車・梯子・閂
+  const Wd = G.W, other = G.players.find(q => q !== p && !q.gone && q.st === 'alive' && q.hidden == null);
+  for (const b of Wd.boosts) {
+    const atB = Math.hypot(b.bx - p.x, b.bz - p.z) < 1.2, atT = Math.hypot(b.tx - p.x, b.tz - p.z) < 1.2;
+    if (atB) { if (other && Math.hypot(b.bx - other.x, b.bz - other.z) < 1.5) return { key: 'bu' + b.id, label: '肩を借りて登る', need: 1.2, run: () => { tpMe(b.tx, b.tz); msg('石垣を登った'); } }; return { key: 'x', label: Net.mode === 'solo' ? '縄に手が届かない' : '縄に手が届かない（相棒の肩を借りれば…）', dis: 1 }; }
+    if (atT && other && Math.hypot(b.bx - other.x, b.bz - other.z) < 1.6) return { key: 'bl' + b.id, label: other.name + 'を引き上げる', need: 1.8, run: () => req('lift', { i: other.i, x: b.tx + (b.tx - b.bx) * .8, z: b.tz + (b.tz - b.bz) * .8 }) };
+  }
+  for (const l of Wd.ladders) {
+    const on = G.obj['ld' + l.id], atB = Math.hypot(l.bx - p.x, l.bz - p.z) < 1.2, atT = Math.hypot(l.tx - p.x, l.tz - p.z) < 1.2;
+    if (atT) return on ? { key: 'ldd' + l.id, label: '梯子を降りる', need: .8, run: () => tpMe(l.bx + (l.bx - l.tx) * .5, l.bz + (l.bz - l.tz) * .5) } : { key: 'ld' + l.id, label: '梯子を下ろす', need: 1.5, run: () => req('ladder', { id: l.id }) };
+    if (atB) return on ? { key: 'ldu' + l.id, label: '梯子を登る', need: .8, run: () => tpMe(l.tx, l.tz) } : { key: 'x', label: '上に梯子が畳んである', dis: 1 };
+  }
+  for (const b of Wd.bars) {
+    if (G.obj['bar' + b.id] || Math.hypot(b.x - p.x, b.z - p.z) > 1.5) continue;
+    const inside = (p.x - b.x) * b.nx + (p.z - b.z) * b.nz > 0;
+    return inside ? { key: 'bar' + b.id, label: '閂を外す', need: 1, run: () => req('bar', { id: b.id }) } : { key: 'x', label: '向こう側から閂がかかっている', dis: 1 };
+  }
   for (const c of G.W.closets) { if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && fo(c.cx, c.cz) < 1.2 && !G.players.some(q => q.hidden === c.id)) return { key: 'hide' + c.id, label: '押し入れに隠れる', run: () => (c.occ && !G.obj['occ' + c.id]) ? openOcc(c) : hide(c) }; }
   for (const ph of G.W.phones) if (phoneRinging(ph) && Math.hypot(ph.x - p.x, ph.z - p.z) < 1.7) return { key: 'ph' + ph.i, label: '受話器を取る', run: () => { req('phoneUp', { i: ph.i }); say('……たすけて……みずが……あかいの……', .3, .6, 1); msg('「……たすけて……みずが、あかいの……」'); } };
   if (p.med > 0 && p.hp < 100) return { key: 'med', label: '手当てする（' + p.med + '）', need: 2, run: () => { p.med--; p.hp = Math.min(100, p.hp + 55); msg('手当てをした'); } };
@@ -1727,7 +2099,7 @@ const tmpV = new THREE.Vector3();
 function updateModels(dt) {
   for (const p of G.players) {
     const h = p.m, vis = !p.gone && p.st !== 'ghost' && p.st !== 'escaped' && p.hidden == null;
-    h.g.visible = vis; h.g.position.set(p.x, 0, p.z); h.g.rotation.y = p.yaw;
+    h.g.visible = vis; h.g.position.set(p.x, gy(p.x, p.z), p.z); h.g.rotation.y = p.yaw;
     const swing = p.i === G.me ? p.swing > 0 : p.swingF;
     const a = p.st === 'down' ? 6 : swing ? 3 : p.sj ? 8 : p.moving ? (p.crouch ? 9 : p.run ? 2 : 1) : p.crouch ? 9 : 0;
     h.moving = p.moving;
@@ -1737,7 +2109,7 @@ function updateModels(dt) {
     p.pipe.visible = !!p.weapon;
   }
   for (const e of G.enemies) {
-    const h = e.m; h.g.position.set(e.x, 0, e.z); h.g.rotation.y = e.yaw;
+    const h = e.m; h.g.position.set(e.x, gy(e.x, e.z), e.z); h.g.rotation.y = e.yaw;
     animHuman(h, e.anim, dt, true);
   }
 }
@@ -1751,12 +2123,14 @@ function updateFX(dt) {
   for (const g of DYN.glints) { g.ph += dt * 3; g.gl.material.opacity = .25 + .75 * Math.pow(Math.max(0, Math.sin(g.ph)), 8); }
   if (DYN.gate) { const target = G.obj.gate ? 3.4 : 0; DYN.gate.y = lerp(DYN.gate.y, target, dt * .5); DYN.gate.panel.position.y = DYN.gate.y; }
   if (DYN.chain && G.obj.chain) { DYN.chain.cg.rotation.y = lerp(DYN.chain.cg.rotation.y, 1.4, dt * 2); DYN.chain.lock.visible = false; }
+  for (const l of DYN.ladders) { const on = !!G.obj['ld' + l.id]; l.g.visible = on; l.folded.visible = !on; }
+  for (const b of DYN.bars) { const open = !!G.obj['bar' + b.id]; b.g.rotation.y = lerp(b.g.rotation.y, b.base + (open ? 1.5 : 0), dt * 3); }
   for (const w of DYN.winchWheels) { const at = G.obj['w' + w.id], active = at != null && (G.obj.gate || G.t - at < winWindow()); const spin = (G.hold && G.hold.key === 'w' + w.id) ? 6 : active && !G.obj.gate ? .3 : 0; w.wh.rotation.y += spin * dt; w.sp.rotation.z += spin * dt; w.lamp.material.color.setHex(active ? 0xff3020 : 0x401010); }
   // 雨
   const pos = rain.geometry.attributes.position, A = pos.array, cp = camera.position, fall = 16 + G.siren * 2;
   for (let i = 0; i < A.length; i += 6) {
     A[i + 1] -= fall * dt; A[i + 4] -= fall * dt;
-    if (A[i + 1] < 0 || Math.abs(A[i] - cp.x) > 20 || Math.abs(A[i + 2] - cp.z) > 20) { const x = cp.x + Math.random() * 40 - 20, z = cp.z + Math.random() * 40 - 20, y = 6 + Math.random() * 8; A[i] = x; A[i + 1] = y; A[i + 2] = z; A[i + 3] = x + .05; A[i + 4] = y + .55; A[i + 5] = z; }
+    if (A[i + 1] < cp.y - 5 || Math.abs(A[i] - cp.x) > 20 || Math.abs(A[i + 2] - cp.z) > 20) { const x = cp.x + Math.random() * 40 - 20, z = cp.z + Math.random() * 40 - 20, y = cp.y + 3 + Math.random() * 8; A[i] = x; A[i + 1] = y; A[i + 2] = z; A[i + 3] = x + .05; A[i + 4] = y + .55; A[i + 5] = z; }
   }
   pos.needsUpdate = true; rain.material.opacity = .35 + G.siren * .06;
   moon.position.set(cp.x - 70, cp.y + 60, cp.z - 90);
@@ -1765,21 +2139,21 @@ function placeCamera() {
   const p = me(), V = G.sj.on ? G.sj.view : null;
   if (V) {
     const o = V.o;
-    if (V.k === 'e') { const hy = o.anim === 5 ? 1.0 : 1.55, yw = o.yaw + Math.sin(G.time * 1.1 + o.id) * .25 + (o.m.jerk || 0); camera.position.set(o.x + Math.sin(o.yaw) * .1, hy, o.z + Math.cos(o.yaw) * .1); camera.lookAt(o.x + Math.sin(yw) * 6, hy - .35 + Math.sin(G.time * .7) * .15, o.z + Math.cos(yw) * 6); }
-    else { const hy = o.st === 'down' ? .35 : o.crouch ? 1.05 : 1.55, cy = Math.cos(o.camPitch || 0); camera.position.set(o.x, hy, o.z); camera.lookAt(o.x + Math.sin(o.camYaw) * cy * 6, hy + Math.sin(o.camPitch || 0) * 6, o.z + Math.cos(o.camYaw) * cy * 6); }
+    if (V.k === 'e') { const hy = gy(o.x, o.z) + (o.anim === 5 ? 1.0 : 1.55), yw = o.yaw + Math.sin(G.time * 1.1 + o.id) * .25 + (o.m.jerk || 0); camera.position.set(o.x + Math.sin(o.yaw) * .1, hy, o.z + Math.cos(o.yaw) * .1); camera.lookAt(o.x + Math.sin(yw) * 6, hy - .35 + Math.sin(G.time * .7) * .15, o.z + Math.cos(yw) * 6); }
+    else { const hy = gy(o.x, o.z) + (o.st === 'down' ? .35 : o.crouch ? 1.05 : 1.55), cy = Math.cos(o.camPitch || 0); camera.position.set(o.x, hy, o.z); camera.lookAt(o.x + Math.sin(o.camYaw) * cy * 6, hy + Math.sin(o.camPitch || 0) * 6, o.z + Math.cos(o.camYaw) * cy * 6); }
     return o.m.g;
   }
   if (p.hidden != null) {
     const c = G.W.closets[p.hidden], yw = c.yaw + clamp(angDiff(c.yaw, G.cam.yaw), -.5, .5);
-    camera.position.set(c.cx + Math.sin(c.yaw) * .36, 1.45, c.cz + Math.cos(c.yaw) * .36); camera.lookAt(camera.position.x + Math.sin(yw) * 5, 1.3 + G.cam.pitch * 3, camera.position.z + Math.cos(yw) * 5);
+    camera.position.set(c.cx + Math.sin(c.yaw) * .36, c.h + 1.45, c.cz + Math.cos(c.yaw) * .36); camera.lookAt(camera.position.x + Math.sin(yw) * 5, c.h + 1.3 + G.cam.pitch * 3, camera.position.z + Math.cos(yw) * 5);
     return null;
   }
-  const hy = p.st === 'down' ? .5 : p.crouch ? 1.15 : 1.55, cy = Math.cos(G.cam.pitch), fx = Math.sin(G.cam.yaw) * cy, fyy = Math.sin(G.cam.pitch), fz = Math.cos(G.cam.yaw) * cy;
+  const hy = gy(p.x, p.z) + (p.st === 'down' ? .5 : p.crouch ? 1.15 : 1.55), cy = Math.cos(G.cam.pitch), fx = Math.sin(G.cam.yaw) * cy, fyy = Math.sin(G.cam.pitch), fz = Math.cos(G.cam.yaw) * cy;
   const rx = -Math.cos(G.cam.yaw), rz = Math.sin(G.cam.yaw), back = camera.aspect < .8 ? 3.7 : 2.8;
   const sho = camera.aspect < .8 ? .62 : .5, hx = p.x + rx * sho, hz = p.z + rz * sho;
   let cx = hx - fx * back, cyy = hy + .5 - fyy * back, cz = hz - fz * back;
   const t = rayT(p.x, hy, p.z, cx, cyy, cz, false); if (t < 1) { const tt = Math.max(0, t - .1); cx = p.x + (cx - p.x) * tt; cyy = hy + (cyy - hy) * tt; cz = p.z + (cz - p.z) * tt; }
-  cyy = Math.max(.25, cyy);
+  cyy = Math.max(gy(clamp(cx, 0, S - .01), clamp(cz, 0, S - .01)) + .25, cyy);
   const sh = G.fx.shake * .15; camera.position.set(cx + (Math.random() - .5) * sh, cyy + (Math.random() - .5) * sh, cz);
   camera.lookAt(hx + fx * 6, hy + .45 + fyy * 6, hz + fz * 6);
   return null;
@@ -1835,7 +2209,12 @@ function hint(t, ms = 5000) { const h = $('hint'); h.textContent = t; h.style.op
 function showNote(t) { $('noteT').textContent = t; $('note').classList.remove('hide'); }
 function drawMap() {
   const c = $('mapc'), x = c.getContext('2d'), k = 512 / S, W = G.W;
-  x.drawImage(groundCanvas, 0, 0, 512, 512); x.fillStyle = 'rgba(0,0,0,.25)'; x.fillRect(0, 0, 512, 512);
+  x.drawImage(groundCanvas, 0, 0, 512, 512); x.fillStyle = 'rgba(0,0,0,.2)'; x.fillRect(0, 0, 512, 512);
+  // 低い所ほど暗く（高低差が読める地図）
+  let mx = 0; for (let q = 0; q < W.hc.length; q += 4) mx = Math.max(mx, W.hc[q]);
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) { const h = W.hc[(j * TN + i) * 4], a = clamp((mx - h) / (mx + 1) * .5, 0, .5); if (a > .02) { x.fillStyle = `rgba(0,0,0,${a.toFixed(2)})`; x.fillRect(i * k, j * k, k + .5, k + .5); } }
+  x.strokeStyle = 'rgba(210,190,160,.55)'; x.lineWidth = 1.2; x.beginPath(); for (const e of W.cliffs) { x.moveTo(e.x0 * k, e.z0 * k); x.lineTo(e.x1 * k, e.z1 * k); } x.stroke();
+  x.font = '12px serif'; x.textAlign = 'center'; x.fillStyle = 'rgba(230,210,180,.55)'; for (const d of W.D) x.fillText(DTYPE_N[d.type] || '', (d.x0 + d.x1) / 2 * k, (d.z0 + 4) * k);
   x.fillStyle = '#5a4630'; for (const h of W.houses) x.fillRect(h.x0 * k, h.z0 * k, (h.x1 - h.x0) * k, (h.z1 - h.z0) * k);
   x.strokeStyle = '#1a120a'; x.lineWidth = 1; for (const h of W.houses) x.strokeRect(h.x0 * k, h.z0 * k, (h.x1 - h.x0) * k, (h.z1 - h.z0) * k);
   x.fillStyle = '#0c140d'; x.fillRect(0, 0, 512, BAND * k); x.fillRect(0, 512 - BAND * k, 512, BAND * k); x.fillRect(0, 0, BAND * k, 512); x.fillRect(512 - BAND * k, 0, BAND * k, 512);
@@ -1845,6 +2224,12 @@ function drawMap() {
   if (O.car) mark(O.car.x, O.car.z, '車'); if (O.gate) mark(O.gate.c[0], O.gate.c[1], '鉄門'); if (O.chain) mark(O.chain.c[0], O.chain.c[1], '隧道');
   if (O.winches) O.winches.forEach((w, i) => mark(w.x, w.z, '巻' + '東西'[i], '#c80'));
   if (W.shrine) mark(W.shrine.x, W.shrine.z, '神社', '#744');
+  x.font = 'bold 11px serif';
+  const small = (px, pz, t, col) => { x.fillStyle = col; x.fillRect(px * k - 3, pz * k - 3, 6, 6); x.strokeStyle = '#000'; x.lineWidth = 3; x.strokeText(t, px * k, pz * k - 9); x.fillStyle = '#fff'; x.fillText(t, px * k, pz * k - 9); };
+  for (const b of W.boosts) small(b.bx, b.bz, '肩', '#6ac');
+  for (const l of W.ladders) small(l.bx, l.bz, G.obj['ld' + l.id] ? '梯' : '梯?', '#ca6');
+  for (const b of W.bars) small(b.x, b.z, G.obj['bar' + b.id] ? '開' : '閂', '#a86');
+  x.font = 'bold 15px serif';
   for (const p of G.players) { if (p.gone || p.st === 'ghost' || p.st === 'escaped') continue; x.save(); x.translate(p.x * k, p.z * k); x.rotate(-p.yaw); x.fillStyle = p.i === G.me ? '#ff5040' : '#60a0ff'; x.beginPath(); x.moveTo(0, 9); x.lineTo(-6, -6); x.lineTo(6, -6); x.fill(); x.restore(); }
 }
 
@@ -2013,7 +2398,7 @@ G.debug = {
   tp(x, z) { const p = me(); p.x = x; p.z = z; p.tx = x; p.tz = z; },
   give(id) { G.team.add(id); if (id === 'pipe') me().weapon = 'pipe'; if (id === 'med') me().med++; },
   setT(t) { G.t = t; }, bcast, req, handleReq, findPath, los, rayT, genWorld, spawnEnemy, turnPlayer, applyEv, sendP,
-  nav: () => G.W.nav, S, BAND, T_SIREN, N_SIREN, T_END, inExitZone, findInteract, seeScore, collide,
+  gy: (x, z) => gy(x, z), navOk: (x, z) => { const c = cidx(x, z); return c >= 0 && !G.W.nav[c]; }, nav: () => G.W.nav, S, BAND, T_SIREN, N_SIREN, T_END, inExitZone, findInteract, seeScore, collide,
 };
 
 window.me = me;
