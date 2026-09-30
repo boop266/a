@@ -3237,6 +3237,16 @@ async function act(pi){
  await wait(380);await afterPlayer();
 }
 function taintHeal(pc,hv){if(!(pc.inst&&pc.inst.taint))return hv;learn('taint','汚染区域：そこで拾った薬や魚は効きが落ち、喉が焼けることもある');setTimeout(()=>{if(Math.random()<.4&&G.p.hp>1){G.p.hp-=1;G.hurt=4;toast('喉が焼ける。汚染されていた（-1）');ui()}else toast('妙に苦い。汚染で効きが悪い')},500);return Math.max(1,Math.round(hv*.8))}
+
+// 仲間の攻撃には、その子の性が乗る。水の子が濡らし、雷の子が突く。組み合わせで戦い方が変わる
+function allyEl(k){const g=GEN[k];if(g)return g.el;const F=FOE[k]||{};return F.volt?'volt':F.breath||FAM[k]=='fire'?'fire':F.douse||F.aqua?'water':F.oiler?'oil':F.armor?'stone':F.fast?'wind':'none'}
+function allyElem(a,t){if(!t||t.hp<=0)return;const el=allyEl(a.k);
+ if(el=='fire'&&a.waza!='hibuki'){if(t.wetC>0){t.wetC=0;(G.steam=G.steam||[]).push({x:t.x,y:t.y,t:0,life:5});react('fire+water',t.x,t.y)}else if(ignite(t.x,t.y,'quiet'))toast(a.n+'の火が、足元に燃え移った')}
+ else if(el=='water'){t.wetC=Math.max(t.wetC||0,3);t.burn=0;if(!a.saidW){a.saidW=1;toast(a.n+'が'+t.n+'をずぶ濡れにした')}}
+ else if(el=='volt'){if(t.wetC>0||inWater(t.x,t.y)){hit(t,Math.max(2,a.atk));t.stun=Math.max(t.stun||0,1);fx({type:'spark',x:t.rx+4,y:t.ry,c:'#fff0a0'});toast('濡れた'+t.n+'に、'+a.n+'の電気が走った！');react('water+volt',t.x,t.y);learn('allyvolt','仲間の性：雷の子は、濡れた相手を大きくしびれさせる。水の子に濡らさせてから呼ぶと強い')}}
+ else if(el=='oil'){(G.oil=G.oil||new Set()).add(t.x+','+t.y)}
+ else if(el=='stone'){addPosture(t,10)}
+ else if(el=='wind'){knockBack(t,a,2)}}
 function summon(pc){
  const p=G.p;const occ=(x,y)=>foeAt(x,y)||G.allies.some(a=>a.x==x&&a.y==y)||(x==p.x&&y==p.y)||gimAt(x,y);
  const s=DIRS.map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>walk(x,y)&&!occ(x,y));if(!s){toast('呼ぶ場所がない');return}
@@ -3253,7 +3263,7 @@ function pruneFight(){try{if(G&&G.fight&&G.fight.foes){const n=G.fight.foes.filt
 async function afterPlayer(){
  const F=G.fight;if(!F)return;
  if(await resolveDeaths())return;if(pruneFight())return;
- for(const a of G.allies){if(a.waza=='iyashi'){if(G.p.hp<G.p.max){G.p.hp=Math.min(G.p.max,G.p.hp+2);fx({type:'heal',x:G.p.rx+4,y:G.p.ry})}await wait(200);continue}for(let rep2=0;rep2<(a.waza=='rengeki'?2:1);rep2++){const tgt=alive()[0];if(!tgt)break;await lunge(a,tgt,3);fx({type:'slash',x:tgt.rx+4,y:tgt.ry+2,c:a.waza=='hibuki'?'#ffb060':'#9ff0e0'});const base=tgt.armor?Math.max(1,Math.floor(a.atk/2)):a.atk;hit(tgt,a.waza=='rengeki'||a.waza=='ikaku'?Math.max(1,Math.ceil(base/2)):base,a);if(a.waza=='hibuki')ignite(tgt.x,tgt.y,'quiet');if(a.waza=='ikaku')addPosture(tgt,12);}const tgt=alive()[0];if(!tgt)continue;if(a.regen&&a.hp<a.max){a.hp=Math.min(a.max,a.hp+a.regen);fx({type:'heal',x:a.rx+4,y:a.ry})}await wait(240)}
+ for(const a of G.allies){if(a.waza=='iyashi'){if(G.p.hp<G.p.max){G.p.hp=Math.min(G.p.max,G.p.hp+2);fx({type:'heal',x:G.p.rx+4,y:G.p.ry})}await wait(200);continue}for(let rep2=0;rep2<(a.waza=='rengeki'?2:1);rep2++){const tgt=alive()[0];if(!tgt)break;await lunge(a,tgt,3);fx({type:'slash',x:tgt.rx+4,y:tgt.ry+2,c:a.waza=='hibuki'?'#ffb060':'#9ff0e0'});const base=tgt.armor?Math.max(1,Math.floor(a.atk/2)):a.atk;hit(tgt,a.waza=='rengeki'||a.waza=='ikaku'?Math.max(1,Math.ceil(base/2)):base,a);if(a.waza=='hibuki')ignite(tgt.x,tgt.y,'quiet');if(a.waza=='ikaku')addPosture(tgt,12);try{allyElem(a,tgt)}catch(e){}}const tgt=alive()[0];if(!tgt)continue;if(a.regen&&a.hp<a.max){a.hp=Math.min(a.max,a.hp+a.regen);fx({type:'heal',x:a.rx+4,y:a.ry})}await wait(240)}
  if(await resolveDeaths())return;
  for(const f of alive()){
   if(G.fight!==F||G.over)return;
