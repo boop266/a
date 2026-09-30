@@ -148,7 +148,7 @@ const cases = {
       }
       return o;
     });
-    if (!r.hasOcc || r.label !== '押し入れに隠れる' || !r.spawned || r.hidden != null || !r.chase) throw new Error('押し入れ: ' + JSON.stringify(r));
+    if (!r.hasOcc || !/に隠れる$/.test(r.label || '') || !r.spawned || r.hidden != null || !r.chase) throw new Error('押し入れ: ' + JSON.stringify(r));
     if (r.phones && (!r.ring || r.heard === 'routine' || r.pl !== '受話器を取る' || !r.up)) throw new Error('電話: ' + JSON.stringify(r));
     const e = await errs(p); if (e.length) throw new Error(e.join('\n'));
     await p.close();

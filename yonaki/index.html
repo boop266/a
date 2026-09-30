@@ -710,6 +710,7 @@ function genTry(seed, attempt, force) {
     else if (O.gate) { const it = goals.slice(0, goals.length - 8); if (!it.every(g => ok(g[0], g[1]))) return null; for (let w = 0; w < 2; w++) if (!goals.slice(goals.length - 8 + w * 4, goals.length - 4 + w * 4).some(g => ok(g[0], g[1]))) return null; }
     else if (!goals.every(g => ok(g[0], g[1]))) return null;
     if (W.items.filter(i => ITEMS[i.id].team).length < (W.obj === 'car' ? 2 : W.obj === 'tunnel' ? 1 : 0)) return null;
+    W.items = W.items.filter(i => ITEMS[i.id].team || ok(i.x, i.z)); // 届かない所の手記などは置かない
     W.reach = seen;
   }
   return W;
@@ -819,7 +820,7 @@ function findPath(sx, sz, tx, tz) {
   const h = c => { const dx = Math.abs(c % NW - ti), dz = Math.abs(((c / NW) | 0) - tj); return (dx + dz) + (1.4142 - 2) * Math.min(dx, dz); };
   A.g[s] = 0; A.st[s] = ST; A.from[s] = -1; hpush(s, h(s));
   let found = false, exp = 0;
-  while (A.hi.length && exp < 14000) {
+  while (A.hi.length && exp < 45000) {
     const c = hpop(); if (A.cl[c] === ST) continue; A.cl[c] = ST; exp++;
     if (c === t) { found = true; break; }
     const ci = c % NW, cj = (c / NW) | 0, gc = A.g[c];
@@ -1824,7 +1825,7 @@ function findInteract() {
     const inside = (p.x - b.x) * b.nx + (p.z - b.z) * b.nz > 0;
     return inside ? { key: 'bar' + b.id, label: '閂を外す', need: 1, run: () => req('bar', { id: b.id }) } : { key: 'x', label: '向こう側から閂がかかっている', dis: 1 };
   }
-  for (const c of G.W.closets) { if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && fo(c.cx, c.cz) < 1.2 && !G.players.some(q => q.hidden === c.id)) return { key: 'hide' + c.id, label: '押し入れに隠れる', run: () => (c.occ && !G.obj['occ' + c.id]) ? openOcc(c) : hide(c) }; }
+  for (const c of G.W.closets) { if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && fo(c.cx, c.cz) < 1.2 && !G.players.some(q => q.hidden === c.id)) return { key: 'hide' + c.id, label: c.locker ? '掃除用具入れに隠れる' : '押し入れに隠れる', run: () => (c.occ && !G.obj['occ' + c.id]) ? openOcc(c) : hide(c) }; }
   for (const ph of G.W.phones) if (phoneRinging(ph) && Math.hypot(ph.x - p.x, ph.z - p.z) < 1.7) return { key: 'ph' + ph.i, label: '受話器を取る', run: () => { req('phoneUp', { i: ph.i }); say('……たすけて……みずが……あかいの……', .3, .6, 1); msg('「……たすけて……みずが、あかいの……」'); } };
   if (p.med > 0 && p.hp < 100) return { key: 'med', label: '手当てする（' + p.med + '）', need: 2, run: () => { p.med--; p.hp = Math.min(100, p.hp + 55); msg('手当てをした'); } };
   return null;
