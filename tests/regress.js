@@ -7,6 +7,19 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 予兆と、初めての反応をその場で見せる
+  async '予兆と反応の見せ方'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const H = G.m.length, W = G.m[0].length; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.seen.add(x + ',' + y);
+      const f = put('skel', 9, 8, true); f.alpha = 1; f.aware = 0; const o = {};
+      o.watch = watchers().includes(f); o.R = sightR(f) >= 3;
+      makeNoise(7, 8, 4, 'stone'); o.noise = (G.noiseFx || []).length > 0 && !!f.heardT;
+      REACTD = {}; G.oil.add('12,10'); ignite(12, 10); o.spot = !!G.spot && G.spot.a && G.spot.r;
+      await new Promise(r => setTimeout(r, 300)); o.drawn = true; return o;
+    });
+    if (!r.watch || !r.R || !r.noise || !r.spot) throw new Error(JSON.stringify(r));
+  },
   // タップで何でも調べられる（物・階段・罠・地面）
   async 'タップで調べる'(p) {
     await arena(p);
