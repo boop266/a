@@ -84,18 +84,20 @@
   const hostile = f => f.hp > 0 && !f.ally && !(f.charm > 0) && !f.dormant && f.alpha !== 0;
   const near = (f, r) => cd(f.x, f.y, G.p.x, G.p.y) <= r;
   const worth = q => { const d = ITEM[q.id] || {}; return 3 + (d.weapon ? 10 : 0) + (d.food ? 4 : 0) + (q.id == 'potion' ? 8 : q.id == 'bigpot' ? 14 : 0) + Math.min(20, (d.tre || d.val || 0) * .15); };
+  // 今は脅威が小さい相手：眠っている・満腹・争っている・化けて素通り・卵で手出しできない・怯えている
+  S.calmF = f => { try { if (f.mhSleep || f.ecoNap || f.cowed || (f.eggChase && eggOf(f) >= 0)) return .1; if (typeof guised == 'function' && guised(f)) return .15; if (f.stun > 0) return .3; if (feudOf(f)) return .3; if (f.sated > 0) return .5; if (f.conf > 0 || f.fear > 0 || f.blind > 0) return .6; } catch (e) {} return 1; };
   S.stat = () => {
     const p = G.p; const fs = G.foes.filter(f => near(f, 9));
     return {
       hp: p.hp, max: p.max, dead: !!(G.simDead || (G.over && p.hp <= 0)),
       foeHp: fs.filter(hostile).reduce((s, f) => s + Math.max(0, f.hp), 0),
-      threat: fs.filter(f => hostile(f) && (f.aware || G.fight) && near(f, 6)).reduce((s, f) => s + (f.atk || 2) * (f.stun > 0 ? .3 : f.conf > 0 || f.fear > 0 || f.blind > 0 ? .6 : 1), 0),
+      threat: fs.filter(f => hostile(f) && (f.aware || G.fight) && near(f, 6)).reduce((s, f) => s + (f.atk || 2) * S.calmF(f), 0),
       alive: fs.filter(f => f.hp > 0 && !f.ally).length,
       calm: fs.filter(f => f.hp > 0 && (f.charm > 0 || f.ally)).length + (G.sparedN || 0),
       seen: fs.filter(f => f.hp > 0 && f.aware).length,
       bag: G.bag.items.reduce((s, q) => s + worth(q), 0),
       allies: G.allies.reduce((s, a) => s + Math.max(0, a.hp), 0),
-      fi: G.fi, gates: (G.gim || []).filter(g => gOpen(g)).length, reach: S.stuck ? S.reach().size : 0,
+      map: G.seen.size, fi: G.fi, gates: (G.gim || []).filter(g => gOpen(g)).length, reach: S.stuck ? S.reach().size : 0,
     };
   };
   // 手を打って何か変わったか（何も起きない手は、手として数えない）
@@ -106,7 +108,7 @@
     if (b.fi > a.fi) return 300;
     const kills = Math.max(0, a.alive - b.alive - (b.calm - a.calm));
     let s = (b.hp - a.hp) * 6 + (a.foeHp - b.foeHp) * 1.5 + kills * (30 + (L.kill || 0)) - (b.threat - a.threat) * 8
-      + (b.calm - a.calm) * (25 + (L.calm || 0)) + (b.bag - a.bag) + (b.allies - a.allies) * 1.5 + (b.seen - a.seen) * (L.seen || 0);
+      + (b.calm - a.calm) * (25 + (L.calm || 0)) + (b.bag - a.bag) + (b.allies - a.allies) * 1.5 + (b.seen - a.seen) * (L.seen || 0) + Math.min(30, (b.map - a.map) * .25);
     if (b.hp < b.max * .3) s -= (b.max * .3 - b.hp) * 4;
     s += (b.gates - a.gates) * 80 + (b.reach - a.reach) * .5;
     return s;
@@ -198,7 +200,7 @@
       const sig0 = S.sig(); await S.exec(c);
       if (S.sig() === sig0) { S.log.noop = S.log.noop || {}; S.log.noop[c.lab] = (S.log.noop[c.lab] || 0) + 1; throw { noop: 1 }; }
       const ban = (STYLES[S.style] || {}).ban;
-      for (let h = 0; h < S.H && !G.over; h++) { if (ban && G.fight && ban.test('act:w')) { await S.exec({ k: G.bag.items.some(q => ITEM[q.id].weapon) ? 'flee' : 'bare' }); } else await S.plain(); }
+      for (let h = 0; h < (G.fight ? S.H : S.H + 1) && !G.over; h++) { if (ban && G.fight && ban.test('act:w')) { await S.exec({ k: G.bag.items.some(q => ITEM[q.id].weapon) ? 'flee' : 'bare' }); } else await S.plain(); }
       sc = S.score(a, S.stat());
     } catch (e) { if (!e || !e.noop) (S.log.err = S.log.err || []).push(String(e && e.message)); }
     finally { Math.random = _rand; DEF = null; simOff(); restore(keep); VT.q = q0; VT.now = vt0; const m = $('modal'); if (m && m.innerHTML && !keep.modal) m.innerHTML = ''; }

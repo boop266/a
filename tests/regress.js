@@ -153,6 +153,46 @@ const cases = {
     });
     if (r.kin.split(',')[0] != 'dead' || r.kin.split(',')[1] != 'gob' || !r.btn || !r.gave || !r.fear || r.guise != 'beast' || !r.unseen || !r.thr || !r.cowed || !r.trade || !r.modal || !r.sac || !r.drop) throw new Error(JSON.stringify(r));
   },
+  // 生態系：階ごとに様子が変わり、魔物は勝手に狩り・眠り・増える
+  async '生態系'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const turn = async () => { for (let w = 0; w < 60 && G.busy; w++) await new Promise(r => setTimeout(r, 30)); };
+      for (let x = 2; x <= 20; x++) for (let y = 2; y <= 14; y++) G.seen.add(x + ',' + y);
+      // 入るたびに違う：20回振って、組み合わせがばらける
+      const combos = new Set(); for (let i = 0; i < 20; i++) { const F = { water: G.water, foes: [], m: G.m }; rollEco(F, 3); combos.add([F.eco.hum, F.eco.temp, F.eco.food, F.eco.breed].join()); } o.vary = combos.size;
+      G.eco = { hum: 1, temp: 1, food: 1, breed: false, day: 160, ph0: 0, clock: 0, ev: null };
+      // 狩り：腹を空かせた捕食者は獲物を襲い、食べたら眠る
+      const beasts = Object.keys(FOE).filter(k => kinOf(k) == 'beast' && !FOE[k].boss && !FOE[k].still && !FOE[k].fly);
+      const big = beasts.sort((a, b) => FOE[b].hp - FOE[a].hp)[0], small = beasts.find(k => FOE[k].hp * 2 < FOE[big].hp);
+      G.p.x = 3; G.p.y = 3; G.hush = 99;
+      const pr = put(big, 10, 8), pv = put(small, 11, 8); [pr, pv].forEach(f => { f.aware = 0; ecoInit(f); }); pr.hunger = 90; pv.hunger = 0;
+      o.canEat = canEat(pr, pv); o.why = rivalWhy(pr, pv);
+      for (let k = 0; k < 12 && pv.hp > 0; k++) { pv.x = 11; pv.y = 8; G.busy = false; await doWait(); await turn(); }
+      o.eaten = pv.hp <= 0; o.nap = !!pr.ecoNap && pr.hunger < 10;
+      // 巣：時間で子が生まれ、卵を取ると親はついてくるが襲わない、壊すと怒る
+      G.foes = []; G.items = []; const mom = put(small, 9, 10); mom.aware = 0; ecoInit(mom);
+      G.nests = [{ id: 7, x: 10, y: 10, k: small, kin: 'beast', t: 0, every: 3, max: 3, eggs: 2, flam: true }];
+      for (let k = 0; k < 5; k++) { G.busy = false; await doWait(); await turn(); }
+      o.born = G.foes.filter(f => f.nestId == 7).length;
+      G.p.x = 11; G.p.y = 10; const m1 = mainAction(); o.act1 = m1 && m1.t; if (m1) m1.f(); o.egg = G.bag.items.some(q => q.id == 'tamago') && mom.eggChase;
+      const m2 = mainAction(); o.act2 = m2 && m2.t; if (m2 && m2.t == '巣を壊す') { m2.f(); await turn(); } o.rage = !!mom.rage && mom.aware == 2;
+      G.fight = null; G.busy = false;
+      // 昼と夜：夜は昼行性が見えにくく、夜行性がよく見る
+      G.eco.clock = 0; G.eco.ph0 = 3; const night = ecoPhase(); const g = put('gob', 15, 4); g.aware = 0; const sk = put('skel', 15, 6); sk.aware = 0;
+      o.night = night == 3 && ecoSight(g) < 0 && ecoSight(sk) > 0;
+      // 地面と魔物の詳しい様子
+      G.water[12][12] = true; G.garden[13][12] = true; const ti = tileInfo(12, 12).H.map(h => h[0]).join(), tg = tileInfo(12, 13).H.map(h => h[0]).join(); o.tile = /水/.test(ti) && /草/.test(tg);
+      o.info = /空腹/.test(ecoFoeLines(g)) && /昼行性/.test(ecoFoeLines(g));
+      // 跡目争い：小鬼の長が倒れると、上の2体が争う
+      G.foes = []; const L = put('gob', 5, 12), a = put('gob', 6, 12), b = put('gob', 7, 12); L.lead = 1; a.max = a.hp = 20; b.max = b.hp = 15; succession(L); o.heir = rivalWhy(a, b) == '奪い合い' && a.heir && b.heir;
+      // 留守の間の変化：戻ると子が増え、傷が癒えている
+      G.foes = []; const m3 = put(small, 9, 10); m3.hp = 1; ecoInit(m3); G.nests = [{ id: 8, x: 10, y: 10, k: small, kin: 'beast', t: 0, every: 10, max: 3, eggs: 0 }]; G.turnAll = 100; G.eco.leftAt = 40; ecoCatchUp();
+      o.away = G.foes.filter(f => f.nestId == 8).length >= 2 && m3.hp > 1;
+      return o;
+    });
+    if (r.vary < 6 || !r.canEat || r.why != '狩り' || !r.eaten || !r.nap || r.born < 1 || r.act1 != '卵を取る' || !r.egg || r.act2 != '巣を壊す' || !r.rage || !r.night || !r.tile || !r.info || !r.heir || !r.away) throw new Error(JSON.stringify(r));
+  },
   // 縄：同じ相手は一戦に一度だけ縛れる（毎ターン縛り続けて無傷、ができないように）
   async '縄は一戦に一度'(p) {
     await arena(p);
@@ -188,7 +228,7 @@ const cases = {
       const n = (x, y) => { const I = tileInfo(x, y); return I.H.map(h => h[0]).join('|') + '/' + I.L.length; };
       return { item: n(10, 8), trap: n(8, 10), down: n(G.down[0], G.down[1]), exit: n(G.exit[0], G.exit[1]), mud: n(9, 9), none: n(12, 12) };
     });
-    if (!/長剣/.test(r.item) || !/鳴子/.test(r.trap) || !/階段/.test(r.down) || !/出口/.test(r.exit) || r.mud !== '/1' || r.none !== '/0') throw new Error(JSON.stringify(r));
+    if (!/長剣/.test(r.item) || !/鳴子/.test(r.trap) || !/階段/.test(r.down) || !/出口/.test(r.exit) || !/^泥\/1$/.test(r.mud) || r.none !== '/0') throw new Error(JSON.stringify(r));
   },
   async '思い通りに動かす'(p) {
     await arena(p);
@@ -274,7 +314,7 @@ const cases = {
   async '環境で開く門'(p) {
     for (const type of ['vine', 'crack', 'brazier']) {
       const res = await p.evaluate(async t => {
-        let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); }
+        let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); } G.eco = null; G.nests = [];
         if (!g) return 'NONE'; G.foes = []; G.title = null;
         const pk = new Set(g.pocket.map(q => q + '')); const same = (q, x, y) => q && q[0] == x && q[1] == y; const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y) && !same(G.down, x, y) && !same(G.up, x, y) && !same(G.exit, x, y) && !G.gim.some(q => q.levers && q.levers.some(l => l.x == x && l.y == y)));
         G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == G.p.x && i.y == G.p.y)); G.srcs = (G.srcs || []).filter(q => !(q.x == G.p.x && q.y == G.p.y)); const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
@@ -307,7 +347,7 @@ const cases = {
   async '氷と雷の解決策'(p) {
     const r = await p.evaluate(async () => {
       const give = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) };
-      const floorWith = (c, sf) => { for (let i = 0; i < 500; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf || 12); G.title = null; G.foes = []; G.wind = null; if (c()) return true } return false };
+      const floorWith = (c, sf) => { for (let i = 0; i < 500; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf || 12); G.title = null; G.eco = null; G.nests = []; G.foes = []; G.wind = null; if (c()) return true } return false };
       const bad = [];
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; give('hyouka'); slotUse(G.bag.items.findIndex(q => q.id == 'hyouka')); if (curAt(k[0], k[1])) bad.push('凍らせても流れが残る') }
       if (floorWith(() => G.cur && G.cur.cells && G.cur.cells.size >= 4)) { const k = [...G.cur.cells][0].split(',').map(Number); G.p.x = k[0]; G.p.y = k[1]; while (bagUsed() < Math.ceil(bagCap() * .75) && firstFit('gem')) give('gem'); if (curPush(G.p, true)) bad.push('重い荷物でも流される') }
@@ -431,11 +471,14 @@ const cases = {
       G.foes = []; const r = put('rat', 8, 8, true); let i = give('jerky'); await slotUse(i); await slotUse(i); await W(400); o.charm = r.charm > 0;
       i = give('fish'); await slotUse(i); await slotUse(i); await W(400); o.scout = G.items.some(it => it.id == 'rat' && it.scout);
       G.foes = []; put('skel', 12, 8); put('skel', 13, 8); const L = put('lskel', 12, 9); L.max = L.hp = 20; markLeaders(G); o.lead = L.lead;
-      L.hp = 0; onFoeDeath(L); G.foes = G.foes.filter(f => f.hp > 0); o.fear = G.foes.every(f => f.fear > 0);
+      L.hp = 0; onFoeDeath(L); G.foes = G.foes.filter(f => f.hp > 0); o.deadNew = G.foes.some(f => f.lead);
+      // 獣の長が倒れると、群れは散る
+      G.foes = []; const bk = Object.keys(FOE).filter(k => kinOf(k) == 'beast' && !FOE[k].boss && !FOE[k].still); put(bk[0], 12, 8); put(bk[0], 13, 8); const L2 = put(bk[0], 12, 9); L2.max = L2.hp = 40; markLeaders(G);
+      L2.hp = 0; onFoeDeath(L2); G.foes = G.foes.filter(f => f.hp > 0); o.fear = G.foes.every(f => f.fear > 0);
       try { JSON.stringify(G.foes); o.json = 1 } catch (e) { o.json = 0 }
       return o;
     });
-    if (r.conf <= 0 || r.cfight || !r.charm || !r.scout || !r.lead || !r.fear || !r.json) throw new Error(JSON.stringify(r));
+    if (r.conf <= 0 || r.cfight || !r.charm || !r.scout || !r.lead || !r.deadNew || !r.fear || !r.json) throw new Error(JSON.stringify(r));
   },
   // 地形の性格：氷は滑る、泥は一手遅れる、茂みは隠れる、橋は燃え落ちる、裂け谷は必ず渡れる
   async '地形の性格'(p) {
@@ -538,14 +581,14 @@ async function arena(p) {
   await p.evaluate(() => {
     G.title = null; const H = G.m.length, W = G.m[0].length;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
-    G.rid = G.m.map(r => r.map(() => -1)); G.foes = []; G.items = []; G.srcs = []; G.exit = [2, 2]; G.down = [3, 2]; G.up = null; G.wind = null; G.cur = null; G.mud = new Set(); G.bush = new Set(); G.ice = new Set(); G.holes = new Set(); G.bridges = new Set(); G.lava = new Set(); G.webs = new Set(); G.oil = new Set(); G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
+    G.rid = G.m.map(r => r.map(() => -1)); G.eco = null; G.nests = []; G.foes = []; G.items = []; G.srcs = []; G.exit = [2, 2]; G.down = [3, 2]; G.up = null; G.wind = null; G.cur = null; G.mud = new Set(); G.bush = new Set(); G.ice = new Set(); G.holes = new Set(); G.bridges = new Set(); G.lava = new Set(); G.webs = new Set(); G.oil = new Set(); G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
     G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
     window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.slowV = 0; f.fastV = 0; f.slow = 0; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });
 }
 
 async function dive(p) {
-  await p.evaluate(() => { document.getElementById('modal').innerHTML = ''; const r = document.getElementById('ret'); if (r) r.remove(); newRaid(null, [], null, 0); });
+  await p.evaluate(() => { document.getElementById('modal').innerHTML = ''; const r = document.getElementById('ret'); if (r) r.remove(); newRaid(null, [], null, 0); G.eco = null; G.nests = []; });
   await p.waitForTimeout(300);
   await p.evaluate(() => {
     // 隣（または n マス先）の空きマスに敵を置く

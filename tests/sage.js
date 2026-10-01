@@ -50,7 +50,7 @@ async function one(browser, run, style) {
     maxF = Math.max(maxF, await page.evaluate(() => (G && G.fi || 0) + 1));
     if (sig === last) { if (++stall > 40) { await page.evaluate(() => { if (G) { G.busy = false; DEF = null; document.getElementById('modal').innerHTML = ''; if (!G.fight && !G.over) { const d = DIRS8[Math.floor(Math.random() * 8)]; step(d[0], d[1]); } } }); stall = 0; } } else { stall = 0; last = sig; }
   }
-  const o = await page.evaluate(() => ({ ...window.SOBS, log: SAGE.log, verr: (VT.errs || []).slice(0, 5) }));
+  const o = await page.evaluate(() => ({ ...window.SOBS, log: SAGE.log, eco: window.ECOSTAT || {}, verr: (VT.errs || []).slice(0, 5) }));
   o.maxF = maxF; o.errors = [...new Set(errs)].slice(0, 5); o.style = style; o.sec = Math.round((Date.now() - t0) / 1000); o.tags = tags;
   await ctx.close();
   console.log(`[${style}] run ${run}: 最深 ${maxF}F / 倒れた ${o.deaths.length} / 帰った ${o.escapes.length} / 戦闘 ${o.fights} / 判断 ${o.log.decisions}（試行 ${o.log.sims}、1回 ${o.log.sims ? (o.log.simMs / o.log.sims).toFixed(0) : '-'}ms）/ ${o.sec}秒 / エラー ${o.errors.length + o.verr.length}\n   手 ${JSON.stringify(tags)}`);
@@ -73,6 +73,7 @@ async function one(browser, run, style) {
     const k = merge(xs, o => o.kills); const kt = Object.values(k).reduce((a, b) => a + b, 0);
     console.log('倒し方 ' + Object.entries(k).sort((a, b) => b[1] - a[1]).map(([a, b]) => a + ':' + b).join(' ') + '（武器以外 ' + (kt ? Math.round((kt - (k.weapon || 0)) / kt * 100) : 0) + '%）');
     console.log('反応 ' + Object.entries(merge(xs, o => o.react)).sort((a, b) => b[1] - a[1]).map(([a, b]) => a + ':' + b).join(' '));
+    console.log('生態系の出来事 ' + Object.entries(merge(xs, o => o.eco)).sort((a, b) => b[1] - a[1]).map(([a, b]) => a + ':' + b).join(' '));
     console.log('仕掛けを開けた ' + Object.entries(merge(xs, o => o.gates)).map(([a, b]) => a + ':' + b).join(' '));
     const av = merge(xs, o => o.log.avail), pk = merge(xs, o => o.log.pick), gn = merge(xs, o => o.log.gain);
     console.log('手ごとの　打てた回数 → 選んだ回数（選んだときの得、待つ・殴るに比べて）');
