@@ -193,6 +193,33 @@ const cases = {
     });
     if (r.vary < 6 || !r.canEat || r.why != '狩り' || !r.eaten || !r.nap || r.born < 1 || r.act1 != '卵を取る' || !r.egg || r.act2 != '巣を壊す' || !r.rage || !r.night || !r.tile || !r.info || !r.heir || !r.away) throw new Error(JSON.stringify(r));
   },
+  // リアルさ：深手で逃げる、壁で音がこもる、匂いをたどる、火は煙を出す、休めば癒える
+  async 'リアルさ'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      store('yw31_fights', '5'); const o = {}; const turn = async () => { for (let w = 0; w < 60 && G.busy; w++) await new Promise(r => setTimeout(r, 30)); };
+      for (let x = 2; x <= 20; x++) for (let y = 2; y <= 14; y++) G.seen.add(x + ',' + y);
+      // 深手：小鬼は逃げる、骸骨は逃げない
+      const g = put('gob', 12, 4), s = put('skel', 14, 4); g.hp = g.max = 20; s.hp = s.max = 20; hit(g, 15); hit(s, 15); o.rout = g.routed && g.fear > 0 && !s.routed;
+      // 戦いの最中に深手を負うと、逃げて戦いが終わる
+      G.foes = []; G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.hp = f.max = 30; await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false;
+      hit(f, 24); await afterPlayer(); o.fled = !G.fight && f.hp > 0 && G.foes.includes(f);
+      G.fight = null; G.busy = false;
+      // 壁で音がこもる：同じ距離でも、壁の向こうには届かない
+      G.foes = []; for (let y = 2; y <= 14; y++) G.m[y][10] = 1; const a = put('gob', 12, 5), b = put('gob', 8, 9); a.aware = 0; b.aware = 0; const n = makeNoise(8, 5, 4, 'test'); o.muffle = !a.inv && !!b.inv;
+      for (let y = 2; y <= 14; y++) G.m[y][10] = 0;
+      // 匂い：歩いた跡を、獣がたどる
+      G.foes = []; G.scent = {}; G.turnAll = 50; for (let x = 5; x <= 12; x++) { G.p.x = x; G.p.y = 12; G.turnAll++; markScent(); }
+      const bk = Object.keys(FOE).find(k => kinOf(k) == 'beast' && !FOE[k].boss && !FOE[k].still && !FOE[k].fly); const h = put(bk, 5, 12); h.aware = 0; h.flip = true; G.p.x = 18; G.p.y = 3;
+      const opts = DIRS8.map(([a, b]) => [h.x + a, h.y + b, a, b]).filter(([x, y]) => walk(x, y)); o.track = trackStep(h, opts) && h.x == 6;
+      // 火は煙を出す
+      G.foes = []; G.steam = []; G.fires = [{ x: 15, y: 10, t: 0, life: 6 }]; fireStep(); o.smoke = G.steam.some(q => q.smoke);
+      // 休めば癒える
+      const w = put('gob', 3, 3); w.max = 20; w.hp = 5; w.aware = 0; w.routed = 1; G.turnAll = 100; for (let k = 0; k < 40; k++) { G.turnAll++; realTick(); } o.heal = w.hp > 5;
+      return o;
+    });
+    if (!r.rout || !r.fled || !r.muffle || !r.track || !r.smoke || !r.heal) throw new Error(JSON.stringify(r));
+  },
   // 縄：同じ相手は一戦に一度だけ縛れる（毎ターン縛り続けて無傷、ができないように）
   async '縄は一戦に一度'(p) {
     await arena(p);
