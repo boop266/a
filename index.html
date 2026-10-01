@@ -2612,10 +2612,10 @@ function drawEco(t,sx,sy,z){const S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z;
  (G.nests||[]).forEach(n=>{if(n.dead||!G.seen.has(n.x+','+n.y))return;const cx=X(n.x)+S/2,cy=Y(n.y)+S*.62;sc.fillStyle=n.kin=='bug'?'#d8d8e0':n.kin=='ooze'?'#6fae5a':'#8a6a3a';sc.beginPath();sc.ellipse(cx,cy,S*.42,S*.26,0,0,6.283);sc.fill();sc.fillStyle=n.kin=='bug'?'#f0f0f8':'#e8dcc0';for(let i=0;i<n.eggs;i++){sc.beginPath();sc.ellipse(cx+(i-1)*S*.2,cy-S*.08,S*.09,S*.12,0,0,6.283);sc.fill()}});
  (G.bodies||[]).forEach(b=>{if(!G.seen.has(b.x+','+b.y))return;sc.fillStyle=b.eaten?'rgba(150,60,50,.55)':'rgba(120,40,40,.45)';sc.fillRect(X(b.x)+S*.2,Y(b.y)+S*.55,S*.6,S*.25)});
  G.foes.forEach(f=>{if(f.hp<=0||!f.alpha||!G.seen.has(f.x+','+f.y))return;const fx0=(f.rx+4-sx)*z,fy0=(f.ry-1-sy)*z;
-  if(f.ecoNap){sc.fillStyle='#bfe0ff';sc.font='bold '+Math.round(S*.45)+'px sans-serif';sc.textAlign='center';sc.fillText('z',fx0+S*.35,fy0-S*.1+Math.sin(t*3)*2);sc.textAlign='left'}
-  else if(f.doing&&/狩り/.test(f.doing)){sc.fillStyle='#ff6a5a';sc.fillRect(fx0-1,fy0-S*.25,2,2)}
+  if(f.ecoNap){sc.fillStyle='#bfe0ff';sc.font='bold '+Math.round(S*.45)+'px sans-serif';sc.textAlign='center';sc.fillText('z',fx0+S*.45,fy0-S*.95+Math.sin(t*3)*2);sc.textAlign='left'}
+  else if(f.doing&&/狩り/.test(f.doing)){sc.fillStyle='#ff6a5a';sc.font='bold '+Math.round(S*.4)+'px sans-serif';sc.textAlign='center';sc.fillText('!',fx0,fy0-S*.95);sc.textAlign='left'}
   if(f.young){sc.strokeStyle='rgba(255,240,180,.6)';sc.lineWidth=1;sc.strokeRect((f.rx-sx)*z+1,(f.ry-sy)*z+1,S-2,S-2)}});
- if(G.eco&&ecoPhase()==3){sc.fillStyle='rgba(10,10,40,.28)';sc.fillRect(0,0,SW,SH)}else if(G.eco&&ecoPhase()==2){sc.fillStyle='rgba(60,20,10,.12)';sc.fillRect(0,0,SW,SH)}}
+ if(G.eco&&ecoPhase()==3){sc.fillStyle='rgba(10,10,40,.36)';sc.fillRect(0,0,SW,SH)}else if(G.eco&&ecoPhase()==2){sc.fillStyle='rgba(60,20,10,.12)';sc.fillRect(0,0,SW,SH)}}
 Object.assign(ITEM,{tamago:{n:'魔物の卵',v:'投げる',sh:[1,1],tre:35,d:'巣から取った卵。持っている間、親は襲ってこないがついてくる。返せば鎮まる。投げれば親がそこへ駆けつけ、まわりの者を襲う。持ち帰れば高く売れる'}});
 IC.tamago=["........","...kk...","..kwwk..",".kwwBwk.",".kwwwwk.",".kwBwwk.","..kwwk..","...kk..."];
 
@@ -2693,7 +2693,7 @@ function openCage(f,how){f.caged=0;f.wild=12;f.aware=0;sfx(how=='key'?'door':'bo
 function cageAction(){const p=G.p;const f=G.foes.find(f=>f.caged&&f.hp>0&&cd(f.x,f.y,p.x,p.y)==1);if(!f)return null;const ki=G.bag.items.findIndex(q=>q.id=='key');
  if(ki>=0)return{ic:'hand',t:'鍵で檻を開ける',sub:f.n+'を放つ（一番近い者を襲う）',f:()=>{G.bag.items.splice(ki,1);openCage(f,'key')}};
  if(G.bag.items.some(q=>['hammer','hammer_l','axe','great','great_l','great_f','great_p','great_s'].includes(q.id)))return{ic:'hand',t:'檻を壊す',sub:f.n+'を放つ。……大きな音がする',f:()=>openCage(f,'break')};
- return{ic:'hand',t:'檻の中の'+f.n,sub:'鍵か、槌や斧があれば開けられる',f:()=>{sfx('tick');toast('頑丈な檻だ。古い鍵か、槌や斧が要る')}}}
+ return null}
 // 放たれた魔物：一番近い者へ
 function wildStep(f){if(!(f.wild>0))return;f.wild--;const p=G.p;const tg=G.foes.filter(g=>g!==f&&g.hp>0&&!g.caged&&!g.dormant&&cd(g.x,g.y,f.x,f.y)<=8).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];
  if(tg&&cd(tg.x,tg.y,f.x,f.y)<=cd(p.x,p.y,f.x,f.y)){f.grudge={u:fuid(tg),t:8};fuid(f);f.aware=0}else if(cd(p.x,p.y,f.x,f.y)<=8)f.aware=2}
