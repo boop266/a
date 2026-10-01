@@ -80,7 +80,7 @@ const cases = {
     const r = await p.evaluate(async () => {
       store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; G.holes = new Set(['7,8']); const f = put('gob', 6, 8); f.alpha = 1;
       await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight && (G.fight.tgt = f);
-      const o = { w: kickDest(f).w, btn: (ui(), [...document.querySelectorAll('#frow button')].some(b => b.textContent == '蹴る')) };
+      const o = { w: kickDest(f).w, btn: foeActs(f).some(a => /^蹴る/.test(a[0])) };
       await kick(); await new Promise(r => setTimeout(r, 600)); o.fell = !G.foes.includes(f);
       G.fight = null; G.busy = false; const g = put('golem', 6, 9); o.heavy = kickDest(g).w; return o;
     });
@@ -128,7 +128,7 @@ const cases = {
       o.kin = [kinOf('skel'), kinOf('gob'), kinOf(beast)].join(',');
       // 好物を渡すと、戦いが終わる
       G.p.x = 5; G.p.y = 8; let f = put(beast, 6, 8); f.alpha = 1; give('jerky'); await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f; ui();
-      o.btn = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '好物を渡す'); spare(); o.gave = !G.bag.items.some(q => q.id == 'jerky') && (!G.fight || !G.fight.foes.includes(f));
+      o.btn = foeActs(f).some(a => /を渡す$/.test(a[0])); spare(); o.gave = !G.bag.items.some(q => q.id == 'jerky') && (!G.fight || !G.fight.foes.includes(f));
       if (G.fight) endFight(); G.fight = null; G.busy = false;
       // 苦手：死者は光る石を持っていると寄れない
       G.foes = []; give('gem'); f = put('skel', 7, 8); f.aware = 2; o.fear = fearFire(f, 2);
@@ -139,11 +139,11 @@ const cases = {
       G.guise = null; G.fight = null; G.busy = false;
       // 脅す：崩れた相手が逃げ、二度と気づかない
       G.foes = []; f = put('gob', 6, 8); f.alpha = 1; await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; f.broken = 1; ui();
-      o.thr = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '脅す'); threaten(); o.cowed = f.cowed && f.fear > 0 && !G.fight;
+      o.thr = foeActs(f).some(a => /^脅して/.test(a[0])); threaten(); o.cowed = f.cowed && f.fear > 0 && !G.fight;
       G.fight = null; G.busy = false;
       // 取引：小鬼に「取引」が出て、通行料で通してもらえる
       G.foes = []; f = put('gob', 6, 8); f.alpha = 1; f.pers = null; give('oldcoin'); await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f; ui();
-      o.trade = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '取引'); tradeWith(); o.modal = /通行料/.test(document.getElementById('modal').innerText);
+      o.trade = foeActs(f).some(a => a[0] == '取引する'); tradeWith(); o.modal = /通行料/.test(document.getElementById('modal').innerText);
       document.getElementById('modal').innerHTML = ''; if (G.fight) endFight(); G.fight = null; G.busy = false;
       // 技の袋：火袋で前へ炎を吹く
       G.foes = []; G.fires = []; f = put('gob', 7, 8); f.aware = 0; G.faceX = 1; G.faceY = 0; slotUse(give('fukuro_f')); await turn(); o.sac = f.hp < f.max || f.burn > 0;
@@ -294,10 +294,25 @@ const cases = {
     await dive(p);
     await p.evaluate(() => { const f = foeNext(2); startFight([f], 'first', 2); });
     await p.waitForTimeout(1200);
-    await p.evaluate(() => { G.fight.webbed = 2; G.fight.dist = 3; G.busy = false; ui(); });
-    const btn = await p.$('#frow button:not([disabled])');
-    const labels = await p.$$eval('#frow button', bs => bs.map(b => b.textContent));
-    if (!labels.includes('もがく')) throw new Error('もがくが無い: ' + labels);
+    const r = await p.evaluate(async () => { G.fight.webbed = 2; G.fight.dist = 3; G.busy = false; const w0 = G.fight.webbed; await fightMove(1, 0); await new Promise(r => setTimeout(r, 900)); return { w0, w1: G.fight ? G.fight.webbed : 0, busy: G.busy, said: LOG.some(m => /もがいた/.test(m)) }; });
+    if (!(r.said && r.w1 < r.w0 && !r.busy)) throw new Error('動こうとしても、もがけない: ' + JSON.stringify(r));
+  },
+  // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
+  async 'ぶつかれば殴る・！の大振り'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; }; store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 40;
+      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !!G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on');
+      // 予告 → 一歩離れる → 空振りで体勢が崩れる
+      G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await fightMove(-1, 0); await new Promise(r => setTimeout(r, 900));
+      o.dodged = G.p.hp == hp && !f.tele && (f.post || 0) > post;
+      // 予告 → 盾で受け止める
+      G.busy = false; G.p.x = 5; f.x = 6; f.y = 8; f.rx = f.x * T; f.ry = f.y * T; syncDist(); f.tele = 1; const hp2 = G.p.hp; G.guard = 3; await strike(f); o.blocked = G.p.hp == hp2;
+      // 予告 → そのまま受けると痛い
+      G.guard = 0; G.breath = 0; f.tele = 1; const hp3 = G.p.hp; await strike(f); o.hurt = hp3 - G.p.hp >= Math.round(f.atk * 1.6) - 1;
+      return o;
+    });
+    if (!(r.fight && r.hit && r.noRow && r.dodged && r.blocked && r.hurt)) throw new Error(JSON.stringify(r));
   },
   // 階の題字と説明の一言が重ならない
   async '題字の間は一言を待たせる'(p) {
