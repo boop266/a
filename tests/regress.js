@@ -302,9 +302,9 @@ const cases = {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; }; store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 40;
-      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !!G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on');
+      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !!G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
       // 予告 → 一歩離れる → 空振りで体勢が崩れる
-      G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await fightMove(-1, 0); await new Promise(r => setTimeout(r, 900));
+      G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await step(-1, 0); await new Promise(r => setTimeout(r, 900));
       o.dodged = G.p.hp == hp && !f.tele && (f.post || 0) > post;
       // 予告 → 盾で受け止める
       G.busy = false; G.p.x = 5; f.x = 6; f.y = 8; f.rx = f.x * T; f.ry = f.y * T; syncDist(); f.tele = 1; const hp2 = G.p.hp; G.guard = 3; await strike(f); o.blocked = G.p.hp == hp2;

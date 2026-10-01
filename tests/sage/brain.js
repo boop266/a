@@ -132,7 +132,7 @@
       if (G.fight.webbed > 0) out.push({ k: 'struggle', lab: 'もがく' });
       // 戦い方B：動いて「！」をかわす、身構える
       if (!(G.fight.webbed > 0)) DIRS8.forEach(([dx, dy]) => { const x = p.x + dx, y = p.y + dy; if (freeTile(x, y) && diagOK(p.x, p.y, dx, dy) && !lethalTile(x, y)) out.push({ k: 'fstep', dx, dy, lab: '動く' }); });
-      out.push({ k: 'wait', lab: '身構える' });
+      out.push({ k: 'wait', lab: '待つ' });
     } else {
       DIRS8.forEach(([dx, dy]) => { const x = p.x + dx, y = p.y + dy; if (walk(x, y) && !isPit(x, y) && !lethalTile(x, y)) out.push({ k: 'step', dx, dy, lab: '歩く' }); });
       out.push({ k: 'wait', lab: '待つ' });
@@ -175,7 +175,7 @@
     else if (k == 'threaten') threaten();
     else if (k.startsWith('trade')) { tradeWith(); const b = [...document.querySelectorAll('#evb button')][0]; if (b) b.click(); }
     else if (k == 'struggle') fightMove(1, 0);
-    else if (k == 'fstep') fightMove(c.dx, c.dy);
+    else if (k == 'fstep') step(c.dx, c.dy);
     await S.settle();
   };
   // 一番近い、気づいている敵へ一歩寄る
