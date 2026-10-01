@@ -295,6 +295,26 @@ const cases = {
     const r = await p.evaluate(async () => { G.title = null; G.foes = []; G.stuck = 2; G.busy = false; const P = G.p; const d = DIRS.find(([a, b]) => walk(P.x + a, P.y + b)); const w0 = G.stuck; await step(d[0], d[1]); await new Promise(r => setTimeout(r, 600)); return { w0, w1: G.stuck, busy: G.busy, said: LOG.some(m => /糸/.test(m)) }; });
     if (!(r.said && r.w1 < r.w0 && !r.busy)) throw new Error('糸から抜け出せない: ' + JSON.stringify(r));
   },
+  // 戦闘モードが無くても、道具・盾・仲間がちゃんと働く
+  async '道具と仲間（戦闘モードなし）'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const W = ms => new Promise(r => setTimeout(r, ms)); const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id), hp: ITEM[id].hp }); return G.bag.items.length - 1; };
+      store('yw31_fights', '5'); G.busy = false; document.getElementById('modal').innerHTML = ''; G.bag.items = []; G.p.x = 5; G.p.y = 8; G.p.hp = 10; reveal(); let f = put('gob', 7, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 50;
+      // 魔物が近くにいるときの薬は1手（魔物が寄ってくる）
+      const x0 = f.x; await slotUse(give('potion')); await W(700); o.potTurn = f.x != x0 && G.p.hp > 10 && !G.fight;
+      // 「！」を盾で受け止める
+      G.busy = false; f.x = 6; f.y = 8; f.rx = f.x * T; f.ry = f.y * T; f.tele = 1; f.windup = true; const hp = G.p.hp; await slotUse(give('shield')); await W(900); o.blocked = G.p.hp == hp && !f.tele;
+      // 仲間を呼ぶと、となりの敵を殴る
+      G.busy = false; f.hp = 3; f.tele = 0; G.p.hp = 30; const pi = give('puru'); await slotUse(pi); await W(1200); o.ally = G.allies.length == 1; if (G.allies[0]) G.allies[0].hp = G.allies[0].max = 99; for (let k = 0; k < 4 && f.hp > 0; k++) { G.busy = false; await doWait(); await W(500); } o.allyHit = f.hp <= 0;
+      // ついて歩く
+      G.busy = false; G.foes = []; const a = G.allies[0]; for (let k = 0; k < 4; k++) { G.busy = false; await step(1, 0); await W(250); } o.follow = a && cd(a.x, a.y, G.p.x, G.p.y) <= 2;
+      // 階を移ると、カバンへ戻る
+      alliesHome(); o.home = !G.allies.length && !G.bag.items[pi].out;
+      return o;
+    });
+    if (!(r.potTurn && r.blocked && r.ally && r.allyHit && r.follow && r.home)) throw new Error(JSON.stringify(r));
+  },
   // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
   async 'ぶつかれば殴る・！の大振り'(p) {
     await arena(p);
@@ -353,10 +373,11 @@ const cases = {
   // 蔦・ひび割れた壁・燭台の門が、道具で開く
   async '環境で開く門'(p) {
     for (const type of ['vine', 'crack', 'brazier']) {
-      const res = await p.evaluate(async t => {
+      let res = 'RETRY'; for (let tr = 0; tr < 6 && res === 'RETRY'; tr++) res = await p.evaluate(async t => {
         let g = null; for (let i = 0; i < 400 && !g; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); g = G.gim.find(q => q.type == t); } G.eco = null; G.nests = [];
         if (!g) return 'NONE'; G.foes = []; G.title = null;
         const pk = new Set(g.pocket.map(q => q + '')); const same = (q, x, y) => q && q[0] == x && q[1] == y; const c = DIRS.map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !pk.has(x + ',' + y) && !same(G.down, x, y) && !same(G.up, x, y) && !same(G.exit, x, y) && !G.gim.some(q => q.levers && q.levers.some(l => l.x == x && l.y == y)));
+        if (!c) return 'RETRY';
         G.p.x = c[0]; G.p.y = c[1]; G.items = G.items.filter(i => !(i.x == G.p.x && i.y == G.p.y)); G.srcs = (G.srcs || []).filter(q => !(q.x == G.p.x && q.y == G.p.y)); const add = id => { const f = firstFit(id); if (f) G.bag.items.push({ id, ...f, inst: makeInst(id) }) }; add(t == 'crack' ? 'bomb' : 'torch');
         if (passGim(g)) return '最初から通れる';
         if (t == 'brazier') { for (const b of g.brz) lightBrazier(g, b) } else { const m = mainAction(); if (!m) return '行動が出ない'; m.f() }

@@ -1679,7 +1679,7 @@ function askShip(){$('modal').innerHTML=`<div class="modal"><div class="box"><h2
  $('sh1').onclick=()=>{$('modal').innerHTML='';enterShip()};$('shx').onclick=()=>{$('modal').innerHTML=''}}
 function loadFloor(F){FKEYS.forEach(k=>G[k]=F[k]);(G.rooms||[]).forEach(r=>{if(r.oilCells&&!r.oiled){r.oiled=1;G.oil=G.oil||new Set();r.oilCells.forEach(k=>G.oil.add(k))}});G.dams=[];try{makeCurrent()}catch(e){}drawBase();try{drawFurniture()}catch(e){}}
 function snap(extra){if(!G||G.over)return;try{const o={};for(const k in G){if(['fight','fx','title','banner','fishing','tray'].includes(k))continue;o[k]=G[k]}o.floors=[];o.wseed=WSEED;if(extra)Object.assign(o,extra);
- const js=JSON.stringify(o,(k,v)=>v instanceof Set?{__set:[...v]}:v);store('yw13_save',js)}catch(e){}}
+ o.allies=[];const js=JSON.stringify(o,(k,v)=>k=='out'?undefined:v instanceof Set?{__set:[...v]}:v);store('yw13_save',js)}catch(e){}}
 let lastSnap=0;function autoSave(){if(!G||G.over||G.fight||G.busy||G.fishing)return;const n=performance.now();if(n-lastSnap<700)return;lastSnap=n;snap()}
 function clearSave(){try{localStorage.removeItem('yw13_save')}catch(e){}}
 function resumeRaid(){let o=null;try{o=JSON.parse(store('yw13_save'),(k,v)=>v&&v.__set?new Set(v.__set):v)}catch(e){}if(!o){toast('続きが読めなかった');return}
@@ -1729,7 +1729,7 @@ const b=bandOf(G.fi);
  setTimeout(()=>{if(!G||G.over)return;showTitle(B.n,'― 新しい層 ―');
   toast((first?'はじめての層。':'')+B.n+'：'+B.rule);
   if(first){sfx('fanfare');const t=bandTotals()[b],f=bandFound()[b];if(t)setTimeout(()=>toast('この層には、まだ見ていないものが'+Math.max(0,t-f)+'ある'),2600)}},500)}
-function changeFloor(dir){G.floorT=0;G.dim=0;setTimeout(()=>{if(COOP.host&&G){coopPlacePartner();coopFloor()}},50);G.maxFi=Math.max(G.maxFi||0,G.fi+dir);
+function changeFloor(dir){try{alliesHome()}catch(e){}G.floorT=0;G.dim=0;setTimeout(()=>{if(COOP.host&&G){coopPlacePartner();coopFloor()}},50);G.maxFi=Math.max(G.maxFi||0,G.fi+dir);
  saveFloor();const to=G.fi+dir;try{mutSync(to)}catch(e){}
  const back=!!G.floors[to];if(back)loadFloor(G.floors[to]);else loadFloor(genFloor(to));if(back)try{ecoCatchUp()}catch(e){}else if(G.eco)G.eco.leftAt=null;
  setTimeout(()=>{try{if(G.eco){toast('この階の様子　'+ecoLine());{const ev=G.eco.ev;if(ev&&!back)setTimeout(()=>{try{toast(ECOEV[ev][0]+'：'+ECOEV[ev][1])}catch(e){}},1800)}learn('ecoline','階の様子：入るたびに、湿り気・気温・餌の量・繁殖期・昼夜・出来事が変わる。草の燃えやすさ、魔物の空腹や眠り、巣の増え方に効く。地面をタップすると詳しく分かる')}}catch(e){}},1500);
@@ -2215,6 +2215,7 @@ async function step(dx,dy){
  if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){sfx('no');toast('角は斜めに抜けられない');return}
  if(!pushBoulder(nx,ny,dx,dy))return;
  const g=gimAt(nx,ny);if(g&&!passGim(g))return;
+ {const al=G.allies.find(a=>a.x==nx&&a.y==ny);if(al){al.x=p.x;al.y=p.y;al.flip=dx<0;p.x=nx;p.y=ny;G.busy=true;sfx('step');reveal();await wait(90);try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui();return}}
  const f=foeAt(nx,ny);if(f&&f.charm>0){f.x=p.x;f.y=p.y;f.flip=dx>0;p.x=nx;p.y=ny;G.busy=true;sfx('step');await wait(90);try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui();return}
  if(f&&!f.dormant){if(!G.bag.items.some(q=>ITEM[q.id]&&ITEM[q.id].weapon&&!q.out)&&(f.aware==2||f.broken)&&!f.caged){G.prev=[p.x,p.y];await bumpAttack(f);return}faceFoe(f);return}
  G.prev=[p.x,p.y];p.x=nx;p.y=ny;
@@ -3900,6 +3901,7 @@ function feudStep(){if(G.fight)return;const p=G.p;const done=new Set(),dead=[];G
   if(G.seen&&G.seen.has(f.x+','+f.y)){toast(f.n+'は'+k.n+'に倒された'+(k.hp<=k.max/2?'。……'+k.n+'も傷ついている':''));fx({type:'ring',x:f.rx+4,y:f.ry+2,c:'#ffd0a0'})}}
  if(dead.length)G.foes=G.foes.filter(f=>f.hp>0)}
 async function enemiesMove(){
+ try{await allyTurn()}catch(e){}
  const p=G.p;G.foes.forEach(f=>{f.px0=f.x;f.py0=f.y});try{bodyCheck()}catch(e){}G.foes.forEach(f=>{if(G.fight&&G.fight.foes.includes(f))return;if(f.blind>0)f.blind--;if(f.alert>0)f.alert--;if(f.conf>0)f.conf--;if(f.fear>0)f.fear--;if(f.charm>0){f.charm--;if(!f.charm&&f.hp>0){f.aware=2;if(G.seen.has(f.x+','+f.y))toast(f.n+'は我に返った。……こちらを睨んでいる')}}});try{feudStep()}catch(e){}
  if(G.hasteT>0){G.hasteT--;G.hasteSkip=!G.hasteSkip;if(G.hasteSkip)return}
  for(const f of G.foes){if(f.hp<=0||f.dormant||f.lurk||f.mhSleep||f.caged)continue;if(G.fight&&G.fight.foes.includes(f))continue;if(f.post>0&&!f.broken)f.post=Math.max(0,f.post-6);if(f.broken){f.brokenT=(f.brokenT||0)+1;if(f.brokenT>2){f.broken=false;f.post=0;f.brokenT=0}continue}if(f.stun>0){f.stun--;f.tele=0;f.windup=false;continue}
@@ -3918,7 +3920,7 @@ async function enemiesMove(){
    else if(Math.random()<.7)o=pick(op);
    if(o&&(f.charm>0||f.fear>0?true:Math.random()<.8)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];if(f.fear>0||f.charm>0)f.moved=0}continue}
   if(!shy0&&!f.aware){if(Math.random()<.18)f.flip=!f.flip;}
-  const hot=(x,y)=>!(FOE[f.k]||{}).fireOK&&(G.fires||[]).some(q=>q.x==x&&q.y==y);const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!hot(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1]));
+  const hot=(x,y)=>!(FOE[f.k]||{}).fireOK&&(G.fires||[]).some(q=>q.x==x&&q.y==y);const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!hot(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1])&&!G.allies.some(a=>a.x==x&&a.y==y));
   const shy=f.k=='puru'||f.k=='koke';
   let LU=null;
   if((f.pers=='glut'||f.pers=='curious')&&!f.aware){const tgt=G.items.filter(it=>!it.hid&&(f.pers=='glut'?((ITEM[it.id]||{}).food||it.id=='potion'):true)&&cd(it.x,it.y,f.x,f.y)<=6).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(tgt)LU={x:tgt.x,y:tgt.y}}
@@ -3938,6 +3940,7 @@ async function enemiesMove(){
  G._movedFoe=new Set(G.foes.filter(f=>f.moved));G.foes.forEach(f=>f.moved=0);
  const atk=adj.filter(f=>f.aware==2&&!f.broken&&!G._movedFoe.has(f));
  for(const f of atk){if(G.over||f.hp<=0)break;await wait(70);const r=await foeAttack(f);if(r==='dead')return}
+ {const busy=new Set(atk);for(const f of G.foes){if(G.over||!G.allies.length)break;if(busy.has(f)||f.hp<=0||f.aware!=2||f.broken||f.stun>0||f.charm>0||f.caged||G._movedFoe.has(f))continue;const a=G.allies.find(a=>cd(a.x,a.y,f.x,f.y)<=1);if(a&&cd(f.x,f.y,p.x,p.y)>1){await lunge(f,a);allyHurt(a,f);await wait(100)}}}
  if(atk.length)return
  const sh=G.foes.find(f=>f.hp>0&&f.aware==2&&FOE[f.k].rng&&FOE[f.k].rng[1]>=2&&(f.x==p.x||f.y==p.y||Math.abs(f.x-p.x)==Math.abs(f.y-p.y))&&(()=>{const d=cd(f.x,f.y,p.x,p.y);return d>=2&&d<=FOE[f.k].rng[1]+1})()&&lineClear(f.x,f.y,p.x,p.y));
  if(sh&&!G._movedFoe.has(sh)&&!sh.broken){await foeAttack(sh)}
@@ -4000,7 +4003,7 @@ function openChest(byMon){
 }
 // ================= fight
 // 戦闘モードは無い。出会った魔物を覚え、相手の手番なら一撃を受けるだけ
-function meetFoe(f){if(!f||f.met)return;f.met=1;store('yw31_fights',(+store('yw31_fights')||0)+1);
+function meetFoe(f){if(!f||f.met)return;f.met=1;if((FOE[f.k]||{}).boss&&!f.bhp){f.bhp=1;f.max=Math.round(f.max*1.8);f.hp=Math.round(f.hp*1.8)}store('yw31_fights',(+store('yw31_fights')||0)+1);
  try{if(f.var)learn('var_'+f.var,VARS[f.var].d);if(f.pers){const P=PERS.find(q=>q.k==f.pers);if(P)learn('pers_'+f.pers,P.n+'個体：'+P.d)}if((FOE[f.k].caller||f.elderV)&&!f.called){f.called=1;setTimeout(()=>{alertAll(f.x,f.y,10);sfx('curse');toast(f.n+'が甲高い声で仲間を呼んだ！')},300);learn('caller',f.n+'：'+FOE_D.caller)}bioUp(f.k,1);if(FOE_D[f.k])learn('foe_'+f.k,FOE[f.k].n+'：'+FOE_D[f.k]);if(FOE_D2[f.k])learn('foe_'+f.k,FOE_D2[f.k]);note('m:'+f.k)}catch(e){}
  if((+store('yw31_fights')||0)<=3)setTimeout(()=>learn('bar8','戦いかた：魔物にぶつかるとそちらを向く。剣（武器）の枠を押すと振る。1回振ると1手進む。頭に「！」が出たら強い一撃の合図。一歩離れるか、盾で受ける。好物の枠を押せば渡せる。魔物を長押しすると、取引・蹴るなどができる'),600)}
 async function startFight(foes,mode,dist){if(G.guise)breakGuise('戦いになった');foes.forEach(f=>{meetFoe(f);f.flip=f.x>G.p.x});mode=mode||'first';
@@ -4220,6 +4223,28 @@ async function swing(i){if(G.busy||G.over)return;const pc=G.bag.items[i];const d
  // 何もいない所を振る（1手）
  G.busy=true;ui();const p=G.p;const dx=G.faceX||(p.flip?-1:1),dy=G.faceY||0;sfx('whoosh');fx({type:'slash',x:p.rx+4+dx*8,y:p.ry+2+dy*8,c:'#c8c0e8'});await wait(160);
  try{await enemiesMove()}catch(e){}if(!G.over){try{turnTick()}catch(e){}}G.busy=false;ui()}
+// いま戦っている相手（気づいてこちらを狙う、近くの魔物）
+function nearFight(){const p=G.p;return G.foes.filter(f=>f.hp>0&&f.aware==2&&!f.dormant&&!(f.charm>0)&&!f.caged&&!f.cowed&&(G.seen.has(f.x+','+f.y)||cd(f.x,f.y,p.x,p.y)<=2)&&cd(f.x,f.y,p.x,p.y)<=6).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0]||null}
+// 戦いの道具として使えるか（使えば1手）。縄・袋・壺はとなりの相手にだけ
+function actHandles(pc,f){const id=pc.id,d=ITEM[id];const adj=f&&cd(f.x,f.y,G.p.x,G.p.y)<=1;
+ if(['rope','silk'].includes(id)||id.startsWith('fukuro_')||d.pot)return adj;
+ return !!(d.vial||d.guard||d.food||d.mon||['flash','kikan','bigpot','omamori','kaze','mizu','doro','taiko','hyouka','raika','potion','rotten','bomb','konran','smoke','hook'].includes(id))}
+async function allyTurn(){if(!G.allies||!G.allies.length||G.over)return;const p=G.p;const killed=[];
+ for(const a of G.allies.slice()){if(a.hp<=0)continue;if(a.regen&&a.hp<a.max)a.hp=Math.min(a.max,a.hp+a.regen);
+  const foes=G.foes.filter(f=>f.hp>0&&!f.dormant&&!(f.charm>0)&&!f.caged&&f.aware&&cd(f.x,f.y,a.x,a.y)<=1);
+  if(a.waza=='iyashi'&&foes.length&&p.hp<p.max){p.hp=Math.min(p.max,p.hp+2);fx({type:'heal',x:p.rx+4,y:p.ry});continue}
+  const tg=foes.sort((u,v)=>u.hp-v.hp)[0];
+  if(tg){for(let r=0;r<(a.waza=='rengeki'?2:1)&&tg.hp>0;r++){await lunge(a,tg,3);fx({type:'slash',x:tg.rx+4,y:tg.ry+2,c:a.waza=='hibuki'?'#ffb060':'#9ff0e0'});const ael=allyEl(a.k);const base0=tg.armor&&ael!='volt'?Math.max(1,Math.floor(a.atk/2)):a.atk;const base=['fire','water','volt'].includes(ael)?Math.max(1,emul(tg,ael,base0)):base0;hit(tg,a.waza=='rengeki'||a.waza=='ikaku'?Math.max(1,Math.ceil(base/2)):base,a);if(a.waza=='hibuki')ignite(tg.x,tg.y,'quiet');if(a.waza=='ikaku')addPosture(tg,12);try{allyElem(a,tg)}catch(e){}}if(tg.hp<=0)killed.push(tg);await wait(120);continue}
+  // 主人のそばの敵へ寄る
+  {const near=G.foes.filter(f=>f.hp>0&&f.aware==2&&!f.dormant&&!(f.charm>0)&&!f.caged&&cd(f.x,f.y,p.x,p.y)<=2&&cd(f.x,f.y,a.x,a.y)<=4).sort((u,v)=>cd(u.x,u.y,a.x,a.y)-cd(v.x,v.y,a.x,a.y))[0];
+   if(near){const o=DIRS8.map(([dx,dy])=>[a.x+dx,a.y+dy]).filter(([x,y])=>freeTile(x,y)&&!(x==p.x&&y==p.y)&&!G.allies.some(b=>b!==a&&b.x==x&&b.y==y)).sort((u,v)=>cd(u[0],u[1],near.x,near.y)-cd(v[0],v[1],near.x,near.y))[0];if(o&&cd(o[0],o[1],near.x,near.y)<cd(a.x,a.y,near.x,near.y)){a.flip=o[0]<a.x;a.x=o[0];a.y=o[1]}continue}}
+  // ついて歩く
+  if(cd(a.x,a.y,p.x,p.y)>1){const o=DIRS8.map(([dx,dy])=>[a.x+dx,a.y+dy]).filter(([x,y])=>freeTile(x,y)&&!(x==p.x&&y==p.y)&&!G.allies.some(b=>b!==a&&b.x==x&&b.y==y)).sort((u,v)=>cd(u[0],u[1],p.x,p.y)-cd(v[0],v[1],p.x,p.y))[0];
+   if(o&&cd(o[0],o[1],p.x,p.y)<cd(a.x,a.y,p.x,p.y)){a.flip=o[0]<a.x;a.x=o[0];a.y=o[1]}else if(cd(a.x,a.y,p.x,p.y)>8){const s=DIRS8.map(([dx,dy])=>[p.x+dx,p.y+dy]).find(([x,y])=>freeTile(x,y)&&!(x==p.x&&y==p.y));if(s){a.x=s[0];a.y=s[1];a.rx=a.x*T;a.ry=a.y*T}}}}
+ if(killed.length){const F=engageTmp(killed);try{await resolveDeaths()}catch(e){}if(G.fight===F)G.fight=null}}
+function allyHurt(a,f){const dmg=Math.max(1,Math.round(f.atk*.85));a.hp-=dmg;sfx('hit');fx({type:'num',s:'-'+dmg,x:a.rx+4,y:a.ry-9,c:'#ff7a6a'});
+ if(a.hp<=0){G.allies.splice(G.allies.indexOf(a),1);const k=G.bag.items.indexOf(a.pc);if(k>=0)G.bag.items.splice(k,1);fx({type:'spark',x:a.rx+4,y:a.ry});toast(a.n+'が倒れてしまった…');ui()}}
+function alliesHome(){(G.allies||[]).forEach(a=>{a.pc.out=false;a.pc.hp=a.hp});G.allies=[]}
 function heldW(){const its=G.bag.items;const ok=q=>q&&ITEM[q.id]&&ITEM[q.id].weapon&&!q.out;if(G.lastW!=null&&ok(its[G.lastW]))return G.lastW;return its.findIndex((q,k)=>k<SLOTN&&ok(q))}
 function bumpWeapon(){const its=G.bag.items;const ok=q=>q&&ITEM[q.id]&&ITEM[q.id].weapon&&!q.out&&reachOK(q.id)&&!(ITEM[q.id].gun&&q.loaded===false);
  if(G.lastW!=null&&ok(its[G.lastW]))return G.lastW;let i=its.findIndex((q,k)=>k<SLOTN&&ok(q));if(i<0)i=its.findIndex(ok);if(i>=0)return i;
@@ -4236,7 +4261,7 @@ async function bumpAttack(f,wi){if(!f||f.hp<=0||G.over||G.busy)return;if(G.guise
  const i=wi!=null?wi:bumpWeapon();if(i<0)return bareHand();return act(i)}
 // 一手の終わり：倒れた者を片づけ、魔物が1手動き、時間が進む（歩いたときと同じ）
 async function oneShotAfter(F){const gd=G.guard;try{await resolveDeaths()}catch(e){}if(G.over)return;try{routFight()}catch(e){}
- if(G.fight===F)G.fight=null;if(G.allies.length){G.allies.forEach(a=>{a.pc.out=false;a.pc.hp=a.hp});G.allies=[]}
+ if(G.fight===F)G.fight=null;
  G.guard=gd;G.busy=true;ui();try{await enemiesMove()}catch(e){}if(!G.over){try{turnTick()}catch(e){}}G.guard=0;G.busy=false;ui()}
 async function strike(f){
  if(f.tele){f.tele=0;f.windup=false;f.ox=0;f.oy=0;return landHit(f,true)}
@@ -4637,7 +4662,8 @@ async function endFishing(){
 async function deathblow(){
  const f=alive().find(x=>x.broken);if(!f||G.busy)return;G.busy=true;ui();
  await lunge(G.p,f,6);G.stop=performance.now()+180;sfx('slash');sfx('boom');buzz([40,30,120]);fx({type:'slash',x:f.rx+4,y:f.ry+2,c:'#ff4a3a',life:.9});fx({type:'clang',x:f.rx+4,y:f.ry,life:.6});
- f.hp=0;f.deathblow=1;fx({type:'num',s:'-99',x:f.rx+4,y:f.ry-9,c:'#ff4a3a'});G.shake=16;toast('忍殺');await wait(420);await afterPlayer();
+ if(f.boss){const dm=Math.max(12,Math.round(f.max*.25));f.broken=false;f.post=0;f.brokenT=0;hit(f,dm);G.shake=16;toast('渾身の一撃！');await wait(420);await afterPlayer();return}
+ f.hp=0;f.deathblow=1;fx({type:'num',s:'-99',x:f.rx+4,y:f.ry-9,c:'#ff4a3a'});G.shake=16;toast('とどめを刺した');await wait(420);await afterPlayer();
 }
 async function resolveDeaths(){
  if(!G.fight)return true;const F0=G.fight;
@@ -4654,7 +4680,6 @@ async function resolveDeaths(){
  return false;
 }
 function endFight(msg,quiet){if(!quiet){G.charging=null;G.chargeReq=false}(G.foes||[]).forEach(f=>{f.roped=0});
- G.allies.forEach(a=>{a.pc.out=false;a.pc.hp=a.hp;fx({type:'ring',x:a.rx+4,y:a.ry+2})});G.allies=[];
  G.fight=null;G.busy=false;G.guard=0;if(quiet){ui();return}closeSheet();if(msg)toast(msg);G.ambT=now()+3;setTimeout(()=>sfxAt('after',0,1,'mu'),700);ui();
 }
 function tgtFoe(){const a=alive();return a.includes(G.fight&&G.fight.tgt)?G.fight.tgt:a[0]}
@@ -4671,7 +4696,7 @@ function die(){
  if(COOP.host)coopSend({t:'end',ok:0});if(G.guest){G.over=true;return}
  G.over=true;clearSave();{let dl=[];try{dl=JSON.parse(store('yw15_deaths')||'[]')||[]}catch(e){}const z=zoneAt(G.p.x,G.p.y);dl.unshift({run:runs,f:G.fi+1,where:G.ship?G.bname:z?z.name:G.blight?G.bname:THEMES[G.fi].n.split(' ')[1],cause:G.lastHit||'不明',boss:isBoss()});store('yw15_deaths',JSON.stringify(dl.slice(0,12)))}G.busy=false;const lost=G.bag.items.map(b=>ITEM[b.id].n).join('・')||'なし';const v=bagValue();let saved='';if(G.insured){const ins=G.insured;if(ins.mon){farm.push(ins.mon);saved=ins.mon.name}else{wh.push(ins.o);saved=instName(ins.o.id,ins.o.inst)}saveMeta()}G.bag.items=[];G.allies=[];G.tray=null;closeSheet(true);ui();
  window.DIEDNOW=1;showBase('倒れた',runSummary(false,[],lost)+'カバンの中身はすべてダンジョンに残った'+(v?'（価値'+v+'）':'')+'。'+bagDef().n+'だけは手元に戻った。'+(saved?'保険をかけた'+saved+'は戻ってきた。':''))}
-function escape(){if(COOP.host)coopSend({t:'end',ok:1});G.partner=null;clearSave();try{if(G.muts&&G.muts.length){let rec={};try{rec=JSON.parse(store('yw24_rec')||'{}')}catch(e){}const n=G.muts.length,d=(G.maxFi||0)+1;if(!rec[n]||d>rec[n]){rec[n]=d;store('yw24_rec',JSON.stringify(rec))}}}catch(e){}try{if((window.MUTS||[]).length){const tm=todayMuts(Math.min(3,mutMax()));const same=tm.length==G.muts.length&&tm.every(k=>G.muts.includes(k));
+function escape(){try{alliesHome()}catch(e){}if(COOP.host)coopSend({t:'end',ok:1});G.partner=null;clearSave();try{if(G.muts&&G.muts.length){let rec={};try{rec=JSON.parse(store('yw24_rec')||'{}')}catch(e){}const n=G.muts.length,d=(G.maxFi||0)+1;if(!rec[n]||d>rec[n]){rec[n]=d;store('yw24_rec',JSON.stringify(rec))}}}catch(e){}try{if((window.MUTS||[]).length){const tm=todayMuts(Math.min(3,mutMax()));const same=tm.length==G.muts.length&&tm.every(k=>G.muts.includes(k));
  if(same){let tr={};try{tr=JSON.parse(store('yw68_today')||'{}')}catch(e){}const f=(G.maxFi||0)+1;if(tr.d!=todayKey()||f>tr.f)store('yw68_today',JSON.stringify({d:todayKey(),f}))}}}catch(e){}
  {const reached=Math.floor(((G.maxFi||0)+1)/5)*5;const deep=+store('yw17_deep')||0;if(reached>deep){store('yw17_deep',reached);G.newDeep=reached}}{const big=G.bossKilled,mid=(G.maxFi||0)>=(G.startFi||0)+2;let er={};try{er=JSON.parse(store('yw16_esc')||'{}')||{}}catch(e){}const k=big?'l':mid?'m':'s';er[k]=(er[k]||0)+1;store('yw16_esc',JSON.stringify(er));G.escTier=big?'大成功：主を討って帰還':mid?'中成功：深くまで潜って帰還':'小成功：欲張らずに帰還'}
  const newV=[];if(G.quest&&G.quest.st==2){newV.push('oldwoman','mago')}(G.saved||[]).forEach(k=>newV.push(k));newV.forEach(k=>{if(!vill.includes(k))vill.push(k)});store('yw22_vill',JSON.stringify(vill));G.newVill=newV;
@@ -5532,6 +5557,7 @@ function confirmSpill(id,v){const now=performance.now();
  toast('もう一度押すと足元に叩きつける（'+(v=='fire'?'油が広がる':'毒気が広がる')+'）。飲むならカバンから');return false}
 async function slotUse(i){
  const pc=G.bag.items[i];if(!pc)return;const d=ITEM[pc.id];
+ if(!G.fight&&!G.busy&&!d.weapon&&!pc.out){const nf=nearFight();if(nf&&actHandles(pc,nf)){engageTmp(nf);return act(i)}}
  if(!G.fight&&!G.busy){const lf=G.foes.find(q=>q.hp>0&&!q.caged&&cd(q.x,q.y,G.p.x,G.p.y)<=1&&likeIdx(q)===i);if(lf){G.fight={foes:[lf],tgt:lf,mode:'first',open:1,dist:1,webbed:0,oneShot:true,hurt:0};spare();return}}
  if(d.weapon&&!pc.out&&(G.fight||!['whip','shovel'].includes(baseOf(pc.id))||weaponTarget(i))){if(G.busy)return;if(G.fight&&G.fight.oneShot)G.fight=null;return swing(i)}
  if(G.fight){if(!G.busy)act(i);return}
