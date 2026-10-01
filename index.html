@@ -3738,7 +3738,7 @@ const chgOf=id=>CHG[id]||(ITEM[id]&&ITEM[id].base&&CHG[ITEM[id].base])||null;
 async function act(pi){
  if(G.busy||!G.fight)return;const pc=G.bag.items[pi];if(!pc)return;const id=pc.id,d=ITEM[id];if(d.tre||d.passive||pc.out)return;
  if(d.vial){const tg=tgtFoe();const near=tg&&mdist(tg,G.p)<=4;if(VID[id]){return useVial(pi,near&&['fire','poison','sleep'].includes(d.vial)?'throw':'drink')}if(!near)return useVial(pi,'drink');evSay(d.n,['中身の分からない瓶だ。'],[['敵に投げる',()=>useVial(pi,'throw'),'go'],['自分で飲む',()=>useVial(pi,'drink'),'sub'],['やめる',()=>{}]]);return}
- G.busy=true;ui();G.guard=0;const tgt=tgtFoe(),p=G.p;if(!tgt){G.busy=false;try{if(G.fight)await resolveDeaths()}catch(e){}ui();return}tgt.hitByMe=1;const S=synergy(),syn=S.get(pc);
+ G.busy=true;ui();G.guard=0;const tgt=tgtFoe(),p=G.p;if(!tgt){G.busy=false;try{if(G.fight)await resolveDeaths()}catch(e){}ui();return}const hb0=tgt.hitByMe;tgt.hitByMe=1;const S=synergy(),syn=S.get(pc);
  if(id.startsWith('fukuro_')){G.bag.items.splice(pi,1);await lunge(p,tgt,2);
   if(id=='fukuro_f'){hit(tgt,Math.max(1,emul(tgt,'fire',5)));tgt.burn=Math.max(tgt.burn||0,3);tgt.burned=1;ignite(tgt.x,tgt.y,'quiet');sfx('boom');toast('火袋の炎を浴びせた')}
   else if(id=='fukuro_s'){tgt.stun=Math.max(tgt.stun||0,3);(G.webs=G.webs||new Set()).add(tgt.x+','+tgt.y);sfx('whoosh');toast(tgt.n+'を糸で絡め取った（3ターン）')}
@@ -3791,7 +3791,9 @@ async function act(pi){
   fx({type:'bolt',x:p2.rx+4,y:p2.ry+2,tx:best[0]*T+4,ty:best[1]*T+2,life:.25});await wait(160);
   p2.x=best[0];p2.y=best[1];reveal();syncDist();try{noteOn(pc,'この縄で、'+(G.fi+1)+'Fの囲みを抜けた')}catch(e){}toast('杭に引っかけて跳んだ（'+(tg?'相手との距離 '+cd(p2.x,p2.y,tg.x,tg.y):'')+'）');
   await wait(200);await afterPlayer();return}
+ else if(d.pot){G.bag.items.splice(pi,1);await lunge(p,tgt,2);G.pots=G.pots||[];const np={x:tgt.x,y:tgt.y,k:d.pot};G.pots.push(np);breakPot(np,'throw');toast(d.n+'を'+tgt.n+'に叩きつけた')}
  else if(d.mon){summon(pc)}
+ else{tgt.hitByMe=hb0;G.busy=false;ui();sfx('no');toast(d.n+'は戦いでは使えない');return}
  await wait(380);await afterPlayer();
 }
 function taintHeal(pc,hv){if(!(pc.inst&&pc.inst.taint))return hv;learn('taint','汚染区域：そこで拾った薬や魚は効きが落ち、喉が焼けることもある');setTimeout(()=>{if(Math.random()<.4&&G.p.hp>1){G.p.hp-=1;G.hurt=4;toast('喉が焼ける。汚染されていた（-1）');ui()}else toast('妙に苦い。汚染で効きが悪い')},500);return Math.max(1,Math.round(hv*.8))}
