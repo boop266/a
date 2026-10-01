@@ -86,6 +86,20 @@ const cases = {
     });
     if (r.w != '穴へ落ちる' || !r.btn || !r.fell || r.heavy != '重くて動かない') throw new Error(JSON.stringify(r));
   },
+  // 縄：同じ相手は一戦に一度だけ縛れる（毎ターン縛り続けて無傷、ができないように）
+  async '縄は一戦に一度'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.hp = f.max = 99;
+      const f0 = firstFit('rope'); G.bag.items.push({ id: 'rope', ...f0, inst: makeInst('rope') });
+      await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f;
+      const i = () => G.bag.items.findIndex(q => q.id == 'rope');
+      const msgs = []; const _t = toast; toast = m => { msgs.push(m); return _t(m); };
+      await act(i()); const s1 = !!f.roped && msgs.some(m => /縛った/.test(m)); G.busy = false; msgs.length = 0; await act(i()); const s2 = msgs.some(m => /警戒/.test(m)) && !msgs.some(m => /縛った/.test(m)); toast = _t;
+      const kept = i() >= 0; endFight(); return { s1, s2, kept, again: !f.roped };
+    });
+    if (!r.s1 || !r.s2 || !r.kept || !r.again) throw new Error(JSON.stringify(r));
+  },
   // 予兆と、初めての反応をその場で見せる
   async '予兆と反応の見せ方'(p) {
     await arena(p);

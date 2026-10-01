@@ -416,7 +416,7 @@ potion:{n:'薬',v:'回復',d:'+10。使うと消える',sh:[1,1]},
 rotten:{n:'腐った薬',v:'回復',d:'+2。ぎょろの隣で腐った',sh:[1,1]},
 bomb:{n:'爆弾',v:'投げる',d:'全体に7。使うと消える',sh:[1,1]},
 smoke:{n:'煙玉',v:'逃げる',d:'必ず逃げる。その場に煙が残り、追ってきた敵は見失う',sh:[1,1]},
-rope:{n:'縄',v:'縛る',d:'戦いでは1ターン止める。探索中は通路に張る罠になる（触れた敵は4手動けない）',sh:[1,1]},
+rope:{n:'縄',v:'縛る',d:'戦いでは1ターン止める（同じ相手には一戦に一度だけ）。探索中は通路に張る罠になる（触れた敵は4手動けない）',sh:[1,1]},
 torch:{n:'松明',v:'照らす',d:'遠くまで見える。光の回廊を通れる',sh:[1,2],passive:1},
 key:{n:'古い鍵',v:'鍵',d:'宝箱を開ける',sh:[1,1],passive:1},
 gem:{n:'宝石',tre:40,sh:[1,1]},stone:{n:'綺麗な石',tre:25,sh:[1,1]},hitomi:{n:'主の瞳',tre:300,sh:[2,2]},
@@ -3620,7 +3620,7 @@ async function act(pi){
  else if(['kaze','mizu','doro','taiko'].includes(id)){const t2=tgtFoe();if(t2){G.faceX=Math.sign(t2.x-p.x);G.faceY=Math.sign(t2.y-p.y)}if(id=='kaze')useFan(pi);else if(id=='mizu')useWaterBag(pi);else if(id=='doro')useMudBall(pi);else useTaiko(pi);await wait(300)}
  else if(id=='hyouka'){const t2=tgtFoe();G.bag.items.splice(pi,1);freezeAt(t2?t2.x:p.x,t2?t2.y:p.y,1);if(t2){t2.stun=Math.max(t2.stun||0,2);t2.frozen=2;toast(t2.n+'が凍りついた')}}
  else if(id=='raika'){const t2=tgtFoe();G.bag.items.splice(pi,1);if(t2&&inWater(t2.x,t2.y))shockSet(waterBody(t2.x,t2.y),7,'雷の瓶');else if(t2){shockSet(new Set([t2.x+','+t2.y]),7,'雷の瓶')}}
- else if(id=='rope'||id=='silk'){if(id=='silk')G.bag.items.splice(pi,1);await lunge(p,tgt,2);tgt.stun=Math.max(tgt.stun,id=='silk'?2:1);fx({type:'spark',x:tgt.rx+4,y:tgt.ry,c:'#e8b64c'});toast(tgt.n+'を縛った')}
+ else if(id=='rope'||id=='silk'){if(id=='rope'&&tgt.roped){await lunge(p,tgt,2);sfx('no');toast(tgt.n+'は縄を警戒している。同じ手は二度通じない');learn('rope_once','縄：同じ相手は一度の戦いで一度しか縛れない。蜘蛛の糸なら何度でも（使えば無くなる）')}else{if(id=='silk')G.bag.items.splice(pi,1);else tgt.roped=1;await lunge(p,tgt,2);tgt.stun=Math.max(tgt.stun,id=='silk'?2:1);fx({type:'spark',x:tgt.rx+4,y:tgt.ry,c:'#e8b64c'});toast(tgt.n+'を縛った')}}
  else if(d.food){G.bag.items.splice(pi,1);const hv=taintHeal(pc,d.food);p.hp=Math.min(p.max,p.hp+hv);sfx('heal');fx({type:'heal',x:p.rx+4,y:p.ry});fx({type:'num',s:'+'+hv,x:p.rx+4,y:p.ry-9,c:'#8cf0a0'})}
  else if(id=='potion'||id=='rotten'){G.bag.items.splice(pi,1);const gG=id=='potion'&&rxOn('G');const hv=taintHeal(pc,id=='rotten'?2:gG?16:10+(syn&&syn.lab=='回復+3'?3:0));if(gG){G.bag.items.forEach(q=>{if(ITEM[q.id].mon)q.hp=ITEM[q.id].hp});G.allies.forEach(a=>a.hp=a.max);toast('蛍の回復液。光が体に溶けていく')}p.hp=Math.min(p.max,p.hp+hv);sfx('heal');fx({type:'heal',x:p.rx+4,y:p.ry});fx({type:'num',s:'+'+hv,x:p.rx+4,y:p.ry-9,c:'#8cf0a0'})}
  else if(id=='bomb'&&pc.wet>0){G.busy=false;ui();sfx('no');toast('火薬が湿っていて火がつかない');return}
@@ -4090,7 +4090,7 @@ async function resolveDeaths(){
  if(G.fight!==F0)return true;if(!alive().length){await wait(250);if(G.fight!==F0)return true;endFight('倒した');return true}
  return false;
 }
-function endFight(msg){G.charging=null;G.chargeReq=false;
+function endFight(msg){G.charging=null;G.chargeReq=false;(G.foes||[]).forEach(f=>{f.roped=0});
  G.allies.forEach(a=>{a.pc.out=false;a.pc.hp=a.hp;fx({type:'ring',x:a.rx+4,y:a.ry+2})});G.allies=[];
  G.fight=null;G.busy=false;G.guard=0;closeSheet();if(msg)toast(msg);G.ambT=now()+3;setTimeout(()=>sfxAt('after',0,1,'mu'),700);ui();
 }
@@ -4918,7 +4918,7 @@ function mainAction0(){const p=G.p;if(G.guest)return null;
    if(g.type=='crack'&&!g.fuse&&cd(g.x,g.y,p.x,p.y)<=1&&G.bag.items.some(q=>q.id=='hammer'||q.id=='hammer_l'))return{ic:'hand',t:'槌で壁を叩く',sub:'ひびを広げる（'+(g.hits||0)+'/3）',f:()=>{g.hits=(g.hits||0)+1;sfx('thud');G.shake=8;for(let k=0;k<3;k++)fx({type:'spark',x:g.x*T+2+k*2,y:g.y*T+3,c:'#a49ab0',life:.5});if(g.hits>=3)openGate(g,'壁を叩き崩した','― 槌で、力ずくで ―');else toast('ひびが広がった（'+g.hits+'/3）');learn('pz_crack2','ひび割れた壁は、槌で3回叩いても崩せる');G.busy=true;ui();wait(120).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}};
    if(g.type=='crack'&&!g.fuse&&cd(g.x,g.y,p.x,p.y)<=1&&G.bag.items.some(q=>q.id=='bomb'&&!q.wet))return{ic:'hand',t:'爆弾を仕掛ける',sub:'ひび割れた壁に。3ターンで爆ぜる',f:()=>plantBomb(g)};
    if(g.type=='vine'&&cd(g.x,g.y,p.x,p.y)<=1&&G.bag.items.some(q=>q.id=='axe'))return{ic:'hand',t:'斧で蔦を切り開く',sub:'火を使わずに済む',f:()=>{sfx('slash');for(let k=0;k<5;k++)fx({type:'spark',x:g.x*T+1+k,y:g.y*T+2,c:'#8aa050',life:.6});openGate(g,'蔦を切り開いた','― 斧で、力ずくで ―');ui()}};
-   if(g.type=='vine'&&hasFire()&&cd(g.x,g.y,p.x,p.y)<=1)return{ic:'fire',t:'蔦に火をつける',sub:'乾いた蔦を焼き落とす',f:()=>{ignite(g.x,g.y);G.shake=6;toast('蔦に火がついた。ぱちぱちと燃え広がっていく');learn('pz_vine','蔦の門：乾いた蔦は火で燃え落ちる。松明で火をつける、火矢を射る、燃え広がる草や油から火を回す。どれでもいい');ui()}}}}
+   if(g.type=='vine'&&hasFire()&&cd(g.x,g.y,p.x,p.y)<=1&&!(G.fires||[]).some(q=>q.x==g.x&&q.y==g.y))return{ic:'fire',t:'蔦に火をつける',sub:'乾いた蔦を焼き落とす',f:()=>{ignite(g.x,g.y);G.shake=6;toast('蔦に火がついた。ぱちぱちと燃え広がっていく');learn('pz_vine','蔦の門：乾いた蔦は火で燃え落ちる。松明で火をつける、火矢を射る、燃え広がる草や油から火を回す。どれでもいい');ui()}}}}
  {if(hasFire()){const cs=[...DIRS,[0,0]].map(([a,b])=>[p.x+a,p.y+b]).filter(([x,y])=>burnable(x,y)&&!(G.fires||[]).some(f=>f.x==x&&f.y==y));const pri=([x,y])=>(x==p.x&&y==p.y)?9:(G.gim||[]).some(g=>!g.open&&g.type=='vine'&&g.x==x&&g.y==y)?0:(G.webs&&G.webs.has(x+','+y))?1:hasOil(x,y)?2:5;const c=cs.sort((u,v)=>pri(u)-pri(v))[0];
   if(c)return{ic:'fire',t:'火をつける',sub:(G.webs&&G.webs.has(c[0]+','+c[1]))?'蜘蛛の巣を焼く':hasOil(c[0],c[1])?'油に火を放つ':'草を焼く',f:()=>{ignite(c[0],c[1]);G.shake=6;toast('火がついた。草と蜘蛛の巣を焼いて道が開く。炎に触れた敵は焼ける。……風向き次第でこちらにも来る');learn('burn','火：松明があれば草や蜘蛛の巣を焼ける。燃え広がるので、自分の逃げ道も考えること');ui()}}}}
  {if(G.chest&&G.chest.x==p.x&&G.chest.y==p.y){const hk=G.bag.items.some(q=>q.id=='key');
