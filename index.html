@@ -339,6 +339,157 @@ body.lowhp .stage::before{content:"";position:absolute;inset:0;pointer-events:no
 
 /* 装備の出来 */
 .slot.q2{box-shadow:inset 0 0 0 2px #6ab8ff88}.slot.q3{box-shadow:inset 0 0 0 2px #c07cffaa,0 0 8px #c07cff66}.slot.q4{box-shadow:inset 0 0 0 2px #ffd35acc,0 0 10px #ffd35a88}
+/* ===================================================================
+   見た目 E1：ゲームボーイカラー風
+   クリーム色の窓・紺の縁・紫の内線・ドット文字。世界の絵はフルカラーのまま。
+   =================================================================== */
+:root{--bg:#e8e0f8;--ink:#282850;--dim:#6a6a90;--gold:#e84858;--brass:#7868c8;--brass2:#7868c8;--teal:#2a9a8a;--red:#e84858;--curse:#8a4ad0;--parchC:#fffdf4;--inkD:#282850;
+ --e-win:#fffdf4;--e-ink:#282850;--e-line:#7868c8;--e-red:#e84858;--e-lav:#f1ecfc;--e-dim:#6a6a90;
+ --e-frame:0 0 0 3px #282850,inset 0 0 0 2px #fffdf4,inset 0 0 0 4px #7868c8}
+body{background:#e8e0f8;color:#282850;font-family:"DotGothic16","Hiragino Maru Gothic ProN",sans-serif;letter-spacing:.02em}
+canvas#scr{background:#14122a}
+.stage::after{box-shadow:inset 0 0 40px 8px #14122a99}
+/* 窓の共通形 */
+.hud,.floorname,.toast.on,.sheet .in,.box,.frow button,.place,.retit,.kobo,.bb{background:#fffdf4!important;color:#282850;border-radius:10px;box-shadow:var(--e-frame)!important;text-shadow:none!important}
+/* 上の窓：体力・持ち帰り・階 */
+.hud{left:calc(8px + env(safe-area-inset-left,0px));right:calc(54px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));padding:7px 12px 6px;color:#6a6a90;font-size:12px;grid-template-columns:auto auto 1fr}
+.hud .bar{width:118px;height:10px;background:#f1ecfc;box-shadow:0 0 0 2px #282850;border-radius:2px}
+.hud .bar i{background:#e84858;box-shadow:inset 0 2px 0 #ff8a96}
+.hud #hpt{color:#282850;text-shadow:none;font-size:14px}
+.hud b{color:#282850}.hud .gold{color:#e84858}
+.floorname{right:calc(62px + env(safe-area-inset-right,0px));top:calc(12px + env(safe-area-inset-top,0px));background:none!important;box-shadow:none!important;color:#282850;font-size:14px;letter-spacing:.08em;padding:4px 6px}
+/* 一言の窓：消えずに残る。押すと記録 */
+.toast{top:calc(80px + env(safe-area-inset-top,0px));left:calc(8px + env(safe-area-inset-left,0px));right:calc(8px + env(safe-area-inset-right,0px));padding:0;text-align:left;pointer-events:auto;display:none;transition:none}
+.toast.on{display:block;padding:9px 30px 9px 14px}
+.toast span,.toast span.hot{display:block;max-width:none;padding:0;background:none!important;box-shadow:none!important;color:#282850;font-size:15px;line-height:1.55;border-radius:0}
+.toast span.hot{color:#d02840}
+.toast::after{content:"▼";position:absolute;right:12px;bottom:6px;color:#e84858;font-size:12px;animation:blink 1.2s infinite}
+#toastOld{display:block;margin:2px 0 0;gap:0}
+#toastOld div{font-size:12px;line-height:1.5;color:#6a6a90;opacity:1;text-shadow:none;max-width:none}
+#toastOld div.gone{opacity:1}
+body.titling .toast{top:calc(80px + env(safe-area-inset-top,0px))}
+.ctl.bag b{top:-6px;bottom:auto;right:-6px}
+/* 丸いボタン：待つ・地図・カバン・メニュー */
+.ctl{background:#7868c8!important;color:#fff;box-shadow:0 0 0 3px #282850,0 4px 0 #282850!important}
+.ctl.bag{background:#e84858!important;box-shadow:0 0 0 3px #282850,0 5px 0 #282850!important}
+.ctl.bag b,.ctl b{background:#fffdf4;color:#282850;box-shadow:0 0 0 2px #282850}
+.ctl small{color:#282850;background:#fffdf4;padding:0 4px;border-radius:4px;box-shadow:0 0 0 2px #282850;text-shadow:none;margin-top:44px;font-size:9px}
+.ctl.on{box-shadow:0 0 0 3px #282850,0 0 0 6px #e84858!important}
+.ctl:active{transform:translateY(3px);box-shadow:0 0 0 3px #282850,0 1px 0 #282850!important}
+.ctl.menu{background:#fffdf4!important;color:#282850;box-shadow:0 0 0 3px #282850,inset 0 0 0 2px #fffdf4,inset 0 0 0 4px #7868c8!important;border-radius:10px;top:calc(8px + env(safe-area-inset-top,0px))}
+/* いちばん大きな「いまできること」＝Aボタンの赤 */
+.mainact{background:#e84858!important;color:#fff;box-shadow:0 0 0 3px #282850,0 6px 0 #282850!important;border-radius:14px}
+.mainact small{opacity:.9}
+.mainact:active{transform:translateY(4px);box-shadow:0 0 0 3px #282850,0 2px 0 #282850!important}
+/* 十字キー */
+.pad{background:#5a5a78!important;box-shadow:0 0 0 3px #282850,0 5px 0 #282850!important;opacity:.95}
+.pad button,.pad button.dg{color:#fffdf4;text-shadow:none}
+.pad button:active{background:#7868c8}
+.pad span:nth-child(5){background:#282850;box-shadow:none}
+.pad.gh{background:#5a5a7844!important;box-shadow:none!important}
+#stick{background:#7868c822;box-shadow:0 0 0 3px #7868c8aa}
+#stick i{background:#e84858;box-shadow:0 0 0 3px #282850}
+/* 下の8枠 */
+.abar{background:#e8e0f8;box-shadow:0 -3px 0 #282850;padding-top:7px;gap:5px}
+.slot{background:#fffdf4;color:#282850;border-radius:8px;box-shadow:0 0 0 2px #282850,inset 0 0 0 2px #fffdf4,inset 0 0 0 3px #7868c855}
+.slot span{font-size:10px;font-weight:400}
+.slot i{color:#7868c8;opacity:1}
+.slot.empty{background:#f1ecfc;box-shadow:inset 0 0 0 2px #7868c866;color:#9a94c0}
+.slot.empty span{color:#9a94c0}
+.slot.tre{background:#fff3c4}.slot.mon{background:#dcf4dc}.slot.cur{background:#e6d8f8}
+.slot.rdy{box-shadow:0 0 0 2px #282850,0 0 0 4px #e84858}
+.slot.chg{box-shadow:0 0 0 2px #282850,0 0 0 4px #ffd84a,0 0 12px #ffd84a}
+.slot em{color:#e84858}
+.slot.q2{box-shadow:0 0 0 2px #282850,inset 0 0 0 3px #4a9aff}.slot.q3{box-shadow:0 0 0 2px #282850,inset 0 0 0 3px #a85af0}.slot.q4{box-shadow:0 0 0 2px #282850,inset 0 0 0 3px #f0b020,0 0 8px #f0b020}
+.abar.fight .slot{box-shadow:0 0 0 2px #282850}
+/* 戦闘の操作列 */
+.frow button{color:#282850;border-radius:10px}
+.frow button.rnd{color:#e84858;border-radius:50%}
+.frow .dst{color:#fffdf4;background:#282850;padding:3px 8px;border-radius:6px;text-shadow:none}
+.frow button.kill{background:#e84858!important;color:#fff}
+/* 普通のボタン */
+button.b{color:#282850;background:#fffdf4;border-radius:10px;box-shadow:0 0 0 3px #282850,inset 0 0 0 2px #fffdf4,inset 0 0 0 4px #7868c8,0 4px 0 #282850;text-shadow:none;font-weight:400}
+button.b.sub{color:#6a6a90}
+button.b.go,.box .btns .b:not(.sub),.box #tb>.b:not(.sub){color:#fff!important;text-shadow:none!important;background:#e84858!important;box-shadow:0 0 0 3px #282850,0 5px 0 #282850!important;border-radius:12px}
+button.b:active{transform:translateY(3px)}
+.box .btns .b.sub{color:#6a6a90;background:none!important;box-shadow:none!important}
+.xbtn{background:#7868c8!important;color:#fff;box-shadow:0 0 0 3px #282850!important}
+.chip{color:#282850;background:#fffdf4;border-radius:8px;box-shadow:0 0 0 2px #282850,inset 0 0 0 3px #7868c844}
+.chip.on{color:#fff;background:#e84858;box-shadow:0 0 0 2px #282850}
+.chip.b2{color:#2a9a8a;box-shadow:0 0 0 2px #2a9a8a}
+#tabs{border-bottom:3px solid #7868c8}
+/* 下から出る引き出し（カバン・調べる） */
+.sheet .in{box-shadow:var(--e-frame),0 -6px 0 #28285055!important}
+.sh-head b{color:#282850;text-shadow:none}
+.sh-head small{color:#6a6a90}
+.sheet .hint{color:#4a4a70}
+.grid{background:#f1ecfc;box-shadow:inset 0 0 0 2px #7868c8}
+.cell{background:#fffdf4;box-shadow:inset 0 0 0 1px #c8c0e8}
+.cell.ok{background:#e84858;box-shadow:0 0 8px #e84858;opacity:.45}
+.cell.bad{background:#282850;opacity:.6}
+.pc{color:#282850;background:#fffdf4!important;border-radius:6px;box-shadow:0 0 0 2px #282850,0 3px 0 #28285066}
+.pc.tre{background:#fff3c4!important}.pc.mon{background:#dcf4dc!important}.pc.cur{background:#e6d8f8!important}
+.pc.tre span{color:#282850}.pc.mon span{color:#282850}
+.pc.sel{box-shadow:0 0 0 2px #282850,0 0 0 5px #e84858}
+.pc.syn{box-shadow:0 0 0 2px #282850,0 0 0 5px #f0a030}
+.pc.chg{box-shadow:0 0 0 2px #282850,0 0 0 5px #ffd84a}
+.pc em{color:#e84858}
+.drop,.tray{background:#f1ecfc!important;color:#6a6a90;border-radius:8px;box-shadow:inset 0 0 0 2px #7868c8!important;border:0}
+.drop.hot{color:#e84858;box-shadow:inset 0 0 0 3px #e84858!important}
+.tray small{color:#6a6a90}
+.rar{box-shadow:0 0 0 1px currentColor}.rar.r0{color:#6a6a90}.rar.r1{color:#2a6ad0}.rar.r2{color:#8a3ad0}
+.distrow button{background:#7868c8;color:#fff;box-shadow:0 0 0 3px #282850}
+.distrow div,.distrow div small{color:#282850}
+/* 窓（ダイアログ） */
+.modal{background:#28285088}
+.box::before,.box::after{display:none}
+.box h2{color:#282850;text-shadow:none;letter-spacing:.08em}
+.box h3{color:#7868c8}
+.box h3::before,.box h3::after{background:#7868c8;height:2px}
+.box p{color:#282850;background:#f1ecfc;box-shadow:none;border-radius:8px}
+.box p.hint{color:#6a6a90}
+.scrollmore{color:#e84858;background:linear-gradient(transparent,#fffdf4 70%)}
+/* 村 */
+.box.base{border-radius:0;box-shadow:none!important}
+.bhead{border-bottom:3px solid #7868c8}
+.bfoot{border-top:3px solid #7868c8}
+.bgold{color:#e84858}
+.bback{background:#7868c8;color:#fff;box-shadow:0 0 0 3px #282850}
+span.bback{background:none;box-shadow:none}
+.places{grid-template-columns:1fr;gap:0;background:#fffdf4;border-radius:10px;box-shadow:var(--e-frame);padding:8px 6px}
+.place{flex-direction:row;justify-content:flex-start;align-items:baseline;gap:10px;background:none!important;box-shadow:none!important;border:0;border-radius:6px;padding:8px 10px 8px 30px;min-height:46px;color:#282850;font-size:18px;position:relative;text-align:left;font-family:inherit}
+.place::before{content:"";position:absolute;left:10px;top:50%;margin-top:-7px;border:7px solid transparent;border-left:10px solid #e84858;opacity:0}
+.place:hover::before,.place:focus::before,.place:active::before,.place.pulse::before{opacity:1}
+.place:active{background:#f1ecfc!important}
+.place b{font-weight:400}.place small{font-size:12px;color:#6a6a90;opacity:1}
+.pulse{animation:none}.place.pulse b::after{content:"NEW";margin-left:8px;font-size:11px;color:#fff;background:#e84858;padding:0 5px;vertical-align:2px}
+/* 帰還・倒れた */
+.ret{background:radial-gradient(ellipse at 50% 35%,#fffdf4,#e8e0f8 70%)}
+.retlight{background:radial-gradient(#ffd84a66,#0000 65%)}
+.ret h2{color:#e84858;text-shadow:0 3px 0 #282850}
+.rettier{color:#7868c8}
+.retit{color:#282850;border-radius:8px}
+.retit em{color:#e84858}
+.retit.big{box-shadow:var(--e-frame),0 0 0 6px #ffd84a!important}
+.rettotal small,.retskip{color:#6a6a90}
+.rettotal b{color:#e84858;text-shadow:0 3px 0 #282850}
+.ret.fall{background:radial-gradient(ellipse at 50% 35%,#4a4270,#1a1830 70%)}
+.ret.fall h2{color:#fffdf4;text-shadow:0 3px 0 #000}
+.ret.fall .rettier,.ret.fall .rettotal small,.ret.fall .retskip{color:#c8c0e8}
+.ret.fall .rettotal b{color:#c8c0e8;text-shadow:0 3px 0 #000}
+/* 配合の書・工房 */
+.bb{background:#f1ecfc!important;box-shadow:inset 0 0 0 2px #c8c0e8!important;border-radius:8px}
+.bb.got{background:#fffdf4!important;box-shadow:var(--e-frame)!important}
+.bb .ic,.kobo .ic{background:#e8e0f8}
+.bb b,.bb small,.bb.got b,.bb.got small{color:#282850}
+.kobo{box-shadow:inset 0 0 0 2px #c8c0e8!important;background:#f1ecfc!important}
+.kobo.on{background:#fffdf4!important;box-shadow:var(--e-frame)!important}
+.kobo b{color:#282850}.kobo small{color:#6a6a90}
+#dodge{background:#e84858;color:#fff;border:3px solid #282850;box-shadow:0 5px 0 #282850;font-family:inherit}
+.fleelink{color:#6a6a90}
+input{background:#fffdf4!important;color:#282850!important;border:2px solid #282850!important;border-radius:6px}
+input[type=range]{accent-color:#e84858}
+body.lowhp .stage::before{box-shadow:inset 0 0 90px 30px #e8485899}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
@@ -1935,7 +2086,7 @@ const sprOf=o=>{let a=['puru','gyoro','koke','mochi','medama','ogyoro'].includes
  if(G.blight){sc.fillStyle='rgba(90,140,30,'+(.06+Math.min(.12,(G.blightT||0)/1200))+')';sc.fillRect(0,0,SW,SH)}
  if(false){sc.fillStyle='rgba(0,0,0,.5)';sc.fillRect(SW/2-43,SH*0.62,86,20);sc.font='12px "DotGothic16",monospace';sc.fillStyle='#e8e0d0';sc.fillText('間合い',SW/2-37,SH*0.62+15);for(let k=1;k<=3;k++){sc.fillStyle=k<=G.fight.dist?'#ffd35a':'#3a3442';sc.fillRect(SW/2+k*10,SH*0.62+6,7,8)}if(G.fight.webbed>0){sc.fillStyle='#e8e8f0';sc.fillText('糸',SW/2+46,SH*0.62+15)}}
  if(G.hurt>0){sc.fillStyle='rgba(224,82,74,.18)';sc.fillRect(0,0,SW,SH);G.hurt--}
- try{const tg=!!G.title;if(tg!==render._tg){render._tg=tg;if(tg){{const e=$('toast');if(!G.title.short){if(+e.style.opacity>0&&e.textContent){toast.pend=e.dataset.base||e.textContent;e.style.opacity=0;clearTimeout(toast.t)}const o=$('toastOld');if(o)o.innerHTML=''}}const r=scr.getBoundingClientRect();document.body.style.setProperty('--ttop',Math.round(r.top+(SH*.17+46)*r.height/SH)+'px')}document.body.classList.toggle('titling',tg);if(!tg&&toast.pend){const q=toast.pend;toast.pend=null;toastShow(q)}}}catch(e){}
+ try{const tg=!!G.title;if(tg!==render._tg){render._tg=tg;if(tg){{const e=$('toast');if(!G.title.short){if(+e.style.opacity>0&&e.textContent){toast.pend=e.dataset.base||e.textContent;e.style.opacity=0;clearTimeout(toast.t)}e.parentNode.classList.remove('on');const o=$('toastOld');if(o)o.innerHTML=''}}const r=scr.getBoundingClientRect();document.body.style.setProperty('--ttop',Math.round(r.top+(SH*.17+46)*r.height/SH)+'px')}document.body.classList.toggle('titling',tg);if(!tg&&toast.pend){const q=toast.pend;toast.pend=null;toastShow(q)}}}catch(e){}
  if(G.title){const a=(performance.now()-G.title.t0)/(G.title.short?2400:4600);if(a>1)G.title=null;else{const k=a<.22?a/.22:a>.7?(1-a)/.3:1;
   sc.fillStyle='rgba(0,0,0,'+(.45*k)+')';sc.fillRect(0,0,SW,SH);const TY=Math.round(SH*.17);const gr=sc.createLinearGradient(0,TY-46,0,TY+42);gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(.5,'rgba(0,0,0,'+(.5*k)+')');gr.addColorStop(1,'rgba(0,0,0,0)');sc.fillStyle=gr;sc.fillRect(0,TY-46,SW,88);
   sc.textAlign='center';sc.globalAlpha=k;{let fz=Math.round(SW/13);sc.font='800 '+fz+'px "Shippori Mincho B1",serif';while(fz>10&&sc.measureText(G.title.s).width>SW-40){fz-=1;sc.font='800 '+fz+'px "Shippori Mincho B1",serif'}}try{sc.letterSpacing=Math.round(SW/60)+'px'}catch(e){}sc.fillStyle='#000';sc.fillText(G.title.s,SW/2+1,TY+3+(1-k)*4);sc.fillStyle='#ece2c8';sc.fillText(G.title.s,SW/2,TY+1+(1-k)*4);try{sc.letterSpacing='0px'}catch(e){}sc.strokeStyle='rgba(217,179,94,'+(.7*k)+')';sc.beginPath();sc.moveTo(SW/2-70,TY+12);sc.lineTo(SW/2+70,TY+12);sc.stroke();
@@ -2027,11 +2178,12 @@ function drawMap(t){
 // ================= turns
 function toast(s){try{LOG.unshift(s);if(LOG.length>30)LOG.pop()}catch(e){}if(G&&G.title&&!G.title.short&&!G.over){toast.pend=s;return}toastShow(s)}
 // 一言は上書きしない。前の一言は小さく下へ送り（最大2行）、同じ一言が続けば「×2」にまとめる。「！」は危険の知らせとして目立たせる
-function toastShow(s){const e=$('toast');const on=+e.style.opacity>0&&e.textContent;
+function toastShow(s){const e=$('toast');const box=e.parentNode;const on=box.classList.contains('on')&&e.textContent;
  if(on&&e.dataset.base===s){e.dataset.n=(+e.dataset.n||1)+1;e.textContent=s+'（×'+e.dataset.n+'）'}
- else{if(on){const o=$('toastOld');if(o){const d=document.createElement('div');d.textContent=e.textContent;o.prepend(d);while(o.children.length>2)o.lastChild.remove();setTimeout(()=>{d.classList.add('gone');setTimeout(()=>d.remove(),400)},2600)}}
+ else{if(on){const o=$('toastOld');if(o){const d=document.createElement('div');d.textContent=e.textContent;o.prepend(d);while(o.children.length>1)o.lastChild.remove()}}
   e.dataset.base=s;e.dataset.n=1;e.textContent=s}
- e.classList.toggle('hot',/！/.test(s));e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>{e.style.opacity=0;const o=$('toastOld');if(o)o.innerHTML=''},Math.max(2800,s.length*95))}
+ // 一言は消さない：次の一言が来るまで窓に残る（前の一言は小さく下に）
+ e.classList.toggle('hot',/！/.test(s));e.style.opacity=1;box.classList.add('on');clearTimeout(toast.t)}
 const now=()=>(performance.now()-G.t0)/1000;
 function fx(o){G.fx.push({t:now(),life:.8,...o});if(o&&o.type=='boom'&&G&&!G.over&&G.gim&&G.gim.some(g=>g.type=='crack'&&!g.open)){try{blastAt(Math.floor(o.x/T),Math.floor(o.y/T))}catch(e){}}}
 async function step(dx,dy){
