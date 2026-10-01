@@ -143,6 +143,7 @@
       const foes = G.foes.filter(f => f.hp > 0 && !f.ally && near(f, AIMR) && G.seen.has(f.x + ',' + f.y));
       its.forEach((q, i) => {
         const d = ITEM[q.id] || {}; if (seenId.has(q.id) || NOUSE.has(q.id) || d.mon && !foes.length) return; seenId.add(q.id);
+        if (d.weapon && !q.out && weaponTarget(i)) out.push({ k: 'use:' + q.id, i, lab: '振る:' + d.n });
         if (!d.weapon && !(d.food && p.hp >= p.max) && !((q.id == 'potion' || q.id == 'bigpot') && p.hp >= p.max - 4)) out.push({ k: 'use:' + q.id, i, lab: '使う:' + d.n });
         if (d.weapon || d.mon) return;
         // 投げる先：敵そのもの、敵のそばの壺、敵のそばの水・油・草

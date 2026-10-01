@@ -56,6 +56,8 @@ function botTick() {
     const m = mainAction && mainAction();
     if (m && m.f && Math.random() < (m.ic == 'down' ? .9 : .5)) { m.f(); return 'main:' + (m.t || m.ic); }
   } catch (e) { return 'mainErr:' + e.message + ' @ ' + String(e.stack).split('\n').slice(1, 3).join(' < '); }
+  // 光っている武器（押せば当たる）は振る
+  { const w = G.bag.items.map((q, i) => i).filter(i => ITEM[G.bag.items[i].id].weapon && weaponTarget(i)); if (w.length && Math.random() < .8) { slotUse(rnd(w)); return 'swing'; } }
   if (Math.random() < .04) { const i = Math.floor(Math.random() * G.bag.items.length); if (G.bag.items[i]) { slotUse(i); return 'slot'; } }
   // 階段へBFS、なければ未探索方向へ
   const p = G.p, goal = G.down || G.exit;

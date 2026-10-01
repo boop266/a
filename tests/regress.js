@@ -300,7 +300,7 @@ const cases = {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; }; store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 40;
-      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
+      const si = give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 400)); o.faced = f.hp == 40 && G.faceX == 1; G.busy = false; await slotUse(si); await new Promise(r => setTimeout(r, 900)); o.fight = !G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
       // 予告 → 一歩離れる → 空振りで体勢が崩れる
       G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await step(-1, 0); await new Promise(r => setTimeout(r, 900));
       o.dodged = G.p.hp == hp && !f.tele && (f.post || 0) > post;
@@ -310,7 +310,7 @@ const cases = {
       G.guard = 0; G.breath = 0; f.tele = 1; const hp3 = G.p.hp; await strike(f); o.hurt = hp3 - G.p.hp >= Math.round(f.atk * 1.6) - 1;
       return o;
     });
-    if (!(r.fight && r.hit && r.noRow && r.dodged && r.blocked && r.hurt)) throw new Error(JSON.stringify(r));
+    if (!(r.faced && r.fight && r.hit && r.noRow && r.dodged && r.blocked && r.hurt)) throw new Error(JSON.stringify(r));
   },
   // 階の題字と説明の一言が重ならない
   async '題字の間は一言を待たせる'(p) {
@@ -639,7 +639,7 @@ async function dive(p) {
 (async () => {
   const browser = await chromium.launch();
   let fail = 0;
-  for (const [name, fn] of Object.entries(cases)) {
+  for (const [name, fn] of Object.entries(cases).filter(([n]) => !process.env.ONLY || n.includes(process.env.ONLY))) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.route(/fonts\.g/, r => r.abort());
     const p = await ctx.newPage();
