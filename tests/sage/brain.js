@@ -230,7 +230,7 @@
     const top = res.slice(0, 4); const more = [1, 2, 3].map(() => 1 + Math.floor(_rand() * 1e9));
     for (const r of top) { let s = r[1] * 2; for (const sd of more) s += await S.trial(r[0], sd) + bonus(r[0]); r[1] = s / 5; }
     top.sort((x, y) => y[1] - x[1]);
-    const best = top[0]; const ok = res.filter(r => r[1] > -1e8); const base = ok.filter(r => r[0].k == 'wait' || r[0].k.startsWith('act:w') || r[0].k == 'bare').sort((x, y) => y[1] - x[1])[0] || ok[ok.length - 1] || best;
+    let best = top[0]; if (S.blunder && _rand() < S.blunder) { const pool = res.filter(r => r[1] > -1e8).slice(0, 6); if (pool.length) best = pool[Math.floor(_rand() * pool.length)]; } const ok = res.filter(r => r[1] > -1e8); const base = ok.filter(r => r[0].k == 'wait' || r[0].k.startsWith('act:w') || r[0].k == 'bare').sort((x, y) => y[1] - x[1])[0] || ok[ok.length - 1] || best;
     S.log.decisions++;
     const grp = c => c.k.replace(/:[^:]*$/, '') + ':' + c.lab;
     new Set(cs.map(grp)).forEach(g => S.log.avail[g] = (S.log.avail[g] || 0) + 1);
@@ -247,7 +247,7 @@
     if (G.obsF !== G.fi) { S.stuck = false; S.stuckN = 0; G.obsTgt = null; G.obsF = G.fi; G.obsBad = new Set(); G.obsSkip = new Set(); G.obsT = 0; G.obsN = 0; }
     try {
       const m = mainAction();
-      if (m && m.f && !/叩き壊す|溶岩|上がる/.test(m.t + (m.sub || '')) && !(/飛び降り/.test(m.t) && !(G.obsN > 200 || S.stuck)) && (!/脱出/.test(m.t) || goHome) && !(m.t == '拾う' && G.items.filter(i => i.x == p.x && i.y == p.y).every(i => G.obsSkip.has(i.x + ',' + i.y + ',' + i.id)))) {
+      if (m && m.f && m.t != '火をつける' && !/叩き壊す|溶岩|上がる|亡骸を隠す/.test(m.t + (m.sub || '')) && !(/飛び降り/.test(m.t) && !(G.obsN > 200 || S.stuck)) && (!/脱出/.test(m.t) || goHome) && !(m.t == '拾う' && G.items.filter(i => i.x == p.x && i.y == p.y).every(i => G.obsSkip.has(i.x + ',' + i.y + ',' + i.id)))) {
         const down = G.down && p.x == G.down[0] && p.y == G.down[1];
         if (m.t == '釣る') { G.obsFish = (G.obsFish || 0) + 1; if (G.obsFish > 6) m.f = null; }
         const sig = m.t + '@' + p.x + ',' + p.y + '@' + G.fi; G.obsRep = G.obsRep && G.obsRep.sig == sig ? { sig, n: G.obsRep.n + 1 } : { sig, n: 1 };
@@ -256,6 +256,8 @@
         if (m.f && !muted && (!down || G.obsT > 90 || G.obsN > 170 || !frontier())) { if (m.t == '拾う') G.items.filter(i => i.x == p.x && i.y == p.y).forEach(i => G.obsSkip.add(i.x + ',' + i.y + ',' + i.id)); m.f(); G.obsT = 0; return 'main:' + m.t; }
       }
     } catch (e) {}
+    // 手持ちで開けられる門があれば、開けに行く（宝の小部屋）
+    try { const gp = S.gatePlan(); if (gp) { if (gp.act) { gp.act(); return 'gate:' + gp.k; } if (gp.tgt) { const r = S.route(gp.tgt[0], gp.tgt[1]); if (r && r.length) { step(r[0][0] - p.x, r[0][1] - p.y); return 'gate-walk:' + gp.k; } } } } catch (e) {}
     G.obsT++; G.obsN = (G.obsN || 0) + 1; G.obsBad.add(p.x + ',' + p.y);
     const late = G.obsN > 170;
     let tgt = null;
@@ -293,6 +295,30 @@
       }
       return best;
     }
+  };
+
+  // 門の解き方：蔦・ひび・燭台は隣で主行動、雷の扉は雷の瓶を投げる、重さの格子は何か置く
+  S.gatePlan = () => {
+    const p = G.p, its = G.bag.items, has = ids => its.findIndex(q => ids.includes(q.id));
+    G.obsGate = G.obsGate || {};
+    const gs = (G.gim || []).filter(g => !gOpen(g) && G.seen.has(g.x + ',' + g.y) && (G.obsGate[g.x + ',' + g.y] || 0) < 40);
+    let best = null, bd = 1e9;
+    for (const g of gs) {
+      let need = null, spot = null, act = null;
+      if (g.type == 'vine' && (hasFire() || has(['axe']) >= 0)) need = [g.x, g.y];
+      else if (g.type == 'crack' && (has(['hammer', 'hammer_l']) >= 0 || has(['bomb']) >= 0)) need = [g.x, g.y];
+      else if (g.type == 'brazier' && hasFire()) { const b = (g.brz || []).filter(b => !b.lit).sort((u, v) => cd(u.x, u.y, p.x, p.y) - cd(v.x, v.y, p.x, p.y))[0]; if (b) need = [b.x, b.y]; }
+      else if (g.type == 'volt' && has(['raika']) >= 0) { const tg = [[0, 0], ...DIRS8].map(([a, b]) => [g.x + a, g.y + b]).find(([x, y]) => walk(x, y) && !gimAt(x, y) && cd(x, y, p.x, p.y) <= AIMR && cd(x, y, p.x, p.y) >= 1 && aimOK(x, y)); if (tg) act = () => throwAt(has(['raika']), tg[0], tg[1]); else need = [g.x, g.y]; }
+      else if (g.type == 'plate' && its.some(q => !ITEM[q.id].weapon && !ITEM[q.id].mon && !ITEM[q.id].curse)) { if (p.x == g.px && p.y == g.py && !G.items.some(i => i.x == p.x && i.y == p.y)) { const i = its.map((q, i) => [q, i]).filter(([q]) => !ITEM[q.id].weapon && !ITEM[q.id].mon && !ITEM[q.id].curse).sort((a, b) => worth(a[0]) - worth(b[0]))[0][1]; act = () => dropToFloor(its[i], i); } else spot = [g.px, g.py]; }
+      if (!need && !spot && !act) continue;
+      const k = g.x + ',' + g.y;
+      if (act) return { k: g.type, act: () => { G.obsGate[k] = (G.obsGate[k] || 0) + 10; act(); } };
+      if (need && cd(need[0], need[1], p.x, p.y) <= 1) { const m = mainAction(); if (m && m.f && /火|蔦|槌|爆弾|燭台|斧/.test(m.t)) return { k: g.type, act: () => { G.obsGate[k] = (G.obsGate[k] || 0) + 3; m.f(); } }; continue; }
+      const cands = spot ? [spot] : DIRS8.map(([a, b]) => [need[0] + a, need[1] + b]).filter(([x, y]) => walk(x, y) && !gimAt(x, y) && G.seen.has(x + ',' + y));
+      for (const c of cands) { const r = S.route(c[0], c[1]); if (r && r.length < bd) { bd = r.length; best = { k: g.type, tgt: c, key: k }; } }
+    }
+    if (best) G.obsGate[best.key] = (G.obsGate[best.key] || 0) + 1;
+    return best;
   };
 
   // ---- 1手 ----

@@ -39,21 +39,22 @@ async function one(browser, run, style) {
   await page.goto(FILE); await page.evaluate(() => VT.run(800));
   await page.addScriptTag({ path: path.join(__dirname, 'sage', 'brain.js') });
   await page.evaluate(install);
-  await page.evaluate(([st, sk]) => { SAGE.style = st; SAGE.skill = sk; }, [style, +process.env.SKILL || .7]);
+  await page.evaluate(([st, sk, bl]) => { SAGE.style = st; SAGE.skill = sk; SAGE.blunder = bl; }, [style, +process.env.SKILL || .7, +process.env.BLUNDER || 0]);
   const START = +process.env.START || 0;
   if (START) await page.evaluate(sf => { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf); }, START);
-  const t0 = Date.now(); let maxF = 0, last = '', stall = 0; const tags = {};
+  const t0 = Date.now(); let minHp = 1, lowT = 0; let maxF = 0, last = '', stall = 0; const tags = {};
   for (let s = 0; s < STEPS; s++) {
     let r; try { r = await page.evaluate(() => SAGE.turn()); } catch (e) { errs.push('turn: ' + e.message); break; }
     const k = String(r).startsWith('E:') ? String(r).slice(0, 12) : String(r).replace(/:.*/, ''); tags[k] = (tags[k] || 0) + 1;
+    const hpr = await page.evaluate(() => G && G.p && !G.over ? G.p.hp / G.p.max : 1); minHp = Math.min(minHp, hpr); if (hpr < .3) lowT++;
     const sig = await page.evaluate(() => typeof G == 'undefined' || !G ? 'x' : [G.fi, G.p.x, G.p.y, G.p.hp, !!G.fight, G.over, document.getElementById('modal').innerHTML.length].join('|'));
     maxF = Math.max(maxF, await page.evaluate(() => (G && G.fi || 0) + 1));
     if (sig === last) { if (++stall > 40) { await page.evaluate(() => { if (G) { G.busy = false; DEF = null; document.getElementById('modal').innerHTML = ''; if (!G.fight && !G.over) { const d = DIRS8[Math.floor(Math.random() * 8)]; step(d[0], d[1]); } } }); stall = 0; } } else { stall = 0; last = sig; }
   }
   const o = await page.evaluate(() => ({ ...window.SOBS, log: SAGE.log, eco: window.ECOSTAT || {}, verr: (VT.errs || []).slice(0, 5) }));
-  o.maxF = maxF; o.errors = [...new Set(errs)].slice(0, 5); o.style = style; o.sec = Math.round((Date.now() - t0) / 1000); o.tags = tags;
+  o.minHp = Math.round(minHp * 100); o.lowT = lowT; o.maxF = maxF; o.errors = [...new Set(errs)].slice(0, 5); o.style = style; o.sec = Math.round((Date.now() - t0) / 1000); o.tags = tags;
   await ctx.close();
-  console.log(`[${style}] run ${run}: 最深 ${maxF}F / 倒れた ${o.deaths.length} / 帰った ${o.escapes.length} / 戦闘 ${o.fights} / 判断 ${o.log.decisions}（試行 ${o.log.sims}、1回 ${o.log.sims ? (o.log.simMs / o.log.sims).toFixed(0) : '-'}ms）/ ${o.sec}秒 / エラー ${o.errors.length + o.verr.length}\n   手 ${JSON.stringify(tags)}`);
+  console.log(`[${style}] run ${run}: 最深 ${maxF}F / 倒れた ${o.deaths.length} / 帰った ${o.escapes.length} / 戦闘 ${o.fights} / 判断 ${o.log.decisions}（試行 ${o.log.sims}、1回 ${o.log.sims ? (o.log.simMs / o.log.sims).toFixed(0) : '-'}ms）/ ${o.sec}秒 / 最低HP ${o.minHp}%・瀕死 ${o.lowT}手 / エラー ${o.errors.length + o.verr.length}\n   手 ${JSON.stringify(tags)}`);
   return o;
 }
 
