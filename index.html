@@ -2355,7 +2355,7 @@ const AIMR=6;
 function aimPath(n){const p=G.p;const c=[];if(G.aimAt){let x=p.x,y=p.y;const x1=G.aimAt.x,y1=G.aimAt.y;const ax=Math.abs(x1-x),ay=Math.abs(y1-y),sx=x<x1?1:-1,sy=y<y1?1:-1;let e=ax-ay;
   for(let i=0;i<n;i++){if(x==x1&&y==y1)break;const e2=2*e;let nx=x,ny=y;if(e2>-ay){e-=ay;nx+=sx}if(e2<ax){e+=ax;ny+=sy}if(!walk(nx,ny)||!diagOK(x,y,nx-x,ny-y))break;x=nx;y=ny;c.push([x,y])}return c}
  let dx=G.faceX||0,dy=G.faceY||0;if(!dx&&!dy)dx=p.flip?-1:1;let x=p.x,y=p.y;for(let k=0;k<n;k++){if(!walk(x+dx,y+dy))break;x+=dx;y+=dy;c.push([x,y])}return c}
-function aimOK(x,y){const p=G.p;return walk(x,y)&&G.seen.has(x+','+y)&&cd(x,y,p.x,p.y)<=AIMR&&!(x==p.x&&y==p.y)&&losClear(p.x,p.y,x,y)}
+function aimOK(x,y){const p=G.p;if(!(walk(x,y)&&G.seen.has(x+','+y)&&cd(x,y,p.x,p.y)<=AIMR&&!(x==p.x&&y==p.y)&&losClear(p.x,p.y,x,y)))return false;const sv=G.aimAt;G.aimAt={x,y};const c=aimPath(AIMR);G.aimAt=sv;const l=c[c.length-1];return !!l&&l[0]==x&&l[1]==y}
 function canThrow(pc){const d=ITEM[pc.id];return !!d&&!d.mon&&!d.curse&&pc.id!='balloon'}
 function aimStart(pc){if(!pc||G.fight||G.over)return;if(!canThrow(pc)){sfx('no');toast(ITEM[pc.id].mon?'仲間は投げられない':'呪われていて手放せない');return}
  G.aim={pc};G.travel=null;sfx('tick');toast(ITEM[pc.id].n+'：投げる先をタップ（見通せる'+AIMR+'マス以内）。自分をタップでやめる');learn('aim','狙って投げる：下の枠を長押しするか、カバンで「狙って投げる」を選ぶと、投げる先をタップで選べる。何でも投げられる。落ちた先で割れ、燃え、凍り、転がる');ui()}
@@ -2461,7 +2461,7 @@ function whipPull(){const p=G.p;const tg=[...G.items.filter(i=>!i.hid).map(i=>({
  D('cutlass','6。水の者に2倍。弾くと波しぶきが散り、体幹を大きく削る');
  D('senchojyu','12。間合い2〜3。弾込めがいらない。撃つと青い火花。70Fの証');
  D('tsugihagi','5。斬るたびに火・水・雷の性質が入れ替わり、当てた相手に宿る。90Fの証');
- D('kama','4。草木に1.5倍。体幹を崩した相手を鎌で倒すと、必ずもう1つ刈り取る')})();
+ D('compassi','しばらく下り階段の方角が分かる。隠れている物や、漁れる場所も映し出す');D('kaze','向いている方へ強い風を送る。飛ぶ魔物は吹き落とされ、火は風下へ、毒気や湯気は流れる（3回）');D('kama','4。草木に1.5倍。体幹を崩した相手を鎌で倒すと、必ずもう1つ刈り取る')})();
 
 // ===== 倒し方で、手に入るものが違う =====
 // 斬る＝いつもの素材／焼く＝火種／凍らせる＝凍った肉／感電＝雷の瓶／忍んで仕留める＝傷のない皮や宝／なだめる＝道を教わる／落とす＝何も落ちない
@@ -3212,7 +3212,7 @@ function afterUse(){if(G.fight)return;G.busy=true;ui();wait(150).then(async()=>{
 function useFan(i){const pc=G.bag.items[i];pc.n=(pc.n==null?3:pc.n)-1;if(pc.n<=0)G.bag.items.splice(i,1);const A=aimLine(5);const cells=new Set();cells.add(G.p.x+','+G.p.y);
  A.c.forEach(([x,y])=>{cells.add(x+','+y);DIRS.forEach(([a,b])=>{if(Math.abs(a)!=Math.abs(A.dx)||Math.abs(b)!=Math.abs(A.dy))cells.add((x+a)+','+(y+b))})});
  sfx('whoosh');sfxAt('wind',A.dx*.5,.8,'amb');A.c.forEach(([x,y],k)=>setTimeout(()=>fx({type:'spark',x:x*T+4,y:y*T+3,c:'#d8e8f0',life:.5}),k*40));
- gust(A.dx,A.dy,cells,2);let n=0;G.foes.slice().forEach(f=>{if(f.hp>0&&cells.has(f.x+','+f.y)&&cd(f.x,f.y,G.p.x,G.p.y)<=3){knockBack(f,{x:f.x-A.dx,y:f.y-A.dy},2);n++}});
+ gust(A.dx,A.dy,cells,2);let n=0,fl=0;G.foes.slice().forEach(f=>{if(f.hp<=0||!cells.has(f.x+','+f.y))return;if((FOE[f.k]||{}).fly){for(let k=0;k<3;k++){const nx=f.x+A.dx,ny=f.y+A.dy;if(!walk(nx,ny)||foeAt(nx,ny)){hit(f,3);break}f.x=nx;f.y=ny}f.stun=Math.max(f.stun||0,2);f.aware=0;fl++;return}if(cd(f.x,f.y,G.p.x,G.p.y)<=3){knockBack(f,{x:f.x-A.dx,y:f.y-A.dy},2);n++}});if(fl){setTimeout(()=>toast('飛ぶ魔物が'+fl+'体、風に巻かれて落ちた'),200);learn('fanfly','風袋：飛ぶ魔物は風に弱い。吹き飛ばされて壁に当たり、しばらく飛べない。穴にも蹴りにも強い相手への手')}
  toast('風袋であおいだ'+(n?'。'+n+'体があおられた':'')+(pc.n>0?'（残り'+pc.n+'）':''));learn('fan','風袋：向いている方へ強い風を送る。火は風下へ燃え移り、毒気や湯気は流れ、敵はあおられて一歩下がる');afterUse()}
 function useWaterBag(i){const pc=G.bag.items[i];pc.n=(pc.n==null?3:pc.n)-1;if(pc.n<=0)G.bag.items.splice(i,1);const A=aimLine(2);const T0=G.fight&&tgtFoe();const cx=T0?T0.x:A.x,cy=T0?T0.y:A.y;let nf=0,nw=0;
  [[0,0],...DIRS8].forEach(([a,b])=>{const x=cx+a,y=cy+b,k=x+','+y;if(!walk(x,y))return;
@@ -3667,7 +3667,7 @@ function pruneFight(){try{if(G&&G.fight&&G.fight.foes){const n=G.fight.foes.filt
 async function afterPlayer(){
  const F=G.fight;if(!F)return;
  if(await resolveDeaths())return;if(pruneFight())return;
- for(const a of G.allies){if(a.waza=='iyashi'){if(G.p.hp<G.p.max){G.p.hp=Math.min(G.p.max,G.p.hp+2);fx({type:'heal',x:G.p.rx+4,y:G.p.ry})}await wait(200);continue}for(let rep2=0;rep2<(a.waza=='rengeki'?2:1);rep2++){const tgt=alive()[0];if(!tgt)break;await lunge(a,tgt,3);fx({type:'slash',x:tgt.rx+4,y:tgt.ry+2,c:a.waza=='hibuki'?'#ffb060':'#9ff0e0'});const base=tgt.armor?Math.max(1,Math.floor(a.atk/2)):a.atk;hit(tgt,a.waza=='rengeki'||a.waza=='ikaku'?Math.max(1,Math.ceil(base/2)):base,a);if(a.waza=='hibuki')ignite(tgt.x,tgt.y,'quiet');if(a.waza=='ikaku')addPosture(tgt,12);try{allyElem(a,tgt)}catch(e){}}const tgt=alive()[0];if(!tgt)continue;if(a.regen&&a.hp<a.max){a.hp=Math.min(a.max,a.hp+a.regen);fx({type:'heal',x:a.rx+4,y:a.ry})}await wait(240)}
+ for(const a of G.allies){if(a.waza=='iyashi'){if(G.p.hp<G.p.max){G.p.hp=Math.min(G.p.max,G.p.hp+2);fx({type:'heal',x:G.p.rx+4,y:G.p.ry})}await wait(200);continue}for(let rep2=0;rep2<(a.waza=='rengeki'?2:1);rep2++){const tgt=alive()[0];if(!tgt)break;await lunge(a,tgt,3);fx({type:'slash',x:tgt.rx+4,y:tgt.ry+2,c:a.waza=='hibuki'?'#ffb060':'#9ff0e0'});const ael=allyEl(a.k);const base0=tgt.armor&&ael!='volt'?Math.max(1,Math.floor(a.atk/2)):a.atk;const base=['fire','water','volt'].includes(ael)?Math.max(1,emul(tgt,ael,base0)):base0;hit(tgt,a.waza=='rengeki'||a.waza=='ikaku'?Math.max(1,Math.ceil(base/2)):base,a);if(a.waza=='hibuki')ignite(tgt.x,tgt.y,'quiet');if(a.waza=='ikaku')addPosture(tgt,12);try{allyElem(a,tgt)}catch(e){}}const tgt=alive()[0];if(!tgt)continue;if(a.regen&&a.hp<a.max){a.hp=Math.min(a.max,a.hp+a.regen);fx({type:'heal',x:a.rx+4,y:a.ry})}await wait(240)}
  if(await resolveDeaths())return;
  for(const f of alive()){
   if(G.fight!==F||G.over)return;
@@ -5015,7 +5015,7 @@ async function slotUse(i){
   if(!hit){sfx('no');toast('燃えるものが見当たらない');return}
   G.bag.items.splice(i,1);fx({type:'bolt',x:p.rx+4,y:p.ry,tx:hit[0]*T+4,ty:hit[1]*T+4,life:.3});sfx('gun');
   setTimeout(()=>{ignite(hit[0],hit[1]);ui()},200);toast('火矢が飛んだ');learn('firearrow','火矢：離れた草や蜘蛛の巣に、近づかずに火をつけられる');ui();return}
- if(pc.id=='compassi'){G.bag.items.splice(i,1);G.compass=60;if(G.down)G.seen.add(G.down[0]+','+G.down[1]);
+ if(pc.id=='compassi'){G.bag.items.splice(i,1);G.compass=60;if(G.down)G.seen.add(G.down[0]+','+G.down[1]);{let hn=0;(G.items||[]).forEach(it=>{if(it.hid){it.hid=0;G.seen.add(it.x+','+it.y);hn++}});(G.srcs||[]).forEach(q=>G.seen.add(q.x+','+q.y));if(hn)setTimeout(()=>toast('隠れていた物が'+hn+'つ、石に映った'),600)}
   sfx('rare');toast('石が、下へ向かって鈍く光っている');learn('compass','方位石：しばらく、下り階段の方角が分かる');ui();return}
  if(pc.id=='hushc'){G.bag.items.splice(i,1);G.hush=24;sfx('pick');toast('足音が消えた。しばらくは気づかれない');
   G.foes.forEach(f=>{if(f.aware)f.aware=0});learn('hush','音消し布：しばらく足音が消え、敵に気づかれなくなる');ui();return}
