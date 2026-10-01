@@ -907,7 +907,7 @@ const wait=ms=>new Promise(res=>setTimeout(res,ms));
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const DIAGN={'1,1':'右下','1,-1':'右上','-1,1':'左下','-1,-1':'左上'};
-const FKEYS=['pots','fishShocked','arch','pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
+const FKEYS=['scenes','pots','fishShocked','arch','pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
@@ -985,7 +985,7 @@ const getEcho=()=>{try{const o=JSON.parse(store('yw14_echo')||'null');return o&&
 function genFloor(fi){for(let k=0;k<6;k++){const F=genFloor0(fi);if(F)return F}return genFloor0(0)||genFloor0(1)}
 function genFloor0(fi){const F=seeded(WSEED*31+fi*7919+(G&&G.plan&&G.plan.blight==fi?0:0),()=>genFloorRaw(fi));
  F.items.forEach(it=>{if(it.lf)it.id=lootFor(Math.min(1,fi*.33+.2+Math.random()*.3))});
- try{floorTwist(F,fi)}catch(e){}try{placeHazards(F,fi)}catch(e){}try{placeRuin(F,fi)}catch(e){}try{markLeaders(F)}catch(e){}try{placePots(F,fi)}catch(e){}
+ try{floorTwist(F,fi)}catch(e){}try{placeHazards(F,fi)}catch(e){}try{placeRuin(F,fi)}catch(e){}try{markLeaders(F)}catch(e){}try{placePots(F,fi)}catch(e){}try{placeScenes(F,fi)}catch(e){}
  // 門とその奥の小部屋は、水や泥や氷に沈めない（火で開く門が開かなくなる）
  try{(F.gim||[]).forEach(g=>{[[g.x,g.y],...(g.pocket||[])].forEach(([x,y])=>{if(F.water[y])F.water[y][x]=false;const k=x+','+y;if(F.mud)F.mud.delete(k);if(F.ice&&F.ice.delete)F.ice.delete(k);if(F.lava&&F.lava.delete)F.lava.delete(k)})})}catch(e){}
  return F}
@@ -2318,7 +2318,7 @@ function freezeAt(cx,cy,rad){G.ice=G.ice||new Set();let nw=0,nl=0,nf=0,nfoe=0;se
   if(hasOil(x,y)){G.oil.delete(k);react('ice+oil',x,y)}
   if((G.gas||[]).some(g=>g.x==x&&g.y==y)){G.gas=G.gas.filter(g=>!(g.x==x&&g.y==y));react('ice+poison',x,y)}
   if(G.mud&&G.mud.has(k)){G.mud.delete(k);G.ice.add(k);react('ice+earth',x,y)}
-  const f=foeAt(x,y);if(f&&(nw||isIce(x,y))&&isIce(x,y)){f.stun=Math.max(f.stun||0,3);f.frozen=3;nfoe++}}
+  const f=foeAt(x,y);if(f&&(nw||isIce(x,y))&&isIce(x,y)){const n3=Math.max(1,emul(f,'ice',3));f.stun=Math.max(f.stun||0,n3);f.frozen=n3;nfoe++}}
  for(let k=0;k<8;k++)fx({type:'spark',x:cx*T+4+(k%4-2)*4,y:cy*T+2+(k>>2)*4,c:'#c8f0ff',life:.8});sfx('splash');tone(1600,.4,'sine',.03,.5);
  try{onWaterChanged()}catch(e){}try{drawBase()}catch(e){}
  const w=[];if(nw)w.push('水が凍った');if(nl)w.push('溶岩が固まった');if(nf)w.push('炎が消えた');if(nfoe)w.push(nfoe+'体が凍りついた');toast(w.length?w.join('。')+'。':'あたりが冷えた。凍るものは無かった');
@@ -2338,7 +2338,7 @@ function shockSet(cells,dmg,src){const p=G.p;let n=0;
   if(gw){const hitK=new Set();[...cells].forEach(k=>{const[x,y]=k.split(',').map(Number);for(let s=1;s<=3;s++)hitK.add((x+gw[0]*s)+','+(y+gw[1]*s))});G.foes.forEach(f=>{if(f.hp>0&&!cells.has(f.x+','+f.y)&&hitK.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt){hit(f,Math.max(2,dmg-2));f.stun=Math.max(f.stun||0,1);n++;react('volt+wind',f.x,f.y)}})}
  }catch(e){}
  G.volt=(G.volt||[]).concat([...cells].slice(0,60).map(k=>{const[x,y]=k.split(',').map(Number);return {x,y,t:performance.now()}}));
- G.foes.forEach(f=>{if(f.hp>0&&cells.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt){hit(f,dmg+((FOE[f.k]||{}).wet?3:0));f.stun=Math.max(f.stun||0,1);n++}});
+ G.foes.forEach(f=>{if(f.hp>0&&cells.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt){hit(f,emul(f,'volt',dmg));f.stun=Math.max(f.stun||0,1);n++}});
  try{const wc=[...cells].map(k=>k.split(',').map(Number)).filter(([x,y])=>G.water[y]&&G.water[y][x]&&!inPWater(x,y)&&!hasOil(x,y)&&!G.items.some(i=>i.x==x&&i.y==y));if(wc.length>=6&&!G.fishShocked){G.fishShocked=1;const nf=Math.min(3,Math.floor(wc.length/8)+1);for(let i=0;i<nf;i++){const q=wc.splice(Math.floor(Math.random()*wc.length),1)[0];G.items.push({x:q[0],y:q[1],id:i==0&&wc.length>20?'bigfish':'fish',drop:now(),how:'しびれて浮いてきた'})}setTimeout(()=>toast('しびれた魚が、ぷかりと浮いてきた'),400);learn('fishvolt','雷×水：大きな水場に電気を流すと、しびれた魚が浮いてくる（その階で一度だけ）')}}catch(e){}
  try{const c0=[...cells].map(k=>k.split(',').map(Number)).sort((a,b)=>cd(a[0],a[1],G.p.x,G.p.y)-cd(b[0],b[1],G.p.x,G.p.y))[0];if(c0)react('shock',c0[0],c0[1])}catch(e){}
  G.foes.forEach(f=>{if(f.hp>0&&f.wetC>0&&!cells.has(f.x+','+f.y)&&!(FOE[f.k]||{}).volt&&DIRS8.some(([a,b])=>cells.has((f.x+a)+','+(f.y+b)))){hit(f,Math.max(2,dmg-2));f.stun=Math.max(f.stun||0,1);n++;fx({type:'spark',x:f.rx+4,y:f.ry,c:'#fff0a0'});react('water+volt',f.x,f.y)}});
@@ -2412,15 +2412,26 @@ function throwAt(i,tx,ty){const pc=G.bag.items[i];if(!pc||G.busy||G.fight||G.ove
 function toggleCover(pc){pc.off=pc.off?0:1;sfx('tick');toast(pc.off?ITEM[pc.id].n+'を布で覆った。……暗い。敵にも見つかりにくい':ITEM[pc.id].n+'の覆いを外した');learn('cover','松明を覆う：下の枠で松明をタップすると、覆ったり外したりできる。暗がりでは見つかりにくいが、罠も見えず、先も見通せない');try{reveal()}catch(e){}ui()}
 // 相手を見る（手番は使わない）
 const FLAGN={fly:'宙に浮く（穴も水も越える）',aqua:'水の中を泳ぐ',wet:'体が濡れている（雷がよく効く）',flam:'よく燃える',fireOK:'火に強い',heavy:'重い',frail:'脆い',armor:'硬い（刃が通りにくい）',ranged:'離れて撃ってくる',fast:'素早い',caller:'仲間を呼ぶ',volt:'電気を帯びている',breath:'火を吐く',oiler:'油をまく',douse:'水を浴びせてくる',shade:'影に潜む',reflect:'光を跳ね返す',bell:'鈴を鳴らす',split:'斬ると分かれる',spit:'糸を吐く',thief:'物を盗む'};
+
+// ===== 相性：種族と性質で、効くもの・効かないものが違う =====
+// 刃が通らない硬い敵は槌・槍・溜めで、火に強い敵は水や氷で、濡れた敵や鉄の体は雷で。斬って弾くだけでは済まない
+const ELNM={fire:'火',water:'水',volt:'雷',ice:'氷',poison:'毒',blade:'刃'};
+function weakOf(f){const D=FOE[f.k]||{},fam=FAM[f.k],el=(()=>{try{return elOfFoe(f)}catch(e){return null}})();const w={fire:1,water:1,volt:1,ice:1,poison:1,blade:1};
+ if(D.flam||fam=='plant'||fam=='bug')w.fire=2;if(D.fireOK||fam=='fire'||el=='fire'){w.fire=0;w.water=2;w.ice=2}
+ if(D.wet||D.aqua||fam=='water'||el=='water')w.volt=2;if(D.volt||el=='volt'){w.volt=0;w.water=.5}
+ if(D.armor||f.armor){w.blade=.25;w.volt=Math.max(w.volt,2)}if(fam=='dead'){w.poison=0;w.fire=Math.max(w.fire,1.5)}
+ if(fam=='ooze'){w.ice=2;w.poison=.5}if(fam=='bug')w.poison=2;if(D.fly)w.poison=Math.min(w.poison,.5);return w}
+const emul=(f,el,n)=>{const m=weakOf(f)[el];if(m!=null&&m!=1&&G.seen&&G.seen.has(f.x+','+f.y)){const key='weak_'+(FAM[f.k]||f.k)+'_'+el;if(!G.weakSeen)G.weakSeen={};if(!G.weakSeen[key]){G.weakSeen[key]=1;setTimeout(()=>toast(m>1?f.n+'には'+ELNM[el]+'がよく効く！':m==0?f.n+'に'+ELNM[el]+'は効かない':f.n+'に'+ELNM[el]+'は効きにくい'),200);learn('weak','相性：種族と性質で、効くものが違う。草木・虫は火、濡れた者と鉄の体は雷、火の者は水と氷、ぷるは氷、虫は毒。死者に毒は効かない。魔物をタップすれば分かる')}}return Math.round(n*(m==null?1:m))};
+const perilOf=f=>{if(f.elite)return .5;if(PERIL[f.k]!=null)return PERIL[f.k];const D=FOE[f.k]||{};return D.boss?.4:(D.heavy||f.big)?.35:(D.armor||f.armor)?.3:D.fast?.2:.12};
 function foeInfo(f){const D=FOE[f.k]||{};const r=f.hp/(f.max||f.hp||1);
  const st=[];if(f.mhSleep||f.stun>2)st.push('眠っている／動けない');else if(f.stun>0)st.push('ひるんでいる');if(f.aware)st.push('こちらに気づいている');else st.push('こちらに気づいていない');
  if(f.conf>0)st.push('混乱している');if(f.fear>0)st.push('怯えている');if(f.charm>0)st.push('なついている');if(f.frozen>0)st.push('凍りついている');if(f.burn>0)st.push('燃えている');if(f.wetC>0)st.push('濡れている');if(f.lead)st.push('群れの長（倒せば群れは散る）');
  try{const fe=feudOf(f);if(fe)st.push(fe.n+'と縄張り争いをしている')}catch(e){}
- const tr=Object.keys(FLAGN).filter(k=>D[k]||f[k]).map(k=>FLAGN[k]);
+ const tr=Object.keys(FLAGN).filter(k=>D[k]||f[k]).map(k=>FLAGN[k]);const W=weakOf(f);const wk=Object.keys(W).filter(k=>W[k]>1).map(k=>ELNM[k]),rs=Object.keys(W).filter(k=>W[k]<1).map(k=>ELNM[k]+(W[k]==0?'（無効）':''));
  const hp=r>.8?'ほとんど無傷':r>.45?'傷ついている':'弱っている';
  let jn='';if(D.cap&&!D.boss&&ITEM[f.k]){const c=JOIND[f.k];jn=c?'仲間になる：'+JOINC[c].d:'仲間になる：どう倒されれば認めるのかは、まだ分からない'}
  const P=f.pers&&PERS.find(q=>q.k==f.pers);
- $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(jn?'<br><b>'+jn+'</b>':'')+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
+ $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(wk.length?'<br><b style="color:#9ad08a">よく効く</b>　'+wk.join('・'):'')+(rs.length?'<br><b style="color:#e8806a">効きにくい</b>　'+rs.join('・'):'')+(perilOf(f)>=.3?'<br><b style="color:#ff8a70">弾けない攻撃をよく使う</b>（かわす）':'')+(jn?'<br><b>'+jn+'</b>':'')+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
  $('fiX').onclick=()=>{$('modal').innerHTML='';ui()};sfx('tick');learn('look','相手を見る：地図の上の魔物をタップすると、状態と性質が見られる。手番は使わない')}
 // タップした所まで歩く。見えている、安全な道だけを通る。何か起きたら止まる
 function trvCost(x,y,goal){if(!walk(x,y))return 0;const k=x+','+y;if(!G.seen.has(k))return 0;
@@ -2536,6 +2547,24 @@ Object.assign(SP,{
  pot_sand:["..kkkk..",".kttttk.","kttUtttk","kttttttk","ktttUttk","kttttttk","kttttttk",".kkkkkk."]});
 Object.keys(POTN).forEach(k=>{ITEM['pot_'+k]={n:POTN[k][0],v:'投げる',sh:[1,2],d:POTN[k][1]+'。投げると割れる',pot:k};IC['pot_'+k]=SP['pot_'+k]});
 const potAt=(x,y)=>(G.pots||[]).find(q=>q.x==x&&q.y==y);
+
+// ===== 場面の型：状況が手段を選ぶ。斬って弾くだけでは苦しい場面を、階ごとに混ぜる =====
+const SCENE={
+ pack(F,fi){const a=spArea(F,5,3,null,6,4,3);if(!a)return false;const[x0,y0,w,h]=a;const pool=(GEN_BY_L[layerOf(fi)]||[]).filter(k=>FOE[k]&&!FOE[k].heavy&&!FOE[k].boss&&FOE[k].hp<=14);const k=pool.length?pick(pool):'rat';
+  rectEach(a,(x,y)=>{if(Math.random()<.65&&!(F.water[y]&&F.water[y][x]))F.garden[y][x]=true});F.pots=F.pots||[];F.pots.push({x:x0+w-1,y:y0,k:pick(['oil','fire','poison'])});
+  const n=4+(fi>=6?1:0);let c=0;rectEach(a,(x,y,i,j)=>{if(c<n&&(i+j)%2==0&&!(x==x0+w-1&&y==y0)){if(spFoe(F,x,y,k,{mhSleep:1,nap:1,aware:0}))c++}});return c>=3},
+ archers(F,fi){const a=spArea(F,6,4,null,6,5,3);if(!a)return false;const[x0,y0,w,h]=a;for(let x=x0;x<x0+w;x++)if(F.water[y0+1])F.water[y0+1][x]=true;
+  const rk=(GEN_BY_L[layerOf(fi)]||[]).filter(k=>FOE[k]&&FOE[k].ranged&&!FOE[k].boss);let c=0;for(let i=0;i<2;i++){const x=x0+(i?w-2:1);if(spFoe(F,x,y0,rk.length?pick(rk):'archer',{guardV:1,hx:x,hy:y0,flip:i>0}))c++}return c>=1},
+ armored(F,fi){const a=spArea(F,4,3,null,6,4,3);if(!a)return false;const[x0,y0,w,h]=a;const ak=(GEN_BY_L[layerOf(fi)]||[]).filter(k=>FOE[k]&&FOE[k].armor&&!FOE[k].boss);
+  const f=spFoe(F,x0+1,y0+1,ak.length?pick(ak):pick(['shieldk','beetle']),{guardV:1,hx:x0+1,hy:y0+1});if(!f)return false;f.armor=1;spLoot(F,x0+w-1,y0+1,'硬い番兵が守っていた');
+  for(let x=x0;x<x0+w-1;x++)if(F.water[y0+h-1]&&!F.items.some(q=>q.x==x&&q.y==y0+h-1))F.water[y0+h-1][x]=true;return true},
+ elite(F,fi){const a=spArea(F,5,4,null,8,4,3);if(!a)return false;const[x0,y0,w,h]=a;const pool=(GEN_BY_L[layerOf(fi)]||[]).filter(k=>FOE[k]&&!FOE[k].boss);const f=spFoe(F,x0+(w>>1),y0+(h>>1),pool.length?pick(pool):'skel');if(!f)return false;
+  f.elite=1;f.hp=f.max=Math.round(f.max*2.2);f.atk+=2;f.n='強い'+f.n;F.loose=F.loose||[];F.loose.push({x:x0+(w>>1),y:y0,ph:0});F.holes=F.holes||new Set();F.holes.add((x0+w-1)+','+(y0+h-1));return true},
+ rivals(F,fi){const a=spArea(F,5,3,null,6,4,3);if(!a)return false;const[x0,y0,w,h]=a;const L=GEN_BY_L[layerOf(fi)]||[];const byEl=e=>{const c=L.filter(k=>GEN[k]&&GEN[k].el==e);return c.length?pick(c):null};
+  const fk=byEl('fire')||'salam',wk=byEl('water')||'frog';const A=spFoe(F,x0,y0+1,fk,{aware:0}),B=spFoe(F,x0+w-1,y0+1,wk,{aware:0,flip:true});return !!(A&&B)}};
+function placeScenes(F,fi){if(fi<1||F.ship||BOSSF[fi])return;const ks=Object.keys(SCENE).sort(()=>Math.random()-.5);let n=fi<3?1:2;F.scenes=[];for(const k of ks){if(!n)break;let ok=false;try{ok=SCENE[k](F,fi)}catch(e){}if(ok){F.scenes.push(k);n--}}}
+// 眠る群れ：音や、すぐそばを通ると目を覚ます。群れごと起きる
+function napWake(x,y,why){let n=0;G.foes.forEach(f=>{if(f.nap&&f.mhSleep&&f.hp>0&&cd(f.x,f.y,x,y)<=4){f.mhSleep=0;f.nap=0;f.aware=2;n++}});if(n&&G.seen.has(x+','+y)){G.shake=6;sfx('spot');toast(why||'眠っていた群れが、目を覚ました！');learn('nap','眠る群れ：音を立てたり、すぐそばを通ると群れごと起きる。忍び足で素通りするか、起きる前に一網打尽にするか')}return n}
 function placePots(F,fi){if(F.ship||BOSSF[fi])return;F.pots=[];const n=2+Math.floor(Math.random()*3)+(fi>=10?1:0);
  const bad=(x,y)=>[F.down,F.up,F.exit,F.start].some(q=>q&&q[0]==x&&q[1]==y)||(F.items||[]).some(i=>i.x==x&&i.y==y)||(F.gim||[]).some(g=>g.x==x&&g.y==y||(g.pocket||[]).some(q=>q[0]==x&&q[1]==y))||(F.chest&&F.chest.x==x&&F.chest.y==y)||(F.foes||[]).some(f=>f.x==x&&f.y==y)||(F.water[y]&&F.water[y][x])||(F.holes&&F.holes.has(x+','+y))||(F.lava&&F.lava.has(x+','+y))||F.pots.some(q=>cd(q.x,q.y,x,y)<=2);
  const cells=[];for(let y=1;y<MH-1;y++)for(let x=1;x<MW-1;x++){if(F.m[y][x])continue;const walls=DIRS.filter(([a,b])=>F.m[y+b]&&F.m[y+b][x+a]).length;if(walls!=1)continue;if(F.dist&&F.dist[y]&&F.dist[y][x]<3)continue;cells.push([x,y])}
@@ -2544,7 +2573,7 @@ function placePots(F,fi){if(F.ship||BOSSF[fi])return;F.pots=[];const n=2+Math.fl
 function breakPot(q,why){const i=(G.pots||[]).indexOf(q);if(i<0)return;G.pots.splice(i,1);const {x,y,k}=q;const nb=[[0,0],...DIRS8];const seen=G.seen.has(x+','+y)&&cd(x,y,G.p.x,G.p.y)<=10;
  sfx(k=='water'?'splash':'thud');fx({type:'spark',x:x*T+4,y:y*T+4,c:'#c8a060'});G.shake=Math.max(G.shake||0,4);
  if(k=='oil'){spill(x,y,'oil',6)}
- else if(k=='water'){nb.forEach(([a,b])=>{const X=x+a,Y=y+b,kk=X+','+Y;if(!walk(X,Y)||isPit(X,Y)||(G.lava&&G.lava.has(kk)))return;if((G.fires||[]).some(f=>f.x==X&&f.y==Y)){G.fires=G.fires.filter(f=>!(f.x==X&&f.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:8});react('fire+water',X,Y)}const f=foeAt(X,Y);if(f){f.wetC=Math.max(f.wetC||0,4);f.burn=0}
+ else if(k=='water'){nb.forEach(([a,b])=>{const X=x+a,Y=y+b,kk=X+','+Y;if(!walk(X,Y)||isPit(X,Y)||(G.lava&&G.lava.has(kk)))return;if((G.fires||[]).some(f=>f.x==X&&f.y==Y)){G.fires=G.fires.filter(f=>!(f.x==X&&f.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:8});react('fire+water',X,Y)}const f=foeAt(X,Y);if(f){f.wetC=Math.max(f.wetC||0,4);f.burn=0;if(weakOf(f).water>1){hit(f,emul(f,'water',3));f.stun=Math.max(f.stun||0,1)}}
    if(!(X==G.p.x&&Y==G.p.y)&&!onStair(X,Y)&&!G.items.some(it=>it.x==X&&it.y==Y)&&!isIce(X,Y)&&!(G.mud&&G.mud.has(kk))){G.water[Y][X]=true;if(hasOil(X,Y))react('water+oil',X,Y)}});try{onWaterChanged()}catch(e){}}
  else if(k=='poison'){nb.forEach(([a,b])=>{const X=x+a,Y=y+b;if(walk(X,Y)&&!inGas(X,Y))(G.gas=G.gas||[]).push({x:X,y:Y,t:0,life:12})})}
  else if(k=='fire'){(G.fires=G.fires||[]).push({x,y,t:0,life:4});nb.forEach(([a,b])=>ignite(x+a,y+b,'quiet'))}
@@ -2592,7 +2621,7 @@ function envHazardStep(){const p=G.p;
  // 雷魚：同じ水の中にこちらがいると、3ターンごとに放電する
  G.foes.forEach(f=>{if(f.hp<=0||!(FOE[f.k]||{}).volt||f.stun>0)return;if(!inWater(f.x,f.y))return;f.vt=(f.vt||0)+1;const body=waterBody(f.x,f.y);
   if(body.has(p.x+','+p.y)||G.foes.some(o=>o!==f&&o.hp>0&&body.has(o.x+','+o.y))){if(f.vt%3==0){fx({type:'ring',x:f.rx+4,y:f.ry+2,c:'#ffe060'});shockSet(body,5,f.n)}else if(f.vt%3==2&&G.seen.has(f.x+','+f.y))toast(f.n+'の体が光りはじめた……')}})}
-function envFoeStep(){try{pwaterStep()}catch(e){}try{foeWorld()}catch(e){}try{pmudStep()}catch(e){}const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
+function envFoeStep(){try{pwaterStep()}catch(e){}try{const p=G.p;const nf=G.foes.find(f=>f.nap&&f.mhSleep&&f.hp>0&&cd(f.x,f.y,p.x,p.y)<=1);if(nf&&!(G.hush>0)&&!inBush(p.x,p.y)&&Math.random()<.5)napWake(nf.x,nf.y,'すぐそばを通ったせいで、群れが目を覚ました！')}catch(e){}try{foeWorld()}catch(e){}try{pmudStep()}catch(e){}const p=G.p;const seen=f=>G.seen&&G.seen.has(f.x+','+f.y);
  for(const f of G.foes){if(f.hp<=0||f.dormant)continue;const d=FOE[f.k]||{};
   // 油撒き虫：前にいたマスに油を残す
   if(d.oiler){if(f.lx!=null&&(f.lx!==f.x||f.ly!==f.y)&&walk(f.lx,f.ly)&&!(G.water[f.ly]&&G.water[f.ly][f.lx])){G.oil=G.oil||new Set();G.oil.add(f.lx+','+f.ly)}f.lx=f.x;f.ly=f.y}
@@ -2642,7 +2671,7 @@ function fireStep(){const F=G.fires;if(!F||!F.length)return;const p=G.p;
     if(cd(f.x,f.y,p.x,p.y)<=1){G.p.hp=Math.max(1,G.p.hp-5);G.hurt=8;toast('落ちていた'+ITEM[it.id].n+'が誘爆した！（-5）')}
     else toast('落ちていた'+ITEM[it.id].n+'が火で誘爆した');
     learn('chain','火薬は火で誘爆する。床に置いてから火をつければ、離れた場所で爆発させられる')}}
-  const fo=foeAt(f.x,f.y);if(fo&&(f.oilT||f.t%2==0)){fo.burned=1;hit(fo,f.oilT?4:3);if(fo.hp<=0){const k=G.foes.indexOf(fo);if(k>=0)G.foes.splice(k,1)}}
+  const fo=foeAt(f.x,f.y);if(fo&&(f.oilT||f.t%2==0)){fo.burned=1;hit(fo,emul(fo,'fire',f.oilT?5:4));if(fo.hp<=0){const k=G.foes.indexOf(fo);if(k>=0)G.foes.splice(k,1)}}
   if(f.t>=f.life){if(G.garden&&G.garden[f.y])G.garden[f.y][f.x]=false;(G.burnt=G.burnt||new Set()).add(f.x+','+f.y);F.splice(i,1)}
  }
  if(F.length)reveal()}
@@ -3130,7 +3159,7 @@ function useWaterBag(i){const pc=G.bag.items[i];pc.n=(pc.n==null?3:pc.n)-1;if(pc
  [[0,0],...DIRS8].forEach(([a,b])=>{const x=cx+a,y=cy+b,k=x+','+y;if(!walk(x,y))return;
   if((G.fires||[]).some(f=>f.x==x&&f.y==y)){G.fires=G.fires.filter(f=>!(f.x==x&&f.y==y));(G.steam=G.steam||[]).push({x,y,t:0,life:8});nf++;react('fire+water',x,y)}
   if(G.lava&&G.lava.has(k)){G.lava.delete(k);(G.steam=G.steam||[]).push({x,y,t:0,life:10});if(!G.items.some(q=>q.x==x&&q.y==y))G.items.push({x,y,id:'kokuyou',drop:now(),how:'溶岩に水をかけて'})}
-  const f=foeAt(x,y);if(f){f.wetC=4;f.burn=0}
+  const f=foeAt(x,y);if(f){f.wetC=4;f.burn=0;if(weakOf(f).water>1){hit(f,emul(f,'water',3));f.stun=Math.max(f.stun||0,1)}}
   if(!(x==G.p.x&&y==G.p.y)&&!(G.mud&&G.mud.has(k))&&!isIce(x,y)&&!G.items.some(q=>q.x==x&&q.y==y)&&!(G.down&&G.down[0]==x&&G.down[1]==y)&&!(G.exit&&G.exit[0]==x&&G.exit[1]==y)&&!(G.up&&G.up[0]==x&&G.up[1]==y)&&!G.water[y][x]&&(a==0&&b==0||Math.random()<.6)){G.water[y][x]=true;nw++;if(hasOil(x,y))react('water+oil',x,y)}});
  try{onWaterChanged()}catch(e){}try{drawBase()}catch(e){}sfx('splash');fx({type:'ring',x:cx*T+4,y:cy*T+4,c:'#9ad0ff'});
  toast('水をぶちまけた'+(nf?'。火が'+nf+'つ消えた':'')+(nw?'。水たまりができた':'')+(pc.n>0?'（残り'+pc.n+'）':''));learn('waterbag','水袋：前へ水をぶちまける。火は消え、敵は濡れ、床には水たまりができる。水たまりは電気をよく通す');afterUse()}
@@ -3295,7 +3324,7 @@ function drawOmens(t,sx,sy,z){const p=G.p,now=performance.now(),S=T*z,X=x=>(x*T-
   sc.fillStyle='#ffd35a';sc.font='bold 15px "Shippori Mincho B1",serif';sc.fillText(sp.a+' × '+sp.b,bx+bw/2,by+19);
   let fz=11;sc.font=fz+'px sans-serif';while(fz>8&&sc.measureText(sp.r).width>bw-10){fz--;sc.font=fz+'px sans-serif'}sc.fillStyle='#e8e0d0';sc.fillText(sp.r,bx+bw/2,by+36);
   sc.fillStyle='#8a7a5a';sc.font='9px sans-serif';sc.textAlign='right';sc.fillText('反応 '+sp.n+'/'+REACT.length,bx+bw-5,by+bh-3);sc.textAlign='left';sc.restore()}}}
-function makeNoise(x,y,r,src){let n=0;if(src!='stone'&&src!='quake'&&src!='taiko')try{(G.loose||[]).filter(l=>cd(l.x,l.y,x,y)<=1).forEach(l=>setTimeout(()=>dropRock(l,'戦いの響きで、天井が崩れ落ちた'),350))}catch(e){}G.foes.forEach(f=>{if(f.hp<=0||f.dormant||f.still||f.mhSleep||f.aware==2)return;if(cd(f.x,f.y,x,y)<=r){f.inv={x,y,t:10};f.heardT=performance.now();n++}});try{if(!G.fight&&cd(x,y,G.p.x,G.p.y)<=14)(G.noiseFx=G.noiseFx||[]).push({x,y,r,t0:performance.now()})}catch(e){}return n}
+function makeNoise(x,y,r,src){let n=0;try{if(G.foes.some(f=>f.nap&&f.mhSleep&&cd(f.x,f.y,x,y)<=Math.ceil(r/2)))napWake(x,y,'物音で、眠っていた群れが目を覚ました！')}catch(e){}if(src!='stone'&&src!='quake'&&src!='taiko')try{(G.loose||[]).filter(l=>cd(l.x,l.y,x,y)<=1).forEach(l=>setTimeout(()=>dropRock(l,'戦いの響きで、天井が崩れ落ちた'),350))}catch(e){}G.foes.forEach(f=>{if(f.hp<=0||f.dormant||f.still||f.mhSleep||f.aware==2)return;if(cd(f.x,f.y,x,y)<=r){f.inv={x,y,t:10};f.heardT=performance.now();n++}});try{if(!G.fight&&cd(x,y,G.p.x,G.p.y)<=14)(G.noiseFx=G.noiseFx||[]).push({x,y,r,t0:performance.now()})}catch(e){}return n}
 // 亡骸：他の敵が見つけると警戒する。隠すこともできる
 function bodyCheck(){if(!G.bodies||!G.bodies.length)return;G.bodies=G.bodies.filter(b=>--b.t>0);
  G.foes.forEach(f=>{if(f.hp<=0||f.aware||f.dormant||f.mhSleep)return;const b=G.bodies.find(b=>!b.seen&&cd(b.x,b.y,f.x,f.y)<=4&&losClear(f.x,f.y,b.x,b.y));if(b){b.seen=1;f.alert=30;f.inv={x:b.x,y:b.y,t:12};if(G.seen.has(f.x+','+f.y)){toast(f.n+'が仲間の亡骸を見つけた。……警戒している');learn('body','亡骸：倒した敵の亡骸を他の敵が見つけると、警戒してあたりを探しはじめる。亡骸の上で「隠す」と見つからない')}}})}
@@ -3472,7 +3501,7 @@ function gasStep(){const A=G.gas;if(!A||!A.length)return;const p=G.p;const W=G.w
   if(G.mud&&G.mud.has(g.x+','+g.y)&&!inPMud(g.x,g.y)){(G.pmud=G.pmud||new Set()).add(g.x+','+g.y);G.pmT=30;react('poison+earth',g.x,g.y)}
 
   if(g.t>=g.life){A.splice(i,1);continue}
-  const fo=foeAt(g.x,g.y);if(fo&&fo.hp>0&&g.t%2==0)hit(fo,2);
+  const fo=foeAt(g.x,g.y);if(fo&&fo.hp>0&&g.t%2==0)hit(fo,emul(fo,'poison',3));
   if(g.x==p.x&&g.y==p.y&&g.t%2==0){G.poison=Math.max(G.poison||0,3);G.p.hp=Math.max(1,G.p.hp-2);G.hurt=6;toast('毒気の中だ！')}}}
 function knockBack(f,from,pow){try{if(!f||f.hp<=0)return;const D=FOE[f.k]||{};
  if(D.heavy&&!(f.stun>0)){toast(f.n+'は重くて動かない');return}
@@ -3925,7 +3954,7 @@ function spare(){const f=tgtFoe();if(!f)return;if(f.pers=='friendly'&&!f.hitByMe
  if(FOE[f.k].cap&&ITEM[f.k]&&Math.random()<.7){const it={x:f.x,y:f.y,id:f.k,hp:ITEM[f.k].hp,drop:now(),mut:f.mut};it.inst=makeInst(f.k,'不殺で仲間になった');G.items.push(it);setTimeout(()=>toast(f.n+'がついてきたそうにしている'),1600)}
  if(!alive().length)endFight();else ui()}
 function defend(f,fp){return new Promise(async res=>{
- const peril=fp!=null?fp:Math.random()<(PERIL[f.k]||0);const warnEarly=peril&&(G.bag.items.some(p=>['gyoro','medama','ogyoro'].includes(p.id)));const grownEye=G.allies.some(a=>a.grown&&['gyoro','medama','ogyoro'].includes(a.k));
+ const peril=fp!=null?fp:Math.random()<perilOf(f);const warnEarly=peril&&(G.bag.items.some(p=>['gyoro','medama','ogyoro'].includes(p.id)));const grownEye=G.allies.some(a=>a.grown&&['gyoro','medama','ogyoro'].includes(a.k));
  const wind=560+Math.random()*420+(warnEarly?250:0);const t0=performance.now();
  DEF={f,peril,t0,impact:t0+wind,win:peril?dodgeWin():parryWin(),input:null,early:false,warnEarly};
  f.ox=-Math.sign(G.p.x-f.x)*2;f.oy=-Math.sign(G.p.y-f.y)*2;f.windup=true;

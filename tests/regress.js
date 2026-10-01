@@ -7,6 +7,18 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 相性と場面の型：弱点・弾けない攻撃・眠る群れ
+  async '相性と場面の型'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const b = put('beetle', 9, 8); const w = weakOf(b); o.armor = w.blade < 1 && w.volt > 1;
+      const s = put('salam', 9, 10); o.fire = weakOf(s).fire == 0 && weakOf(s).water > 1; o.peril = perilOf(put('golem', 12, 12)) >= .3;
+      const F = genFloor0(4); o.scenes = (F.scenes || []).length >= 1;
+      G.foes = []; const n = put('rat', 12, 8); n.mhSleep = 1; n.nap = 1; const m = put('rat', 13, 8); m.mhSleep = 1; m.nap = 1; makeNoise(11, 8, 4, 'stone'); o.wake = !n.mhSleep && !m.mhSleep && n.aware == 2;
+      return o;
+    });
+    for (const k of ['armor', 'fire', 'peril', 'scenes', 'wake']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+  },
   // 世界が勝手に反応を起こす：壺と樽・性質を持ち歩く敵・性質のぶつかる敵同士
   async '壺と樽と、性質を持つ敵'(p) {
     await arena(p);
