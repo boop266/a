@@ -2495,7 +2495,7 @@ function spareGift(f){try{if(G.down){G.seen.add(G.down[0]+','+G.down[1]);setTime
 const ECOW={hum:['乾いた','ほどよい','湿った'],temp:['寒い','穏やか','暑い'],food:['乏しい','ふつう','豊か']};
 const ECOEV={migrate:['大移動','獣の群れが、階を横切っていく'],famine:['飢え','餌が乏しく、どの魔物も腹を空かせている'],bloom:['恵み','餌が多く、巣が次々に子を産む'],war:['縄張り争い','ふたつの種族が、この階の取り合いをしている'],swarm:['大発生','巣が多く、子がどんどん増える']};
 const PHASEN=['朝','昼','夕','夜'];
-const PREY={beast:['beast','bug'],gob:['beast'],bug:['plant'],water:['water','bug'],fire:['plant'],shade:['beast','gob']};
+const PREY={beast:['beast','bug','ooze','water'],gob:['beast','bug','water'],bug:['plant','ooze'],water:['water','bug','ooze'],fire:['plant','bug'],shade:['beast','gob'],plant:['bug'],ooze:['plant']};
 const SCAV=['ooze','bug','dead'];
 const NESTN={beast:'巣穴',bug:'卵嚢',gob:'寝床',ooze:'ぬめりの溜まり',water:'産卵場',plant:'種の苗床'};
 window.ECOSTAT={};const ecoStat=k=>{if(!(window.VT&&VT.sim))ECOSTAT[k]=(ECOSTAT[k]||0)+1};
@@ -2510,7 +2510,7 @@ const ecoPhase=()=>{const e=G.eco;if(!e)return 1;return (Math.floor(e.clock/(e.d
 const nocturnal=f=>{const kn=kinOf(f),n=(FOE[f.k]||{}).n||'';return kn=='dead'||kn=='shade'||/蝙蝠|梟|木菟|蛍|灯|夜|鬼火/.test(n)};
 function ecoInit(f){if(f.eco)return;const e=G.eco||{food:1};f.eco=1;f.hunger=Math.round((e.food==0?55:e.food==2?5:25)+Math.random()*30);f.thirst=Math.round(Math.random()*50);
  f.age=f.young?'young':Math.random()<.12?'old':'adult';if(f.age=='old'&&!f.oldDone){f.oldDone=1;f.max=Math.max(1,Math.round(f.max*.8));f.hp=Math.min(f.hp,f.max)}f.home=f.home||{x:f.x,y:f.y}}
-const hungry=f=>(f.hunger||0)>=55;
+const hungry=f=>(f.hunger||0)>=50;
 function canEat(a,b){if(!a||!b||a===b||a.hp<=0||b.hp<=0||!hungry(a)||(FOE[a.k]||{}).boss||(FOE[b.k]||{}).boss||a.charm>0||b.caged||a.caged)return false;const P=PREY[kinOf(a)];if(!P||!P.includes(kinOf(b)))return false;
  if(kinOf(a)==kinOf(b))return b.max<a.max*.7&&b.k!=a.k;return b.max<=a.max*1.3}
 const ecoSleep=(f,n,why)=>{f.mhSleep=1;f.nap=1;f.ecoNap=1;f.napT=n||0;f.aware=0;f.doing=why||'眠っている'};
@@ -2522,7 +2522,7 @@ function ecoTick(){const e=G.eco;if(!e||G.fight)return;e.clock++;G.turnAll=(G.tu
    const sleepNow=(ph==3&&!night)||(ph==1&&night);if(sleepNow&&!f.mhSleep&&Math.random()<.6){ecoSleep(f,0,night?'昼の眠り':'夜の眠り');s++}else if(!sleepNow&&f.ecoNap&&!f.napT){ecoWake(f);w++}});
   ecoStat('phase');if(ph==3||ph==1)toast((ph==3?'夜になった。':'昼になった。')+(s?s+'体が眠りについた':'')+(w?(s?'。':'')+w+'体が目を覚ました':''));
   learn('daynight','昼と夜：時間がたつと昼と夜が入れ替わる。夜は獣や小鬼が眠り、死者や影が起きる。昼はその逆。眠っている者は気づきにくいが、物音で起きる')}}
- const hr=.6*[1.6,1,.55][e.food]*(e.temp==0?1.3:1),tr=.5*(e.temp==2?1.6:1)*(e.hum==0?1.3:e.hum==2?.6:1);
+ const hr=.9*[1.6,1,.55][e.food]*(e.temp==0?1.3:1),tr=.5*(e.temp==2?1.6:1)*(e.hum==0?1.3:e.hum==2?.6:1);
  G.foes.forEach(f=>{if(f.hp<=0||(FOE[f.k]||{}).boss||f.still)return;ecoInit(f);f.hunger=Math.min(100,f.hunger+hr);f.thirst=Math.min(100,f.thirst+tr);
   if(f.napT>0&&--f.napT<=0)ecoWake(f);
   if(f.young&&++f.grow>=60){f.young=0;f.age='adult';const b=FOE[f.k];f.max=b.hp+(f.bonus||0);f.hp=f.max;f.atk=b.atk+(f.atkB||0);if(G.seen.has(f.x+','+f.y))toast(f.n+'の子が、大人になった');ecoStat('grow')}});
@@ -2538,7 +2538,7 @@ function ecoMove(f,opts){if(f.aware==2||f.charm>0||f.caged||(FOE[f.k]||{}).boss)
  // 天敵から逃げる
  const pr=G.foes.find(g=>g!==f&&canEat(g,f)&&cd(g.x,g.y,f.x,f.y)<=4);if(pr){f.doing='逃げている（'+pr.n+'）';if(go(pr.x,pr.y,true))return true}
  // 狩る
- if(hungry(f)&&PREY[kinOf(f)]){const v=G.foes.filter(g=>canEat(f,g)&&cd(g.x,g.y,f.x,f.y)<=7&&losClear(f.x,f.y,g.x,g.y)).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(v){f.doing='狩り（'+v.n+'）';if(!G.huntHint&&G.seen.has(f.x+','+f.y)&&G.seen.has(v.x+','+v.y)){G.huntHint=1;toast(f.n+'が'+v.n+'を狙っている');learn('hunt','狩り：腹を空かせた魔物は、自分から獲物を狩りに行く。獲物は天敵から逃げる。食べ終えた者は満腹で眠る。魔物を調べると、空腹かどうかが分かる')}if(cd(v.x,v.y,f.x,f.y)>1)return go(v.x,v.y);return true}}
+ if(hungry(f)&&PREY[kinOf(f)]){const v=G.foes.filter(g=>canEat(f,g)&&cd(g.x,g.y,f.x,f.y)<=7&&losClear(f.x,f.y,g.x,g.y)).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(v){f.doing='狩り（'+v.n+'）';if(!G.huntHint&&G.seen.has(f.x+','+f.y)&&G.seen.has(v.x+','+v.y)){G.huntHint=1;toast(f.n+'が'+v.n+'を狙っている');learn('hunt','狩り：腹を空かせた魔物は、自分から獲物を狩りに行く。獲物は天敵から逃げる。食べ終えた者は満腹で眠る。魔物を調べると、空腹かどうかが分かる')}if(cd(v.x,v.y,f.x,f.y)>1)return go(v.x,v.y);if(v.mhSleep){if(v.ecoNap)ecoWake(v);else{v.mhSleep=0;v.nap=0}if(G.seen.has(v.x+','+v.y))toast(v.n+'が目を覚ました。'+f.n+'が目の前にいる')}return true}}
  // 亡骸を食べる（腐肉食い）
  if(hungry(f)&&SCAV.includes(kinOf(f))){const b=(G.bodies||[]).filter(b=>!b.eaten&&cd(b.x,b.y,f.x,f.y)<=8).sort((a,c)=>cd(a.x,a.y,f.x,f.y)-cd(c.x,c.y,f.x,f.y))[0];if(b){f.doing='亡骸を食べに';if(cd(b.x,b.y,f.x,f.y)==0){b.eaten=1;b.t=Math.min(b.t,3);f.hunger=0;ecoStat('scavenge');if(G.seen.has(f.x+','+f.y))toast(f.n+'が亡骸を食べている');ecoSleep(f,6,'食後のまどろみ');return true}return go(b.x,b.y)}}
  // 水場へ
