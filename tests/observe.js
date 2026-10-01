@@ -44,7 +44,7 @@ function install() {
   const envOf = st => ENV.find(n => st.includes(n));
   const _ofd = onFoeDeath;
   onFoeDeath = function (f) {
-    try { if (!f.__obs) { f.__obs = 1; const e = envOf(new Error().stack || ''); if (e) { O.kills.env++; O.kills.envBy[e] = (O.kills.envBy[e] || 0) + 1 } else O.kills.weapon++ } } catch (e) {}
+    try { if (!f.__obs) { f.__obs = 1; if (f.assassinated) { O.kills.stealth = (O.kills.stealth || 0) + 1 } const e = envOf(new Error().stack || ''); if (e) { O.kills.env++; O.kills.envBy[e] = (O.kills.envBy[e] || 0) + 1 } else O.kills.weapon++ } } catch (e) {}
     return _ofd.apply(this, arguments);
   };
   const _hs = holeSwallow;
@@ -52,6 +52,13 @@ function install() {
   const _kb = knockBack;
   knockBack = function (f) { const n0 = G.foes.length; const r = _kb.apply(this, arguments); try { if (f && f.hp <= 0 && !f.__obs && G.foes.length < n0) { f.__obs = 1; O.kills.env++; O.kills.envBy.hole = (O.kills.envBy.hole || 0) + 1 } } catch (e) {} return r; };
   // 戦闘の手数とパリィ
+  O.used = {};const use = k => { O.used[k] = (O.used[k] || 0) + 1 };
+  const _ta = throwAt; throwAt = function (i) { try { const q = G.bag.items[i]; if (q) use('投げる:' + ITEM[q.id].n) } catch (e) {} return _ta.apply(this, arguments) };
+  const _su = slotUse; slotUse = function (i) { try { const q = G.bag.items[i]; if (q && !G.fight) use('使う:' + ITEM[q.id].n) } catch (e) {} return _su.apply(this, arguments) };
+  const _act = act; act = function (i) { try { const q = G.bag.items[i]; if (q) use((ITEM[q.id].weapon ? '武器:' : '戦闘で使う:') + ITEM[q.id].n) } catch (e) {} return _act.apply(this, arguments) };
+  const _sp = spare; spare = function () { use('なだめる'); return _sp.apply(this, arguments) };
+  const _st = startFight;
+  startFight = async function (foes, mode) { if (mode == 'ambush') use('背後から'); return _st.apply(this, arguments) };
   const _sf = startFight;
   startFight = async function () { O.fights++; O._ft = 0; const r = await _sf.apply(this, arguments); return r; };
   const _ap = afterPlayer;
@@ -196,7 +203,7 @@ function brain() {
       if (buddies >= 1) { if (r = tryT(idx('bomb'), f.x, f.y, 'g-爆弾')) return r; if (r = tryT(idx('konran'), f.x, f.y, 'g-混乱')) return r; }
       const pot = (G.pots || []).find(q => cd(q.x, q.y, f.x, f.y) <= 1 && aimOK(q.x, q.y));
       if (pot) { if (r = tryT(idx('koishi'), pot.x, pot.y, 'g-壺を割る')) return r; }
-      for (const id of ['pot_oil', 'pot_poison', 'pot_fire', 'pot_sand', 'pot_water', 'v_poison', 'v_fire', 'doro', 'mizu']) { if (r = tryT(idx(id), f.x, f.y, 'g-' + (ITEM[id] || {}).n)) return r; }
+      for (const id of ['hidane', 'pot_oil', 'pot_poison', 'pot_fire', 'pot_sand', 'pot_water', 'v_poison', 'v_fire', 'doro', 'mizu']) { if (r = tryT(idx(id), f.x, f.y, 'g-' + (ITEM[id] || {}).n)) return r; }
     }
     return null;
   }
@@ -252,6 +259,7 @@ function brain() {
   console.log('\n===== 観察の要約（' + RUNS + '回 × ' + STEPS + '手） =====');
   console.log('最深の階', all.map(o => o.maxF + 'F').join(' / '));
   console.log('手の使い方  探索 ' + mapT + ' 手 ／ 戦闘 ' + fightT + ' 手（うちパリィの受け ' + parry + ' 回）／ 蹴り ' + sum(o => o.turns.kick) + ' ／ 待つ ' + sum(o => o.turns.wait) + ' ／ 道具 ' + sum(o => o.turns.item));
+  console.log('使われた手段 ' + merge(o => o.used).length + ' 種: ' + merge(o => o.used).map(([k, v]) => k + ':' + v).join(' '));
   { const gim = sum(o => (o.turns.gim || 0) + o.turns.kick), fgt = sum(o => o.turns.fight) - sum(o => o.turns.kick); const k = sum(o => o.kills.env), w = sum(o => o.kills.weapon);
     console.log('★ ギミックと戦闘  手の数 ' + gim + ' 対 ' + fgt + '（ギミック ' + pct(gim, gim + fgt) + '）／ 倒した敵 ' + k + ' 対 ' + w + '（ギミック ' + pct(k, k + w) + '）');
     console.log('  使ったギミック: ' + merge(o => o.gim).map(([k, v]) => k + ':' + v).join(' ')); }

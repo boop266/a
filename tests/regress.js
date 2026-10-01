@@ -7,13 +7,27 @@ const FILE = 'file://' + path.resolve(process.argv[2] || path.join(__dirname, '.
 
 const cases = {
   // 思い通りに動かす：タップで歩く（罠と溶岩を避ける）・狙って投げる・松明を覆う・錠を壊す
+  // 役割表と、倒し方で変わる落とし物
+  async '役割と倒し方'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const W8 = ms => new Promise(r => setTimeout(r, ms)); const add = id => { G.bag.items.push({ id, x: 0, y: 0, rot: 0 }); return G.bag.items.length - 1; };
+      G.traps = []; G.faceX = 1; G.faceY = 0; slotUse(add('rope')); await W8(300); o.snare = G.traps.some(t => t.mine && t.k == 'seal'); G.busy = false;
+      G.items = [{ x: 8, y: 8, id: 'gem', drop: 0 }]; for (let x = 4; x <= 9; x++) G.seen.add(x + ',8'); slotUse(add('whip')); await W8(300); o.whip = G.items[0].x == 6; G.busy = false;
+      G.foes = []; G.items = []; const f = put('rat', 10, 10); f.frozen = 2; f.hp = 1; hit(f, 5); o.ice = G.items.some(i => i.id == 'tomeniku');
+      G.items = []; const g = put('rat', 11, 11); g.assassinated = 1; g.hp = 0; onFoeDeath(g); o.stealth = G.items.length > 0;
+      o.weapons = wspec('spear', put('bat', 12, 12)) == 2;
+      return o;
+    });
+    for (const k of ['snare', 'whip', 'ice', 'stealth', 'weapons']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+  },
   // 相性と場面の型：弱点・弾けない攻撃・眠る群れ
   async '相性と場面の型'(p) {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; const b = put('beetle', 9, 8); const w = weakOf(b); o.armor = w.blade < 1 && w.volt > 1;
       const s = put('salam', 9, 10); o.fire = weakOf(s).fire == 0 && weakOf(s).water > 1; o.peril = perilOf(put('golem', 12, 12)) >= .3;
-      const F = genFloor0(4); o.scenes = (F.scenes || []).length >= 1;
+      o.scenes = [3, 4, 5, 6, 7, 8].some(fi => (genFloor0(fi).scenes || []).length >= 1);
       G.foes = []; const n = put('rat', 12, 8); n.mhSleep = 1; n.nap = 1; const m = put('rat', 13, 8); m.mhSleep = 1; m.nap = 1; makeNoise(11, 8, 4, 'stone'); o.wake = !n.mhSleep && !m.mhSleep && n.aware == 2;
       return o;
     });
