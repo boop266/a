@@ -229,7 +229,7 @@ const cases = {
       await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f;
       const i = () => G.bag.items.findIndex(q => q.id == 'rope');
       const msgs = []; const _t = toast; toast = m => { msgs.push(m); return _t(m); };
-      await act(i()); const s1 = !!f.roped && msgs.some(m => /縛った/.test(m)); G.busy = false; msgs.length = 0; await act(i()); const s2 = msgs.some(m => /警戒/.test(m)) && !msgs.some(m => /縛った/.test(m)); toast = _t;
+      await act(i()); const s1 = !!f.roped && msgs.some(m => /縛った/.test(m)); G.busy = false; msgs.length = 0; if (!G.fight) engageTmp(f); await act(i()); const s2 = msgs.some(m => /警戒/.test(m)) && !msgs.some(m => /縛った/.test(m)); toast = _t;
       const kept = i() >= 0; endFight(); return { s1, s2, kept, again: !f.roped };
     });
     if (!r.s1 || !r.s2 || !r.kept || !r.again) throw new Error(JSON.stringify(r));
@@ -292,17 +292,15 @@ const cases = {
   // 糸で縛られて武器が届かなくても、取れる行動がある
   async '糸で縛られても詰まない'(p) {
     await dive(p);
-    await p.evaluate(() => { const f = foeNext(2); startFight([f], 'first', 2); });
-    await p.waitForTimeout(1200);
-    const r = await p.evaluate(async () => { G.fight.webbed = 2; G.fight.dist = 3; G.busy = false; const w0 = G.fight.webbed; await fightMove(1, 0); await new Promise(r => setTimeout(r, 900)); return { w0, w1: G.fight ? G.fight.webbed : 0, busy: G.busy, said: LOG.some(m => /もがいた/.test(m)) }; });
-    if (!(r.said && r.w1 < r.w0 && !r.busy)) throw new Error('動こうとしても、もがけない: ' + JSON.stringify(r));
+    const r = await p.evaluate(async () => { G.title = null; G.foes = []; G.stuck = 2; G.busy = false; const P = G.p; const d = DIRS.find(([a, b]) => walk(P.x + a, P.y + b)); const w0 = G.stuck; await step(d[0], d[1]); await new Promise(r => setTimeout(r, 600)); return { w0, w1: G.stuck, busy: G.busy, said: LOG.some(m => /糸/.test(m)) }; });
+    if (!(r.said && r.w1 < r.w0 && !r.busy)) throw new Error('糸から抜け出せない: ' + JSON.stringify(r));
   },
   // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
   async 'ぶつかれば殴る・！の大振り'(p) {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; }; store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 40;
-      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !!G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
+      give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.fight = !G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
       // 予告 → 一歩離れる → 空振りで体勢が崩れる
       G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await step(-1, 0); await new Promise(r => setTimeout(r, 900));
       o.dodged = G.p.hp == hp && !f.tele && (f.post || 0) > post;
