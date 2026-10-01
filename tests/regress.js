@@ -86,6 +86,73 @@ const cases = {
     });
     if (r.w != '穴へ落ちる' || !r.btn || !r.fell || r.heavy != '重くて動かない') throw new Error(JSON.stringify(r));
   },
+  // 持ち物の使い道：宝石の光、古銭の奪い合い、重い物、割れ物、胞子、板、檻
+  async '持ち物の使い道'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; };
+      const turn = async () => { for (let w = 0; w < 60 && G.busy; w++) await new Promise(r => setTimeout(r, 30)); };
+      for (let x = 2; x <= 20; x++) for (let y = 2; y <= 14; y++) G.seen.add(x + ',' + y);
+      // 宝石：落ちた所のまわりの目をくらませる。床に残る
+      G.p.x = 5; G.p.y = 8; let a = put('gob', 9, 8); a.aware = 0; throwAt(give('gem'), 9, 8); await turn();
+      o.gem = a.blind > 0 && G.items.some(i => i.id == 'gem');
+      // 古銭：小鬼が寄っていき、先に拾った者を、もう一体が襲う
+      G.foes = []; G.items = []; const g1 = put('gob', 12, 6), g2 = put('gob', 12, 10); g1.aware = g2.aware = 0;
+      throwAt(give('oldcoin'), 12, 8); await turn(); o.covet = g1.covet == 'oldcoin' && g2.covet == 'oldcoin';
+      for (let k = 0; k < 6 && G.items.some(i => i.id == 'oldcoin'); k++) { G.busy = false; await doWait(); await turn(); }
+      o.taken = !G.items.some(i => i.id == 'oldcoin'); o.grudge = !!((g1.grudge && g1.grudge.t > 0) || (g2.grudge && g2.grudge.t > 0)); o.why = rivalWhy(g1, g2);
+      // 重い物：当たると、よろける
+      G.foes = []; G.items = []; a = put('gob', 8, 8); a.aware = 0; throwAt(give('idol'), 8, 8); await turn(); o.heavy = a.hp < a.max && a.stun >= 1;
+      // 割れ物：砕けて、遠くまで音が届く
+      G.foes = []; G.items = []; throwAt(give('plated'), 9, 8); await turn(); o.crash = !G.items.some(i => i.id == 'plated');
+      // 胞子：上にいる魔物が眠る
+      G.foes = []; a = put('gob', 9, 8); a.aware = 0; throwAt(give('houshi'), 9, 8); await turn(); G.busy = false; await doWait(); await turn(); o.spore = G.spores.length > 0 && (a.stun > 0 || a.spored > 0);
+      // 板：魔物の通り道をふさぐ。叩かれると破れる
+      G.foes = []; G.spores = []; G.faceX = 1; G.faceY = 0; a = put('gob', 8, 8); a.aware = 2; slotUse(give('timber')); await turn(); o.plank = (G.planks || []).length == 1;
+      // 檻：鍵で開けると、中の魔物が一番近い者を襲う
+      G.foes = []; G.planks = []; G.items = []; const c = put('grat', 10, 8); c.caged = 1; const v = put('gob', 12, 8); v.aware = 0; G.p.x = 9; G.p.y = 8; give('key');
+      const m = mainAction(); o.cageAct = m && m.t; if (m) m.f(); await turn(); o.cage = !c.caged && c.wild > 0;
+      for (let k = 0; k < 4; k++) { G.busy = false; await doWait(); await turn(); } o.wild = (c.grudge && c.grudge.u == v.uid) || v.hp < v.max || c.hp < c.max;
+      return o;
+    });
+    if (!r.gem || !r.covet || !r.taken || !r.grudge || r.why != '奪い合い' || !r.heavy || !r.crash || !r.spore || !r.plank || r.cageAct != '鍵で檻を開ける' || !r.cage || !r.wild) throw new Error(JSON.stringify(r));
+  },
+  // 魔物との付き合い方：好物を渡す・苦手で遠ざける・化ける・脅す・取引・技の袋
+  async '魔物との付き合い方'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      store('yw31_fights', '5'); const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; };
+      const turn = async () => { for (let w = 0; w < 60 && G.busy; w++) await new Promise(r => setTimeout(r, 30)); };
+      for (let x = 2; x <= 20; x++) for (let y = 2; y <= 14; y++) G.seen.add(x + ',' + y);
+      const beast = Object.keys(FOE).find(k => FAM[k] == 'beast' && !SPARE[k] && !FOE[k].boss && !FOE[k].still);
+      o.kin = [kinOf('skel'), kinOf('gob'), kinOf(beast)].join(',');
+      // 好物を渡すと、戦いが終わる
+      G.p.x = 5; G.p.y = 8; let f = put(beast, 6, 8); f.alpha = 1; give('jerky'); await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f; ui();
+      o.btn = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '好物を渡す'); spare(); o.gave = !G.bag.items.some(q => q.id == 'jerky') && (!G.fight || !G.fight.foes.includes(f));
+      if (G.fight) endFight(); G.fight = null; G.busy = false;
+      // 苦手：死者は光る石を持っていると寄れない
+      G.foes = []; give('gem'); f = put('skel', 7, 8); f.aware = 2; o.fear = fearFire(f, 2);
+      G.bag.items = G.bag.items.filter(q => q.id != 'gem');
+      // 化ける：獣の皮をかぶると、獣は気づかない
+      G.foes = []; f = put(beast, 7, 8); f.aware = 0; f.flip = true; slotUse(give('kawa')); o.guise = G.guise && G.guise.kin;
+      for (let k = 0; k < 3; k++) { G.busy = false; await doWait(); await turn(); } o.unseen = !f.aware && !G.fight;
+      G.guise = null; G.fight = null; G.busy = false;
+      // 脅す：崩れた相手が逃げ、二度と気づかない
+      G.foes = []; f = put('gob', 6, 8); f.alpha = 1; await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; f.broken = 1; ui();
+      o.thr = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '脅す'); threaten(); o.cowed = f.cowed && f.fear > 0 && !G.fight;
+      G.fight = null; G.busy = false;
+      // 取引：小鬼に「取引」が出て、通行料で通してもらえる
+      G.foes = []; f = put('gob', 6, 8); f.alpha = 1; f.pers = null; give('oldcoin'); await startFight([f], 'first'); await new Promise(r => setTimeout(r, 1200)); G.busy = false; G.fight.tgt = f; ui();
+      o.trade = [...document.querySelectorAll('#frow button')].some(b => b.textContent == '取引'); tradeWith(); o.modal = /通行料/.test(document.getElementById('modal').innerText);
+      document.getElementById('modal').innerHTML = ''; if (G.fight) endFight(); G.fight = null; G.busy = false;
+      // 技の袋：火袋で前へ炎を吹く
+      G.foes = []; G.fires = []; f = put('gob', 7, 8); f.aware = 0; G.faceX = 1; G.faceY = 0; slotUse(give('fukuro_f')); await turn(); o.sac = f.hp < f.max || f.burn > 0;
+      // 倒し方で袋が取れる：糸を吐く魔物を斬って倒す
+      const sp = Object.keys(FOE).find(k => FOE[k].spit && !FOE[k].boss); G.items = []; let got = 0; for (let k = 0; k < 20; k++) { const s = put(sp, 10, 10); G.items = []; sacDrop(s, 'weapon'); if (G.items.some(i => i.id == 'fukuro_s')) got++; } o.drop = got > 0;
+      return o;
+    });
+    if (r.kin.split(',')[0] != 'dead' || r.kin.split(',')[1] != 'gob' || !r.btn || !r.gave || !r.fear || r.guise != 'beast' || !r.unseen || !r.thr || !r.cowed || !r.trade || !r.modal || !r.sac || !r.drop) throw new Error(JSON.stringify(r));
+  },
   // 縄：同じ相手は一戦に一度だけ縛れる（毎ターン縛り続けて無傷、ができないように）
   async '縄は一戦に一度'(p) {
     await arena(p);

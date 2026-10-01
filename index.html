@@ -907,7 +907,7 @@ const wait=ms=>new Promise(res=>setTimeout(res,ms));
 const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 const DIRS8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 const DIAGN={'1,1':'右下','1,-1':'右上','-1,1':'左下','-1,-1':'左上'};
-const FKEYS=['scenes','pots','fishShocked','arch','pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
+const FKEYS=['planks','spores','ringers','scenes','pots','fishShocked','arch','pmud','pmT','toil','pwater','pwT','bush','mud','glowm','fu','sniff','thin','loose','rubble','bodies','ice','volts','twist','twistShown','cur','dams','relic','oil','gas','traps','rooms','rid','srcs','evs','mstyle','ero','corpses','oneway','peddler','fi','th','m','dist','maxD','garden','water','exit','up','down','chest','items','foes','torches','shafts','eyes','crit','tufts','tents','seen','gim','start','zones','zm','graves','webs','cocoons','ship','sdoor','blight','wet','bname','barrels','cannons','anchors','fire','sc','notes','falls','flood','drips','wtheme','cracks','cave','holes','ctheme','bridges','lures','fires','lava','steam','burnt','wind','ftheme'];
 
 let GEN_ERO=0;
 const MSTYLE={shiren:'',honey:'蜂の巣のような小部屋群',mirrorf:'左右が鏡写しの階',cave:'洞窟',rooms:'石室',hall:'大広間',ring:'環状回廊',city:'廃都の街路',mansion:'人形の館',tunnel:'一本道の坑道'};
@@ -985,7 +985,7 @@ const getEcho=()=>{try{const o=JSON.parse(store('yw14_echo')||'null');return o&&
 function genFloor(fi){for(let k=0;k<6;k++){const F=genFloor0(fi);if(F)return F}return genFloor0(0)||genFloor0(1)}
 function genFloor0(fi){const F=seeded(WSEED*31+fi*7919+(G&&G.plan&&G.plan.blight==fi?0:0),()=>genFloorRaw(fi));
  F.items.forEach(it=>{if(it.lf)it.id=lootFor(Math.min(1,fi*.33+.2+Math.random()*.3))});
- try{floorTwist(F,fi)}catch(e){}try{placeHazards(F,fi)}catch(e){}try{placeRuin(F,fi)}catch(e){}try{markLeaders(F)}catch(e){}try{placePots(F,fi)}catch(e){}try{placeScenes(F,fi)}catch(e){}
+ try{floorTwist(F,fi)}catch(e){}try{placeHazards(F,fi)}catch(e){}try{placeRuin(F,fi)}catch(e){}try{markLeaders(F)}catch(e){}try{placePots(F,fi)}catch(e){}try{placeScenes(F,fi)}catch(e){}try{placeCages(F,fi)}catch(e){}
  // 門とその奥の小部屋は、水や泥や氷に沈めない（火で開く門が開かなくなる）
  try{(F.gim||[]).forEach(g=>{[[g.x,g.y],...(g.pocket||[])].forEach(([x,y])=>{if(F.water[y])F.water[y][x]=false;const k=x+','+y;if(F.mud)F.mud.delete(k);if(F.ice&&F.ice.delete)F.ice.delete(k);if(F.lava&&F.lava.delete)F.lava.delete(k)})})}catch(e){}
  return F}
@@ -2041,6 +2041,8 @@ async function step(dx,dy){
  if(G.stuck>0){G.stuck--;G.busy=true;sfx('no');toast(G.stuck?'糸に絡まって動けない……':'糸を振りほどいた');fx({type:'spark',x:G.p.rx+4,y:G.p.ry+2,c:'#e8e8f0'});if(!G.stuck)G.webs.delete(G.p.x+','+G.p.y);await wait(120);await enemiesMove();G.busy=false;ui();return}
  const p=G.p,nx=p.x+dx,ny=p.y+dy;if(dx)p.flip=dx<0;G.lookX=dx;G.lookY=dy;G.faceX=dx;G.faceY=dy;clearTimeout(G.lkT);G.lkT=setTimeout(()=>{G.lookX=0;G.lookY=0},900);
  if(G.sdoor&&G.sdoor.x==nx&&G.sdoor.y==ny){askShip();return}
+ {const q=plankAt(nx,ny);if(q){G.planks.splice(G.planks.indexOf(q),1);G.items.push({x:nx,y:ny,id:'timber',drop:now(),how:'外した板'});sfx('thud');toast('立てかけた板を外した');ui();return}}
+ {const cg=cageAt(nx,ny);if(cg){sfx('tick');toast('檻の中で'+cg.n+'が唸っている。鍵か、槌や斧があれば開けられる');return}}
  {const d=G.sc&&G.sc.find(d=>d.x==nx&&d.y==ny);if(d){useShortcut(d);return}}
  {const bf=foeAt(nx,ny);if(bf&&bf.dormant){askFog(bf);return}}
  const brl=G.barrels&&G.barrels.find(b=>b.x==nx&&b.y==ny);if(brl){G.barrels.splice(G.barrels.indexOf(brl),1);sfx('hit');G.shake=6;fx({type:'spark',x:nx*T+4,y:ny*T+4,c:'#a0703e'});const R=Math.random();
@@ -2399,6 +2401,8 @@ function throwAt(i,tx,ty){const pc=G.bag.items[i];if(!pc||G.busy||G.fight||G.ove
   else if(pc.id=='steamb'||pc.id=='smoke'){keep=false;nb.forEach(([a,b])=>{if(walk(x+a,y+b))(G.steam=G.steam||[]).push({x:x+a,y:y+b,t:0,life:12,smoke:pc.id=='smoke'?1:0})});let n=0;G.foes.forEach(f=>{if(f.hp>0&&f.aware&&cd(f.x,f.y,x,y)<=3){f.aware=0;n++}});msg=(pc.id=='smoke'?'煙':'湯気')+'が立ちこめた'+(n?'。'+n+'体が見失った':'')}
   else if(pc.id=='lure'){keep=false;(G.lures=G.lures||[]).push({x,y,t:0});sfx('summon');msg='糸人形が転がった。敵はそちらへ寄っていく'}
   else if(d.lit){if(wet){msg=d.n+'は水に落ちて、じゅっと消えた';pc.wet=Math.max(pc.wet||0,3)}else{let n=0;nb.forEach(([a,b],j)=>{if((j==0||n==0)&&ignite(x+a,y+b,'quiet'))n++});if(hf){hf.burn=Math.max(hf.burn||0,3);hf.burned=1;hit(hf,2)}msg=n?d.n+'が落ちて、火が燃え移った':d.n+'が転がった'}}
+  if(keep){const r=kinLand(pc,x,y,hf);if(r.msg)msg=r.msg;if(!r.keep)keep=false;else if(HEAVYI.includes(pc.id)&&hf)hf=null}
+  if(G.guise&&(hf||d.lit||pc.id=='hidane'||pc.id=='bomb'))breakGuise('手を出した');
   if(keep&&hp){breakPot(hp,'throw')}
   if(keep){if(hf&&!d.food){const dm=d.weapon?Math.max(2,Math.round((parseInt(d.d)||3)/2)):1;hit(hf,dm);hf.stun=Math.max(hf.stun||0,1);msg=d.n+'が'+hf.n+'に当たった（'+dm+'）'}
    const l=(G.loose||[]).find(q=>q.x==x&&q.y==y);if(l&&(d.weapon||(d.sh&&d.sh[0]*d.sh[1]>=2)))setTimeout(()=>{try{dropRock(l)}catch(e){}},250);
@@ -2461,6 +2465,8 @@ function whipPull(){const p=G.p;const tg=[...G.items.filter(i=>!i.hid).map(i=>({
  D('cutlass','6。水の者に2倍。弾くと波しぶきが散り、体幹を大きく削る');
  D('senchojyu','12。間合い2〜3。弾込めがいらない。撃つと青い火花。70Fの証');
  D('tsugihagi','5。斬るたびに火・水・雷の性質が入れ替わり、当てた相手に宿る。90Fの証');
+ if(ITEM['kawa'])ITEM['kawa'].v='まとう';if(ITEM['kizunashi'])ITEM['kizunashi'].v='まとう';if(ITEM['crown'])ITEM['crown'].v='かぶる';if(ITEM['phat'])ITEM['phat'].v='かぶる';if(ITEM['bonelamp'])ITEM['bonelamp'].v='提げる';if(ITEM['mayu'])ITEM['mayu'].v='まとう';if(ITEM['mossb'])ITEM['mossb'].v='まとう';if(ITEM['tsuta'])ITEM['tsuta'].v='まとう';if(ITEM['ginrin'])ITEM['ginrin'].v='まとう';if(ITEM['dollhead'])ITEM['dollhead'].v='抱える';if(ITEM['timber'])ITEM['timber'].v='立てる';if(ITEM['gem'])ITEM['gem'].v='投げる';if(ITEM['stone'])ITEM['stone'].v='投げる';if(ITEM['hitomi'])ITEM['hitomi'].v='投げる';if(ITEM['kakera'])ITEM['kakera'].v='投げる';if(ITEM['oldcoin'])ITEM['oldcoin'].v='投げる';if(ITEM['pcoin'])ITEM['pcoin'].v='投げる';if(ITEM['idol'])ITEM['idol'].v='投げる';if(ITEM['houshi'])ITEM['houshi'].v='投げる';if(ITEM['plated'])ITEM['plated'].v='投げる';if(ITEM['tsubo'])ITEM['tsubo'].v='投げる';if(ITEM['clockd'])ITEM['clockd'].v='投げる';if(ITEM['wheel'])ITEM['wheel'].v='投げる';if(ITEM['chaird'])ITEM['chaird'].v='投げる';if(ITEM['antler'])ITEM['antler'].v='投げる';
+ D('gem','投げると光を弾き、まわりの目をくらませる（3手）。影の者は焼ける。床に残るので拾い直せる。小鬼の好物。持っていると死者と影が寄ってこない');D('stone','投げると光を弾いて目をくらませる。小鬼の好物。持っていると死者と影が寄ってこない');D('hitomi','光を集める瞳。投げると目をくらませ、影の者を焼く。持っていると死者と影が寄ってこない');D('kakera','淡く光る欠片。持っていると死者と影が寄ってこない。投げれば目くらましになる');D('oldcoin','投げ銭：小鬼は一斉に拾いに走り、先に拾った者を他の者が襲う。小鬼に渡せば通行料になる');D('pcoin','投げ銭：小鬼は一斉に拾いに走る。小鬼に渡せば通行料になる');D('kawa','身につけると、獣の群れに紛れられる（獣に気づかれない）。斬る・投げつける・戦いになると、ばれる');D('kizunashi','忍んで仕留めた獲物の、傷ひとつない皮。高く売れる。身につければ獣に紛れられる');D('crown','かぶると、小鬼たちは王だと思ってひれ伏す（小鬼に気づかれない）。小鬼の好物でもある。投げれば重い');D('phat','かぶると、小鬼の海賊仲間に見える（小鬼に気づかれない）');D('bonelamp','提げていると、死者の仲間に見える（死者に気づかれない）。持っているだけで影も寄ってこない。投げると割れて大きな音');D('mayu','身にまとうと、虫に仲間だと思われる。虫の好物でもある');D('mossb','身につけると草木に紛れる。投げると光苔が根づき、影の者が寄りつかない。虫の好物');D('tsuta','門をふさいでいた乾いた蔦。身にまとうと草木に紛れる。撚れば縄になり、よく燃える。虫の好物');D('ginrin','身につけると、水の者に仲間だと思われる。水の者の好物でもある');D('dollhead','抱えていると、人形たちに仲間だと思われる。人形の好物（部品）でもある');D('timber','隣に立てかけると、魔物の通り道をふさぐ（叩かれれば3手で破れる。火で燃える）。火の者の好物。投げれば当たった敵がよろける');D('idol','重い。投げて当てれば相手がよろける（3）。床の仕掛けの重しにもなる');D('wheel','重い。投げて当てれば相手がよろける');D('chaird','重い。投げて当てれば相手がよろける');D('antler','重い。投げて当てれば相手がよろける');D('houshi','投げると、落ちた所に眠り茸が生える。上を通った者は眠る（自分も）。虫の好物');D('plated','投げると砕けて、遠くまで届く大きな音がする（囮）。人形の好物');D('tsubo','投げると砕けて、遠くまで届く大きな音がする（囮）');D('clockd','投げると、しばらく鳴り続けて魔物を呼ぶ。人形と影の好物');D('key','宝箱や、魔物の檻を開ける（一度きり）');D('ring','死者の好物（副葬品）。返せば戦いが終わり、道や隠し物を教えてくれることも。小鬼も欲しがる');D('urn','死者の好物（副葬品）。返せば戦いが終わる');D('locket','死者と影の好物。返せば戦いが終わる');D('letter','「帰れなかったら、猫をよろしく」。死者と影の好物');D('haguruma','崩れた仕掛けの鉄の部品。人形の好物。叩けば鉤にも、武器の重りにもなる');
  D('compassi','しばらく下り階段の方角が分かる。隠れている物や、漁れる場所も映し出す');D('kaze','向いている方へ強い風を送る。飛ぶ魔物は吹き落とされ、火は風下へ、毒気や湯気は流れる（3回）');D('kama','4。草木に1.5倍。体幹を崩した相手を鎌で倒すと、必ずもう1つ刈り取る')})();
 
 // ===== 倒し方で、手に入るものが違う =====
@@ -2473,7 +2479,7 @@ IC.tomeniku=["........",".kkkkk..","kCcccCk.","kcrrrck.","kcrrrck.","kCcccCk.","
 IC.kizunashi=["..kkkk..",".kUttUk.","kUttttUk","kttttttk","kttttttk","kUttttUk",".kUttUk.","..kkkk.."];
 const ELDROP={fire:'hidane',water:'mizu',volt:'raika',oil:'v_fire',earth:'doro'};
 function killCause(f){if(f.assassinated)return 'stealth';const st=new Error().stack||'';if(/fireStep|ignite/.test(st)||(f.burn>0&&!/act\b/.test(st)))return 'fire';if(/shockSet/.test(st))return 'volt';if(f.frozen>0||/freezeAt/.test(st))return 'ice';if(/gasStep/.test(st))return 'poison';return 'weapon'}
-function methodDrop(f){if(f.lost||(FOE[f.k]||{}).boss||(FOE[f.k]||{}).still)return;const c=killCause(f);const put=(id,how)=>{if(ITEM[id])G.items.push({x:f.x,y:f.y,id,drop:now(),how:how})};let got=null;
+function methodDrop(f){if(f.lost||(FOE[f.k]||{}).boss||(FOE[f.k]||{}).still)return;const c=killCause(f);const put=(id,how)=>{if(ITEM[id])G.items.push({x:f.x,y:f.y,id,drop:now(),how:how})};let got=null;try{got=sacDrop(f,c)}catch(e){}
  if(c=='fire'&&Math.random()<.7){got='hidane';put('hidane','焼いて倒した'+f.n+'から')}
  else if(c=='ice'){got='tomeniku';put('tomeniku','凍らせて倒した'+f.n+'から')}
  else if(c=='volt'&&Math.random()<.5){got='raika';put('raika','感電させた'+f.n+'から')}
@@ -2482,6 +2488,148 @@ function methodDrop(f){if(f.lost||(FOE[f.k]||{}).boss||(FOE[f.k]||{}).still)retu
  if(got&&G.seen.has(f.x+','+f.y)&&!G.mdHint){G.mdHint=1;setTimeout(()=>toast(ITEM[got].n+'が落ちた。……倒し方で、落とす物が変わるらしい'),500)}
  learn('method','倒し方で手に入る物が違う：焼けば火種、凍らせれば凍った肉、感電させれば雷の瓶、忍んで仕留めれば傷のない皮や宝。性質を持つ魔物は、その性質の材料を落とす。穴に落とせば何も残らない')}
 function spareGift(f){try{if(G.down){G.seen.add(G.down[0]+','+G.down[1]);setTimeout(()=>toast('去り際に、下り階段の方を振り返った。……道が分かった'),900)}const h=(G.items||[]).find(i=>i.hid);if(h){h.hid=0;G.seen.add(h.x+','+h.y)}learn('spare2','なだめる：戦意を失った魔物は、去り際に道や隠し物を教えてくれる')}catch(e){}}
+// ===== 魔物との付き合い方：種族ごとの好物・苦手・化ける・取引・脅す =====
+// 戦う・避ける以外の関わり方。手持ちの物すべてが、どこかの誰かへの「一手」になる
+const KIN={
+ beast:{n:'獣',like:['jerky','tomeniku','fish','bigfish','ratfang'],fear:'fire',guise:['kawa','kizunashi'],say:'肉をくわえて、満足そうに去っていった'},
+ gob:{n:'小鬼',like:['oldcoin','pcoin','gem','stone','ring','crown'],fear:'noise',guise:['crown','phat'],greed:1,talk:1,say:'光り物をひったくると、にやりと笑って道を空けた'},
+ dead:{n:'死者',like:['ring','urn','locket','letter'],fear:'light',guise:['bonelamp'],say:'副葬品を胸に抱いて、静かに崩れていった'},
+ bug:{n:'虫',like:['houshi','mossb','tsuta','mayu'],fear:'fire',guise:['mayu'],say:'匂いに群がり、それきりこちらを見なくなった'},
+ ooze:{n:'ぷる',like:['jerky','tomeniku','fish','bigfish','rotten'],fear:'dry',guise:[],say:'ぷるん、と包み込んで、満足そうに離れていった'},
+ water:{n:'水の者',like:['fish','bigfish','ginrin'],fear:'volt',guise:['ginrin'],say:'魚を丸呑みにして、水の方へ戻っていった'},
+ plant:{n:'草木',like:['mizu','pot_water'],fear:'fire',guise:['mossb','tsuta'],say:'水を吸うと、葉を閉じて眠りについた'},
+ fire:{n:'火の者',like:['timber','pot_oil','v_fire'],fear:'water',guise:[],say:'薪を抱えて燃え上がり、満ち足りて去っていった'},
+ doll:{n:'人形',like:['haguruma','clockd','dollhead','plated'],fear:'water',guise:['dollhead'],talk:1,say:'部品を受け取ると、かたかたと礼をして去った'},
+ shade:{n:'影',like:['clockd','letter','locket'],fear:'light',guise:[],say:'思い出の品を受け取ると、影の中へ溶けていった'}};
+const FEARN={fire:'火',light:'光る石',water:'水',volt:'雷',dry:'乾いた砂',noise:'大きな音の出る物'};
+const LIGHTI=['gem','stone','hitomi','mossb','bonelamp','kakera'];
+function kinOf(f){const k=f&&f.k||f;const F=FOE[k]||{};if(F.shade||(typeof GEN!='undefined'&&GEN[k]&&GEN[k].el=='shadow'))return 'shade';if(FAM[k])return FAM[k];const n=F.n||'';
+ if(/骨|霊|屍|墓/.test(n))return 'dead';if(/焔|火|炎|溶岩|燐/.test(n))return 'fire';if(/魚|鯉|鯰|河豚|蛙|海|亀|貝|湯|雫/.test(n))return 'water';if(/蛍|羽|翼|虫|蜘蛛/.test(n))return 'bug';if(/ぷる|すらいむ|ぬめり|泥/.test(n))return 'ooze';if(/苔|茸|樹|草|番人/.test(n))return 'plant';return 'doll'}
+function fearHeld(k){const b=G.bag.items;const has=ids=>b.some(q=>ids.includes(q.id));
+ if(k=='fire')return hasFire();if(k=='light')return has(LIGHTI);if(k=='water')return has(['mizu','pot_water']);if(k=='volt')return has(['raika','fukuro_v']);if(k=='dry')return has(['pot_sand']);if(k=='noise')return has(['taiko','gun','senchojyu','fukuro_b']);return false}
+function likeIdx(f){const K=KIN[kinOf(f)];if(!K||(FOE[f.k]||{}).boss)return -1;return G.bag.items.findIndex(q=>K.like.includes(q.id))}
+const fuid=f=>f.uid||(f.uid=Math.random().toString(36).slice(2,9));
+function dropFoe(f){if(G.fight){const i=G.fight.foes.indexOf(f);if(i>=0)G.fight.foes.splice(i,1)}const gi=G.foes.indexOf(f);if(gi>=0)G.foes.splice(gi,1)}
+// 好物を渡す：去る・ついてくる・道を教える
+function kinGive(f,i){const kn=kinOf(f),K=KIN[kn];const q=G.bag.items[i];G.bag.items.splice(i,1);note('spare:'+f.k);try{bioUp(f.k,9)}catch(e){}store('yw23_spare',(+store('yw23_spare')||0)+1);sfx('heal');fx({type:'heal',x:f.rx+4,y:f.ry});
+ learn('kin_'+kn,K.n+'の好物：'+K.like.map(id=>ITEM[id]&&ITEM[id].n).filter(Boolean).join('・')+'。渡せば戦いが終わる。去るか、ついてくるか、道を教えるかは相手しだい');
+ const r=Math.random();let msg=f.n+'は'+ITEM[q.id].n+'を受け取った。';
+ if((FOE[f.k]||{}).cap&&r<.3){f.charm=60;f.aware=0;f.broken=0;if(G.fight){const j=G.fight.foes.indexOf(f);if(j>=0)G.fight.foes.splice(j,1)}msg+='……そのまま、ついてくる気らしい'}
+ else{msg+=K.say;if(r<.65)spareGift(f);dropFoe(f)}
+ toast(msg);if(G.fight){if(!alive().length)endFight();else ui()}else ui()}
+// 苦手を見せる：その種族は2マス以内に寄れない。ただし何度も見せると慣れる
+function kinFear(f,dd){if(dd>2||(FOE[f.k]||{}).boss)return false;const kn=kinOf(f),K=KIN[kn];if(!K)return false;
+ const fire=K.fear=='fire'&&(hasFire()||(G.fires||[]).some(q=>cd(q.x,q.y,f.x,f.y)<=1));const it=K.fear!='fire'&&fearHeld(K.fear);if(!fire&&!it)return false;
+ if(kn!='beast'||it){f.fearN=(f.fearN||0)+1;if(f.fearN>8){if(f.fearN==9&&G.seen.has(f.x+','+f.y))toast(f.n+'は'+FEARN[K.fear]+'に慣れてしまった');return false}}return true}
+// 化ける：その種族の物を身につけると、その種族には気づかれない
+const guised=f=>!!(G.guise&&G.guise.kin==kinOf(f)&&!(FOE[f.k]||{}).boss&&f.aware!=2);
+function wearGuise(i){const pc=G.bag.items[i];const kn=Object.keys(KIN).find(k=>KIN[k].guise.includes(pc.id));if(!kn)return false;
+ if(G.guise&&G.guise.id==pc.id){G.guise=null;sfx('tick');toast(ITEM[pc.id].n+'を外した');ui();return true}
+ G.guise={kin:kn,id:pc.id,t:80};sfx('pick');G.foes.forEach(f=>{if(kinOf(f)==kn&&f.aware==1)f.aware=0});
+ toast(ITEM[pc.id].n+'を身につけた。'+KIN[kn].n+'たちには、仲間に見えるはず');learn('guise','化ける：獣の皮・王冠や海賊帽（小鬼）・骨のランプ（死者）・白い繭（虫）・苔玉や蔦（草木）・銀鱗（水の者）・人形の首（人形）。身につけると、その種族には気づかれない。斬る・投げる・戦いになる、でばれる');ui();return true}
+function breakGuise(why){if(!G.guise)return;const kn=G.guise.kin;G.guise=null;let n=0;G.foes.forEach(f=>{if(f.hp>0&&kinOf(f)==kn&&cd(f.x,f.y,G.p.x,G.p.y)<=6&&!f.dormant){f.aware=2;n++}});toast('正体がばれた'+(why?'（'+why+'）':'')+(n?'。'+n+'体がこちらを睨む':''));sfx('curse')}
+// 脅す：体幹を崩した相手を、とどめを刺さずに追い払う。同じ種族も怯える
+function threaten(){const f=alive().find(f=>f.broken)||tgtFoe();if(!f||G.busy)return;const kn=kinOf(f);f.broken=0;f.posture=0;f.cowed=1;f.fear=40;f.aware=0;dropFoe(f);G.foes.push(f);
+ let n=0;G.foes.forEach(g=>{if(g!==f&&g.hp>0&&kinOf(g)==kn&&cd(g.x,g.y,f.x,f.y)<=8&&!(FOE[g.k]||{}).boss){g.fear=Math.max(g.fear||0,6);n++}});
+ sfx('curse');G.shake=6;toast(f.n+'は悲鳴を上げて逃げ出した'+(n?'。'+n+'体の仲間も怯えている':''));learn('threaten','脅す：体幹を崩した相手に、とどめの代わりに。逃げた者は二度と襲ってこず、同じ種族もしばらく怯える。何も落とさない');
+ if(G.fight&&G.fight.foes.includes(f))G.fight.foes.splice(G.fight.foes.indexOf(f),1);if(!alive().length)endFight();else ui()}
+// 取引：話の通じる種族（小鬼・人形）は、通行料や物々交換に応じる。裏切る者もいる
+const TRADEGET=['v_fire','bomb','potion','smoke','hidane','raika','hyouka','koishi','jerky'];
+function tradeWith(){const f=tgtFoe();if(!f)return;const coin=G.bag.items.findIndex(q=>q.id=='oldcoin'||q.id=='pcoin');const ti=G.bag.items.map((q,i)=>[q,i]).filter(([q])=>(ITEM[q.id]||{}).tre&&!(ITEM[q.id]||{}).mon).sort((a,b)=>(ITEM[b[0].id].tre||0)-(ITEM[a[0].id].tre||0))[0];
+ const sly=f.pers=='sly'||Math.random()<.15;const leave=(m)=>{toast(m);dropFoe(f);if(!alive().length)endFight();else ui()};
+ const bt=[];if(coin>=0)bt.push(['通行料を払う（'+ITEM[G.bag.items[coin].id].n+'）',()=>{G.bag.items.splice(coin,1);sfx('pick');if(sly){toast(f.n+'は硬貨を懐に入れ……そのまま斬りかかってきた！');f.aware=2;learn('trade_sly','取引：ずる賢い個体は、受け取ってから裏切ることがある')}else{leave(f.n+'は硬貨をかじって確かめると、道を空けた');spareGift(f)}},'go']);
+ if(ti)bt.push([ITEM[ti[0].id].n+'と道具を交換する',()=>{const g=pick(TRADEGET);G.bag.items.splice(G.bag.items.indexOf(ti[0]),1);G.items.push({x:G.p.x,y:G.p.y,id:g,drop:now(),how:f.n+'との取引で'});sfx('pick');leave(f.n+'は'+ITEM[ti[0].id].n+'を受け取り、足元に'+ITEM[g].n+'を置いていった')},'go']);
+ bt.push(['断る',()=>{toast(f.n+'は舌打ちした')}]);
+ evSay(f.n,[KIN[kinOf(f)].n+'の'+f.n+'が、手のひらを差し出してくる。',coin<0&&!ti?'……渡せる物を持っていない。':'「通りたきゃ、払いな。いい物となら替えてやってもいい」'],bt);learn('trade','取引：小鬼や人形には話が通じる。古銭で通行料、宝で道具と交換。断れば戦いの続き')}
+// 奪い合い：好物を投げると、欲しがる種族が寄っていく。先に取った者を、他の者が襲う
+function kinCovet(x,y,id){const who=G.foes.filter(f=>f.hp>0&&!f.dormant&&!f.caged&&!(FOE[f.k]||{}).boss&&cd(f.x,f.y,x,y)<=7&&KIN[kinOf(f)]&&KIN[kinOf(f)].like.includes(id)&&(!f.aware||KIN[kinOf(f)].greed));
+ who.forEach(f=>{f.inv={x,y,t:12};f.covet=id;if(KIN[kinOf(f)].greed)f.aware=0});return who.length}
+function kinTake(f){if(!f.covet)return;const i=G.items.findIndex(q=>q.x==f.x&&q.y==f.y&&q.id==f.covet);const id=f.covet;f.covet=null;if(i<0)return;G.items.splice(i,1);f.sated=12;f.aware=0;
+ const riv=G.foes.filter(g=>g!==f&&g.hp>0&&g.covet==id&&cd(g.x,g.y,f.x,f.y)<=4);riv.forEach(g=>{g.covet=null;g.inv=null;g.grudge={u:fuid(f),t:10}});
+ if(G.seen.has(f.x+','+f.y))toast(f.n+'が'+ITEM[id].n+'を拾った'+(riv.length?'。'+riv.map(g=>g.n).join('と')+'が奪いにかかる！':''));if(riv.length)learn('covet','奪い合い：好物を投げると、欲しがる種族が寄っていく。先に拾った者を、あとから来た者が襲う。好物は魔物を調べると分かる')}
+function grudgeOf(a,b){return (a.grudge&&a.grudge.t>0&&a.grudge.u==b.uid)||(b.grudge&&b.grudge.t>0&&b.grudge.u==a.uid)}
+// 檻の魔物：鍵で開けるか、壊して放つ。放たれた者は、一番近い者に襲いかかる
+function placeCages(F,fi){if(fi<1||F.ship||BOSSF[fi]||Math.random()>.45)return;const L=GEN_BY_L[layerOf(fi)]||[];const ks=L.filter(k=>['beast','fire'].includes(FAM[k])&&!(FOE[k]||{}).boss&&!(FOE[k]||{}).still);const k=ks.length?pick(ks):'grat';
+ const busy=(x,y)=>[F.down,F.up,F.exit,F.start].some(q=>q&&q[0]==x&&q[1]==y)||(F.foes||[]).some(f=>f.x==x&&f.y==y)||(F.items||[]).some(i=>i.x==x&&i.y==y)||(F.water[y]&&F.water[y][x])||(F.gim||[]).some(g=>g.x==x&&g.y==y||(g.pocket||[]).some(q=>q[0]==x&&q[1]==y))||(F.pots||[]).some(q=>q.x==x&&q.y==y);
+ const cells=[];for(let y=2;y<MH-2;y++)for(let x=2;x<MW-2;x++){if(F.m[y][x]||busy(x,y))continue;if(!F.dist||!F.dist[y]||F.dist[y][x]<8||F.dist[y][x]>=999)continue;if(DIRS.filter(([a,b])=>!F.m[y+b][x+a]).length<2)continue;const near=(F.foes||[]).filter(f=>cd(f.x,f.y,x,y)<=6).length;cells.push([x,y,near])}
+ if(!cells.length)return;cells.sort((a,b)=>b[2]-a[2]);const c=cells[Math.floor(Math.random()*Math.min(6,cells.length))];
+ const f=mkFoe(k,c[0],c[1],Math.min(1,fi*.33+.4));f.hp=f.max=Math.round(f.max*1.4);f.atk+=1;f.caged=1;f.aware=0;f.pers=null;F.foes.push(f)}
+function cageAt(x,y){return G.foes.find(f=>f.caged&&f.hp>0&&f.x==x&&f.y==y)}
+function openCage(f,how){f.caged=0;f.wild=12;f.aware=0;sfx(how=='key'?'door':'boom');G.shake=8;for(let k=0;k<6;k++)fx({type:'spark',x:f.rx+2+k,y:f.ry+2+(k%3),c:'#c8bca0',life:.6});
+ if(how!='key')makeNoise(f.x,f.y,8,'cage');toast(f.n+'が檻から飛び出した！'+(how=='key'?'':'（大きな音が響いた）'));learn('cage','檻の魔物：鍵で開けるか、槌や斧で壊すと放たれる。放たれた魔物は一番近い者に襲いかかる。離れて開ければ、敵どうしで争う');
+ G.busy=true;ui();wait(150).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
+function cageAction(){const p=G.p;const f=G.foes.find(f=>f.caged&&f.hp>0&&cd(f.x,f.y,p.x,p.y)==1);if(!f)return null;const ki=G.bag.items.findIndex(q=>q.id=='key');
+ if(ki>=0)return{ic:'hand',t:'鍵で檻を開ける',sub:f.n+'を放つ（一番近い者を襲う）',f:()=>{G.bag.items.splice(ki,1);openCage(f,'key')}};
+ if(G.bag.items.some(q=>['hammer','hammer_l','axe','great','great_l','great_f','great_p','great_s'].includes(q.id)))return{ic:'hand',t:'檻を壊す',sub:f.n+'を放つ。……大きな音がする',f:()=>openCage(f,'break')};
+ return{ic:'hand',t:'檻の中の'+f.n,sub:'鍵か、槌や斧があれば開けられる',f:()=>{sfx('tick');toast('頑丈な檻だ。古い鍵か、槌や斧が要る')}}}
+// 放たれた魔物：一番近い者へ
+function wildStep(f){if(!(f.wild>0))return;f.wild--;const p=G.p;const tg=G.foes.filter(g=>g!==f&&g.hp>0&&!g.caged&&!g.dormant&&cd(g.x,g.y,f.x,f.y)<=8).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];
+ if(tg&&cd(tg.x,tg.y,f.x,f.y)<=cd(p.x,p.y,f.x,f.y)){f.grudge={u:fuid(tg),t:8};fuid(f);f.aware=0}else if(cd(p.x,p.y,f.x,f.y)<=8)f.aware=2}
+// 板のバリケード：通路をふさぐ。叩かれれば3手で破れ、火で燃え落ちる。ぶつかれば取り外せる
+const plankAt=(x,y)=>(G.planks||[]).find(q=>q.x==x&&q.y==y);
+function setPlank(i){const p=G.p;const tgt=G.foes.filter(f=>f.hp>0&&f.aware&&cd(f.x,f.y,p.x,p.y)<=8).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0];
+ const cand=DIRS8.map(([a,b])=>[p.x+a,p.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!foeAt(x,y)&&!plankAt(x,y)&&!potAt(x,y)&&diagOK(p.x,p.y,a,b));
+ if(!cand.length){sfx('no');toast('立てかける場所がない');return}
+ const fx0=G.faceX||0,fy0=G.faceY||0;cand.sort((u,v)=>tgt?cd(u[0],u[1],tgt.x,tgt.y)-cd(v[0],v[1],tgt.x,tgt.y):((v[2]==fx0&&v[3]==fy0)-(u[2]==fx0&&u[3]==fy0)));const c=cand[0];
+ G.bag.items.splice(i,1);(G.planks=G.planks||[]).push({x:c[0],y:c[1],hp:3});sfx('thud');G.shake=4;fx({type:'spark',x:c[0]*T+4,y:c[1]*T+4,c:'#c89a5a'});
+ toast('板を立てかけた。魔物は通れない（叩かれれば3手で破れる。火で燃える）');learn('plank','古い板材：隣に立てかけると、魔物の通り道をふさぐ。叩かれると3手で破れ、火がつけば燃え落ちる。自分でぶつかれば取り外せる');
+ G.busy=true;ui();wait(80).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
+function plankBash(f){const p=G.p;const q=(G.planks||[]).find(q=>cd(q.x,q.y,f.x,f.y)==1&&cd(q.x,q.y,p.x,p.y)<cd(f.x,f.y,p.x,p.y));if(!q)return false;q.hp--;f.flip=q.x<f.x;sfxAt('thud',(q.x-p.x)/6,.6);makeNoise(q.x,q.y,3,'plank');
+ if(q.hp<=0){G.planks.splice(G.planks.indexOf(q),1);if(G.seen.has(q.x+','+q.y))toast(f.n+'が板を叩き割った')}else if(G.seen.has(q.x+','+q.y)&&!G.plankHint){G.plankHint=1;toast(f.n+'が板を叩いている（あと'+q.hp+'）')}return true}
+// 胞子：投げた所に眠り茸。乗った者は眠る（自分も）。苔玉：投げた所に光苔。影の者は光を嫌う
+function sporeStep(){G.spores=(G.spores||[]).filter(s=>--s.t>0);if(!G.spores.length)return;G.foes.forEach(f=>{if(f.hp>0&&!f.dormant&&!(FOE[f.k]||{}).fly&&!(f.spored>0)&&G.spores.some(s=>s.x==f.x&&s.y==f.y)){f.stun=Math.max(f.stun||0,3);f.aware=0;f.spored=6;if(G.seen.has(f.x+','+f.y))fx({type:'spark',x:f.rx+4,y:f.ry,c:'#d0a0ff',life:.8})}if(f.spored>0)f.spored--});
+ if(G.spores.some(s=>s.x==G.p.x&&s.y==G.p.y)&&!(G.p.sporeT>0)){G.mudT=Math.max(G.mudT||0,1);G.p.sporeT=4;toast('眠り茸の胞子を吸った。頭がぼんやりする')}if(G.p.sporeT>0)G.p.sporeT--}
+// 鳴り物：止まった時計や鈴袋は、しばらく鳴り続けて魔物を呼ぶ
+function ringStep(){G.ringers=(G.ringers||[]).filter(r=>{makeNoise(r.x,r.y,r.r||5,'ring');return --r.t>0})}
+// 毎手：化けの残り、奪い合いの恨み、満腹
+function kinTick(){if(G.guise){G.guise.t--;if(G.guise.t<=0){G.guise=null;toast('変装がずれて、もう誤魔化せない')}}
+ G.foes.forEach(f=>{if(f.grudge&&f.grudge.t>0)f.grudge.t--;if(f.sated>0)f.sated--;try{wildStep(f)}catch(e){}});
+ (G.planks||[]).slice().forEach(q=>{if((G.fires||[]).some(r=>r.x==q.x&&r.y==q.y)){G.planks.splice(G.planks.indexOf(q),1);if(G.seen.has(q.x+','+q.y))toast('板が燃え落ちた')}});
+ try{sporeStep()}catch(e){}try{ringStep()}catch(e){}}
+// 投げた物が落ちた所で：光る石・重い物・割れ物・鳴り物・胞子・苔玉・袋
+const BREAKI=['plated','tsubo','bonelamp'],HEAVYI=['idol','crown','wheel','chaird','hoard','antler','timber'],RINGI=['clockd'];
+function kinLand(pc,x,y,hf){const id=pc.id,d=ITEM[id];let msg='',keep=true;
+ if(LIGHTI.includes(id)&&id!='mossb'){let n=0,s=0;G.foes.forEach(f=>{if(f.hp<=0)return;const dd=cd(f.x,f.y,x,y);if(kinOf(f)=='shade'&&dd<=2){hit(f,6);f.stun=Math.max(f.stun||0,2);s++}else if(dd<=1){f.blind=Math.max(f.blind||0,3);f.aware=0;n++}});
+  for(let k=0;k<8;k++)fx({type:'spark',x:x*T+4+Math.cos(k*.8)*6,y:y*T+2+Math.sin(k*.8)*5,c:'#fff7b0',life:.7});G.flashW=performance.now()+180;
+  msg=d.n+'が光を弾いた'+(s?'。影の者が焼けた':'')+(n?'。'+n+'体の目がくらんだ':'');learn('gemlight','光る石：投げると光を弾き、まわりの目をくらませる（3手）。影の者は焼ける。床に落ちるので拾い直せる')}
+ else if(id=='houshi'){keep=false;[[0,0],...DIRS8].forEach(([a,b])=>{if(walk(x+a,y+b))(G.spores=G.spores||[]).push({x:x+a,y:y+b,t:10})});msg='胞子が舞い、眠り茸が生えた';learn('spore','胞子：投げると眠り茸が生える。上を通った者は眠る（自分も）。10手で枯れる')}
+ else if(id=='mossb'){keep=false;G.glowm=G.glowm||new Set();[[0,0],...DIRS8].forEach(([a,b])=>{if(walk(x+a,y+b))G.glowm.add((x+a)+','+(y+b))});try{drawBase()}catch(e){}try{reveal()}catch(e){}let n=0;G.foes.forEach(f=>{if(f.hp>0&&kinOf(f)=='shade'&&cd(f.x,f.y,x,y)<=2){f.fear=Math.max(f.fear||0,5);n++}});msg='苔玉が弾け、光苔が広がった'+(n?'。影の者が逃げていく':'');learn('mossthrow','苔玉：投げると光苔が根づく。暗がりが明るくなり、影の者は寄りつかない')}
+ else if(id=='fukuro_s'){keep=false;G.webs=G.webs||new Set();let n=0;[[0,0],...DIRS8].forEach(([a,b])=>{if(walk(x+a,y+b))G.webs.add((x+a)+','+(y+b));const f=foeAt(x+a,y+b);if(f&&!(FOE[f.k]||{}).boss){f.stun=Math.max(f.stun||0,4);n++}});msg='糸袋が破れ、糸が広がった'+(n?'。'+n+'体が絡まった':'')}
+ else if(id=='fukuro_b'){keep=false;(G.ringers=G.ringers||[]).push({x,y,t:4,r:8});makeNoise(x,y,9,'bell');let n=0;G.foes.forEach(f=>{if(f.hp>0&&!f.aware&&cd(f.x,f.y,x,y)<=10){f.inv={x,y,t:10};n++}});msg='鈴袋が鳴り響いた'+(n?'。'+n+'体がそちらへ向かう':'')}
+ else if(BREAKI.includes(id)){keep=false;makeNoise(x,y,8,'crash');sfx('boom');for(let k=0;k<6;k++)fx({type:'spark',x:x*T+4,y:y*T+4,c:'#e8e0d0',life:.5});msg=d.n+'が砕けた。ガシャン！';learn('junknoise','がらくたの音：割れ物は大きな音（遠くまで届く）、時計は鳴り続ける、重い物は鈍い音で、当たれば相手がよろける')}
+ else if(RINGI.includes(id)){(G.ringers=G.ringers||[]).push({x,y,t:5,r:5});msg=d.n+'が転がって、チリリ……と鳴りだした'}
+ if(keep&&hf&&HEAVYI.includes(id)){hit(hf,3);hf.stun=Math.max(hf.stun||0,2);msg=d.n+'が'+hf.n+'に当たった。ゴツン（3）';makeNoise(x,y,2,'thud')}
+ if(KIN&&(d.food||d.tre||Object.values(KIN).some(K=>K.like.includes(id)))&&keep){const n=kinCovet(x,y,id);if(n)msg+=(msg?'。':'')+n+'体が'+d.n+'を欲しがって寄っていく'}
+ return {keep,msg}}
+// 技を借りる袋：倒し方しだいで取れる。焼けば火袋は破れ、影は光で消える
+Object.assign(ITEM,{
+ fukuro_f:{n:'火袋',v:'吹く',sh:[1,1],d:'向いている方へ炎を吹く（3マス）。火を吐く魔物を、焼かずに倒すと取れる'},
+ fukuro_s:{n:'糸袋',v:'投げる',sh:[1,1],d:'投げると破れて糸が広がる。まわりの敵は絡まって4手動けない。糸を吐く魔物から取れる'},
+ fukuro_k:{n:'影袋',v:'まとう',sh:[1,1],d:'影をまとう。8手のあいだ気づかれず、近くの敵はこちらを見失う。影の者を焼かずに倒すと取れる'},
+ fukuro_b:{n:'鈴袋',v:'投げる',sh:[1,1],d:'投げると鳴り続け、遠くの魔物まで呼び寄せる（4手）。鈴を鳴らす魔物から取れる'}});
+IC.fukuro_f=["...yo...","..oyro..",".krrrrk.","krrorrrk","krroorrk",".krrrrk.","..kkkk..","........"];
+IC.fukuro_s=["...UU...","..kUUk..",".kUttUk.","kUttttUk","kUtUUtUk",".kUttUk.","..kkkk..","........"];
+IC.fukuro_k=["...kk...","..kvvk..",".kvZZvk.","kvZzZZvk","kvZZZZvk",".kvZZvk.","..kkkk..","........"];
+IC.fukuro_b=["...yy...","..kyyk..",".kyooyk.","kyyooyyk","kyyyyyyk",".kyyyyk.","..kyyk..","...kk..."];
+function sacDrop(f,c){const D=FOE[f.k]||{};if(D.boss||f.lost)return null;const put=(id,how)=>{G.items.push({x:f.x,y:f.y,id,drop:now(),how});return id};
+ if(D.breath&&c!='fire'&&Math.random()<.5)return put('fukuro_f',f.n+'の喉から');
+ if(D.spit&&Math.random()<.6)return put('fukuro_s',f.n+'の腹から');
+ if(kinOf(f)=='shade'&&c!='fire'&&Math.random()<.35)return put('fukuro_k',f.n+'の残した影');
+ if(D.bell&&Math.random()<.4)return put('fukuro_b',f.n+'の鈴');return null}
+function useSac(i){const pc=G.bag.items[i],p=G.p;
+ if(pc.id=='fukuro_f'){const dx=G.faceX||(p.flip?-1:1),dy=G.faceY||0;G.bag.items.splice(i,1);let n=0;for(let k=1;k<=3;k++){const x=p.x+dx*k,y=p.y+dy*k;if(!walk(x,y))break;ignite(x,y,'quiet');(G.fires=G.fires||[]);if(!(G.fires).some(q=>q.x==x&&q.y==y))G.fires.push({x,y,t:0,life:3});const f=foeAt(x,y);if(f){hit(f,emul?emul(f,'fire',4):4);f.burn=Math.max(f.burn||0,3);f.burned=1;n++}fx({type:'spark',x:x*T+4,y:y*T+4,c:'#ffb13a',life:.6})}
+  sfx('boom');G.shake=8;toast('火袋から炎を吹いた'+(n?'。'+n+'体を焼いた':''));learn('sac','魔物の技を借りる：火袋・糸袋・影袋・鈴袋。その魔物の技を一度だけ使える。焼いて倒すと火袋や影袋は残らない')}
+ else if(pc.id=='fukuro_k'){G.bag.items.splice(i,1);G.hush=Math.max(G.hush||0,8);let n=0;G.foes.forEach(f=>{if(f.hp>0&&f.aware&&cd(f.x,f.y,p.x,p.y)<=5&&!(FOE[f.k]||{}).boss){f.aware=0;n++}});sfx('summon');toast('影をまとった'+(n?'。'+n+'体がこちらを見失った':''));learn('sac','魔物の技を借りる：火袋・糸袋・影袋・鈴袋。その魔物の技を一度だけ使える。焼いて倒すと火袋や影袋は残らない')}
+ else{aimStart(pc);return}
+ G.busy=true;ui();wait(120).then(async()=>{try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui()})}
+// 描く：檻・板・胞子・鳴り物・変装
+function drawKin(t,sx,sy,z){const S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z;
+ G.foes.forEach(f=>{if(!f.caged||f.hp<=0||!G.seen.has(f.x+','+f.y))return;sc.strokeStyle='#a8987a';sc.lineWidth=Math.max(1,z*.8);for(let k=1;k<4;k++){sc.beginPath();sc.moveTo(X(f.x)+S*k/4,Y(f.y)-S*.2);sc.lineTo(X(f.x)+S*k/4,Y(f.y)+S);sc.stroke()}sc.strokeRect(X(f.x)+1,Y(f.y)-S*.2,S-2,S*1.2)});
+ (G.planks||[]).forEach(q=>{if(!G.seen.has(q.x+','+q.y))return;sc.fillStyle='#8a5a2a';sc.fillRect(X(q.x)+S*.12,Y(q.y)+S*.05,S*.76,S*.9);sc.strokeStyle='#c89a5a';sc.lineWidth=Math.max(1,z*.5);for(let k=1;k<3;k++){sc.beginPath();sc.moveTo(X(q.x)+S*.12,Y(q.y)+S*k/3);sc.lineTo(X(q.x)+S*.88,Y(q.y)+S*k/3);sc.stroke()}});
+ (G.spores||[]).forEach(s=>{if(!G.seen.has(s.x+','+s.y))return;sc.fillStyle='rgba(200,150,255,'+(.18+.08*Math.sin(t*3+s.x))+')';sc.fillRect(X(s.x),Y(s.y),S,S);sc.fillStyle='rgba(230,200,255,.8)';for(let k=0;k<3;k++)sc.fillRect(X(s.x)+S*(.2+.3*k),Y(s.y)+S*(.3+.2*((k+Math.floor(t*2))%3)),Math.max(1,z),Math.max(1,z))});
+ (G.ringers||[]).forEach(r=>{const a=(t*1.5)%1;sc.strokeStyle='rgba(255,230,140,'+(1-a)*.7+')';sc.lineWidth=Math.max(1,z*.6);sc.beginPath();sc.arc(X(r.x)+S/2,Y(r.y)+S/2,S*(.5+a*2),0,6.283);sc.stroke()});
+ if(G.guise){const p=G.p;sc.strokeStyle='rgba(200,170,110,'+(.5+.3*Math.sin(t*4))+')';sc.lineWidth=Math.max(1,z*.7);sc.beginPath();sc.arc((p.rx+4-sx)*z,(p.ry+4-sy)*z,S*.7,0,6.283);sc.stroke()}}
+
 function foeInfo(f){const D=FOE[f.k]||{};const r=f.hp/(f.max||f.hp||1);
  const st=[];if(f.mhSleep||f.stun>2)st.push('眠っている／動けない');else if(f.stun>0)st.push('ひるんでいる');if(f.aware)st.push('こちらに気づいている');else st.push('こちらに気づいていない');
  if(f.conf>0)st.push('混乱している');if(f.fear>0)st.push('怯えている');if(f.charm>0)st.push('なついている');if(f.frozen>0)st.push('凍りついている');if(f.burn>0)st.push('燃えている');if(f.wetC>0)st.push('濡れている');if(f.lead)st.push('群れの長（倒せば群れは散る）');
@@ -2489,8 +2637,8 @@ function foeInfo(f){const D=FOE[f.k]||{};const r=f.hp/(f.max||f.hp||1);
  const tr=Object.keys(FLAGN).filter(k=>D[k]||f[k]).map(k=>FLAGN[k]);const W=weakOf(f);const wk=Object.keys(W).filter(k=>W[k]>1).map(k=>ELNM[k]),rs=Object.keys(W).filter(k=>W[k]<1).map(k=>ELNM[k]+(W[k]==0?'（無効）':''));
  const hp=r>.8?'ほとんど無傷':r>.45?'傷ついている':'弱っている';
  let jn='';if(D.cap&&!D.boss&&ITEM[f.k]){const c=JOIND[f.k];jn=c?'仲間になる：'+JOINC[c].d:'仲間になる：どう倒されれば認めるのかは、まだ分からない'}
- const P=f.pers&&PERS.find(q=>q.k==f.pers);
- $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(wk.length?'<br><b style="color:#9ad08a">よく効く</b>　'+wk.join('・'):'')+(rs.length?'<br><b style="color:#e8806a">効きにくい</b>　'+rs.join('・'):'')+(perilOf(f)>=.3?'<br><b style="color:#ff8a70">弾けない攻撃をよく使う</b>（かわす）':'')+(jn?'<br><b>'+jn+'</b>':'')+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
+ const P=f.pers&&PERS.find(q=>q.k==f.pers);const kn=kinOf(f),KK=KIN[kn];const kl=KK?'<br><b>種族</b>　'+KK.n+'<br><b style="color:#9ad08a">好物</b>　'+KK.like.map(id=>ITEM[id]&&ITEM[id].n).filter(Boolean).join('・')+'（渡せば戦わずに済む）<br><b style="color:#e8a08a">苦手</b>　'+FEARN[KK.fear]+'（持っていると寄ってこない）'+(KK.guise.length?'<br><b>化ける</b>　'+KK.guise.map(id=>ITEM[id]&&ITEM[id].n).filter(Boolean).join('・')+'を身につけると気づかれない':'')+(KK.talk?'<br><b>話が通じる</b>　取引・通行料に応じる':''):'';
+ $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+(f.caged?'（檻の中）':'')+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(wk.length?'<br><b style="color:#9ad08a">よく効く</b>　'+wk.join('・'):'')+(rs.length?'<br><b style="color:#e8806a">効きにくい</b>　'+rs.join('・'):'')+(perilOf(f)>=.3?'<br><b style="color:#ff8a70">弾けない攻撃をよく使う</b>（かわす）':'')+(jn?'<br><b>'+jn+'</b>':'')+kl+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
  $('fiX').onclick=()=>{$('modal').innerHTML='';ui()};sfx('tick');learn('look','相手を見る：地図の上の魔物をタップすると、状態と性質が見られる。手番は使わない')}
 // タップした所まで歩く。見えている、安全な道だけを通る。何か起きたら止まる
 function trvCost(x,y,goal){if(!walk(x,y))return 0;const k=x+','+y;if(!G.seen.has(k))return 0;
@@ -2813,7 +2961,7 @@ function craftTick(){
  if(G.blur>0){G.blur--;if(!G.blur){toast('視界がはっきりしてきた');reveal()}}
  if(G.compass>0)G.compass--;
  if(G.lures&&G.lures.length){for(let i=G.lures.length-1;i>=0;i--){const L=G.lures[i];if(++L.t>40){G.lures.splice(i,1);if(G.seen.has(L.x+','+L.y))toast(L.k?(L.n||'身代わり')+'が戻ってきた':'糸人形が、ぼろぼろになって崩れた')}}}}
-function turnTick(){if(G._tt)return;G._tt=1;try{stayTick();try{envGateStep()}catch(e){}try{envFoeStep()}catch(e){}try{envHazardStep()}catch(e){}try{floodStep();dripStep();curStep();wetTick();crackStep();caveStep();fireStep();lavaStep();steamStep();gasStep();coatTick();windStep();comboStep();specialStep();craftTick()}catch(e){}}finally{G._tt=0}
+function turnTick(){if(G._tt)return;G._tt=1;try{stayTick();try{kinTick()}catch(e){}try{envGateStep()}catch(e){}try{envFoeStep()}catch(e){}try{envHazardStep()}catch(e){}try{floodStep();dripStep();curStep();wetTick();crackStep();caveStep();fireStep();lavaStep();steamStep();gasStep();coatTick();windStep();comboStep();specialStep();craftTick()}catch(e){}}finally{G._tt=0}
  return turnTick2()}
 function turnTick2(){if(G.poison>0){G.poison--;G.p.hp=Math.max(1,G.p.hp-1);fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#b06cf0'})}G.bag.items.forEach(pc=>{if(pc.id=='sealstone'){pc.inst=pc.inst||{};pc.t=(pc.t==null?30:pc.t)-1}});const i=G.bag.items.findIndex(pc=>pc.id=='sealstone'&&pc.t<=0);if(i>=0){G.bag.items.splice(i,1);toast('封じ石が、砂になって崩れた');ui()}}
 function lurkCheck(){(G.foes||[]).forEach(f=>{if(f.lurk&&f.hp>0&&Math.abs(f.x-G.p.x)+Math.abs(f.y-G.p.y)<=1){f.lurk=0;f.aware=2;G.shake=8;sfx('spot');toast('物陰から'+f.n+'が飛び出した！')}})}
@@ -3281,7 +3429,7 @@ function markLeaders(F){(F.foes||[]).forEach(f=>{f.lead=0});const fam=f=>FAM[f.k
   if(grp.some(g=>g.lead||g.max>f.max))return;f.lead=1})}
 function scatter(f){const fam=FAM[f.k];let n=0;G.foes.forEach(g=>{if(g!==f&&g.hp>0&&FAM[g.k]==fam&&cd(g.x,g.y,f.x,f.y)<=8&&!(g.charm>0)){g.fear=10;g.flee=G.fight&&G.fight.foes.includes(g)?true:g.flee;n++}});
  if(n){setTimeout(()=>toast('群れの長が倒れた。'+n+'体が散り散りに逃げ出した'),350);learn('lead','群れの長：同じ種族が固まっていると、一番大きい者が長になる（冠の印）。長を倒すと、残りは怯えて逃げ出す')}}
-function fearFire(f,dd){return FAM[f.k]=='beast'&&dd<=2&&(hasFire()||(G.fires||[]).some(q=>cd(q.x,q.y,f.x,f.y)<=1))}
+function fearFire(f,dd){return kinFear(f,dd)}
 // ===== 壊れる地形 =====
 // 薄い壁：崩せば近道になる。崩れかけの天井：すぐ近くの大きな音で落ちてくる
 function placeRuin(F,fi){F.thin=[];F.loose=[];F.rubble=[];if(fi<1||BOSSF[fi]||F.ship)return;
@@ -3331,7 +3479,7 @@ function watchers(){const p=G.p;if(G.hush>0)return[];return G.foes.filter(f=>f.h
 function foeNextTile(f){const p=G.p;if(f.hp<=0||f.dormant||f.lurk||f.mhSleep||f.still||f.stun>0||f.frozen>0||(f.charm>0)||(f.conf>0))return null;
  if((f.slow||f.slowV)&&((G.steps||0)+1)%2)return null;if(inMud(f.x,f.y)&&!(FOE[f.k]||{}).fly&&((G.steps||0)+1)%2)return null;try{if(feudOf(f))return null}catch(e){}
  const dd=cd(f.x,f.y,p.x,p.y);if(f.aware&&dd==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y))&&!(f.fear>0))return {x:p.x,y:p.y,atk:1};
- const ok=(x,y,a,b)=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(q=>q.x==x&&q.y==y))&&!potAt(x,y);
+ const ok=(x,y,a,b)=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(q=>q.x==x&&q.y==y))&&!potAt(x,y);
  const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(o=>ok(...o));if(!opts.length)return null;
  if(f.fear>0){const o=opts.sort((u,v)=>cd(v[0],v[1],p.x,p.y)-cd(u[0],u[1],p.x,p.y))[0];return {x:o[0],y:o[1],flee:1}}
  let tg=null;const L=(G.lures||[]).filter(q=>cd(q.x,q.y,f.x,f.y)<=8).sort((u,v)=>cd(u.x,u.y,f.x,f.y)-cd(v.x,v.y,f.x,f.y))[0];
@@ -3358,7 +3506,7 @@ function drawNext(t,sx,sy,z){const p=G.p,S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z,C
  (G.cracks||[]).forEach(c=>{if(c.st!=1||!near(c.x,c.y))return;const l=Math.max(1,c.need-c.t);num(c.x,c.y,l+'',l<=2?'#ff8a70':'#ffd35a')});
  (G.gim||[]).forEach(g=>{if(g.fuse>0&&near(g.x,g.y))num(g.x,g.y,g.fuse+'','#ff8a70')});
  sc.restore()}
-function drawOmens(t,sx,sy,z){const p=G.p,now=performance.now(),S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z;
+function drawOmens(t,sx,sy,z){const p=G.p,now=performance.now(),S=T*z,X=x=>(x*T-sx)*z,Y=y=>(y*T-sy)*z;try{drawKin(t,sx,sy,z)}catch(e){}
  // 敵の視線：気づいていない敵が、いま見ている範囲
  const ws=watchers();let inSight=false;
  ws.forEach(f=>{const R=sightR(f);for(let j=-R;j<=R;j++)for(let i=-R;i<=R;i++){const x=f.x+i,y=f.y+j;if(cd(x,y,f.x,f.y)>R||!inFront(f,x,y)||!walk(x,y)||!G.seen.has(x+','+y)||!losClear(f.x,f.y,x,y))continue;
@@ -3396,10 +3544,10 @@ const FAM={skel:'dead',lskel:'dead',archer:'dead',shieldk:'dead',zombie:'dead',g
  koke:'plant',mosser:'plant',fungus:'plant',bakudake:'plant',
  puru:'ooze',slime:'ooze',slimeB:'ooze',mud:'ooze',mochi:'ooze',doll:'doll',twin:'doll',warden:'doll',golem:'doll',mimic:'doll'};
 const RIVAL={'bug|dead':'虫は骸を齧る','fire|water':'火と水は相容れない','beast|bug':'獣は虫を食う','beast|gob':'小鬼は獣を狩る','dead|gob':'死者は生きた者を憎む','bug|plant':'虫は苔を食う','fire|plant':'火は草木を焼く'};
-function rivalWhy(a,b){if(a.conf>0||b.conf>0)return '混乱している';if((a.charm>0)!==(b.charm>0))return 'なついた者が噛みつく';{const ea=elOfFoe(a),eb=elOfFoe(b);if(ea&&eb&&ea!=eb){const r=ELRIVAL[[ea,eb].sort().join('|')];if(r)return r}}const x=FAM[a.k],y=FAM[b.k];if(!x||!y||x==y)return null;return RIVAL[[x,y].sort().join('|')]||null}
+function rivalWhy(a,b){if(grudgeOf(a,b))return '奪い合い';if(a.conf>0||b.conf>0)return '混乱している';if((a.charm>0)!==(b.charm>0))return 'なついた者が噛みつく';{const ea=elOfFoe(a),eb=elOfFoe(b);if(ea&&eb&&ea!=eb){const r=ELRIVAL[[ea,eb].sort().join('|')];if(r)return r}}const x=FAM[a.k],y=FAM[b.k];if(!x||!y||x==y)return null;return RIVAL[[x,y].sort().join('|')]||null}
 // 争いの相手は保存しない（循環参照になるので WeakMap に持つ）
 const FEUDW=new WeakMap(),feudOf=f=>{const g=FEUDW.get(f);return g&&g.hp>0?g:null};
-const feudOK=f=>f.hp>0&&!f.dormant&&!f.mhSleep&&!f.lurk&&!(FOE[f.k]||{}).boss;
+const feudOK=f=>f.hp>0&&!f.dormant&&!f.caged&&!f.mhSleep&&!f.lurk&&!(FOE[f.k]||{}).boss;
 function feudStep(){if(G.fight)return;const p=G.p;const done=new Set(),dead=[];G.foes.forEach(f=>FEUDW.delete(f));
  for(const f of G.foes){if(!feudOK(f)||done.has(f))continue;
   const g=G.foes.find(g=>g!==f&&feudOK(g)&&!done.has(g)&&cd(f.x,f.y,g.x,g.y)==1&&diagOK(f.x,f.y,Math.sign(g.x-f.x),Math.sign(g.y-f.y))&&rivalWhy(f,g));if(!g)continue;done.add(f);done.add(g);
@@ -3418,34 +3566,34 @@ function feudStep(){if(G.fight)return;const p=G.p;const done=new Set(),dead=[];G
 async function enemiesMove(){
  const p=G.p;G.foes.forEach(f=>{f.px0=f.x;f.py0=f.y});try{bodyCheck()}catch(e){}G.foes.forEach(f=>{if(f.blind>0)f.blind--;if(f.alert>0)f.alert--;if(f.conf>0)f.conf--;if(f.fear>0)f.fear--;if(f.charm>0){f.charm--;if(!f.charm&&f.hp>0){f.aware=2;if(G.seen.has(f.x+','+f.y))toast(f.n+'は我に返った。……こちらを睨んでいる')}}});try{feudStep()}catch(e){}
  if(G.hasteT>0){G.hasteT--;G.hasteSkip=!G.hasteSkip;if(G.hasteSkip)return}
- for(const f of G.foes){if(f.hp<=0||f.dormant||f.lurk||f.mhSleep)continue;if(f.stun>0){f.stun--;continue}
+ for(const f of G.foes){if(f.hp<=0||f.dormant||f.lurk||f.mhSleep||f.caged)continue;if(f.stun>0){f.stun--;continue}
   const dd=cd(f.x,f.y,p.x,p.y);
   const shy0=f.k=='puru'||f.k=='koke';
-  if(!shy0){if(!f.aware&&!(G.hush>0)&&!(f.blind>0)&&!(inBush(p.x,p.y)&&dd>1)&&!(G.wrap>0&&inWater(p.x,p.y)&&dd>1)&&!feudOf(f)&&!(f.conf>0)&&!(f.fear>0)&&!(f.charm>0)){const u=bagUsed(),bs=bagDef().st||0,R=sightR(f);if((dd<=R&&inFront(f,p.x,p.y)&&losClear(f.x,f.y,p.x,p.y))||(bs>=0&&!rxOn('D')&&u>=10&&dd<=2)||(bs>0&&u>=6&&dd<=1)){f.aware=1;f.flip=p.x<f.x;sfxAt('spot',(f.x-p.x)/6);continue}}
+  if(!shy0){if(!f.aware&&!(G.hush>0)&&!(f.blind>0)&&!guised(f)&&!f.cowed&&!(f.sated>0)&&!(inBush(p.x,p.y)&&dd>1)&&!(G.wrap>0&&inWater(p.x,p.y)&&dd>1)&&!feudOf(f)&&!(f.conf>0)&&!(f.fear>0)&&!(f.charm>0)){const u=bagUsed(),bs=bagDef().st||0,R=sightR(f);if((dd<=R&&inFront(f,p.x,p.y)&&losClear(f.x,f.y,p.x,p.y))||(bs>=0&&!rxOn('D')&&u>=10&&dd<=2)||(bs>0&&u>=6&&dd<=1)){f.aware=1;f.flip=p.x<f.x;sfxAt('spot',(f.x-p.x)/6);continue}}
    else if(f.aware==1){f.aware=2}else if(dd>9){f.aware=0}}
   if(f.still||((f.slow||f.slowV)&&(G.steps||0)%2))continue;
   if(inMud(f.x,f.y)&&!(FOE[f.k]||{}).fly&&(G.steps||0)%2)continue;
   if(feudOf(f))continue;
   if(f.charm>0||f.conf>0||f.fear>0||fearFire(f,dd)){const op=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!(x==p.x&&y==p.y));
-   if(!(f.fear>0)&&fearFire(f,dd)&&f.aware){f.fear=2;if(!G.fireFearT){G.fireFearT=1;toast(f.n+'は火を怖がって、近づけない');learn('firefear','獣は火を恐れる：松明や火の仲間を持っていると、獣は近寄れずに離れていく')}}
+   if(!(f.fear>0)&&fearFire(f,dd)&&f.aware){f.fear=2;{const K=KIN[kinOf(f)];G.fearT=G.fearT||{};if(K&&!G.fearT[K.fear]){G.fearT[K.fear]=1;toast(f.n+'は'+FEARN[K.fear]+'を怖がって、近づけない');learn('kinfear','苦手を見せる：獣・虫・草木は火、死者と影は光る石、火の者と人形は水、水の者は雷、ぷるは乾いた砂、小鬼は大きな音の出る物を恐れる。持っていると2マス以内に寄れない。火以外は、何度も見せると慣れる')}}}
    let o=null;if(f.charm>0){const h=G.foes.filter(g=>g.hp>0&&!(g.charm>0)&&!g.dormant&&cd(g.x,g.y,f.x,f.y)<=5)[0];const tg=h?{x:h.x,y:h.y}:(dd>2?{x:p.x,y:p.y}:null);if(tg)o=op.sort((a,b)=>cd(a[0],a[1],tg.x,tg.y)-cd(b[0],b[1],tg.x,tg.y))[0]}
    else if(f.fear>0)o=op.sort((a,b)=>cd(b[0],b[1],p.x,p.y)-cd(a[0],a[1],p.x,p.y))[0];
    else if(Math.random()<.7)o=pick(op);
    if(o&&(f.charm>0||f.fear>0?true:Math.random()<.8)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];if(f.fear>0||f.charm>0)f.moved=0}continue}
   if(!shy0&&!f.aware){if(Math.random()<.18)f.flip=!f.flip;}
-  const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1]));
+  const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1]));
   const shy=f.k=='puru'||f.k=='koke';
   let LU=null;
   if((f.pers=='glut'||f.pers=='curious')&&!f.aware){const tgt=G.items.filter(it=>!it.hid&&(f.pers=='glut'?((ITEM[it.id]||{}).food||it.id=='potion'):true)&&cd(it.x,it.y,f.x,f.y)<=6).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(tgt)LU={x:tgt.x,y:tgt.y}}
   LU=LU||(G.lures||[]).filter(L=>cd(L.x,L.y,f.x,f.y)<=8).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];
   if(!LU&&f.aware!=2&&feudOK(f)){const r=G.foes.find(g=>g!==f&&feudOK(g)&&cd(g.x,g.y,f.x,f.y)<=3&&rivalWhy(f,g)&&losClear(f.x,f.y,g.x,g.y));if(r)LU={x:r.x,y:r.y}}
-  if(!LU&&f.inv&&f.aware!=2){if(--f.inv.t<=0||cd(f.x,f.y,f.inv.x,f.inv.y)==0){f.flip=!f.flip;f.inv=null}else LU=f.inv}
+  if(!LU&&f.inv&&f.aware!=2){if(--f.inv.t<=0||cd(f.x,f.y,f.inv.x,f.inv.y)==0){if(cd(f.x,f.y,f.inv.x,f.inv.y)==0)try{kinTake(f)}catch(e){}f.flip=!f.flip;f.inv=null}else LU=f.inv}
   if(LU&&!shy&&cd(LU.x,LU.y,f.x,f.y)>0){opts.sort((a,b)=>cd(a[0],a[1],LU.x,LU.y)-cd(b[0],b[1],LU.x,LU.y));const o=opts[0];if(o&&cd(o[0],o[1],LU.x,LU.y)<cd(f.x,f.y,LU.x,LU.y)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];f.moved=1}continue}
-  if(f.aware==2&&!shy){opts.sort((a,b)=>cd(a[0],a[1],p.x,p.y)-cd(b[0],b[1],p.x,p.y));const o=opts[0];if(o&&cd(o[0],o[1],p.x,p.y)<dd){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];f.moved=1}}
+  if(f.aware==2&&!shy){opts.sort((a,b)=>cd(a[0],a[1],p.x,p.y)-cd(b[0],b[1],p.x,p.y));const o=opts[0];if(o&&cd(o[0],o[1],p.x,p.y)<dd){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];f.moved=1}else if(G.planks&&G.planks.length){try{plankBash(f)}catch(e){}}}
   else if((f.k=='wisp'||shy||(!f.aware&&!f.still&&Math.random()<.25))&&opts.length&&Math.random()<.4){const o=pick(opts);f.flip=o[0]<f.x;f.x=o[0];f.y=o[1]}
  }
  try{G.foes.slice().forEach(f=>{if(f.px0!=null&&(f.x!==f.px0||f.y!==f.py0))foeTrap(f)})}catch(e){}
- const adj=G.foes.filter(f=>f.hp>0&&!f.dormant&&f.k!='puru'&&f.k!='koke'&&!(f.charm>0)&&!(f.fear>0)&&!(f.conf>0)&&!(f.blind>0)&&cd(f.x,f.y,p.x,p.y)==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y)));
+ const adj=G.foes.filter(f=>f.hp>0&&!f.dormant&&!f.caged&&!f.cowed&&!guised(f)&&f.k!='puru'&&f.k!='koke'&&!(f.charm>0)&&!(f.fear>0)&&!(f.conf>0)&&!(f.blind>0)&&cd(f.x,f.y,p.x,p.y)==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y)));
  {const mv=G.foes.filter(f=>f.moved&&f.hp>0&&f.aware==2).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0];if(mv){const d=cd(mv.x,mv.y,p.x,p.y);if(d<=8){const k={skel:'clack',lskel:'clack',spider:'skitter',spitter:'skitter',mother:'skitter',ghost:'whoosh',capt:'whoosh',wisp:'whoosh',zombie:'wetstep'}[mv.k]||(mv.mut?'wetstep':'thud');sfxAt(k,(mv.x-p.x)/6,Math.max(.25,1-d/9))}}}
  const mode=adj.some(f=>f.moved)?'enemy':contactMode(adj[0]);G.foes.forEach(f=>f.moved=0);
  if(adj.length){await wait(120);await startFight(adj,mode);return}
@@ -3509,7 +3657,7 @@ function openChest(byMon){
  toast('宝箱が開いた。鍵は消えた');ui();
 }
 // ================= fight
-async function startFight(foes,mode,dist){try{foes.forEach(f=>{if(f.var)learn('var_'+f.var,VARS[f.var].d);if(f.pers){const P=PERS.find(q=>q.k==f.pers);if(P)learn('pers_'+f.pers,P.n+'個体：'+P.d)}});const c=foes.find(f=>(FOE[f.k].caller||f.elderV)&&!f.called);if(c){c.called=1;setTimeout(()=>{alertAll(c.x,c.y,10);sfx('curse');toast(c.n+'が甲高い声で仲間を呼んだ！')},500);learn('caller',c.n+'：'+FOE_D.caller)}}catch(e){}store('yw31_fights',(+store('yw31_fights')||0)+1);if((+store('yw31_fights')||0)<=1)dist=1;try{foes.forEach(f=>{bioUp(f.k,1);if(FOE_D[f.k])learn('foe_'+f.k,FOE[f.k].n+'：'+FOE_D[f.k]);if(FOE_D2[f.k])learn('foe_'+f.k,FOE_D2[f.k])})}catch(e){}snap({pf:true});
+async function startFight(foes,mode,dist){if(G.guise)breakGuise('戦いになった');try{foes.forEach(f=>{if(f.var)learn('var_'+f.var,VARS[f.var].d);if(f.pers){const P=PERS.find(q=>q.k==f.pers);if(P)learn('pers_'+f.pers,P.n+'個体：'+P.d)}});const c=foes.find(f=>(FOE[f.k].caller||f.elderV)&&!f.called);if(c){c.called=1;setTimeout(()=>{alertAll(c.x,c.y,10);sfx('curse');toast(c.n+'が甲高い声で仲間を呼んだ！')},500);learn('caller',c.n+'：'+FOE_D.caller)}}catch(e){}store('yw31_fights',(+store('yw31_fights')||0)+1);if((+store('yw31_fights')||0)<=1)dist=1;try{foes.forEach(f=>{bioUp(f.k,1);if(FOE_D[f.k])learn('foe_'+f.k,FOE[f.k].n+'：'+FOE_D[f.k]);if(FOE_D2[f.k])learn('foe_'+f.k,FOE_D2[f.k])})}catch(e){}snap({pf:true});
  foes.forEach(f=>note('m:'+f.k));mode=mode||'first';
  G.fight={foes,mode,open:mode=='ambush'?2:mode=='first'?1:0,dist:Math.max(1,foes[0]?mdist(G.p,foes[0]):(dist||1)),webbed:0};G.guard=0;G.map=false;G.sel=-1;
  foes.forEach(f=>{f.aware=2});
@@ -3591,6 +3739,12 @@ async function act(pi){
  if(G.busy||!G.fight)return;const pc=G.bag.items[pi];if(!pc)return;const id=pc.id,d=ITEM[id];if(d.tre||d.passive||pc.out)return;
  if(d.vial){const tg=tgtFoe();const near=tg&&mdist(tg,G.p)<=4;if(VID[id]){return useVial(pi,near&&['fire','poison','sleep'].includes(d.vial)?'throw':'drink')}if(!near)return useVial(pi,'drink');evSay(d.n,['中身の分からない瓶だ。'],[['敵に投げる',()=>useVial(pi,'throw'),'go'],['自分で飲む',()=>useVial(pi,'drink'),'sub'],['やめる',()=>{}]]);return}
  G.busy=true;ui();G.guard=0;const tgt=tgtFoe(),p=G.p;if(!tgt){G.busy=false;try{if(G.fight)await resolveDeaths()}catch(e){}ui();return}tgt.hitByMe=1;const S=synergy(),syn=S.get(pc);
+ if(id.startsWith('fukuro_')){G.bag.items.splice(pi,1);await lunge(p,tgt,2);
+  if(id=='fukuro_f'){hit(tgt,Math.max(1,emul(tgt,'fire',5)));tgt.burn=Math.max(tgt.burn||0,3);tgt.burned=1;ignite(tgt.x,tgt.y,'quiet');sfx('boom');toast('火袋の炎を浴びせた')}
+  else if(id=='fukuro_s'){tgt.stun=Math.max(tgt.stun||0,3);(G.webs=G.webs||new Set()).add(tgt.x+','+tgt.y);sfx('whoosh');toast(tgt.n+'を糸で絡め取った（3ターン）')}
+  else if(id=='fukuro_k'){alive().forEach(f=>{f.stun=Math.max(f.stun||0,1)});G.hush=Math.max(G.hush||0,6);sfx('summon');toast('影をまとった。相手はこちらを見失っている（逃げるなら今）')}
+  else{makeNoise(p.x,p.y,9,'bell');alive().forEach(f=>{if(kinOf(f)=='dead'||kinOf(f)=='shade')f.stun=Math.max(f.stun||0,2)});sfx('summon');toast('鈴袋が鳴り響いた。死者と影がひるむ')}
+  learn('sac','魔物の技を借りる：火袋・糸袋・影袋・鈴袋。その魔物の技を一度だけ使える。焼いて倒すと火袋や影袋は残らない');await wait(300);await afterPlayer();return}
  if(d.weapon&&d.gun&&pc.loaded===false){const am=G.bag.items.find(q=>q.id=='ammo');if(!am){G.busy=false;ui();sfx('no');toast('弾がない。弾薬袋が要る');return}am.n=(am.n==null?3:am.n)-1;if(am.n<=0)G.bag.items.splice(G.bag.items.indexOf(am),1);pc.loaded=true;sfx('reload');toast('弾を込めた'+(am.n>0?'（残り'+am.n+'）':'（弾薬袋が空になった）'));await wait(300);await afterPlayer();return}
  if(d.weapon&&!reachOK(id)){G.busy=false;G.charged=false;ui();sfx('no');const[a]=rngOf(id);toast(a>G.fight.dist?d.n+'は密着では使えない。離れる':'届かない。近づく');return}
  if(d.weapon&&G.chargeReq&&chgOf(id)&&!G.charging){G.chargeReq=false;G.charged=false;G.charging=pc;learn('charge','溜め：長押しで構え、次のターンに放つ。構えている間に敵の攻撃を弾くと、体幹が大きく崩れる');sfx('summon');tone(300,.6,'sawtooth',.03,2.5);fx({type:'ring',x:p.rx+4,y:p.ry+2,c:'#ffd35a'});toast('構えた。次のターンに放つ');await wait(350);await afterPlayer();return}
@@ -4005,6 +4159,7 @@ const SPARE={gob:{need:['fish','bigfish','potion'],say:'食べ物を差し出す
 function spare(){const f=tgtFoe();if(!f)return;if(f.pers=='friendly'&&!f.hitByMe){learn('pers_friendly','人懐っこい個体：一度も斬っていなければ、そのまま去っていく');note('spare:'+f.k);store('yw23_spare',(+store('yw23_spare')||0)+1);sfx('heal');toast(f.n+'は、こちらをしばらく見てから去っていった');
  if(FOE[f.k].cap&&ITEM[f.k]&&Math.random()<.8){const it={x:f.x,y:f.y,id:f.k,hp:ITEM[f.k].hp,drop:now(),mut:f.mut};it.inst=makeInst(f.k,'人懐っこい個体が、ついてきた');it.inst.pers=f.pers;G.items.push(it);setTimeout(()=>toast(f.n+'がついてきたそうにしている'),1200)}
  G.fight.foes.splice(G.fight.foes.indexOf(f),1);const gi=G.foes.indexOf(f);if(gi>=0)G.foes.splice(gi,1);if(!alive().length)endFight();else ui();return}
+ {const li=likeIdx(f);if(li>=0&&!(SPARE[f.k]&&SPARE[f.k].free)){kinGive(f,li);return}}
  const sp=SPARE[f.k]||(FOE[f.k].boss?{par:5,say:f.n+'は戦意を失い、静かに道を空けた',hint:f.n+'：攻撃せずに5回弾き続けると、戦意を失う'}:{par:3,say:f.n+'は戦意を失い、去っていった',hint:f.n+'：攻撃せずに3回弾くと、戦意を失う'});
  let ok=false;if(sp.free)ok=true;else if(sp.need){const i=G.bag.items.findIndex(q=>sp.need.includes(q.id));if(i>=0){G.bag.items.splice(i,1);ok=true}}else if(sp.par){ok=!f.hitByMe&&(f.parN||0)>=sp.par}
  if(!ok){sfx('no');toast(sp.need?'渡せる物がない。'+sp.hint:f.hitByMe?'一度でも斬った相手は、もう信じてくれない':'まだ足りない（弾いた '+(f.parN||0)+'/'+sp.par+'）。'+sp.hint);learn('mercy_'+f.k,sp.hint);return}
@@ -4901,7 +5056,7 @@ const ICO={fire:'<path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 
  rope:'<path d="M4 20c7-1 11-6 13-15"/><path d="M17 5l-4.5 1.5M17 5l1 4.5"/><circle cx="4.5" cy="19.5" r="1.5"/>',x:'<path d="M6 6l12 12M18 6L6 18"/>',run:'<path d="M4 12h13"/><path d="M12 6l6 6-6 6"/>'};
 const svg=(k)=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICO[k]+'</svg>';
 // 足元の行動。画面の更新のたびに呼ばれるので、例外が出ても更新を止めない（テストでは console.error で拾う）
-function mainAction(){try{return mainAction0()||potAction()}catch(e){try{console.error('mainAction: '+e.message+' @ '+String(e.stack).split('\n').slice(1,3).join(' < '))}catch(_){}return null}}
+function mainAction(){try{return mainAction0()||potAction()||cageAction()}catch(e){try{console.error('mainAction: '+e.message+' @ '+String(e.stack).split('\n').slice(1,3).join(' < '))}catch(_){}return null}}
 function mainAction0(){const p=G.p;if(G.guest)return null;
  {const s=(G.srcs||[]).find(s=>!s.done&&s.x==p.x&&s.y==p.y);if(s)return{ic:'hand',t:'漁る',sub:SRCN[s.t],f:()=>searchSrc(s)}}
  {const g=(G.gim||[]).find(g=>g.type=='plate'&&g.px==p.x&&g.py==p.y);if(g&&!G.items.some(i=>i.x==p.x&&i.y==p.y)&&G.bag.items.length)return{ic:'hand',t:'台座に置く',sub:'カバンから1つ選んで置いていく',f:()=>{openSheet('bag');toast('置いていく物をカバンから外に出す（ドラッグで外へ）')}}}
@@ -5047,7 +5202,10 @@ async function slotUse(i){
  if(pc.id=='bigpot'){G.bag.items.splice(i,1);G.p.hp=Math.min(G.p.max,G.p.hp+22);sfx('heal');fx({type:'heal',x:G.p.rx+4,y:G.p.ry});toast('濃い薬を飲んだ（+22）');ui();return}
  if(pc.id=='omamori'){if(!confirmHome('護符で帰る（持ち帰り価値は半分）'))return;G.bag.items.splice(i,1);G.halve=true;escape();return}
  if(d.lit){toggleCover(pc);return}
- if(d.pot||pc.id=='hidane'){aimStart(pc);return}
+ if(pc.id=='timber'){setPlank(i);return}
+ if(['fukuro_f','fukuro_k','fukuro_s','fukuro_b'].includes(pc.id)){useSac(i);return}
+ if(Object.values(KIN).some(K=>K.guise.includes(pc.id))&&wearGuise(i))return;
+ if(d.pot||pc.id=='hidane'||LIGHTI.includes(pc.id)||['oldcoin','pcoin','houshi'].concat(BREAKI,HEAVYI,RINGI).includes(pc.id)){aimStart(pc);return}
  if(d.mon){fieldUse(i);return}
  const lo=LORE[pc.id]||(d.base&&LORE[d.base]);
  sfx('tick');toast(d.n+'：'+(d.d||'')+(lo?'　'+lo:''));
@@ -5101,12 +5259,13 @@ function renderFrow(){
  show();const br=alive().some(f=>f.broken);const tg=tgtFoe();
  const sig=[G.fight.dist,br,G.busy,G.fight.webbed,tg&&tg.n,alive().length,tg&&cd(G.p.x,G.p.y,tg.x,tg.y)<=1].join('|');
  if(el.dataset.sig===sig)return;el.dataset.sig=sig;el.innerHTML='';
- if(br){const k=document.createElement('button');k.className='kill';k.textContent='決める（忍殺）';k.onclick=()=>{if(!G.busy)deathblow()};k.disabled=G.busy;el.append(k);return}
+ if(br){const k=document.createElement('button');k.className='kill';k.textContent='決める（忍殺）';k.onclick=()=>{if(!G.busy)deathblow()};k.disabled=G.busy;el.append(k);const k2=document.createElement('button');k2.textContent='脅す';k2.setAttribute('aria-label','脅して追い払う');k2.onclick=()=>{if(!G.busy)threaten()};k2.disabled=G.busy;el.append(k2);return}
  const wb=G.fight.webbed>0,dd=G.fight.dist;
  const mk=(t,lab,f,dis,cls)=>{const b=document.createElement('button');b.textContent=t;b.className=cls||'';b.setAttribute('aria-label',lab);b.onclick=()=>{if(!G.busy)f()};b.disabled=!!dis||G.busy;return b};
  if(wb){const d2=document.createElement('span');d2.className='dst';d2.textContent='糸で動けない';el.append(d2);el.append(mk('もがく','糸を振りほどく（1ターン）',async()=>{G.busy=true;ui();G.guard=0;sfx('no');G.p.ox=2;setTimeout(()=>{G.p.ox=-2;setTimeout(()=>{G.p.ox=0},90)},90);toast('糸を振りほどこうともがいた');await wait(260);await afterPlayer()}))}
  const sp=tg&&SPARE[tg.k];
- if(tg&&(KNOW['mercy_'+tg.k]||(sp&&(sp.free||(sp.need&&G.bag.items.some(q=>sp.need.includes(q.id)))))))el.append(mk('なだめる','なだめる',()=>spare()));
+ if(tg&&(KNOW['mercy_'+tg.k]||likeIdx(tg)>=0||(sp&&(sp.free||(sp.need&&G.bag.items.some(q=>sp.need.includes(q.id)))))))el.append(mk(likeIdx(tg)>=0?'好物を渡す':'なだめる',likeIdx(tg)>=0?ITEM[G.bag.items[likeIdx(tg)].id].n+'を渡す':'なだめる',()=>spare()));
+ if(tg&&KIN[kinOf(tg)]&&KIN[kinOf(tg)].talk&&!tg.hitByMe&&!(FOE[tg.k]||{}).boss)el.append(mk('取引','取引する',()=>tradeWith()));
  {const hasW=G.bag.items.some(q=>ITEM[q.id].weapon);
   if(!hasW&&!wb)el.append(mk('素手','素手で殴る（2）',()=>{if(!G.busy)bareHand()}));}
  if(!wb&&tg&&cd(G.p.x,G.p.y,tg.x,tg.y)<=1)el.append(mk('蹴る','蹴る（傷は与えず、1マス押し出す）',()=>kick()));

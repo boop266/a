@@ -99,7 +99,7 @@
     };
   };
   // 手を打って何か変わったか（何も起きない手は、手として数えない）
-  S.sig = () => [G.ttN, G.steps, G.fi, G.p.x, G.p.y, G.p.hp, G.bag.items.length, G.items.length, G.foes.map(f => f.x + ',' + f.y + ',' + f.hp + ',' + (f.aware | 0) + ',' + (f.stun | 0) + ',' + (f.charm | 0)).join(';'), (G.fires || []).length, (G.gim || []).filter(g => g.open).length, (G.fight ? G.fight.dist + ',' + G.fight.foes.length : '-'), G.allies.length, (G.anchors || []).length, (G.snares || G.traps || []).length].join('|');
+  S.sig = () => [G.ttN, G.steps, G.fi, G.p.x, G.p.y, G.p.hp, G.bag.items.length, G.items.length, G.foes.map(f => f.x + ',' + f.y + ',' + f.hp + ',' + (f.aware | 0) + ',' + (f.stun | 0) + ',' + (f.charm | 0)).join(';'), (G.fires || []).length, (G.gim || []).filter(g => g.open).length, (G.fight ? G.fight.dist + ',' + G.fight.foes.length : '-'), G.allies.length, (G.anchors || []).length, (G.snares || G.traps || []).length, G.guise ? G.guise.id : '', (G.planks || []).length, (G.spores || []).length].join('|');
   S.score = (a, b) => {
     const L = (STYLES[S.style] || {}).like || {};
     if (b.dead) return -2000;
@@ -123,8 +123,10 @@
       its.forEach((q, i) => { const d = ITEM[q.id] || {}; if (seenId.has(q.id)) return; seenId.add(q.id); if (q.out || NOUSE.has(q.id)) return; if (d.weapon && !reachOK(q.id)) return; out.push({ k: 'act:' + (d.weapon ? 'w' : 'i') + ':' + q.id, i, lab: (d.weapon ? '振る:' : '戦闘で使う:') + d.n }); });
       if (tg && cd(p.x, p.y, tg.x, tg.y) <= 1 && !(G.fight.webbed > 0)) out.push({ k: 'kick', lab: '蹴る' });
       if (!its.some(q => ITEM[q.id].weapon)) out.push({ k: 'bare', lab: '素手' });
-      const sp = tg && SPARE[tg.k]; if (tg && (KNOW['mercy_' + tg.k] || (sp && (sp.free || (sp.need && its.some(q => sp.need.includes(q.id))))))) out.push({ k: 'spare', lab: 'なだめる' });
+      const sp = tg && SPARE[tg.k]; if (tg && (KNOW['mercy_' + tg.k] || likeIdx(tg) >= 0 || (sp && (sp.free || (sp.need && its.some(q => sp.need.includes(q.id))))))) out.push({ k: 'spare', lab: 'なだめる' });
       if (!isBoss()) out.push({ k: 'flee', lab: '離れる・逃げる' });
+      if (alive().some(f => f.broken)) out.push({ k: 'threaten', lab: '脅す' });
+      if (tg && KIN[kinOf(tg)] && KIN[kinOf(tg)].talk && !tg.hitByMe && its.some(q => q.id == 'oldcoin' || q.id == 'pcoin' || (ITEM[q.id] || {}).tre)) { out.push({ k: 'trade:0', lab: '取引:払う/交換' }); }
       if (G.fight.webbed > 0) out.push({ k: 'struggle', lab: 'もがく' });
     } else {
       DIRS8.forEach(([dx, dy]) => { const x = p.x + dx, y = p.y + dy; if (walk(x, y) && !isPit(x, y) && !lethalTile(x, y)) out.push({ k: 'step', dx, dy, lab: '歩く' }); });
@@ -165,6 +167,8 @@
     else if (k == 'spare') spare();
     else if (k == 'flee') flee(false);
     else if (k == 'deathblow') deathblow();
+    else if (k == 'threaten') threaten();
+    else if (k.startsWith('trade')) { tradeWith(); const b = [...document.querySelectorAll('#evb button')][0]; if (b) b.click(); }
     else if (k == 'struggle') { const b = [...$('frow').querySelectorAll('button')].find(b => /もがく/.test(b.textContent)); if (b) b.click(); }
     await S.settle();
   };
