@@ -306,7 +306,7 @@ const cases = {
       // 「！」を盾で受け止める
       G.busy = false; f.x = 6; f.y = 8; f.rx = f.x * T; f.ry = f.y * T; f.tele = 1; f.windup = true; const hp = G.p.hp; await slotUse(give('shield')); await W(900); o.blocked = G.p.hp == hp && !f.tele;
       // 仲間を呼ぶと、となりの敵を殴る
-      G.busy = false; f.hp = 3; f.tele = 0; G.p.hp = 30; const pi = give('puru'); await slotUse(pi); await W(1200); o.ally = G.allies.length == 1; if (G.allies[0]) G.allies[0].hp = G.allies[0].max = 99; for (let k = 0; k < 4 && f.hp > 0; k++) { G.busy = false; await doWait(); await W(500); } o.allyHit = f.hp <= 0;
+      G.busy = false; f.hp = 3; f.tele = 0; G.p.hp = 30; const pi = give('puru'); await slotUse(pi); await W(1200); o.ally = G.allies.length == 1; if (G.allies[0]) G.allies[0].hp = G.allies[0].max = 99; for (let k = 0; k < 10 && f.hp > 0; k++) { G.busy = false; G.p.hp = 30; await doWait(); await W(400); } o.allyHit = f.hp <= 0;
       // ついて歩く
       G.busy = false; G.foes = []; const a = G.allies[0]; for (let k = 0; k < 4; k++) { G.busy = false; await step(1, 0); await W(250); } o.follow = a && cd(a.x, a.y, G.p.x, G.p.y) <= 2;
       // 階を移ると、カバンへ戻る
@@ -314,6 +314,30 @@ const cases = {
       return o;
     });
     if (!(r.potTurn && r.blocked && r.ally && r.allyHit && r.follow && r.home)) throw new Error(JSON.stringify(r));
+  },
+  // 時間が溶ける要素：なつき・村づくり・掲示板・図鑑アルバム
+  async '牧場・村づくり・掲示板・図鑑'(p) {
+    await dive(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; gold = 1000;
+      // なつき：20ずつで♥が増え、♥2で技、♥4で才
+      const m = { k: 'puru', name: 'ぷる', trips: 0, inst: {} }; farm.push(m); let say = []; for (let i = 0; i < 5; i++) say = say.concat(bondGain(m, 20)); o.bond = heartsOf(m) == 5 && !!m.inst.waza && m.inst.sai >= 1 && say.length >= 3;
+      // なでるは帰還ごとに1回
+      const m2 = { k: 'rat', name: 'ネズ', trips: 0, inst: {} }; farm.push(m2); o.pet = petMon(m2) && !petMon(m2) && bondOf(m2) > 0;
+      // 村づくり：材料と金で建ち、潜ると効く
+      wh.push({ id: 'timber' }, { id: 'timber' }, { id: 'timber' }); const B = BUILD.find(b => b.k == 'inn'); o.canB = canBuild(B); doBuild(B); o.built = hasB2('inn') && whCount('timber') == 0;
+      document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 0); o.inn = G.p.max >= 35;
+      // 掲示板：持ってくる頼みを届けるとお礼
+      M2.reqs = [{ id: 't1', t: 'fetch', who: 'pan', item: 'kawa', n: 2, g: 50 }]; wh.push({ id: 'kawa' }, { id: 'kawa' }); const g0 = gold; o.done = reqDone(M2.reqs[0]); reqClaim(M2.reqs[0]); o.claim = gold == g0 + 50 && whCount('kawa') == 0 && M2.friend.pan >= 1 && !M2.reqs.length;
+      // やっつける頼みは、倒した数で進む
+      const r2 = { id: 't2', t: 'hunt', who: 'kid', k: 'rat', n: 2, g: 10, base: M2.kills.rat || 0 }; const f = mkFoe('rat', 3, 3, 0); onFoeDeath(f); const f2 = mkFoe('rat', 3, 3, 0); onFoeDeath(f2); o.hunt = reqDone(r2);
+      // 図鑑：半分見たらご褒美
+      const P = albumPages()[0]; P.mons.forEach(k => { codex['m:' + k] = { f: 1 } }); const R = albumRewards(P); o.album = R[0].ok && R[1].ok;
+      // 画面が開く
+      showBoard(() => {}); o.boardUI = !!document.querySelector('.rq, #sb2'); showBuild(() => {}); o.buildUI = document.querySelectorAll('.fcard').length >= 8; showAlbum(() => {}); o.albumUI = document.querySelectorAll('.alc').length >= 10; document.getElementById('modal').innerHTML = '';
+      return o;
+    });
+    for (const k of ['bond', 'pet', 'canB', 'built', 'inn', 'done', 'claim', 'hunt', 'album', 'boardUI', 'buildUI', 'albumUI']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
   // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
   async 'ぶつかれば殴る・！の大振り'(p) {
