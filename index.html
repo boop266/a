@@ -2645,7 +2645,8 @@ function trackStep(f,opts){if(!nose(f)||f.aware==2||f.charm>0||f.fear>0)return f
 // 音は壁でこもる：あいだの壁1枚ごとに、届く距離が3縮む
 function muffle(x0,y0,x1,y1){let x=x0,y=y0,n=0;const dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx-dy;for(let i=0;i<40;i++){if(x==x1&&y==y1)break;const e2=2*e;if(e2>-dy){e-=dy;x+=sx}if(e2<dx){e+=dx;y+=sy}if(!(x==x1&&y==y1)&&G.m[y]&&G.m[y][x])n++}return n*3}
 // 毎手：傷の回復、血、匂い、煙にむせる
-function realTick(){if(!G.eco)G.turnAll=(G.turnAll||0)+1;const T0=G.turnAll||0;markScent();const p=G.p;if(p.hp<=p.max*.3&&!inWater(p.x,p.y))bleed(p.x,p.y);
+function realTick(){if(!G.eco)G.turnAll=(G.turnAll||0)+1;const T0=G.turnAll||0;markScent();const p=G.p;
+ {const mv=G.lastPX!=null&&(G.lastPX!=p.x||G.lastPY!=p.y);G.lastPX=p.x;G.lastPY=p.y;if(mv&&inWater(p.x,p.y)&&!isIce(p.x,p.y)&&!(G.hush>0)&&!(G.wrap>0)){const n=makeNoise(p.x,p.y,3,'splash');if(n&&!G.splashHint){G.splashHint=1;toast('水音が立った。……近くの魔物が振り向く');learn('splash','水音：水の中を歩くと音が立ち、近くの魔物が振り向く。防水包みで身を沈めるか、音消し布で消せる')}}}if(p.hp<=p.max*.3&&!inWater(p.x,p.y))bleed(p.x,p.y);
  G.foes.forEach(f=>{if(f.hp<=0||(FOE[f.k]||{}).still)return;if(f.hp<f.max*.5&&!f.caged)bleed(f.x,f.y);
   const rest=f.mhSleep?4:(!f.aware&&!f.fear)?10:0;if(rest&&T0%rest==0&&f.hp<f.max){f.hp++;if(f.routed&&f.hp>=f.max*.6){f.routed=0;f.doing=null;if(G.seen.has(f.x+','+f.y))toast(f.n+'の傷が癒えた')}}
   if((G.steam||[]).some(s=>s.smoke&&s.x==f.x&&s.y==f.y))f.blind=Math.max(f.blind||0,1)});
@@ -3753,7 +3754,7 @@ async function enemiesMove(){
    else if(Math.random()<.7)o=pick(op);
    if(o&&(f.charm>0||f.fear>0?true:Math.random()<.8)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];if(f.fear>0||f.charm>0)f.moved=0}continue}
   if(!shy0&&!f.aware){if(Math.random()<.18)f.flip=!f.flip;}
-  const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1]));
+  const hot=(x,y)=>!(FOE[f.k]||{}).fireOK&&(G.fires||[]).some(q=>q.x==x&&q.y==y);const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!hot(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1]));
   const shy=f.k=='puru'||f.k=='koke';
   let LU=null;
   if((f.pers=='glut'||f.pers=='curious')&&!f.aware){const tgt=G.items.filter(it=>!it.hid&&(f.pers=='glut'?((ITEM[it.id]||{}).food||it.id=='potion'):true)&&cd(it.x,it.y,f.x,f.y)<=6).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(tgt)LU={x:tgt.x,y:tgt.y}}
