@@ -2623,10 +2623,11 @@ async function digChannel(c){const p=G.p,[x,y]=c;G.busy=true;ui();for(let k=0;k<
  if(!walk(x,y)||inWater(x,y)){G.busy=false;ui();return}
  // 水は掘った溝を走る：敵のいる方へ、まっすぐ3マスまで
  const dx=Math.sign(x-p.x),dy=Math.sign(y-p.y);const run=[[x,y]];for(let k=1;k<3;k++){const X=x+dx*k,Y=y+dy*k;if(!walk(X,Y)||isPit(X,Y)||onStair(X,Y)||inWater(X,Y)||(X==p.x&&Y==p.y))break;run.push([X,Y])}
- let wet=0;run.forEach(([X,Y],k)=>{G.water[Y][X]=true;if(fireAt(X,Y)){G.fires=G.fires.filter(q=>!(q.x==X&&q.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:6})}const f=foeAt(X,Y);if(f){f.wetC=Math.max(f.wetC||0,4);f.burn=0;f.wet2=true;wet++}for(let j=0;j<4;j++)fx({type:'spark',x:X*T+2+j,y:Y*T+4,c:'#7ac8ff',life:.4+k*.2})});sfx('splash');
+ let wet=0;run.forEach(([X,Y],k)=>{G.water[Y][X]=true;if(fireAt(X,Y)){G.fires=G.fires.filter(q=>!(q.x==X&&q.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:6})}const f=foeAt(X,Y);if(f){f.wetC=Math.max(f.wetC||0,4);f.burn=0;f.wet2=true;if(!wet&&!(FOE[f.k]||{}).heavy&&!(FOE[f.k]||{}).boss){const nx=f.x+dx,ny=f.y+dy;if(freeTile(nx,ny)&&!(nx==p.x&&ny==p.y)){f.x=nx;f.y=ny;f.stun=Math.max(f.stun||0,1)}}wet++}for(let j=0;j<4;j++)fx({type:'spark',x:X*T+2+j,y:Y*T+4,c:'#7ac8ff',life:.4+k*.2})});sfx('splash');
  if(fireAt(x,y)){G.fires=G.fires.filter(q=>!(q.x==x&&q.y==y));(G.steam=G.steam||[]).push({x,y,t:0,life:6});try{react('fire+water',x,y)}catch(e){}}if(typeof hasOil=='function'&&hasOil(x,y))try{react('water+oil',x,y)}catch(e){}
  const f=foeAt(x,y);if(f){f.wetC=Math.max(f.wetC||0,4);f.burn=0}try{onWaterChanged()}catch(e){}try{drawBase()}catch(e){}
- G.busy=false;toast('水路を掘った。水が溝を走った'+(wet?'。'+wet+'体の足もとが水につかった（足が重い）':''));learn('channel','水路：シャベルで水の隣を掘ると、水が流れこむ。水の中では魔物の足が重くなる（堀になる）。敵の足元まで水を引けば、雷が通り、火が消える');ui()}
+ if(!wet){const X=run[run.length-1][0]+dx,Y=run[run.length-1][1]+dy;const f=foeAt(X,Y);if(f&&!(FOE[f.k]||{}).boss){f.wetC=Math.max(f.wetC||0,4);f.burn=0;wet++;const nx=f.x+dx,ny=f.y+dy;if(!(FOE[f.k]||{}).heavy&&freeTile(nx,ny)){f.x=nx;f.y=ny;f.stun=Math.max(f.stun||0,1)}}}
+ G.busy=false;toast('水路を掘った。水が溝を走った'+(wet?'。水の勢いで'+wet+'体を押し流した（足が重い）':''));learn('channel','水路：シャベルで水の隣を掘ると、敵のいる方へ水が走る。水の勢いで敵を押し流し、足を重くする（堀になる）。雷が通り、火も消える');ui()}
 // 鞭：3マス先の落ちている物や壺を、手元へ引き寄せる
 function whipPull(){const p=G.p;const tg=[...G.items.filter(i=>!i.hid).map(i=>({o:i,x:i.x,y:i.y,it:1})),...(G.pots||[]).map(q=>({o:q,x:q.x,y:q.y}))].filter(q=>cd(q.x,q.y,p.x,p.y)>=2&&cd(q.x,q.y,p.x,p.y)<=3&&G.seen.has(q.x+','+q.y)&&losClear(p.x,p.y,q.x,q.y)).sort((a,b)=>cd(a.x,a.y,p.x,p.y)-cd(b.x,b.y,p.x,p.y))[0];
  if(!tg){sfx('no');toast('鞭の届く所（2〜3マス）に、引き寄せられる物がない');return}const d=[Math.sign(p.x-tg.x),Math.sign(p.y-tg.y)];let x=tg.x,y=tg.y;while(cd(x,y,p.x,p.y)>1){const nx=x+d[0],ny=y+d[1];if(!walk(nx,ny)||foeAt(nx,ny)||(nx==p.x&&ny==p.y))break;x=nx;y=ny}
@@ -2967,7 +2968,7 @@ const fireNear=(x,y)=>[[0,0],...DIRS8].some(([a,b])=>fireAt(x+a,y+b));
 function propHint(id,x,y){const P=propsOf(id),f=foeAt(x,y);
  if(P.includes('重い')&&isPit(x,y))return 'fill';if(P.includes('燃える')&&(fireNear(x,y)||(f&&f.burn>0)))return 'burn';if(P.includes('濡れ')&&fireNear(x,y))return 'douse';
  if(P.includes('重い')&&f)return 'heavy';if(P.includes('濡れ')&&f)return 'wet';
- if(id=='bomb'&&!f&&DIRS.some(([a,b])=>wallThin(x+a,y+b,a,b)))return 'wall';return null}
+ if(id=='bomb'&&!f&&DIRS.some(([a,b])=>wallThin(x+a,y+b,a,b)&&(G.thin||[]).some(t=>t.x==x+a&&t.y==y+b)))return 'wall';return null}
 // 爆弾で抜ける壁：一枚向こうに床がある、ふつうの壁
 const wallThin=(x,y,a,b)=>x>=1&&y>=1&&x<MW-1&&y<MH-1&&G.m[y]&&G.m[y][x]===1&&!(typeof gimAt=='function'&&gimAt(x,y))&&walk(x+a,y+b);
 const HINTC={fill:'#d0a060',burn:'#ff7a3a',douse:'#7ac8ff',heavy:'#ff5a5a',wet:'#7ac8ff',wall:'#c8a0ff'};
@@ -2979,7 +2980,7 @@ function propLand(pc,x,y,hf){const id=pc.id,d=ITEM[id],P=propsOf(id),nb=[[0,0],.
  if(P.includes('重い')&&isPit(x,y)){fillPit(x,y);return{keep:false,msg:d.n+'が穴にはまりこんで、埋まった。渡れる'}}
  if(P.includes('燃える')&&(fireNear(x,y)||(hf&&hf.burn>0))){let n=0;nb.forEach(([a,b])=>{if(ignite(x+a,y+b,'quiet'))n++;else if(walk(x+a,y+b)&&!inWater(x+a,y+b)&&!fireAt(x+a,y+b)&&!isPit(x+a,y+b)){(G.fires=G.fires||[]).push({x:x+a,y:y+b,t:0,life:4});n++}const f=foeAt(x+a,y+b);if(f){f.burn=Math.max(f.burn||0,3);f.burned=1}});
   sfx('boom');G.shake=Math.max(G.shake||0,6);learn('burnthrow','燃える物を火に投げ込むと、火が一気に広がる（板材・皮・蔦・紙・干し肉…）。火が小さくて届かないときに');return{keep:false,msg:d.n+'が火に落ちて、ぼうっと燃え広がった'}}
- if(P.includes('濡れ')&&fireNear(x,y)){let n=0;nb.forEach(([a,b])=>{const X=x+a,Y=y+b;if(fireAt(X,Y)){G.fires=G.fires.filter(f=>!(f.x==X&&f.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:6});n++}});if(n)try{react('fire+water',x,y)}catch(e){}if(hf){hf.wetC=Math.max(hf.wetC||0,4);hf.burn=0}sfx('splash');let lost=0;G.foes.forEach(f=>{if(f.hp>0&&f.aware&&cd(f.x,f.y,x,y)<=2&&!(FOE[f.k]||{}).boss){f.aware=0;lost++}});
+ if(P.includes('濡れ')&&fireNear(x,y)){let n=0;nb.forEach(([a,b])=>{const X=x+a,Y=y+b;if(fireAt(X,Y)){G.fires=G.fires.filter(f=>!(f.x==X&&f.y==Y));(G.steam=G.steam||[]).push({x:X,y:Y,t:0,life:6});n++}});if(n)try{react('fire+water',x,y)}catch(e){}if(hf){hf.wetC=Math.max(hf.wetC||0,4);hf.burn=0}sfx('splash');let lost=0;G.foes.forEach(f=>{if(f.hp>0&&f.aware&&cd(f.x,f.y,x,y)<=3&&!(FOE[f.k]||{}).boss){f.aware=0;lost++}});if(cd(G.p.x,G.p.y,x,y)<=2)G.hush=Math.max(G.hush||0,3);
   learn('douse2','濡れた物（魚・水袋）を火に投げると、まわりの火が消えて湯気が立つ。湯気の中では見つかりにくい');return{keep:true,msg:d.n+'がじゅっと落ちて、'+n+'か所の火が消えた'+(lost?'。湯気で'+lost+'体がこちらを見失った':'')}}
  if(P.includes('濡れ')&&hf&&!d.food){hf.wetC=Math.max(hf.wetC||0,4)}
  if(P.includes('濡れ')&&hf&&d.food&&!(TAME.includes(hf.k)&&moodOK(hf))){hf.wetC=Math.max(hf.wetC||0,4);hf.burn=0;hit(hf,weakOf(hf).water>1?emul(hf,'water',4):1);hf.stun=Math.max(hf.stun||0,1);try{makeNoise(x,y,3,'stone')}catch(e){}
@@ -2990,8 +2991,8 @@ function propLand(pc,x,y,hf){const id=pc.id,d=ITEM[id],P=propsOf(id),nb=[[0,0],.
  return null}
 // 置く：狙っているとき自分をタップすると、目の前のマスにそっと置く（1手）
 function placeSpot(){const p=G.p;return [[G.faceX||(p.flip?-1:1),G.faceY||0],...DIRS8].map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>walk(x,y)&&!foeAt(x,y)&&!onStair(x,y)&&!potAt(x,y)&&!(typeof gimAt=='function'&&gimAt(x,y)&&!gOpen(gimAt(x,y)))&&!(G.lava&&G.lava.has(x+','+y)))}
-function bombBoom(x,y,by){const nb=[[0,0],...DIRS8],p=G.p;sfx('boom');G.shake=14;fx({type:'boom',x:x*T+4,y:y*T+4});try{quakeAt(x,y,2,'bomb')}catch(e){}
- nb.forEach(([a,b])=>{const f=foeAt(x+a,y+b);if(f)hit(f,7);ignite(x+a,y+b,'quiet')});
+function bombBoom(x,y,set){const nb=[[0,0],...DIRS8],p=G.p;sfx('boom');G.shake=set?18:14;fx({type:'boom',x:x*T+4,y:y*T+4});try{quakeAt(x,y,2,'bomb')}catch(e){}
+ nb.forEach(([a,b])=>{const f=foeAt(x+a,y+b);if(f){hit(f,set?12:7);if(set)f.stun=Math.max(f.stun||0,2)}ignite(x+a,y+b,'quiet')});
  (G.gim||[]).forEach(g=>{if(g.type=='crack'&&!g.open&&cd(g.x,g.y,x,y)<=1&&!g.fuse){g.fuse=1}});
  let w=0;DIRS.forEach(([a,b])=>{if(breakWall(x+a,y+b))w++});
  let hurt=0;if(cd(p.x,p.y,x,y)<=1){G.p.hp=Math.max(1,G.p.hp-4);G.hurt=8;hurt=1}
@@ -3001,17 +3002,17 @@ function bombBoom(x,y,by){const nb=[[0,0],...DIRS8],p=G.p;sfx('boom');G.shake=14
 function breakWall(x,y){if(!(x>=1&&y>=1&&x<MW-1&&y<MH-1)||!G.m[y]||G.m[y][x]!==1||(typeof gimAt=='function'&&gimAt(x,y)))return false;
  const tw=(G.thin||[]).find(t=>t.x==x&&t.y==y);if(tw)G.thin.splice(G.thin.indexOf(tw),1);G.m[y][x]=0;G.seen.add(x+','+y);
  try{if(G.dist){const n=DIRS.map(([a,b])=>G.dist[y+b]&&G.dist[y+b][x+a]).filter(v=>v>=0&&v<999);if(n.length)G.dist[y][x]=Math.min(...n)+1}}catch(e){}
- (G.rubble=G.rubble||[]).push({x,y});for(let k=0;k<6;k++)fx({type:'spark',x:x*T+1+k,y:y*T+2+(k%3),c:'#a49ab0',life:.8});try{drawBase()}catch(e){}try{reveal()}catch(e){}return true}
+ (G.rubble=G.rubble||[]).push({x,y});DIRS8.forEach(([a,b])=>{if(G.m[y+b]&&G.m[y+b][x+a]===0)G.seen.add((x+a)+','+(y+b))});for(let k=0;k<6;k++)fx({type:'spark',x:x*T+1+k,y:y*T+2+(k%3),c:'#a49ab0',life:.8});try{drawBase()}catch(e){}try{reveal()}catch(e){}return true}
 // 置いた爆弾は3手後に爆ぜる
 function foeSmashPots(){if(!G.pots||!G.pots.length)return;const p=G.p;G.foes.forEach(f=>{if(f.hp<=0||f.aware!=2||f.stun>0||f.caged||cd(f.x,f.y,p.x,p.y)>6)return;const pt=G.pots.find(q=>cd(q.x,q.y,f.x,f.y)==1&&cd(q.x,q.y,p.x,p.y)<cd(f.x,f.y,p.x,p.y));if(!pt)return;
   f.stun=Math.max(f.stun||0,1);const sn=G.seen.has(pt.x+','+pt.y);breakPot(pt,'foe');if(pt.k=='water'||pt.k=='sand'){f.wetC=Math.max(f.wetC||0,4)}if(pt.k=='sand')f.blind=Math.max(f.blind||0,2);
   if(sn){toast(f.n+'が、道をふさぐ'+POTN[pt.k][0]+'を叩き割った');learn('pottrap','壺を置く：追ってくる魔物は、道をふさぐ壺を叩き割る。中身を浴びるので、油樽なら火を、水がめなら雷を')}})}
 function shardTick(){if(!G.shards||!G.shards.length)return;G.shards.forEach(s=>s.t--);G.foes.forEach(f=>{if(f.hp<=0||(FOE[f.k]||{}).fly)return;const s=G.shards.find(q=>q.x==f.x&&q.y==f.y&&q.t>0);if(!s)return;s.t=0;hit(f,2);f.stun=Math.max(f.stun||0,1);if(G.seen.has(f.x+','+f.y)){fx({type:'spark',x:f.x*T+4,y:f.y*T+6,c:'#e8e0d0',life:.5});toast(f.n+'が破片を踏んで、ひるんだ')}});G.shards=G.shards.filter(s=>s.t>0)}
-function tbombTick(){if(!G.tbombs||!G.tbombs.length)return;G.tbombs.forEach(b=>{b.t--;if(foeAt(b.x,b.y))b.t=0});const go=G.tbombs.filter(b=>b.t<=0);G.tbombs=G.tbombs.filter(b=>b.t>0);go.forEach(b=>{const r=bombBoom(b.x,b.y);if(G.seen.has(b.x+','+b.y)||r.hurt)toast(r.hurt?'近すぎた！　爆風を浴びた（-4）':'置いた爆弾が炸裂した'+(r.w?'。壁が崩れた':''))})}
+function tbombTick(){if(!G.tbombs||!G.tbombs.length)return;G.tbombs.forEach(b=>{b.t--;if(foeAt(b.x,b.y))b.t=0});const go=G.tbombs.filter(b=>b.t<=0);G.tbombs=G.tbombs.filter(b=>b.t>0);go.forEach(b=>{const r=bombBoom(b.x,b.y,1);if(G.seen.has(b.x+','+b.y)||r.hurt)toast(r.hurt?'近すぎた！　爆風を浴びた（-4）':'置いた爆弾が炸裂した'+(r.w?'。壁が崩れた':''))})}
 function placeItem(i){const pc=G.bag.items[i];if(!pc||G.busy||G.over)return;const d=ITEM[pc.id];if(!canThrow(pc)){sfx('no');toast(d.mon?'仲間は置けない':'呪われていて手放せない');return}
  const c=placeSpot();if(!c){sfx('no');toast('置ける場所がない');return}const[x,y]=c;
  if(pc.n!=null&&pc.n>1)pc.n--;else G.bag.items.splice(i,1);sfx('pick');let msg='';
- if(pc.id=='bomb'&&!(pc.wet>0)&&!inWater(x,y)){(G.tbombs=G.tbombs||[]).push({x,y,t:3});msg='爆弾を置いた。3手で爆ぜる。踏まれても爆ぜる。離れよう';learn('tbomb','爆弾を置く：狙っているときに自分をタップすると、目の前に置ける。3手たつか、魔物が踏むと爆ぜる。置いたら一歩さがって、追っ手に踏ませる。壊したい壁のそばにも')}
+ if(pc.id=='bomb'&&!(pc.wet>0)&&!inWater(x,y)){(G.tbombs=G.tbombs||[]).push({x,y,t:3});msg='爆弾を置いた。3手で爆ぜる。踏まれても爆ぜる。離れよう';learn('tbomb','爆弾を置く：狙っているときに自分をタップすると、目の前に置ける。3手たつか、魔物が踏むと爆ぜる。じっくり仕掛けたぶん、投げるより強い（12）。置いたら一歩さがって、追っ手に踏ませる')}
  else if(d.pot){(G.pots=G.pots||[]).push({x,y,k:d.pot});msg=d.n+'をそっと置いた。通せんぼになる。敵を蹴りつければ割れる'}
  else if(HEAVYI.includes(pc.id)&&isPit(x,y)){fillPit(x,y);msg=d.n+'を穴に落として、埋めた。渡れる'}
  else if(RINGI.includes(pc.id)){(G.ringers=G.ringers||[]).push({x,y,t:6,r:6});G.items.push({...carry(pc),x,y,id:pc.id,drop:now(),how:'置いた'});msg=d.n+'を置いた。チリリ……と鳴りつづける'}
@@ -3877,7 +3878,7 @@ function placeRuin(F,fi){F.thin=[];F.loose=[];F.rubble=[];if(fi<1||BOSSF[fi]||F.
  const nT=(fi<5?1:2)+(Math.random()<.4?1:0);for(let k=0,tries=0;k<nT&&cand.length&&tries<40;tries++){const q=cand.splice(Math.floor(Math.random()*cand.length),1)[0];if(F.thin.some(t=>cd(t.x,t.y,q[0],q[1])<6))continue;F.thin.push({x:q[0],y:q[1]});k++}
  if(fi>=3){const st=[F.start,F.exit,F.up,F.down].filter(Boolean);const c=[];for(let y=1;y<MH-1;y++)for(let x=1;x<MW-1;x++)if(free(x,y)&&(D(x,y)||0)>=6&&!st.some(s=>s[0]==x&&s[1]==y))c.push([x,y]);
   const nL=2+Math.floor(Math.random()*3);for(let k=0;k<nL&&c.length;k++){const q=c.splice(Math.floor(Math.random()*c.length),1)[0];if(F.loose.some(l=>cd(l.x,l.y,q[0],q[1])<4))continue;F.loose.push({x:q[0],y:q[1],ph:Math.random()*6})}}}
-function breakThin(t,why){const i=(G.thin||[]).indexOf(t);if(i<0)return;G.thin.splice(i,1);G.m[t.y][t.x]=0;
+function breakThin(t,why){const i=(G.thin||[]).indexOf(t);if(i<0)return;G.thin.splice(i,1);G.m[t.y][t.x]=0;DIRS8.forEach(([a,b])=>{if(G.m[t.y+b]&&G.m[t.y+b][t.x+a]===0)G.seen.add((t.x+a)+','+(t.y+b))});
  try{if(G.dist){const n=DIRS.map(([a,b])=>G.dist[t.y+b]&&G.dist[t.y+b][t.x+a]).filter(v=>v>=0&&v<999);if(n.length)G.dist[t.y][t.x]=Math.min(...n)+1}}catch(e){}
  G.seen.add(t.x+','+t.y);try{drawBase()}catch(e){}sfx('boom');sfx('thud');G.shake=Math.max(G.shake||0,12);for(let k=0;k<8;k++)fx({type:'spark',x:t.x*T+1+k,y:t.y*T+1+(k%4),c:'#a49ab0',life:.8});
  (G.rubble=G.rubble||[]).push({x:t.x,y:t.y});makeNoise(t.x,t.y,6,'break');
@@ -5194,8 +5195,8 @@ function buildGen(){let sd=97531;const rnd=()=>{sd=(Math.imul(sd,1103515245)+123
 try{buildGen()}catch(e){console.error('buildGen',e)}
 // 層ごとの住人。ここにない者は、その層には出ない
 const LAYERMOB=[
- ['bat','oilbug','thief','bakudake','eater','mosser','fungus'],
- ['frog','raiju','slimeB','mud','burrow','caller','eater'],
+ ['bat','oilbug','thief','bakudake','eater','mosser','fungus','gob'],
+ ['frog','raiju','slimeB','mud','burrow','caller','eater','gob'],
  ['bonepile','salam','shieldk','warden','shade','rust'],
  ['spitter','salam','twin','wallbug','snuff','thief'],
  ['fungus','bakudake','mosser','oilbug','mud','eater','memeat'],
@@ -5239,6 +5240,8 @@ const BAGPRICE={small:80,adv:180,long:250,big:400};
 let M2={};try{M2=JSON.parse(store('yw80_m2')||'{}')||{}}catch(e){}
 ['built','friend','album','kills','allyEver','gifts'].forEach(k=>{if(!M2[k]||typeof M2[k]!='object')M2[k]={}});if(!Array.isArray(M2.reqs))M2.reqs=[];if(!Array.isArray(M2.titles))M2.titles=[];
 const saveM2=()=>store('yw80_m2',JSON.stringify(M2));
+// はじめての村：村の子が、なついているぷるを預けてくれる（牧場がからっぽで始まらないように）
+if(!M2.starter&&!farm.length){M2.starter=1;farm.push({k:'puru',name:'ぷる',trips:0,inst:{origin:'村の子から預かった。「この子、ひとりだと寂しがるの」',bond:10}});try{store('yw4_farm',JSON.stringify(farm));saveM2()}catch(e){}}
 const hasB2=k=>!!M2.built[k];
 // 小さな画面（村の施設と同じ形）
 function subScreen(title,build,back){const re=()=>{$('modal').innerHTML='<div class="modal mbase"><div class="box base" data-x="1"><div class="bhead"><button class="bback" id="sbk" aria-label="戻る">‹</button><h2>'+title+'</h2><span class="bgold">'+gold+'G</span></div><div id="sb2" class="bbody"></div></div></div>';$('sbk').onclick=()=>{sfx('tick');$('modal').innerHTML='';if(back)back()};build($('sb2'),re)};re()}
@@ -5299,13 +5302,13 @@ function drawBuilt(b,house){BUILD.forEach(B=>{if(!M2.built[B.k])return;const[x,y
 const REQMAT=['timber','kawa','gomu','tsuta','houshi','haguruma','stone','oldcoin','gem','kokuyou','mossb','hyoushou','raiseki'];
 const FRGIFT={3:'omamori',6:'bigpot',10:'kikan'};
 function reqWho(){const ks=['pan','kid',...vill].filter(k=>VILL[k]);return pick(ks)}
-function reqGen(){const deep=Math.max(1,+store('yw17_deep')||0,M2.maxF||0);const lay=Math.min(9,Math.floor(deep/10));const easy=(M2.done||0)<2;const t=easy?pick(['fetch','hunt','reach']):pick(['fetch','fetch','hunt','hunt','reach','ally']);const who=reqWho();const g=30+lay*25+Math.floor(Math.random()*20);const r={id:Date.now().toString(36)+Math.floor(Math.random()*999),t,who,g,run:runs};
+function reqGen(){const deep=Math.max(1,+store('yw17_deep')||0,M2.maxF||0);const lay=Math.min(9,Math.floor(deep/10));const easy=(M2.done||0)<2;const have=M2.reqs.map(q=>q.t);let ts=easy?['fetch','hunt','reach']:['fetch','fetch','hunt','hunt','reach','ally'];if(ts.some(x=>!have.includes(x)))ts=ts.filter(x=>!have.includes(x)||x=='fetch'&&have.filter(y=>y=='fetch').length<2);const t=pick(ts.length?ts:['fetch']);const who=reqWho();const g=30+lay*25+Math.floor(Math.random()*20);const r={id:Date.now().toString(36)+Math.floor(Math.random()*999),t,who,g,run:runs};
  if(t=='fetch'){const pool=REQMAT.slice(0,Math.min(REQMAT.length,4+lay*2));const got=pool.filter(id=>M2.gotItem&&M2.gotItem[id]);r.item=pick(got.length&&(easy||Math.random()<.7)?got:pool);r.n=easy?1:1+Math.floor(Math.random()*(lay?3:2))}
  else if(t=='hunt'){const L=Math.floor(Math.random()*(lay+1));const ks=[...new Set((LAYERMOB[L]||LAYERMOB[0]).concat(L==0?SHALLOW:[]))].filter(k=>FOE[k]&&!FOE[k].boss);const met=ks.filter(k=>(M2.kills[k]||0)>0).sort((a,b)=>(M2.kills[b]||0)-(M2.kills[a]||0)).slice(0,5);const sn=ks.filter(k=>codex['m:'+k]);r.k=pick(met.length&&(easy||Math.random()<.8)?met:sn.length?sn:ks);r.n=easy?1:1+Math.floor(Math.random()*3);r.base=M2.kills[r.k]||0}
  else if(t=='reach'){r.f=Math.min(100,Math.max(2,deep+(easy?1:2+Math.floor(Math.random()*3))))}
  else{const ks=Object.keys(FOE).filter(k=>FOE[k].cap&&ITEM[k]&&!FOE[k].boss&&(LAYERMOB[Math.min(lay,9)]||[]).concat(SHALLOW).includes(k));r.k=pick(ks.length?ks:['slime'])}
  if(Math.random()<.5)r.gift=pick(REQMAT.slice(0,6));return r}
-function reqFill(){const n=hasB2('lamp')?4:3;if(M2.reqRun!==runs){M2.reqRun=runs;let old=0;M2.reqs=M2.reqs.filter(r=>{if(!reqDone(r)&&runs-(r.run||0)>=3){old++;return false}return true});M2.reqOld=old;while(M2.reqs.length<n)M2.reqs.push(reqGen());saveM2()}}
+function reqFill(){const n=hasB2('lamp')?4:3;if(M2.reqRun!==runs){M2.reqRun=runs;let old=0;M2.reqs=M2.reqs.filter(r=>{if(!reqDone(r)&&runs-(r.run||0)>=3){old++;return false}return true});M2.reqOld=old;let g=0;while(M2.reqs.length<n&&g++<20){const r=reqGen();if(M2.reqs.some(q=>reqText(q)==reqText(r)))continue;M2.reqs.push(r)}saveM2()}}
 function reqText(r){const N=k=>(FOE[k]||ITEM[k]||{}).n||k;return r.t=='fetch'?ITEM[r.item].n+'を'+r.n+'つ持ってきて':r.t=='hunt'?N(r.k)+'を'+r.n+'体やっつけて':r.t=='reach'?r.f+'Fまで行って、様子を教えて':N(r.k)+'を牧場で見せてほしい'}
 function reqProg(r){if(r.t=='fetch')return[Math.min(r.n,whCount(r.item)),r.n];if(r.t=='hunt')return[Math.min(r.n,(M2.kills[r.k]||0)-r.base),r.n];if(r.t=='reach')return[Math.min(r.f,M2.maxF||0),r.f];return[farm.some(m=>m.k==r.k)?1:0,1]}
 const reqDone=r=>{const[a,b]=reqProg(r);return a>=b};
@@ -5355,10 +5358,19 @@ function showBuild(back){subScreen('村づくり',(tb,re)=>{const cv=document.cr
 {const _nr=newRaid;newRaid=function(){const r=_nr.apply(this,arguments);subApplyStart();try{pitNook()}catch(e){}return r}}
 {const _cf=changeFloor;changeFloor=function(){const r=_cf.apply(this,arguments);setTimeout(subTower,60);setTimeout(pitNook,70);return r}}
 // 行き止まりの宝の手前に、ときどき穴が開いている（埋める・板を架ける・鉤縄…解き方はいろいろ）
-function pitNook(){try{if(!G||G.over||G.fi<1||G.nookF===G.fi||BOSSF[G.fi])return;G.nookF=G.fi;if(Math.random()<.4)return;
- const wn=(x,y)=>DIRS8.filter(([a,b])=>walk(x+a,y+b)).map(([a,b])=>[x+a,y+b]);
- const c=G.items.filter(i=>!i.hid&&walk(i.x,i.y)&&!(i.x==G.p.x&&i.y==G.p.y)).map(i=>({i,n:wn(i.x,i.y)})).filter(o=>o.n.length==1).map(o=>({i:o.i,e:o.n[0]})).filter(o=>!onStair(o.e[0],o.e[1])&&!inWater(o.e[0],o.e[1])&&!foeAt(o.e[0],o.e[1])&&!G.items.some(j=>j.x==o.e[0]&&j.y==o.e[1])&&wn(o.e[0],o.e[1]).length>=2&&cd(o.e[0],o.e[1],G.p.x,G.p.y)>3);
- if(!c.length)return;const o=c[Math.floor(Math.random()*c.length)];(G.holes=G.holes||new Set()).add(o.e[0]+','+o.e[1]);try{drawBase()}catch(e){}}catch(e){}}
+function pitNook(){try{if(!G||G.over||G.fi<1||G.nookF===G.fi||BOSSF[G.fi])return;G.nookF=G.fi;
+ const wn=(x,y)=>DIRS8.filter(([a,b])=>walk(x+a,y+b)).map(([a,b])=>[x+a,y+b]);const far=(x,y)=>cd(x,y,G.p.x,G.p.y)>3&&!onStair(x,y)&&!inWater(x,y)&&!foeAt(x,y)&&!G.items.some(j=>j.x==x&&j.y==y);
+ const TRE=['gem','ring','locket','idol','gem'];
+ // くぼみを作れる所：床Aの隣が壁W、その奥Bも壁で、Bのまわりは壁だけ
+ const nooks=()=>{const c=[];for(let y=2;y<MH-2;y++)for(let x=2;x<MW-2;x++){if(!walk(x,y)||!far(x,y))continue;for(const[a,b]of DIRS){const wx=x+a,wy=y+b,bx=x+2*a,by=y+2*b;if(bx<1||by<1||bx>=MW-1||by>=MH-1)continue;if(G.m[wy][wx]!==1||G.m[by][bx]!==1||(typeof gimAt=='function'&&(gimAt(wx,wy)||gimAt(bx,by))))continue;
+   if(DIRS8.some(([p,q])=>!(bx+p==wx&&by+q==wy)&&G.m[by+q]&&G.m[by+q][bx+p]===0))continue;c.push([wx,wy,bx,by])}}return c};
+ const EXTRA=['potion','bomb','bigpot','hyouka','raika','smoke'];
+ const put=(bx,by,how)=>{G.m[by][bx]=0;try{if(G.dist)G.dist[by][bx]=999}catch(e){}G.items.push({x:bx,y:by,id:TRE[Math.floor(Math.random()*TRE.length)],how},{x:bx,y:by,id:EXTRA[Math.floor(Math.random()*EXTRA.length)].replace(/^(hyouka|raika)$/,m=>ITEM[m]?m:'potion'),how})};
+ // ① 穴：くぼみの入り口に穴、奥に宝（重い物で埋める・板を架ける・鉤縄…）
+ if(Math.random()<.6){const c=nooks();if(c.length){const[wx,wy,bx,by]=c[Math.floor(Math.random()*c.length)];G.m[wy][wx]=0;try{if(G.dist)G.dist[wy][wx]=999}catch(e){}(G.holes=G.holes||new Set()).add(wx+','+wy);put(bx,by,'穴の向こうに')}}
+ // ② 壁：ひびの入った薄い壁の奥に、宝（爆弾・槌・揺れ…）
+ if(Math.random()<.6){const c=nooks();if(c.length){const[wx,wy,bx,by]=c[Math.floor(Math.random()*c.length)];(G.thin=G.thin||[]).push({x:wx,y:wy});put(bx,by,'壁の奥に')}}
+ try{drawBase()}catch(e){}}catch(e){}}
 
 // 配合の書：配合限定の子の一覧。見つけた子は姿を、まだの子は性質のヒントだけを見せる
 function showBreedBook(back){let br={};try{br=JSON.parse(store('yw70_breed')||'{}')||{}}catch(e){}

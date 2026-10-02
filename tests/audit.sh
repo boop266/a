@@ -10,8 +10,11 @@ case "$1" in
  dig)     GIVE=shovel,bomb,bomb,timber,oldcoin STYLE=all PAR=2 BOT_OUT=$D/dig node tests/sage.js $N $S > $D/dig.log 2>&1 ;;
  props)   GIVE=kawa,fish,pot_fire,hidane,haguruma,tsubo START=4 STYLE=all,sneak PAR=2 BOT_OUT=$D/props node tests/sage.js $N $S > $D/props.log 2>&1 ;;
  terrain) GIVE=shovel,timber,timber,haguruma,bomb,bomb START=2 STYLE=all,sneak PAR=2 BOT_OUT=$D/terrain node tests/sage.js $N $S > $D/terrain.log 2>&1 ;;
+ nook)    GIVE=timber,timber,haguruma,kokuyou,bomb,bomb START=2 STYLE=all,sneak PAR=2 BOT_OUT=$D/nook node tests/sage.js $N $S > $D/nook.log 2>&1 ;;
+ coin)    GIVE=oldcoin,pcoin,oldcoin,oldcoin,gem START=1 STYLE=pacifist,sneak PAR=2 BOT_OUT=$D/coin node tests/sage.js $N $S > $D/coin.log 2>&1 ;;
+ fire)    GIVE=fish,bigfish,fish,hidane,kawa,pot_fire,pot_oil START=3 STYLE=all,chemist PAR=2 BOT_OUT=$D/fire node tests/sage.js $N $S > $D/fire.log 2>&1 ;;
  deep)    START=12 STYLE=all,pacifist PAR=2 BOT_OUT=$D/deep node tests/sage.js $((N/2)) $S > $D/deep.log 2>&1 ;;
  kin)     GIVE=oldcoin,pcoin,oldcoin,gem,potion START=1 STYLE=pacifist,sneak PAR=2 BOT_OUT=$D/kin node tests/sage.js $((N/2)) $S > $D/kin.log 2>&1 ;;
- all)     for b in natural dig props terrain deep kin; do sh $0 $b; done; sh $0 table ;;
+ all)     for b in natural dig props terrain deep kin nook coin fire; do sh $0 $b; done; sh $0 table ;;
  table|*) AUDIT_DIR=$D node tests/audit.js ;;
 esac

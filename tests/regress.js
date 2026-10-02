@@ -365,7 +365,7 @@ const cases = {
       // 濡れた物で火を消すと、湯気で見失う
       G.foes = []; const h = put('gob', 10, 4); h.aware = 2; G.fires = [{ x: 10, y: 5, t: 0, life: 9 }]; G.p.x = 6; G.p.y = 5; throwAt(give('fish'), 9, 5); await idle(); o.steam = h.aware == 0 || cd(h.x, h.y, G.p.x, G.p.y) > 3;
       // 行き止まりの宝の手前に穴
-      G.foes = []; G.items = [{ x: 22, y: 8, id: 'gem' }]; G.m[8][21] = 0; G.m[8][22] = 0; G.p.x = 5; G.p.y = 8; G.fi = 3; G.nookF = -1; const R = Math.random; Math.random = () => .9; pitNook(); Math.random = R; o.nook = isPit(21, 8);
+      G.foes = []; G.items = []; G.thin = []; G.p.x = 5; G.p.y = 8; G.fi = 3; G.nookF = -1; const h0 = G.holes.size; const R = Math.random; Math.random = () => .1; pitNook(); Math.random = R; const it = G.items.find(i => i.how == '穴の向こうに'); o.nook = G.holes.size == h0 + 1 && !!it && walk(it.x, it.y) && [...G.holes].some(k => { const [x, y] = k.split(',').map(Number); return cd(x, y, it.x, it.y) == 1; }) && G.thin.length == 1 && G.items.some(i => i.how == '壁の奥に');
       return o;
     });
     for (const k of ['pitHint', 'fill', 'burn', 'douse', 'loud', 'placed', 'boom', 'pot', 'chan', 'shard', 'shardHit', 'steam', 'nook']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));

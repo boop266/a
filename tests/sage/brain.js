@@ -160,16 +160,17 @@
         if (S.stuck) closedGates().forEach(g => { if (cd(g.x, g.y, p.x, p.y) <= AIMR) tg.push([g.x, g.y]); });
         // 性質が働く先：重い物は穴、燃える物・濡れた物は火、鳴る物は気づいていない敵の向こう
         const P = (typeof propsOf == 'function') ? propsOf(q.id) : [];
-        if (P.length || q.id == 'bomb') { const H = []; for (let yy = p.y - AIMR; yy <= p.y + AIMR; yy++) for (let xx = p.x - AIMR; xx <= p.x + AIMR; xx++) { let h = null; try { h = propHint(q.id, xx, yy); } catch (e) {} if (h && h != 'heavy' && h != 'wet' && (h != 'wall' || cd(xx, yy, p.x, p.y) >= 2) && !(h == 'fill' && d.tre) && S.opens(h, xx, yy)) H.push([xx, yy, h == 'wall' ? 1 : 0]); } H.sort((u, v) => u[2] - v[2]); tg.unshift(...H.slice(0, 2).map(h => [h[0], h[1]])); }
+        if (P.length || q.id == 'bomb') { const H = []; for (let yy = p.y - AIMR; yy <= p.y + AIMR; yy++) for (let xx = p.x - AIMR; xx <= p.x + AIMR; xx++) { let h = null; try { h = propHint(q.id, xx, yy); } catch (e) {} if (h && h != 'heavy' && h != 'wet' && (h != 'wall' || cd(xx, yy, p.x, p.y) >= 2) && !(h == 'fill' && (d.tre || 0) >= 40) && S.opens(h, xx, yy) && aimOK(xx, yy)) H.push([xx, yy, h == 'wall' ? 1 : 0]); } H.sort((u, v) => u[2] - v[2]); tg.unshift(...H.slice(0, 2).map(h => [h[0], h[1]])); }
         if (P.includes('鳴る') || P.includes('割れる') && !d.vial && !d.pot) foes.slice(0, 2).forEach(f => { const dx = Math.sign(f.x - p.x), dy = Math.sign(f.y - p.y); tg.push([f.x + dx * 2, f.y + dy * 2]); });
         const seenT = new Set(); tg.forEach(([x, y]) => { const kk = x + ',' + y; if (seenT.has(kk) || seenT.size >= 4) return; seenT.add(kk); try { if (aimOK(x, y)) { const h = propHint(q.id, x, y); out.push({ k: 'throw:' + q.id, i, x, y, lab: '投げる(' + S.throwTag(q.id, x, y) + '):' + d.n }); } } catch (e) {} });
         // 置く：壺・爆弾・宝・餌・鳴る物
         const lureOK = () => foes.some(f => !(FOE[f.k] || {}).boss && ((d.food && (TAME.includes(f.k) || FAM[f.k] == 'beast')) || (f.aware != 2 && (d.tre || P.includes('鳴る'))) || (KIN[kinOf(f)] && KIN[kinOf(f)].like.includes(q.id))));
         const blockOK = () => { const ps = placeSpot(); return ps && foes.some(f => f.aware == 2 && cd(ps[0], ps[1], f.x, f.y) < cd(p.x, p.y, f.x, f.y) && near(f, 6)); };
+        if (q.id == 'bomb') { const ps = placeSpot(); try { if (ps && propHint('bomb', ps[0], ps[1]) == 'wall' && S.opens('wall', ps[0], ps[1])) out.push({ k: 'place:' + q.id, i, lab: '置く(壁を崩す):' + d.n }); } catch (e) {} }
         if (foes.length && ((d.pot && blockOK()) || q.id == 'bomb' || ((d.tre || d.food || P.includes('鳴る')) && lureOK())) && placeSpot()) out.push({ k: 'place:' + q.id, i, lab: '置く(' + (q.id == 'bomb' ? '爆弾' : d.pot ? '壺' : '囮') + '):' + d.n });
       });
       // 掘る：シャベルがあれば、落とし穴か水路
-      { const si = its.findIndex(q => baseOf(q.id) == 'shovel'); if (si >= 0 && foes.some(f => f.aware && near(f, 6))) { const wet = DIRS8.some(([a, b]) => DIRS.some(([c, e]) => inWater(p.x + a + c, p.y + b + e))); out.push({ k: 'dig', lab: wet ? '掘る:水路' : '掘る:落とし穴' }); } }
+      { const si = its.findIndex(q => baseOf(q.id) == 'shovel'); if (si >= 0 && foes.some(f => f.aware && near(f, 6))) { const wet = DIRS8.some(([a, b]) => DIRS.some(([c, e]) => inWater(p.x + a + c, p.y + b + e))); const nf = foes.filter(f => f.aware).sort((u, v) => cd(u.x, u.y, p.x, p.y) - cd(v.x, v.y, p.x, p.y))[0]; const line = nf && cd(nf.x, nf.y, p.x, p.y) <= 4 && (nf.x == p.x || nf.y == p.y || Math.abs(nf.x - p.x) == Math.abs(nf.y - p.y)); if (!wet || line) out.push({ k: 'dig', lab: wet ? '掘る:水路' : '掘る:落とし穴' }); } }
       // 魔物への札：渡す・なだめる・取引・脅す・蹴る
       G.foes.filter(f => f.hp > 0 && !f.ally && near(f, 2) && G.seen.has(f.x + ',' + f.y)).slice(0, 2).forEach(f => { try { foeActs(f).forEach(([t, fn], j) => { if (/振る|殴る/.test(t)) return; const lab = /渡す/.test(t) ? '渡す' : /なだめ/.test(t) ? 'なだめる' : /取引/.test(t) ? '取引する' : /脅/.test(t) ? '脅す' : /蹴る/.test(t) ? '蹴る' : /とどめ/.test(t) ? '忍殺' : t; out.push({ k: 'fa:' + lab, fx: f.x, fy: f.y, j, lab: '札:' + lab }); }); } catch (e) {} });
     }
@@ -252,7 +253,7 @@
     const o = vis.find(f => near(f, 4) && !(S.opp[f.id || f.k + f.x] > st));
     if (o) { S.opp[o.id || o.k + o.x] = st + 12; return true; }
     // 地形を変えられる場面（穴と重い物、抜ける壁と爆弾、水とシャベル）に気づいたら、手を考える
-    try { const p = G.p, its = G.bag.items; const hasH = its.some(q => (propsOf(q.id) || []).includes('重い') && !(ITEM[q.id] || {}).tre), hasB = its.some(q => q.id == 'bomb'), hasS = its.some(q => baseOf(q.id) == 'shovel');
+    try { const p = G.p, its = G.bag.items; const hasH = its.some(q => (propsOf(q.id) || []).includes('重い') && ((ITEM[q.id] || {}).tre || 0) < 40), hasB = its.some(q => q.id == 'bomb'), hasS = its.some(q => baseOf(q.id) == 'shovel');
       if (hasH || hasB || hasS) for (let yy = p.y - AIMR; yy <= p.y + AIMR; yy++) for (let xx = p.x - AIMR; xx <= p.x + AIMR; xx++) {
         if (!G.seen.has(xx + ',' + yy)) continue; const key = 'T' + G.fi + ':' + xx + ',' + yy; if (S.opp[key] > st) continue;
         const hit = (hasH && isPit(xx, yy) && aimOK(xx, yy) && S.opens('fill', xx, yy)) || (hasB && aimOK(xx, yy) && propHint('bomb', xx, yy) == 'wall' && cd(xx, yy, p.x, p.y) >= 2 && S.opens('wall', xx, yy)) || (hasS && cd(xx, yy, p.x, p.y) <= 1 && inWater(xx, yy));
