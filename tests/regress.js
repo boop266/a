@@ -360,6 +360,8 @@ const cases = {
       await idle();
       // シャベル：水の隣を掘ると水路
       G.water[4][12] = true; G.p.x = 12; G.p.y = 6; G.faceX = 0; G.faceY = -1; await digPit(); await idle(); o.chan = inWater(12, 5);
+      // シャベル：隣の敵の足元を掘ると落ちる
+      G.water = G.m.map(r => r.map(() => false)); G.foes = []; G.p.x = 8; G.p.y = 12; const dg = put('rat', 9, 12); dg.aware = 2; dg.alpha = 1; await digPit(); await idle(); o.digUnder = !G.foes.includes(dg);
       // 割れ物：破片を踏んだ魔物はひるむ
       G.water = G.m.map(r => r.map(() => false)); G.foes = []; G.p.x = 5; G.p.y = 12; G.shards = []; throwAt(give('tsubo'), 8, 12); await idle(); o.shard = (G.shards || []).length >= 3; const g = put('gob', 8, 12); g.hp = g.max = 30; G.p.hp = 30; shardTick(); o.shardHit = g.hp < 30 && g.stun > 0;
       // 濡れた物で火を消すと、湯気で見失う
@@ -368,7 +370,7 @@ const cases = {
       G.foes = []; G.items = []; G.thin = []; G.p.x = 5; G.p.y = 8; G.fi = 3; G.nookF = -1; const h0 = G.holes.size; const R = Math.random; Math.random = () => .1; pitNook(); Math.random = R; const it = G.items.find(i => i.how == '穴の向こうに'); o.nook = G.holes.size == h0 + 1 && !!it && walk(it.x, it.y) && [...G.holes].some(k => { const [x, y] = k.split(',').map(Number); return cd(x, y, it.x, it.y) == 1; }) && G.thin.length == 1 && G.items.some(i => i.how == '壁の奥に');
       return o;
     });
-    for (const k of ['pitHint', 'fill', 'burn', 'douse', 'loud', 'placed', 'boom', 'pot', 'chan', 'shard', 'shardHit', 'steam', 'nook']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+    for (const k of ['pitHint', 'fill', 'burn', 'douse', 'loud', 'placed', 'boom', 'pot', 'chan', 'digUnder', 'shard', 'shardHit', 'steam', 'nook']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
   // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
   async 'ぶつかれば殴る・！の大振り'(p) {
