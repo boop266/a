@@ -306,7 +306,7 @@ const cases = {
       // 「！」を盾で受け止める
       G.busy = false; f.x = 6; f.y = 8; f.rx = f.x * T; f.ry = f.y * T; f.tele = 1; f.windup = true; const hp = G.p.hp; await slotUse(give('shield')); await W(900); o.blocked = G.p.hp == hp && !f.tele;
       // 仲間を呼ぶと、となりの敵を殴る
-      G.busy = false; f.hp = 3; f.tele = 0; G.p.hp = 30; const pi = give('puru'); await slotUse(pi); await W(1200); o.ally = G.allies.length == 1; if (G.allies[0]) G.allies[0].hp = G.allies[0].max = 99; for (let k = 0; k < 10 && f.hp > 0; k++) { G.busy = false; G.p.hp = 30; await doWait(); await W(400); } o.allyHit = f.hp <= 0;
+      G.busy = false; f.hp = 3; f.tele = 0; G.p.hp = 30; const pi = give('puru'); await slotUse(pi); await W(1200); o.ally = G.allies.length == 1; if (G.allies[0]) G.allies[0].hp = G.allies[0].max = 99; for (let k = 0; k < 10 && f.hp > 0; k++) { G.busy = false; G.p.hp = 30; await doWait(); await W(400); } o.allyHit = f.hp <= 0; o.dbg = JSON.stringify([f.x, f.y, f.hp, f.aware, G.allies.map(a => [a.x, a.y, a.hp, a.atk])]);
       // ついて歩く
       G.busy = false; G.foes = []; const a = G.allies[0]; for (let k = 0; k < 4; k++) { G.busy = false; await step(1, 0); await W(250); } o.follow = a && cd(a.x, a.y, G.p.x, G.p.y) <= 2;
       // 階を移ると、カバンへ戻る
@@ -325,7 +325,7 @@ const cases = {
       // なでるは帰還ごとに1回
       const m2 = { k: 'rat', name: 'ネズ', trips: 0, inst: {} }; farm.push(m2); o.pet = petMon(m2) && !petMon(m2) && bondOf(m2) > 0;
       // 村づくり：材料と金で建ち、潜ると効く
-      wh.push({ id: 'timber' }, { id: 'timber' }, { id: 'timber' }); const B = BUILD.find(b => b.k == 'inn'); o.canB = canBuild(B); doBuild(B); o.built = hasB2('inn') && whCount('timber') == 0;
+      wh.push({ id: 'timber' }, { id: 'timber' }); const B = BUILD.find(b => b.k == 'inn'); o.canB = canBuild(B); doBuild(B); o.built = hasB2('inn') && whCount('timber') == 0;
       document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 0); o.inn = G.p.max >= 35;
       // 掲示板：持ってくる頼みを届けるとお礼
       M2.reqs = [{ id: 't1', t: 'fetch', who: 'pan', item: 'kawa', n: 2, g: 50 }]; wh.push({ id: 'kawa' }, { id: 'kawa' }); const g0 = gold; o.done = reqDone(M2.reqs[0]); reqClaim(M2.reqs[0]); o.claim = gold == g0 + 50 && whCount('kawa') == 0 && M2.friend.pan >= 1 && !M2.reqs.length;
@@ -338,6 +338,37 @@ const cases = {
       return o;
     });
     for (const k of ['bond', 'pet', 'canB', 'built', 'inn', 'done', 'claim', 'hunt', 'album', 'boardUI', 'buildUI', 'albumUI']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
+  },
+  // 物の性質（案A）と、地形を作り変える（案B）
+  async '物の性質・置く・地形を作り変える'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const W = ms => new Promise(r => setTimeout(r, ms)); const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; };
+      const idle = async () => { for (let k = 0; k < 40 && G.busy; k++) await W(50); G.busy = false; };
+      // 重い物を穴へ → 埋まる
+      G.holes.add('8,8'); o.pitHint = propHint('timber', 8, 8) == 'fill'; throwAt(give('timber'), 8, 8); await idle(); o.fill = !isPit(8, 8);
+      // 燃える物を火へ → 燃え広がる
+      G.fires = [{ x: 10, y: 8, t: 0, life: 9 }]; const n0 = G.fires.length; throwAt(give('kawa'), 10, 9); await idle(); o.burn = G.fires.length > n0 + 2;
+      // 濡れた物を火へ → 消える
+      G.fires = [{ x: 9, y: 11, t: 0, life: 9 }, { x: 10, y: 11, t: 0, life: 9 }]; throwAt(give('fish'), 9, 11); await idle(); o.douse = G.fires.length == 0;
+      // 鳴る物 → 気づいていない魔物が見に行く
+      const f = put('gob', 18, 4); f.aware = 0; throwAt(give('oldcoin'), 12, 6); await idle(); o.loud = !!f.inv && Math.abs(f.inv.x - 12) <= 1; o.loudD = JSON.stringify([f.inv, f.aware, f.dormant, f.x, f.y, f.hp]);
+      // 置く：自分をタップで前に置く。爆弾は3手で爆ぜ、壁も崩す
+      G.foes = []; G.p.x = 3; G.p.y = 8; G.faceX = -1; G.faceY = 0; aimStart(G.bag.items[give('bomb')]); aimTap(3, 8); await idle(); o.placed = (G.tbombs || []).length == 1 && G.tbombs[0].x == 2;
+      G.p.x = 6; for (let k = 0; k < 4; k++) { doWait(); await idle(); } o.boom = !(G.tbombs || []).length && G.m[8][1] === 0;
+      o.pot = (() => { const i = give('pot_oil'); if (i < 0 || !ITEM.pot_oil) return true; G.faceX = 1; aimStart(G.bag.items[i]); aimTap(G.p.x, G.p.y); return !!potAt(G.p.x + 1, G.p.y); })();
+      await idle();
+      // シャベル：水の隣を掘ると水路
+      G.water[4][12] = true; G.p.x = 12; G.p.y = 6; G.faceX = 0; G.faceY = -1; await digPit(); await idle(); o.chan = inWater(12, 5);
+      // 割れ物：破片を踏んだ魔物はひるむ
+      G.water = G.m.map(r => r.map(() => false)); G.foes = []; G.p.x = 5; G.p.y = 12; G.shards = []; throwAt(give('tsubo'), 8, 12); await idle(); o.shard = (G.shards || []).length >= 3; const g = put('gob', 8, 12); g.hp = g.max = 30; G.p.hp = 30; shardTick(); o.shardHit = g.hp < 30 && g.stun > 0;
+      // 濡れた物で火を消すと、湯気で見失う
+      G.foes = []; const h = put('gob', 10, 4); h.aware = 2; G.fires = [{ x: 10, y: 5, t: 0, life: 9 }]; G.p.x = 6; G.p.y = 5; throwAt(give('fish'), 9, 5); await idle(); o.steam = h.aware == 0 || cd(h.x, h.y, G.p.x, G.p.y) > 3;
+      // 行き止まりの宝の手前に穴
+      G.foes = []; G.items = [{ x: 22, y: 8, id: 'gem' }]; G.m[8][21] = 0; G.m[8][22] = 0; G.p.x = 5; G.p.y = 8; G.fi = 3; G.nookF = -1; const R = Math.random; Math.random = () => .9; pitNook(); Math.random = R; o.nook = isPit(21, 8);
+      return o;
+    });
+    for (const k of ['pitHint', 'fill', 'burn', 'douse', 'loud', 'placed', 'boom', 'pot', 'chan', 'shard', 'shardHit', 'steam', 'nook']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
   // 戦い方B：ぶつかれば殴る。「！」の大振りは、一歩離れれば空を切る。盾なら受け止める
   async 'ぶつかれば殴る・！の大振り'(p) {

@@ -39,12 +39,15 @@ async function one(browser, run, style) {
   await page.goto(FILE); await page.evaluate(() => VT.run(800));
   await page.addScriptTag({ path: path.join(__dirname, 'sage', 'brain.js') });
   await page.evaluate(install);
+  if (process.env.WATCH) await page.evaluate(w => { SAGE.watch = new RegExp(w); }, process.env.WATCH);
   await page.evaluate(([st, sk, bl]) => { SAGE.style = st; SAGE.skill = sk; SAGE.blunder = bl; }, [style, +process.env.SKILL || .7, +process.env.BLUNDER || 0]);
   const START = +process.env.START || 0;
   if (START) await page.evaluate(sf => { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, sf); }, START);
+  // GIVE=shovel,bomb,…  潜るたびに持ち込む物（持ち物の違う遊び手を試す）
+  if (process.env.GIVE) await page.evaluate(ids => { window.GIVEADD = () => { if (typeof G == 'undefined' || !G || G.over || window.GIVESEED === WSEED || G.busy || G.fight) return; window.GIVESEED = WSEED; G.bag.items = G.bag.items.filter(q => (ITEM[q.id] || {}).weapon && !q.out).slice(0, 1); ids.forEach(id => { try { const f = firstFit(id); if (f && ITEM[id]) G.bag.items.push({ id, ...f, inst: makeInst(id) }); } catch (e) {} }); }; }, process.env.GIVE.split(','));
   const t0 = Date.now(); let minHp = 1, lowT = 0; let maxF = 0, last = '', stall = 0; const tags = {};
   for (let s = 0; s < STEPS; s++) {
-    let r; try { r = await page.evaluate(() => SAGE.turn()); } catch (e) { errs.push('turn: ' + e.message); break; }
+    let r; try { r = await page.evaluate(() => { if (window.GIVEADD) GIVEADD(); return SAGE.turn(); }); } catch (e) { errs.push('turn: ' + e.message); break; }
     const k = String(r).startsWith('E:') ? String(r).slice(0, 12) : String(r).replace(/:.*/, ''); tags[k] = (tags[k] || 0) + 1;
     const hpr = await page.evaluate(() => G && G.p && !G.over ? G.p.hp / G.p.max : 1); minHp = Math.min(minHp, hpr); if (hpr < .3) lowT++;
     const sig = await page.evaluate(() => typeof G == 'undefined' || !G ? 'x' : [G.fi, G.p.x, G.p.y, G.p.hp, !!G.fight, G.over, document.getElementById('modal').innerHTML.length].join('|'));

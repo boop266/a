@@ -97,11 +97,11 @@
       seen: fs.filter(f => f.hp > 0 && f.aware).length,
       bag: G.bag.items.reduce((s, q) => s + worth(q), 0),
       allies: G.allies.reduce((s, a) => s + Math.max(0, a.hp), 0),
-      map: G.seen.size, fi: G.fi, gates: (G.gim || []).filter(g => gOpen(g)).length, reach: S.stuck ? S.reach().size : 0,
+      map: G.seen.size, fi: G.fi, front: (() => { const R = S.reach(); let n = 0; for (const k of R) { const [x, y] = k.split(',').map(Number); if (DIRS.some(([a, b]) => !G.seen.has((x + a) + ',' + (y + b)) && walk(x + a, y + b))) n++; } return n; })(), dDown: (() => { if (!G.down || !G.seen.has(G.down[0] + ',' + G.down[1])) return null; const r = S.route(G.down[0], G.down[1]); return r ? r.length : 999; })(), goods: (() => { const R = S.reach(); return G.items.filter(i => !i.hid && !i.ignore && !/投げた|置いた/.test(i.how || '') && R.has(i.x + ',' + i.y)).reduce((t, i) => t + worth(i) / 8, 0) + (G.down && R.has(G.down[0] + ',' + G.down[1]) ? 2 : 0); })(), gates: (G.gim || []).filter(g => gOpen(g)).length, reach: S.reach().size,
     };
   };
   // 手を打って何か変わったか（何も起きない手は、手として数えない）
-  S.sig = () => [G.ttN, G.steps, G.fi, G.p.x, G.p.y, G.p.hp, G.bag.items.length, G.items.length, G.foes.map(f => f.x + ',' + f.y + ',' + f.hp + ',' + (f.aware | 0) + ',' + (f.stun | 0) + ',' + (f.charm | 0)).join(';'), (G.fires || []).length, (G.gim || []).filter(g => g.open).length, (G.fight ? G.fight.dist + ',' + G.fight.foes.length : '-'), G.allies.length, (G.anchors || []).length, (G.snares || G.traps || []).length, G.guise ? G.guise.id : '', (G.planks || []).length, (G.spores || []).length].join('|');
+  S.sig = () => [G.ttN, G.steps, G.fi, G.p.x, G.p.y, G.p.hp, G.bag.items.length, G.items.length, G.foes.map(f => f.x + ',' + f.y + ',' + f.hp + ',' + (f.aware | 0) + ',' + (f.stun | 0) + ',' + (f.charm | 0)).join(';'), (G.fires || []).length, (G.gim || []).filter(g => g.open).length, (G.fight ? G.fight.dist + ',' + G.fight.foes.length : '-'), G.allies.length, (G.anchors || []).length, (G.snares || G.traps || []).length, G.guise ? G.guise.id : '', (G.planks || []).length, (G.spores || []).length, (G.tbombs || []).length, (G.holes ? G.holes.size : 0), (G.pots || []).length, (G.lures || []).length, (G.rubble || []).length, G.water.reduce((s, r) => s + r.filter(Boolean).length, 0)].join('|');
   S.score = (a, b) => {
     const L = (STYLES[S.style] || {}).like || {};
     if (b.dead) return -2000;
@@ -110,12 +110,21 @@
     let s = (b.hp - a.hp) * 6 + (a.foeHp - b.foeHp) * 1.5 + kills * (30 + (L.kill || 0)) - (b.threat - a.threat) * 8
       + (b.calm - a.calm) * (25 + (L.calm || 0)) + (b.bag - a.bag) + (b.allies - a.allies) * 1.5 + (b.seen - a.seen) * (L.seen || 0) + Math.min(30, (b.map - a.map) * .25);
     if (b.hp < b.max * .3) s -= (b.max * .3 - b.hp) * 4;
-    s += (b.gates - a.gates) * 80 + (b.reach - a.reach) * .5;
+    if (a.dDown != null && b.dDown != null && a.dDown < 999) s += Math.min(40, Math.max(0, a.dDown - b.dDown - 5) * 2); else if (a.dDown >= 999 && b.dDown != null && b.dDown < 999) s += 40;
+    s += (b.gates - a.gates) * 80 + (b.reach - a.reach) * .5 + ((b.goods || 0) - (a.goods || 0)) * 12 + Math.max(0, (b.front || 0) - (a.front || 0)) * 1.5;
     return s;
   };
 
   // ---- 打てる手を全部挙げる ----
   const NOUSE = new Set(['kikan', 'omamori', 'balloon']);
+  const HINTJ = { fill: '穴を埋める', burn: '燃え広がる', douse: '火を消す', heavy: 'ゴツン', wet: '濡らす', wall: '壁を崩す' };
+  // 道具の種類（点検表でまとめるため）
+  const CHEM = ['bomb', 'raika', 'hyouka', 'hidane', 'mizu', 'kaze', 'steamb', 'smoke', 'flash', 'konran', 'doro', 'firearrow', 'taiko', 'lure', 'koishi'];
+  S.catOf = id => { const d = ITEM[id] || {}; try { if (d.mon) return '仲間'; if (Object.values(KIN).some(K => (K.guise || []).includes(id))) return '化ける'; } catch (e) {} if (id == 'potion' || id == 'bigpot' || id == 'rotten' || id == 'murky' || (d.food && !d.tre)) return '回復'; if (d.vial || d.pot || d.lit || CHEM.includes(id) || /^fukuro/.test(id)) return '化学・技'; if (d.weapon) return '武器'; return 'がらくた・道具'; };
+  // 埋める・崩すで、いま行けない所へ行けるようになるか
+  S.opens = (h, x, y) => { if (h == 'douse') return [[0, 0], ...DIRS8].some(([a, b]) => fireAt(x + a, y + b) && cd(x + a, y + b, G.p.x, G.p.y) <= 2); if (h != 'fill' && h != 'wall') return true; const R = S.reach(); if (h == 'fill') { const k = x + ',' + y; G.holes.delete(k); const R2 = S.reach(); G.holes.add(k); return R2.size > R.size + 1; }
+    return DIRS.some(([a, b]) => { try { return wallThin(x + a, y + b, a, b) && !R.has((x + 2 * a) + ',' + (y + 2 * b)); } catch (e) { return false; } }); };
+  S.throwTag = (id, x, y) => { let h = null; try { h = propHint(id, x, y); } catch (e) {} if (h) return HINTJ[h]; const P = (typeof propsOf == 'function') ? propsOf(id) : []; if (P.includes('鳴る')) return '鳴らす'; if (P.includes('光る')) return '目くらまし'; if (P.includes('割れる') && !ITEM[id].vial && !ITEM[id].pot) return '割る'; const c = S.catOf(id); return c == '化学・技' ? '化学・技' : c == '回復' ? 'におい' : c == 'がらくた・道具' && (ITEM[id] || {}).tre ? '光り物で誘う' : 'ぶつける'; };
   S.cands = () => {
     const p = G.p, its = G.bag.items, out = [];
     const seenId = new Set();
@@ -142,15 +151,27 @@
       try { const m = mainAction(); if (m && m.f && !/脱出|上がる|飛び降り|戻れない|溶岩/.test(m.t + (m.sub || ''))) out.push({ k: 'main:' + m.t, lab: m.t }); } catch (e) {}
       const foes = G.foes.filter(f => f.hp > 0 && !f.ally && near(f, AIMR) && G.seen.has(f.x + ',' + f.y));
       its.forEach((q, i) => {
-        const d = ITEM[q.id] || {}; if (seenId.has(q.id) || NOUSE.has(q.id) || d.mon && !foes.length) return; seenId.add(q.id);
-        if (d.weapon && !q.out && weaponTarget(i)) out.push({ k: 'use:' + q.id, i, lab: '振る:' + d.n });
-        if (!d.weapon && !(d.food && p.hp >= p.max) && !((q.id == 'potion' || q.id == 'bigpot') && p.hp >= p.max - 4)) out.push({ k: 'use:' + q.id, i, lab: '使う:' + d.n });
+        const d = ITEM[q.id] || {}; if (seenId.has(q.id) || NOUSE.has(q.id) || d.mon && (!foes.length || q.out)) return; seenId.add(q.id);
+        if (d.weapon && !q.out && weaponTarget(i)) { const wt = weaponTarget(i); out.push({ k: 'use:' + q.id, i, lab: (wt && wt.broken ? '振る(とどめ):' : '振る:') + d.n }); }
+        if (!d.weapon && !(d.food && p.hp >= p.max) && !((q.id == 'potion' || q.id == 'bigpot') && p.hp >= p.max - 4)) out.push({ k: 'use:' + q.id, i, lab: '使う(' + S.catOf(q.id) + '):' + d.n });
         if (d.weapon || d.mon) return;
         // 投げる先：敵そのもの、敵のそばの壺、敵のそばの水・油・草
         const tg = []; foes.slice(0, 3).forEach(f => { tg.push([f.x, f.y]); (G.pots || []).forEach(o => { if (cd(o.x, o.y, f.x, f.y) <= 1) tg.push([o.x, o.y]); }); });
         if (S.stuck) closedGates().forEach(g => { if (cd(g.x, g.y, p.x, p.y) <= AIMR) tg.push([g.x, g.y]); });
-        const seenT = new Set(); tg.forEach(([x, y]) => { const kk = x + ',' + y; if (seenT.has(kk) || seenT.size >= 3) return; seenT.add(kk); try { if (aimOK(x, y)) out.push({ k: 'throw:' + q.id, i, x, y, lab: '投げる:' + d.n }); } catch (e) {} });
+        // 性質が働く先：重い物は穴、燃える物・濡れた物は火、鳴る物は気づいていない敵の向こう
+        const P = (typeof propsOf == 'function') ? propsOf(q.id) : [];
+        if (P.length || q.id == 'bomb') { const H = []; for (let yy = p.y - AIMR; yy <= p.y + AIMR; yy++) for (let xx = p.x - AIMR; xx <= p.x + AIMR; xx++) { let h = null; try { h = propHint(q.id, xx, yy); } catch (e) {} if (h && h != 'heavy' && h != 'wet' && (h != 'wall' || cd(xx, yy, p.x, p.y) >= 2) && !(h == 'fill' && d.tre) && S.opens(h, xx, yy)) H.push([xx, yy, h == 'wall' ? 1 : 0]); } H.sort((u, v) => u[2] - v[2]); tg.unshift(...H.slice(0, 2).map(h => [h[0], h[1]])); }
+        if (P.includes('鳴る') || P.includes('割れる') && !d.vial && !d.pot) foes.slice(0, 2).forEach(f => { const dx = Math.sign(f.x - p.x), dy = Math.sign(f.y - p.y); tg.push([f.x + dx * 2, f.y + dy * 2]); });
+        const seenT = new Set(); tg.forEach(([x, y]) => { const kk = x + ',' + y; if (seenT.has(kk) || seenT.size >= 4) return; seenT.add(kk); try { if (aimOK(x, y)) { const h = propHint(q.id, x, y); out.push({ k: 'throw:' + q.id, i, x, y, lab: '投げる(' + S.throwTag(q.id, x, y) + '):' + d.n }); } } catch (e) {} });
+        // 置く：壺・爆弾・宝・餌・鳴る物
+        const lureOK = () => foes.some(f => !(FOE[f.k] || {}).boss && ((d.food && (TAME.includes(f.k) || FAM[f.k] == 'beast')) || (f.aware != 2 && (d.tre || P.includes('鳴る'))) || (KIN[kinOf(f)] && KIN[kinOf(f)].like.includes(q.id))));
+        const blockOK = () => { const ps = placeSpot(); return ps && foes.some(f => f.aware == 2 && cd(ps[0], ps[1], f.x, f.y) < cd(p.x, p.y, f.x, f.y) && near(f, 6)); };
+        if (foes.length && ((d.pot && blockOK()) || q.id == 'bomb' || ((d.tre || d.food || P.includes('鳴る')) && lureOK())) && placeSpot()) out.push({ k: 'place:' + q.id, i, lab: '置く(' + (q.id == 'bomb' ? '爆弾' : d.pot ? '壺' : '囮') + '):' + d.n });
       });
+      // 掘る：シャベルがあれば、落とし穴か水路
+      { const si = its.findIndex(q => baseOf(q.id) == 'shovel'); if (si >= 0 && foes.some(f => f.aware && near(f, 6))) { const wet = DIRS8.some(([a, b]) => DIRS.some(([c, e]) => inWater(p.x + a + c, p.y + b + e))); out.push({ k: 'dig', lab: wet ? '掘る:水路' : '掘る:落とし穴' }); } }
+      // 魔物への札：渡す・なだめる・取引・脅す・蹴る
+      G.foes.filter(f => f.hp > 0 && !f.ally && near(f, 2) && G.seen.has(f.x + ',' + f.y)).slice(0, 2).forEach(f => { try { foeActs(f).forEach(([t, fn], j) => { if (/振る|殴る/.test(t)) return; const lab = /渡す/.test(t) ? '渡す' : /なだめ/.test(t) ? 'なだめる' : /取引/.test(t) ? '取引する' : /脅/.test(t) ? '脅す' : /蹴る/.test(t) ? '蹴る' : /とどめ/.test(t) ? '忍殺' : t; out.push({ k: 'fa:' + lab, fx: f.x, fy: f.y, j, lab: '札:' + lab }); }); } catch (e) {} });
     }
     const ban = (STYLES[S.style] || {}).ban; return ban ? out.filter(c => !ban.test(c.k)) : out;
   };
@@ -167,6 +188,9 @@
     else if (k.startsWith('main:')) { const m = mainAction(); if (m && m.f) m.f(); }
     else if (k.startsWith('use:')) slotUse(c.i);
     else if (k.startsWith('throw:')) throwAt(c.i, c.x, c.y);
+    else if (k.startsWith('place:')) placeItem(c.i);
+    else if (k == 'dig') digPit();
+    else if (k.startsWith('fa:')) { const f = foeAt(c.fx, c.fy); const L = f ? foeActs(f) : []; const e = L[c.j]; if (e) { e[1](); const b = [...document.querySelectorAll('#evb button')][0]; if (b && /取引/.test(c.k)) b.click(); } }
     else if (k.startsWith('act:')) act(c.i);
     else if (k == 'kick') kick();
     else if (k == 'bare') bareHand();
@@ -189,7 +213,11 @@
       const ws = G.bag.items.map((q, i) => [q, i]).filter(([q]) => ITEM[q.id].weapon && !q.out && reachOK(q.id));
       if (ws.length) { ws.sort((a, b) => (parseInt(ITEM[b[0].id].d) || 0) - (parseInt(ITEM[a[0].id].d) || 0)); act(ws[0][1]); }
       else bareHand();
-    } else if (!engage()) doWait();
+    } else { const tb = (G.tbombs || []).find(b => cd(b.x, b.y, G.p.x, G.p.y) <= 1);
+      // ふだんの手：光っている武器があれば振る（武器を使わない型は待つ）。隣に向くだけで時間が止まらないように
+      const banW = ((STYLES[S.style] || {}).ban || /^$/).test('act:w'); const wi = banW ? -1 : G.bag.items.findIndex((q, i) => ITEM[q.id].weapon && !q.out && weaponTarget(i));
+      if (!tb && wi >= 0) { slotUse(wi); await S.settle(); return; }
+      if (!tb && G.foes.some(f => hostile(f) && f.aware == 2 && cd(f.x, f.y, G.p.x, G.p.y) <= 1)) { if (!banW && !G.bag.items.some(q => ITEM[q.id].weapon)) { const f = G.foes.find(f => hostile(f) && f.aware == 2 && cd(f.x, f.y, G.p.x, G.p.y) <= 1); step(Math.sign(f.x - G.p.x), Math.sign(f.y - G.p.y)); } else doWait(); await S.settle(); return; } if (tb) { const p = G.p; const o = DIRS8.map(([a, b]) => [a, b]).filter(([a, b]) => freeTile(p.x + a, p.y + b) && cd(p.x + a, p.y + b, tb.x, tb.y) >= 2)[0]; if (o) step(o[0], o[1]); else doWait(); } else if (!engage()) doWait(); }
     await S.settle();
   };
 
@@ -205,8 +233,8 @@
       const sig0 = S.sig(); await S.exec(c);
       if (S.sig() === sig0) { S.log.noop = S.log.noop || {}; S.log.noop[c.lab] = (S.log.noop[c.lab] || 0) + 1; throw { noop: 1 }; }
       const ban = (STYLES[S.style] || {}).ban;
-      for (let h = 0; h < (G.fight ? S.H : S.H + 1) && !G.over; h++) { if (ban && G.fight && ban.test('act:w')) { await S.exec({ k: G.bag.items.some(q => ITEM[q.id].weapon) ? 'flee' : 'bare' }); } else await S.plain(); }
-      sc = S.score(a, S.stat());
+      for (let h = 0; h < (G.fight ? S.H : S.H + 1) + (S.Hx || 0) && !G.over; h++) { if (ban && G.fight && ban.test('act:w')) { await S.exec({ k: G.bag.items.some(q => ITEM[q.id].weapon) ? 'flee' : 'bare' }); } else await S.plain(); }
+      sc = S.score(a, S.stat()); if (S.dbgTrial) (S.log.tr = S.log.tr || []).push([c.lab, G.foes.map(f => [f.x, f.y, f.hp, f.aware].join(',')).join(';'), G.p.x + ',' + G.p.y + ',' + G.p.hp, G.ttN, sc].join(' | '));
     } catch (e) { if (!e || !e.noop) (S.log.err = S.log.err || []).push(String(e && e.message)); }
     finally { Math.random = _rand; DEF = null; simOff(); restore(keep); VT.q = q0; VT.now = vt0; const m = $('modal'); if (m && m.innerHTML && !keep.modal) m.innerHTML = ''; }
     S.log.sims++; S.log.simMs += VT.realNow() - t0; return sc;
@@ -223,10 +251,18 @@
     const st = G.steps || 0; S.opp = S.opp || {};
     const o = vis.find(f => near(f, 4) && !(S.opp[f.id || f.k + f.x] > st));
     if (o) { S.opp[o.id || o.k + o.x] = st + 12; return true; }
+    // 地形を変えられる場面（穴と重い物、抜ける壁と爆弾、水とシャベル）に気づいたら、手を考える
+    try { const p = G.p, its = G.bag.items; const hasH = its.some(q => (propsOf(q.id) || []).includes('重い') && !(ITEM[q.id] || {}).tre), hasB = its.some(q => q.id == 'bomb'), hasS = its.some(q => baseOf(q.id) == 'shovel');
+      if (hasH || hasB || hasS) for (let yy = p.y - AIMR; yy <= p.y + AIMR; yy++) for (let xx = p.x - AIMR; xx <= p.x + AIMR; xx++) {
+        if (!G.seen.has(xx + ',' + yy)) continue; const key = 'T' + G.fi + ':' + xx + ',' + yy; if (S.opp[key] > st) continue;
+        const hit = (hasH && isPit(xx, yy) && aimOK(xx, yy) && S.opens('fill', xx, yy)) || (hasB && aimOK(xx, yy) && propHint('bomb', xx, yy) == 'wall' && cd(xx, yy, p.x, p.y) >= 2 && S.opens('wall', xx, yy)) || (hasS && cd(xx, yy, p.x, p.y) <= 1 && inWater(xx, yy));
+        if (hit) { S.opp[key] = st + 30; return true; } } } catch (e) {}
     return !!S.stuck;
   };
   S.decide = async () => {
-    const cs = S.cands(); if (!cs.length) return null;
+    const cs = S.cands(); if (!cs.length) return null; for (let i = cs.length - 1; i > 0; i--) { const j = Math.floor(_rand() * (i + 1)); [cs[i], cs[j]] = [cs[j], cs[i]]; }
+    // 仕込みの手（置く・掘る）があるときは、全部の手を少し先まで見る（効き目が出るまで待つ）
+    S.Hx = cs.some(c => /^(place:|dig)/.test(c.k)) ? 3 : 0;
     const res = []; const seeds = [1, 2].map(() => 1 + Math.floor(_rand() * 1e9));
     const bonus = c => c.k == 'explore' ? 4 : 0;
     for (const c of cs) { let s = 0; for (const sd of seeds) s += await S.trial(c, sd); res.push([c, s / seeds.length + bonus(c)]); }
@@ -241,6 +277,7 @@
     new Set(cs.map(grp)).forEach(g => S.log.avail[g] = (S.log.avail[g] || 0) + 1);
     const g = grp(best[0]); S.log.pick[g] = (S.log.pick[g] || 0) + 1; S.log.gain[g] = (S.log.gain[g] || 0) + (best[1] - base[1]);
     S.last = res.slice(0, 5).map(r => r[0].lab + ' ' + Math.round(r[1]));
+    if (S.watch && cs.some(c => S.watch.test(c.lab))) { (S.log.watch = S.log.watch || []).length < 30 && S.log.watch.push(res.slice(0, 6).map(r => r[0].lab + (r[0].x != null ? '@' + r[0].x + ',' + r[0].y : '') + ' ' + Math.round(r[1])).join(' / ') + ' || ' + (res.find(r => S.watch.test(r[0].lab)) || [{ lab: '' }, 0]).map(v => v.lab || Math.round(v)).join(' ')); }
     return best[0];
   };
   // ---- 探索（敵が近くにいない間）：拾う、見ていない所へ、階段へ ----
@@ -248,7 +285,7 @@
     const p = G.p, its = G.bag.items, hpR = p.hp / p.max;
     const heal = its.findIndex(q => q.id == 'potion' || q.id == 'bigpot' || (ITEM[q.id] || {}).food);
     if (hpR < .45 && heal >= 0) { slotUse(heal); return 'heal'; }
-    const goHome = G.exit && (hpR < .25 || (bagUsed() >= bagCap() - 1 && G.fi >= 2));
+    const goHome = G.exit && (hpR < .25 || (bagUsed() >= bagCap() - 1 && G.fi >= 2) || (window.RAIDCAP && (S.turnN || 0) - (window.RAID_T0 || 0) > RAIDCAP));
     if (G.obsF !== G.fi) { S.stuck = false; S.stuckN = 0; G.obsTgt = null; G.obsF = G.fi; G.obsBad = new Set(); G.obsSkip = new Set(); G.obsT = 0; G.obsN = 0; }
     try {
       const m = mainAction();
@@ -328,6 +365,7 @@
 
   // ---- 1手 ----
   S.turn = async () => {
+    S.turnN = (S.turnN || 0) + 1;
     const ret = $('ret'); if (ret) { ret.click(); await VT.run(300); return 'ret'; }
     const modal = $('modal');
     if (modal && modal.innerHTML) {
