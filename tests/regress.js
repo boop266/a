@@ -339,6 +339,24 @@ const cases = {
     });
     for (const k of ['bond', 'pet', 'canB', 'built', 'inn', 'done', 'claim', 'hunt', 'album', 'boardUI', 'buildUI', 'albumUI']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
+  // 物をタップすると、そこまで歩く。長押しで説明が出る
+  async 'タップで歩く・長押しで調べる'(p) {
+    await dive(p); await p.waitForTimeout(5500);
+    const t = await p.evaluate(() => { const P = G.p; for (let r = 2; r < 5; r++) for (const [a, b] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) { let ok = true; for (let k = 1; k <= r; k++) if (!walk(P.x + a * k, P.y + b * k) || foeAt(P.x + a * k, P.y + b * k)) ok = false; if (!ok) continue; const x = P.x + a * r, y = P.y + b * r; G.foes = []; G.items.push({ x, y, id: 'potion', drop: now() }); G.seen.add(x + ',' + y); const rc = scr.getBoundingClientRect(), V = G.view; return { x, y, cx: rc.left + ((x + .5) * T - V.cx) / V.vw * rc.width, cy: rc.top + ((y + .5) * T - V.cy) / V.vh * rc.height } } return null });
+    if (!t) throw new Error('置き場所がない');
+    await p.mouse.click(t.cx, t.cy); await p.waitForTimeout(2500);
+    const at = await p.evaluate(() => [G.p.x, G.p.y, !!document.getElementById('modal').innerHTML]);
+    if (at[0] != t.x || at[1] != t.y || at[2]) throw new Error('タップした所へ歩かない: ' + JSON.stringify(at));
+    const c = await p.evaluate(t => { const rc = scr.getBoundingClientRect(), V = G.view; return [rc.left + ((t.x + .5) * T - V.cx) / V.vw * rc.width, rc.top + ((t.y + .5) * T - V.cy) / V.vh * rc.height] }, t);
+    await p.mouse.move(c[0], c[1]); await p.mouse.down(); await p.waitForTimeout(700); await p.mouse.up(); await p.waitForTimeout(300);
+    if (!/薬/.test(await p.evaluate(() => document.getElementById('modal').innerText))) throw new Error('長押しで説明が出ない');
+  },
+  // 一度にたくさん来た一言は、流れて消えずに順に出る。「！」は割り込む
+  async '一言は順に出る'(p) {
+    await dive(p); await p.waitForTimeout(5500);
+    const r = await p.evaluate(async () => { G.title = null; const w = ms => new Promise(r => setTimeout(r, ms)); await w(800); toast('一'); toast('二'); toast('三'); const a = document.getElementById('toast').textContent; await w(750); const b = document.getElementById('toast').textContent; toast('危ない！'); const c = document.getElementById('toast').textContent; await w(1500); const d = document.getElementById('toast').textContent; return [a, b, c, d] });
+    if (r[0] != '一' || r[1] != '二' || r[2] != '危ない！' || r[3] != '三') throw new Error(JSON.stringify(r));
+  },
   // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
   async '強制フルスクリーン'(p) {
     await p.mouse.click(195, 400); await p.waitForTimeout(400);
@@ -406,7 +424,7 @@ const cases = {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; const give = id => { const f0 = firstFit(id); G.bag.items.push({ id, ...f0, inst: makeInst(id) }); return G.bag.items.length - 1; }; store('yw31_fights', '5'); G.p.x = 5; G.p.y = 8; const f = put('gob', 6, 8); f.alpha = 1; f.aware = 2; f.hp = f.max = 40;
-      const si = give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 400)); o.faced = f.hp == 40 && G.faceX == 1; G.busy = false; await slotUse(si); await new Promise(r => setTimeout(r, 900)); o.fight = !G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
+      const si = give('sword'); await step(1, 0); await new Promise(r => setTimeout(r, 900)); o.faced = f.hp < 40 && G.faceX == 1; f.hp = 40; G.busy = false; await slotUse(si); await new Promise(r => setTimeout(r, 900)); o.fight = !G.fight; o.hit = f.hp < 40; o.noRow = !document.getElementById('frow').classList.contains('on') && !document.querySelector('#btns .ctl').disabled && !/届かない|斬る/.test(document.getElementById('abar').innerText);
       // 予告 → 一歩離れる → 空振りで体勢が崩れる
       G.busy = false; f.tele = 1; f.windup = true; const hp = G.p.hp, post = f.post || 0; await step(-1, 0); await new Promise(r => setTimeout(r, 900));
       o.dodged = G.p.hp == hp && !f.tele && (f.post || 0) > post;
@@ -475,7 +493,7 @@ const cases = {
   },
   // 亡骸に隠れた古代の鞄を漁っても落ちない
   async '古代の鞄を漁れる'(p) {
-    const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); G.title = null; G.twistShown = 1; searchSrc(s); return document.getElementById('toast').textContent } return 'NONE' });
+    const r = await p.evaluate(() => { for (let i = 0; i < 60; i++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 1); const it = G.items.find(q => q.hid && q.id.startsWith('bag:')); if (!it) continue; const s = G.srcs.find(q => q.x == it.x && q.y == it.y); G.title = null; G.twistShown = 1; searchSrc(s); return LOG[0] } return 'NONE' });
     if (r === 'NONE' || !/鞄/.test(r)) throw new Error('結果: ' + r);
   },
   // 仲間と倉庫が、開き直しても消えない（後から登録される仲間・ボスの武器も）
