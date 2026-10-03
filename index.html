@@ -2238,7 +2238,8 @@ async function step(dx,dy){
  if(!walk(nx,ny))return;
 {if(G.lava&&G.lava.has(nx+','+ny)){if(!(G.lavaAsk&&G.lavaAsk.x==nx&&G.lavaAsk.y==ny&&performance.now()-G.lavaAsk.t<2500)){G.lavaAsk={x:nx,y:ny,t:performance.now()};sfx('no');toast('溶岩だ。もう一度押すと踏み込む（大やけど）');return}G.lavaAsk=null}}
  if(isPit(nx,ny)){if(!(G.holeAsk&&G.holeAsk.x==nx&&G.holeAsk.y==ny&&performance.now()-G.holeAsk.t<2500)){G.holeAsk={x:nx,y:ny,t:performance.now()};sfx('no');toast('穴が開いている。もう一度押すと飛び降りる（下の階へ）');return}G.holeAsk=null;sfx('stairs');toast('穴へ飛び降りた');setTimeout(()=>{if(G&&!G.over&&!G.fight)changeFloor(1)},400);return}
- if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){sfx('no');toast('角は斜めに抜けられない');return}
+ // 斜めが角で抜けられないときは、通れる方へ滑って進む（スティックが少し斜めでも引っかからない）
+ if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){const hx=walk(p.x+dx,p.y)&&!foeAt(p.x+dx,p.y),hy=walk(p.x,p.y+dy)&&!foeAt(p.x,p.y+dy);if(hx&&!hy)return step(dx,0);if(hy&&!hx)return step(0,dy);sfx('no');toast('角は斜めに抜けられない');return}
  if(!pushBoulder(nx,ny,dx,dy))return;
  const g=gimAt(nx,ny);if(g&&!passGim(g))return;
  {const al=G.allies.find(a=>a.x==nx&&a.y==ny);if(al){al.x=p.x;al.y=p.y;al.flip=dx<0;p.x=nx;p.y=ny;G.busy=true;sfx('step');reveal();await wait(90);try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui();return}}
