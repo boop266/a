@@ -5,7 +5,7 @@
 <style>:root{--bg:#0a090c;--ink:#e9dfc6;--dim:#a39884;--gold:#d9b35e;--brass:#b08a44;--brass2:#6e5426;--teal:#8fe0cc;--red:#c4463a;--curse:#b06cf0;--stoneC:#3b3936;--parchC:#dccaa0;--inkD:#3a2a18;
  --stone:none;--parch:none;--leather:none}
 *{box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 body{background:var(--bg);color:var(--ink);font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;margin:0;font-size:15px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .wrap{position:fixed;inset:0}
 .stage{position:absolute;inset:0}
@@ -6134,4 +6134,10 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
   if(Math.hypot(dx,dy)<22)return;if(typeof DEF!='undefined'&&DEF)return;if(!G||G.over||G.busy)return;
   if(document.getElementById('modal').innerHTML)return;if(G.sheet&&G.sheet!='closed')return;
   const d=dirOf(dx,dy);try{step(d[0],d[1])}catch(err){}},{passive:true});
-})()</script><script>try{vialNames()}catch(e){}</script>
+})()</script><script>try{vialNames()}catch(e){}</script><script>// 強制フルスクリーン：全画面でないときは、どこをさわっても全画面に戻す（iPhoneのSafariは仕組みが無いので何もしない）
+(function(){const de=document.documentElement,req=de.requestFullscreen||de.webkitRequestFullscreen;if(!req)return;
+ const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
+ const solo=()=>matchMedia('(display-mode: fullscreen),(display-mode: standalone)').matches;
+ let wait=0;const go=()=>{if(fsEl()||solo()||wait)return;wait=1;try{const r=req.call(de,{navigationUI:'hide'});const done=()=>{wait=0;try{screen.orientation.lock('portrait').catch(()=>{})}catch(e){}};if(r&&r.then)r.then(done,()=>{wait=0});else done()}catch(e){wait=0}};
+ ['pointerup','touchend','keydown'].forEach(ev=>addEventListener(ev,go,{capture:true,passive:true}));
+})()</script>

@@ -339,6 +339,15 @@ const cases = {
     });
     for (const k of ['bond', 'pet', 'canB', 'built', 'inn', 'done', 'claim', 'hunt', 'album', 'boardUI', 'buildUI', 'albumUI']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
+  // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
+  async '強制フルスクリーン'(p) {
+    await p.mouse.click(195, 400); await p.waitForTimeout(400);
+    if (!(await p.evaluate(() => !!document.fullscreenElement))) throw new Error('さわっても全画面にならない');
+    await p.evaluate(() => document.exitFullscreen()); await p.waitForTimeout(300);
+    if (await p.evaluate(() => !!document.fullscreenElement)) throw new Error('全画面から抜けられない');
+    await p.mouse.click(195, 400); await p.waitForTimeout(400);
+    if (!(await p.evaluate(() => !!document.fullscreenElement))) throw new Error('抜けたあと、さわっても全画面に戻らない');
+  },
   // 協力プレイ：合言葉でつなぎ、同じ階で、相棒もぶつかって殴る・待つ・薬を使う
   async '協力プレイ'(p) {
     const W = ms => new Promise(r => setTimeout(r, ms));
