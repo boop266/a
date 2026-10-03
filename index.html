@@ -3191,7 +3191,7 @@ function tapWorld(e){if(G&&G.lpDone&&performance.now()-G.lpDone<900){G.lpDone=0;
  const ht=hookTargets().find(q=>q[0]==tx&&q[1]==ty);if(ht){hookTo(ht);return true}
  if(!G.seen.has(tx+','+ty)){sfx('no');toast('まだ見ていない場所だ');return true}
  // 物や仕掛けをタップしたら、そこへ歩く（名前だけ一言で）。くわしい説明は長押し。行けない場所だけは、その場で説明を出す
- {const I=tileInfo(tx,ty);const can=walk(tx,ty)||trvBump(tx,ty);if(I.H.length&&!can){tileCard(tx,ty,I);return true}if(I.H.length){const nm=I.H.map(h=>h[0]).join('・');if(G.lastTerr!==nm){G.lastTerr=nm;toast(nm+(KNOW.lookhold?'':'（長押しで、くわしく）'))}learn('lookhold','長押しで調べる：地図の上の物・仕掛け・魔物を長押しすると、何なのかが分かる。手番は使わない')}else if(I.L.length&&G.lastTerr!==I.L[0]){G.lastTerr=I.L[0];toast(I.L[0])}}
+ {const I=tileInfo(tx,ty);const can=walk(tx,ty)||trvBump(tx,ty);if(I.H.length&&!can){tileCard(tx,ty,I);return true}if(I.H.length&&!KNOW.lookhold){toast('長押しすると、それが何か分かる');learn('lookhold','長押しで調べる：地図の上の物・仕掛け・魔物を長押しすると、何なのかが分かる。手番は使わない')}}
  if(cd(tx,ty,p.x,p.y)==1){let dx=tx-p.x,dy=ty-p.y;if(dx&&dy&&!diagOK(p.x,p.y,dx,dy)){if(walk(p.x+dx,p.y))dy=0;else if(walk(p.x,p.y+dy))dx=0}step(dx,dy);return true}
  if(!G.seen.has(tx+','+ty)){sfx('no');toast('まだ見ていない場所だ');return true}
  if(!walk(tx,ty)&&!trvBump(tx,ty)){sfx('no');return true}
