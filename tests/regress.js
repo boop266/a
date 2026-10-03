@@ -38,7 +38,7 @@ const cases = {
     await arena(p);
     const r = await p.evaluate(async () => {
       const o = {}; G.p.x = 5; G.p.y = 8; G.oil = new Set(); G.gas = []; G.mud = new Set();
-      G.pots = [{ x: 6, y: 8, k: 'oil' }]; await step(1, 0); await new Promise(r => setTimeout(r, 400)); o.bump = !G.pots.length && hasOil(6, 8); G.busy = false;
+      G.pots = [{ x: 6, y: 8, k: 'oil' }]; const w7 = G.m[8][7]; G.m[8][7] = 1; await step(1, 0); await new Promise(r => setTimeout(r, 400)); G.m[8][7] = w7; o.bump = !G.pots.length && hasOil(6, 8); G.busy = false; // ぶつかると押す。壁に当たれば割れる
       G.pots = [{ x: 5, y: 9, k: 'poison' }]; const m = mainAction(); o.lift = m && m.t == '持ち上げる'; m.f(); const i = G.bag.items.findIndex(q => q.id == 'pot_poison');
       o.inBag = i >= 0; throwAt(i, 9, 8); await new Promise(r => setTimeout(r, 400)); o.thrown = inGas(9, 8); G.busy = false;
       G.pots = [{ x: 12, y: 12, k: 'oil' }]; ignite(12, 12, 'quiet'); o.fire = !G.pots.length;
@@ -377,6 +377,23 @@ const cases = {
       return o;
     });
     if (r.water < 12 || !r.melt || r.drift < 1) throw new Error(JSON.stringify(r));
+  },
+  // ① 万物が同じルール：押す（壁で割れる・穴を埋める・水に浮く）、乗って流される、中に隠れる、熱で燃える
+  async '万物が同じルール'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => {
+      const o = {}; const w = ms => new Promise(r => setTimeout(r, ms)); const clr = () => { G.foes = []; G.pots = []; G.items = []; G.fires = []; document.getElementById('modal').innerHTML = ''; G.busy = false; G.bumpQ = null; G.hideIn = null; G.onTop = null };
+      for (let y = 3; y < 14; y++) for (let x = 3; x < 20; x++) G.water[y][x] = false; G.holes = new Set();
+      clr(); G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'crate' }); await step(1, 0); await w(300); o.push = G.pots[0].x == 7 && G.p.x == 6;
+      clr(); G.p.x = 5; G.p.y = 8; G.m[8][7] = 1; G.pots.push({ x: 6, y: 8, k: 'crate' }); await step(1, 0); await w(300); o.wall = G.pots.length == 0 && G.items.length == 1; G.m[8][7] = 0;
+      clr(); G.p.x = 5; G.p.y = 8; G.holes.add('7,8'); G.pots.push({ x: 6, y: 8, k: 'log' }); await step(1, 0); await w(300); o.fill = !G.holes.has('7,8');
+      clr(); for (let x = 7; x < 16; x++) G.water[8][x] = true; G.flw = null; flowF(); G.flw.draft = [0, 1]; G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'log' }); await step(1, 0); await w(300); const q = G.pots[0]; o.float = !!(q && q.fl);
+      G.busy = false; await step(1, 0); await w(200); const btn = [...document.querySelectorAll('#modal button')].find(b => /乗る/.test(b.textContent)); if (btn) { btn.click(); await w(300) } G.flw.draft = [1, 0]; const x0 = G.p.x; for (let t = 0; t < 6; t++) turnTick(); o.ride = G.p.x - x0; for (let x = 7; x < 16; x++) G.water[8][x] = false;
+      clr(); G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'crate' }); const f = put('gob', 12, 8); f.aware = 2; await step(1, 0); await w(200); G.busy = false; await step(1, 0); await w(200); const hb = [...document.querySelectorAll('#modal button')].find(b => /隠れる/.test(b.textContent)); if (hb) { hb.click(); await w(300) } turnTick(); o.hide = !!G.hideIn && f.aware != 2;
+      clr(); G.p.x = 5; G.p.y = 12; G.pots.push({ x: 12, y: 5, k: 'hay' }); G.fires.push({ x: 11, y: 5, t: 0, life: 20 }); for (let t = 0; t < 8; t++) turnTick(); o.hay = !G.pots.some(q => q.k == 'hay');
+      return o;
+    });
+    if (!(r.push && r.wall && r.fill && r.float && r.ride >= 2 && r.hide && r.hay)) throw new Error(JSON.stringify(r));
   },
   // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
   async '強制フルスクリーン'(p) {

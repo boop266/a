@@ -6233,6 +6233,105 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  // 名前の表示にも：熱い・冷気
  const _ti=tileInfo;tileInfo=function(x,y){const I=_ti.apply(this,arguments);try{const h=heatAt(x,y);if(h>=3)I.H.push(['熱い','火の熱が伝わっている。燃える物は燃え出し、氷は溶ける']);else if(h<=-2)I.H.push(['冷気','氷の冷たさ。あふれた水は凍る'])}catch(e){}return I};
 })()</script>
+<script>// ===== ① 万物が同じルール：置いてある物はみな「性質」だけを持つ。押す・割る・乗る・入る・燃える・浮く・沈む・埋める は性質から決まる =====
+(function(){
+ // 性質：押せる(push) 割れる(brk) 燃える(burn) 浮く(float) 重い(heavy) 乗れる(climb) 入れる(hide) 鳴る(loud) 金属(metal) におう(smell) 熱い(hot)
+ const OBJT={oil:{push:1,brk:1,burn:1},water:{push:1,brk:1},poison:{push:1,brk:1},fire:{push:1,brk:1,hot:1},sand:{push:1,brk:1,heavy:1},
+  barrel:{push:1,brk:1,burn:1,float:1,climb:1},crate:{push:1,brk:1,burn:1,float:1,climb:1,hide:1},hay:{burn:1,hide:1,smell:1},
+  armor:{push:1,heavy:1,hide:1,loud:1,metal:1},log:{push:1,heavy:1,burn:1,float:1,climb:1}};
+ const TAGN={push:'押せる',brk:'割れる',burn:'燃える',float:'浮く',heavy:'重い',climb:'乗れる',hide:'入れる',loud:'鳴る',metal:'金属',smell:'におう',hot:'熱い'};
+ window.OBJT=OBJT;window.objTags=k=>Object.keys(OBJT[k]||{}).map(t=>TAGN[t]);
+ Object.assign(POTN,{barrel:['樽','押せる・乗れる。燃える。水に浮く。割ると中身が出る'],crate:['木箱','押せる・乗れる・中に隠れられる。燃える。水に浮く'],hay:['干し草','もぐって隠れられる。よく燃える。獣の鼻にはにおう'],armor:['鎧の置物','重い鉄。中に入って隠れられる。押すと鳴る。穴を埋められる'],log:['丸太','重い。押せる・乗れる。燃える。水に浮く（乗れば流される）。穴を埋められる']});
+ Object.assign(SP,{pot_barrel:SP.barrel,
+  pot_crate:["kkkkkkkk","kuUuuUuk","kUuuuuUk","kuuUUuuk","kuuUUuuk","kUuuuuUk","kuUuuUuk","kkkkkkkk"],
+  pot_hay:["........","...yy...","..ygGy..",".ygGgGy.","yGgGgGgy","GgGgGgGG","kGGGGGGk",".kkkkkk."],
+  pot_armor:["..kEEk..","..kEek..","..kkkk..",".kEEEEk.","kEeEEeEk","kEeEEeEk",".kEkkEk.",".kk..kk."],
+  pot_log:["........","........",".kkkkkk.","kuttuutk","kUuttuUk",".kkkkkk.","........","........"]});
+ const TG=q=>OBJT[q.k]||{};const K=(x,y)=>x+','+y;
+ const say=(q,t)=>{if(G.seen.has(K(q.x,q.y))&&cd(q.x,q.y,G.p.x,G.p.y)<=10)toast(t)};
+ const NEWK=['barrel','crate','hay','armor','log'];
+ const rm=q=>{const i=G.pots.indexOf(q);if(i>=0)G.pots.splice(i,1);if(G.hideIn===q)G.hideIn=null;if(G.onTop===q)G.onTop=null};
+ const fireItem=()=>G.bag.items.some(pc=>!pc.out&&!pc.wet&&(ITEM[pc.id]&&ITEM[pc.id].lit||['hidane','hiya','fukuro_f'].includes(pc.id)));
+ // 壊れる・燃える（新しい物の分）
+ const _bp=breakPot;breakPot=function(q,why){if(!q||!NEWK.includes(q.k))return _bp.apply(this,arguments);const t=TG(q),{x,y}=q,nm=POTN[q.k][0];
+  const me=(G.hideIn===q||G.onTop===q);
+  if(why=='fire'){if(!t.burn)return;rm(q);(G.fires=G.fires||[]).push({x,y,t:0,life:q.k=='log'?10:q.k=='hay'?5:6});[[1,0],[-1,0],[0,1],[0,-1]].forEach(([a,b])=>{try{ignite(x+a,y+b,'quiet')}catch(e){}});sfx('boom');fx({type:'boom',x:x*T+4,y:y*T+4});say(q,nm+'が燃え上がった');
+   if(me){G.p.hp=Math.max(1,G.p.hp-3);G.hurt=6;toast('熱っ！　'+nm+'から転がり出た（-3）')}try{drawBase()}catch(e){}ui();return}
+  if(!t.brk){sfx('no');say(q,nm+'は割れない');return}
+  rm(q);sfx('hit');G.shake=6;fx({type:'spark',x:x*T+4,y:y*T+4,c:'#a0703e'});
+  if(q.k=='barrel'){const R=Math.random();if(R<.2){sfx('boom');fx({type:'boom',x:x*T+4,y:y*T+4});if(cd(x,y,G.p.x,G.p.y)<=1){G.p.hp=Math.max(1,G.p.hp-4);G.hurt=6}say(q,'火薬樽だった！');try{ignite(x,y,'quiet')}catch(e){}}else if(R<.6){const id=pick(['pcoin','pcoin','potion','bomb','fish']);G.items.push({x,y,id,drop:now(),how:'樽を割って'});say(q,'樽を割った。'+ITEM[id].n+'が転がり出た')}else say(q,'樽は空っぽだった')}
+  else if(q.k=='crate'){const id=Math.random()<.45?pick(['potion','jerky','koishi','torch','hidane','timber']):'timber';G.items.push({x,y,id,drop:now(),how:'木箱を壊して'});say(q,'木箱を壊した。'+ITEM[id].n+'が出てきた')}
+  try{drawBase()}catch(e){}ui()};
+ // 燃え移る火・熱で、燃える物は燃える
+ const _ig=ignite;ignite=function(x,y,src){const q=potAt(x,y);if(q&&NEWK.includes(q.k)&&TG(q).burn){breakPot(q,'fire');return}return _ig.apply(this,arguments)};
+ // 押す：押した先しだい。壁なら割れる物は割れる／穴なら重い物は埋める／水なら浮く物は浮く／魔物ならぶつかる／火なら燃える
+ function objPush(q,dx,dy){const t=TG(q),nm=POTN[q.k][0],tx=q.x+dx,ty=q.y+dy,kk=K(tx,ty);
+  if(t.loud||t.heavy){try{makeNoise(q.x,q.y,t.loud?7:4,t.loud?'bell':'thud')}catch(e){}sfx('thud')}
+  const f=foeAt(tx,ty);
+  if(f){try{hit(f,t.heavy?6:2)}catch(e){}f.stun=Math.max(f.stun||0,t.heavy?2:1);G.shake=6;say(q,nm+'を'+f.n+'にぶつけた！');if(t.brk){q.x=tx;q.y=ty;breakPot(q,'bump')}return 'hit'}
+  if(isPit(tx,ty)){rm(q);if(t.heavy){G.holes.delete(kk);say(q,nm+'が穴にはまって、穴が埋まった');try{react('earth+pit',tx,ty)}catch(e){}}else say(q,nm+'は穴の下へ落ちていった');try{drawBase()}catch(e){}return 'gone'}
+  if(G.lava&&G.lava.has(kk)){rm(q);if(t.heavy){G.lava.delete(kk);say(q,nm+'が溶岩を埋めて、渡れるようになった')}else say(q,nm+'は溶岩に呑まれた');try{drawBase()}catch(e){}return 'gone'}
+  const blocked=!walk(tx,ty)||potAt(tx,ty)||onStair(tx,ty)||(G.chest&&G.chest.x==tx&&G.chest.y==ty)||(typeof gimAt=='function'&&gimAt(tx,ty)&&!gOpen(gimAt(tx,ty)))||(tx==G.p.x&&ty==G.p.y);
+  if(blocked){if(t.brk){breakPot(q,'bump');return 'broke'}sfx('no');say(q,nm+'は、もう押せない');return 'stuck'}
+  if(inWater(tx,ty)&&!t.float){if(t.brk){q.x=tx;q.y=ty;breakPot(q,'bump');return 'broke'}rm(q);say(q,nm+'は水に沈んでいった');return 'gone'}
+  q.x=tx;q.y=ty;if(inWater(tx,ty)){q.fl=1;say(q,nm+'が水に浮かんだ')}
+  if((G.fires||[]).some(z=>z.x==tx&&z.y==ty)&&t.burn){breakPot(q,'fire');return 'burn'}
+  if(!t.burn&&t.hot)try{ignite(tx,ty,'quiet')}catch(e){}
+  learn('push','押す：置いてある物にぶつかると押す。壁に当たれば割れる物は割れ、重い物は穴を埋め、浮く物は水に浮く。続けてもう一度ぶつかると、乗る・入る・割る…を選べる');
+  return 'moved'}
+ window.objPush=objPush;
+ function hop(q,mode){const p=G.p;p.x=q.x;p.y=q.y;if(mode=='hide')G.hideIn=q;else G.onTop=q;sfx('step');reveal();ui()}
+ function objCard(q){const t=TG(q),nm=POTN[q.k][0],p=G.p,dx=Math.sign(q.x-p.x),dy=Math.sign(q.y-p.y);const B=[];
+  if(t.push)B.push(['押す',async()=>{const r=objPush(q,dx,dy);if(r=='moved')await _st(dx,dy);else afterUse()},'go']);
+  if(t.climb)B.push(['上に乗る（遠くまで見える）',()=>{hop(q,'top');toast(nm+'の上に乗った。高い所から遠くまで見える');afterUse()}]);
+  if(t.hide)B.push(['中に隠れる',()=>{hop(q,'hide');toast(nm+'の中に隠れた。じっとしていれば、見つかりにくい');afterUse()}]);
+  if(t.brk)B.push(['割る',()=>{breakPot(q,'bump');afterUse()}]);
+  if(t.burn&&fireItem())B.push(['火をつける',()=>{breakPot(q,'fire');afterUse()}]);
+  B.push(['やめる',()=>{}]);
+  evSay(nm,['性質：'+objTags(q.k).join('・')],B)}
+ // ぶつかったら押す。続けてもう一度ぶつかったら、どうするかの札
+ const _st=step;step=async function(dx,dy){try{if(G&&!G.busy&&!G.fight&&!G.over&&!G.guest&&!G.fishing&&!$('modal').innerHTML&&!(G.sheet=='bag')){const p=G.p,nx=p.x+dx,ny=p.y+dy,q=potAt(nx,ny);
+   if(q&&!(dx&&dy&&!diagOK(p.x,p.y,dx,dy))){const t=TG(q);const twice=G.bumpQ===q&&performance.now()-(G.bumpQT||0)<2500;G.bumpQ=q;G.bumpQT=performance.now();
+    if(twice||!t.push){G.bumpQ=null;objCard(q);return}
+    const r=objPush(q,dx,dy);if(r=='moved'){return _st.apply(this,arguments)}afterUse();return}}}catch(e){}
+  return _st.apply(this,arguments)};
+ // 重い・大きい物は持ち上げられない
+ potAction=function(){if(G.fight)return null;const p=G.p;const q=DIRS8.map(([a,b])=>potAt(p.x+a,p.y+b)).find(q=>q&&!NEWK.includes(q.k)&&ITEM['pot_'+q.k]);if(!q)return null;const id='pot_'+q.k,fit=firstFit(id);
+  return{ic:'hand',t:fit?'持ち上げる':'割る',sub:POTN[q.k][0]+(fit?'（狙って投げれば割れる）':'（カバンに入らない）'),f:()=>{if(fit){G.pots.splice(G.pots.indexOf(q),1);G.bag.items.push({id,...fit});sfx('pick');toast(POTN[q.k][0]+'を持ち上げた。下の枠を長押しすれば、狙って投げられる');try{drawBase()}catch(e){}ui()}else{breakPot(q,'bump');afterUse()}}}};
+ // 高い所からは遠くまで見える
+ const _rv=reveal;reveal=function(){const r=_rv.apply(this,arguments);try{if(G.onTop&&G.onTop.x==G.p.x&&G.onTop.y==G.p.y){const p=G.p,R=6;for(let j=-R;j<=R;j++)for(let i=-R;i<=R;i++)if(i*i+j*j<=R*R)G.seen.add(K(p.x+i,p.y+j))}}catch(e){}return r};
+ // 隠れている間：離れた魔物は見失う。すぐそばの魔物は、覗き込んでくることがある
+ let lastTurn=-1;function objTurn(){const p=G.p;if(!G.pots)return;
+  if(G.hideIn&&(G.hideIn.x!==p.x||G.hideIn.y!==p.y||!G.pots.includes(G.hideIn)))G.hideIn=null;
+  if(G.onTop&&(G.onTop.x!==p.x||G.onTop.y!==p.y||!G.pots.includes(G.onTop)))G.onTop=null;
+  if(G.hideIn){const q=G.hideIn;G.foes.forEach(f=>{if(f.hp<=0||f.ally||f.caged)return;const d=cd(f.x,f.y,p.x,p.y);if(d>1){if(f.aware==2){f.aware=1;if(!G.lostSaid){G.lostSaid=1;toast(f.n+'は、こちらを見失ったようだ')}}}
+    else if(f.aware){const ch=(TG(q).smell&&kinOf(f)=='beast')?.5:.2;if(Math.random()<ch){G.hideIn=null;f.aware=2;G.shake=6;sfx('spot');toast(f.n+'に覗き込まれた！')}else f.aware=1}})}
+  // 火鉢は熱を出す（⑦とつながる）
+  if(G.flw)G.pots.forEach(q=>{if(TG(q).hot){const k=K(q.x,q.y);G.flw.ht.set(k,Math.max(G.flw.ht.get(k)||0,3))}});
+  // 熱で、燃える物は燃える
+  G.pots.slice().forEach(q=>{if(TG(q).burn&&NEWK.includes(q.k)&&typeof heatAt=='function'&&heatAt(q.x,q.y)>=4.5&&Math.random()<.3)breakPot(q,'fire')});
+  // 水に浮いた物は、風下へ流れる。乗っていれば一緒に流される
+  if((G.tick||0)%2==0&&G.flw){const[dx,dy]=G.flw.draft;G.pots.forEach(q=>{if(!q.fl||!inWater(q.x,q.y))return;const tx=q.x+dx,ty=q.y+dy;if(!inWater(tx,ty)||potAt(tx,ty)||foeAt(tx,ty)||(tx==p.x&&ty==p.y&&G.onTop!==q))return;const ride=G.onTop===q;q.x=tx;q.y=ty;if(ride){p.x=tx;p.y=ty;reveal();say(q,POTN[q.k][0]+'に乗ったまま、流されていく')}})}}
+ const _t2=turnTick2;turnTick2=function(){try{if(G.tick!==lastTurn){lastTurn=G.tick;objTurn()}}catch(e){}return _t2.apply(this,arguments)};
+ // 金属は雷を伝える
+ const _re=react;react=function(k,x,y){const r=_re.apply(this,arguments);try{if(/volt/.test(k)&&x!=null)(G.pots||[]).forEach(q=>{if(TG(q).metal&&cd(q.x,q.y,x,y)<=2){G.foes.forEach(f=>{if(f.hp>0&&cd(f.x,f.y,q.x,q.y)<=1){f.stun=Math.max(f.stun||0,2);fx({type:'spark',x:f.rx+4,y:f.ry,c:'#fff36a'})}});say(q,'雷が'+POTN[q.k][0]+'を伝って走った')}})}catch(e){}return r};
+ // 隠れている間は、見えない（目だけ光る）
+ const heroSP=SP.hero,hidSP=heroSP.map((r,j)=>j==6?'...k..k...':'..........');Object.defineProperty(SP,'hero',{configurable:true,get(){return (G&&G.hideIn)?hidSP:heroSP},set(v){}});
+ // 置き方：まばらに、理由のある場所へ（倉庫に木箱、野営地に干し草、兵舎や礼拝堂に鎧、水辺や庭に丸太）
+ if(!FKEYS.includes('objGen'))FKEYS.push('objGen');
+ function genObjs(){if(G.objGen||!G.rooms||!G.pots)return;G.objGen=1;
+  (G.barrels||[]).forEach(b=>G.pots.push({x:b.x,y:b.y,k:'barrel'}));G.barrels=[];
+  const busy=(x,y)=>!walk(x,y)||isPit(x,y)||potAt(x,y)||foeAt(x,y)||onStair(x,y)||G.items.some(i=>i.x==x&&i.y==y)||(G.water[y]&&G.water[y][x])||(x==G.p.x&&y==G.p.y)||(G.chest&&G.chest.x==x&&G.chest.y==y)||(typeof gimAt=='function'&&gimAt(x,y));
+  const RULE={store:[['crate',.6,2]],kitchen:[['crate',.3,1]],camp:[['hay',.5,1]],nest:[['hay',.35,1]],barracks:[['armor',.55,1]],chapel:[['armor',.4,1]],prison:[['armor',.35,1]],garden:[['log',.35,1]],grave:[['log',.2,1]]};
+  let n=0;const cap=G.fi==0?3:5;
+  G.rooms.forEach(r=>{(RULE[r.type]||[]).forEach(([k,pr,mx])=>{if(n>=cap||Math.random()>pr)return;const m=1+Math.floor(Math.random()*mx);for(let c=0;c<m&&n<cap;c++){for(let tr=0;tr<12;tr++){const x=r.x+1+Math.floor(Math.random()*Math.max(1,r.w-2)),y=r.y+1+Math.floor(Math.random()*Math.max(1,r.h-2));if(busy(x,y))continue;if(DIRS.filter(([a,b])=>walk(x+a,y+b)&&!potAt(x+a,y+b)).length<3)continue;G.pots.push({x,y,k});n++;break}}})});
+  // 水辺の丸太（浮かべて乗れる）
+  if(n<cap&&Math.random()<.35){for(let tr=0;tr<40;tr++){const x=1+Math.floor(Math.random()*(MW-2)),y=1+Math.floor(Math.random()*(MH-2));if(busy(x,y)||!DIRS.some(([a,b])=>G.water[y+b]&&G.water[y+b][x+a]))continue;G.pots.push({x,y,k:'log'});break}}
+  try{drawBase()}catch(e){}}
+ window.genObjs=genObjs;
+ const _lf=loadFloor;loadFloor=function(F){const r=_lf.apply(this,arguments);try{genObjs()}catch(e){}return r};
+ const _nr=newRaid;newRaid=function(){const r=_nr.apply(this,arguments);try{genObjs()}catch(e){}return r};
+})()</script>
 <script>// 見えているもの全部の上に名前を出す（地面の広がりは一かたまりに一つ・魔物・落ちている物・仕掛け）。起きた反応はその場に大きく
 (function(){const box=document.getElementById('wlab');let L=[],last=0;const SKIP=/縄張り|匂い|足跡|血の跡/;
  window.WLAB_ON=(()=>{try{return store('yw90_wlab')!=='0'}catch(e){return true}})();
