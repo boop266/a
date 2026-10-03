@@ -2207,7 +2207,7 @@ function toastShow(s){const e=$('toast');const box=e.parentNode;const on=box.cla
 const now=()=>(performance.now()-G.t0)/1000;
 function fx(o){G.fx.push({t:now(),life:.8,...o});if(o&&o.type=='boom'&&G&&!G.over&&G.gim&&G.gim.some(g=>g.type=='crack'&&!g.open)){try{blastAt(Math.floor(o.x/T),Math.floor(o.y/T))}catch(e){}}}
 async function step(dx,dy){
- audio();if(G&&G.mudT>0&&!G.fight&&!G.busy){G.mudT--;sfx('no');toast('足が泥に取られる…');G.busy=true;ui();setTimeout(()=>{G.busy=false;ui()},260);return}if(G&&G.fight&&!G.guest){if(G.fight.oneShot&&!G.busy)G.fight=null;else return}if(G&&G.guest){if(G.dead){sfx('no');toast('あなたは倒れている');return}if(G.parW>performance.now()){coopSend({t:'par'});G.parW=0;sfx('parry');toast('弾いた！');coopPanel();return}if(!$('modal').innerHTML)coopSend({t:'mv',dx,dy});return}if(G.fishing)return;
+ audio();if(G&&G.mudT>0&&!G.fight&&!G.busy){G.mudT--;sfx('no');toast('足が泥に取られる…');G.busy=true;ui();setTimeout(()=>{G.busy=false;ui()},260);return}if(G&&G.fight&&!G.guest){if(G.fight.oneShot&&!G.busy)G.fight=null;else return}if(G&&G.guest){if(G.dead){sfx('no');toast('あなたは倒れている');return}if(G.parW>performance.now()){coopSend({t:'par'});G.parW=0;sfx('parry');toast('弾いた！');coopPanel();return}if(!$('modal').innerHTML&&performance.now()-(G.mvT||0)>380){G.mvT=performance.now();const w=G.bag.items.filter(q=>ITEM[q.id].weapon&&ITEM[q.id].dmg).sort((a,b)=>ITEM[b.id].dmg-ITEM[a.id].dmg)[0];coopSend({t:'mv',dx,dy,w:w?w.id:null})}return}if(G.fishing)return;
  if(G.sheet=='bag')closeSheet();
  if(G.busy||G.fight||G.over||$('modal').innerHTML)return;
  if(G.map){G.map=false;ui()}
@@ -3404,7 +3404,7 @@ function craftTick(){
  if(G.lures&&G.lures.length){for(let i=G.lures.length-1;i>=0;i--){const L=G.lures[i];if(++L.t>40){G.lures.splice(i,1);if(G.seen.has(L.x+','+L.y))toast(L.k?(L.n||'身代わり')+'が戻ってきた':'糸人形が、ぼろぼろになって崩れた')}}}}
 function turnTick(){if(G._tt)return;G._tt=1;try{stayTick();try{kinTick()}catch(e){}try{ecoTick()}catch(e){}try{realTick()}catch(e){}try{envGateStep()}catch(e){}try{envFoeStep()}catch(e){}try{envHazardStep()}catch(e){}try{floodStep();dripStep();curStep();wetTick();crackStep();caveStep();fireStep();lavaStep();steamStep();gasStep();coatTick();windStep();comboStep();specialStep();craftTick()}catch(e){}}finally{G._tt=0}
  return turnTick2()}
-function turnTick2(){G.tick=(G.tick||0)+1;regenTick();try{shardTick()}catch(e){}try{foeSmashPots()}catch(e){}try{tbombTick()}catch(e){}if(G.poison>0){G.poison--;G.p.hp=Math.max(1,G.p.hp-1);fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#b06cf0'})}G.bag.items.forEach(pc=>{if(pc.id=='sealstone'){pc.inst=pc.inst||{};pc.t=(pc.t==null?30:pc.t)-1}});const i=G.bag.items.findIndex(pc=>pc.id=='sealstone'&&pc.t<=0);if(i>=0){G.bag.items.splice(i,1);toast('封じ石が、砂になって崩れた');ui()}}
+function turnTick2(){G.tick=(G.tick||0)+1;G.ptAct=0;try{partnerRegen()}catch(e){}regenTick();try{shardTick()}catch(e){}try{foeSmashPots()}catch(e){}try{tbombTick()}catch(e){}if(G.poison>0){G.poison--;G.p.hp=Math.max(1,G.p.hp-1);fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#b06cf0'})}G.bag.items.forEach(pc=>{if(pc.id=='sealstone'){pc.inst=pc.inst||{};pc.t=(pc.t==null?30:pc.t)-1}});const i=G.bag.items.findIndex(pc=>pc.id=='sealstone'&&pc.t<=0);if(i>=0){G.bag.items.splice(i,1);toast('封じ石が、砂になって崩れた');ui()}}
 // 自然回復：シレンと同じく、時間が進めば少しずつ体力が戻る（毒の間は戻らない）
 function regenTick(){const p=G.p;if(!p||p.hp<=0||p.hp>=p.max||G.poison>0||G.over)return;G.rgT=(G.rgT||0)+1;const every=Math.max(2,Math.round(120/p.max));if(G.rgT>=every){G.rgT=0;p.hp=Math.min(p.max,p.hp+1)}}
 function lurkCheck(){(G.foes||[]).forEach(f=>{if(f.lurk&&f.hp>0&&Math.abs(f.x-G.p.x)+Math.abs(f.y-G.p.y)<=1){f.lurk=0;f.aware=2;G.shake=8;sfx('spot');toast('物陰から'+f.n+'が飛び出した！')}})}
@@ -4027,6 +4027,7 @@ async function enemiesMove(){
    if(o&&(f.charm>0||f.fear>0?true:Math.random()<.8)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];if(f.fear>0||f.charm>0)f.moved=0}continue}
   if(!shy0&&!f.aware){if(Math.random()<.18)f.flip=!f.flip;}
   const hot=(x,y)=>!(FOE[f.k]||{}).fireOK&&(G.fires||[]).some(q=>q.x==x&&q.y==y);const opts=DIRS8.map(([a,b])=>[f.x+a,f.y+b,a,b]).filter(([x,y,a,b])=>walk(x,y)&&!isPit(x,y)&&!hot(x,y)&&!(G.lava&&G.lava.has(x+','+y))&&diagOK(f.x,f.y,a,b)&&!gimAt(x,y)&&!foeAt(x,y)&&!potAt(x,y)&&!plankAt(x,y)&&!(G.anchors||[]).some(q=>q[0]==x&&q[1]==y)&&!(x==p.x&&y==p.y)&&!(G.chest&&x==G.chest.x&&y==G.chest.y)&&!(G.barrels&&G.barrels.some(b=>b.x==x&&b.y==y))&&!(G.sdoor&&G.sdoor.x==x&&G.sdoor.y==y)&&!(G.ship&&x==G.start[0]&&y==G.start[1])&&!G.allies.some(a=>a.x==x&&a.y==y));
+  {const PT=COOP.on&&COOP.host&&G.partner&&G.partner.hp>0?G.partner:null;if(PT){for(let j=opts.length-1;j>=0;j--)if(opts[j][0]==PT.x&&opts[j][1]==PT.y)opts.splice(j,1);if(f.aware==2&&cd(f.x,f.y,PT.x,PT.y)<=1&&dd>1)continue}}
   const shy=f.k=='puru'||f.k=='koke';
   let LU=null;
   if((f.pers=='glut'||f.pers=='curious')&&!f.aware){const tgt=G.items.filter(it=>!it.hid&&(f.pers=='glut'?((ITEM[it.id]||{}).food||it.id=='potion'):true)&&cd(it.x,it.y,f.x,f.y)<=6).sort((a,b)=>cd(a.x,a.y,f.x,f.y)-cd(b.x,b.y,f.x,f.y))[0];if(tgt)LU={x:tgt.x,y:tgt.y}}
@@ -4047,6 +4048,7 @@ async function enemiesMove(){
  const atk=adj.filter(f=>f.aware==2&&!f.broken&&!G._movedFoe.has(f));
  for(const f of atk){if(G.over||f.hp<=0)break;await wait(70);const r=await foeAttack(f);if(r==='dead')return}
  {const busy=new Set(atk);for(const f of G.foes){if(G.over||!G.allies.length)break;if(busy.has(f)||f.hp<=0||f.aware!=2||f.broken||f.stun>0||f.charm>0||f.caged||G._movedFoe.has(f))continue;const a=G.allies.find(a=>cd(a.x,a.y,f.x,f.y)<=1);if(a&&cd(f.x,f.y,p.x,p.y)>1){await lunge(f,a);allyHurt(a,f);await wait(100)}}}
+ try{await partnerHits(atk)}catch(e){}
  if(atk.length)return
  const sh=G.foes.find(f=>f.hp>0&&f.aware==2&&FOE[f.k].rng&&FOE[f.k].rng[1]>=2&&(f.x==p.x||f.y==p.y||Math.abs(f.x-p.x)==Math.abs(f.y-p.y))&&(()=>{const d=cd(f.x,f.y,p.x,p.y);return d>=2&&d<=FOE[f.k].rng[1]+1})()&&lineClear(f.x,f.y,p.x,p.y));
  if(sh&&!G._movedFoe.has(sh)&&!sh.broken){await foeAttack(sh)}
@@ -4263,7 +4265,7 @@ function summon(pc){
  G.allies.push({k:pc.id,n:pc.name||d.n,grown:(pc.trips||0)>=3,ally:true,pc,hp:pc.hp,max:d.hp,atk:d.atk+(pc.inst&&pc.inst.mut?3:0)+(pc.inst&&pc.inst.sai?SAI[pc.inst.sai].atk:0)+bondAtk(pc),waza:pc.inst&&pc.inst.waza,regen:heal&&heal.lab=='元気'?2:0,x:s[0],y:s[1],rx:p.rx,ry:p.ry,ox:0,oy:0,alpha:1,stun:0,flip:false,seed:Math.random()*9});
  fx({type:'ring',x:s[0]*T+4,y:s[1]*T+2});sfx('summon');if(pc.inst&&pc.inst.shiny&&(pc.id=='puru'||pc.id=='mochi')){p.hp=Math.min(p.max,p.hp+3);fx({type:'heal',x:p.rx+4,y:p.ry})}toast((pc.name||d.n)+'、いけ！');
 }
-async function doWait(){if(!G||G.over||G.busy)return;
+async function doWait(){if(!G||G.over||G.busy)return;if(G.guest){if(!G.dead&&performance.now()-(G.mvT||0)>380){G.mvT=performance.now();coopSend({t:'wait'})}return}
  if(G.fight){G.busy=true;ui();try{await afterPlayer()}catch(e){}G.busy=false;ui();return}
  G.busy=true;ui();await wait(100);try{await enemiesMove()}catch(e){}try{if(!G.fight&&!G.over)turnTick()}catch(e){}G.busy=false;ui()}
 function pruneFight(){try{if(G&&G.fight&&G.fight.foes){const n=G.fight.foes.filter(f=>f.hp>0);
@@ -4479,22 +4481,23 @@ function coopWait(){$('modal').innerHTML='<div class="modal"><div class="box"><h
 // host side
 function coopPlacePartner(){if(!G)return;const p=G.p;const c=DIRS.map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>!G.m[y][x])||[p.x,p.y];G.partner={x:c[0],y:c[1],rx:c[0]*T,ry:c[1]*T,ox:0,oy:0,hp:(G.partner&&G.partner.hp)||30,max:30,heals:(G.partner&&G.partner.heals!=null)?G.partner.heals:3,flip:false,k:'partner',n:'相棒',carry:(G.partner&&G.partner.carry)||0}}
 function coopFloor(){const F={};FKEYS.forEach(k=>F[k]=G[k]);coopSend({t:'floor',F,fi:G.fi,muts:G.muts,cond:G.cond})}
-setInterval(()=>{if(!COOP.host||!COOP.on||!G||G.over||!G.partner)return;const pt=G.partner;coopSend({t:'tick',h:{x:G.p.x,y:G.p.y,hp:G.p.hp,max:G.p.max,flip:G.p.flip},pt:{x:pt.x,y:pt.y,hp:pt.hp,heals:pt.heals},foes:G.foes.map(f=>[f.x,f.y,f.hp,f.alpha,f.aware||0,f.k,f.mut?1:0,f.max]),items:G.items.filter(i=>!i.gone).map(i=>[i.x,i.y,i.id]),fight:G.fight?{dist:G.fight.dist,pAct:G.fight.pAct||0}:null,evs:(G.evs||[]).map(e=>[e.x,e.y,e.k,e.gone?1:0])})},130);
+setInterval(()=>{if(!COOP.host||!COOP.on||!G||G.over||!G.partner)return;const pt=G.partner;coopSend({t:'tick',h:{x:G.p.x,y:G.p.y,hp:G.p.hp,max:G.p.max,flip:G.p.flip},pt:{x:pt.x,y:pt.y,hp:pt.hp,heals:pt.heals},foes:G.foes.map(f=>[f.x,f.y,f.hp,f.alpha,f.aware||0,f.k,f.mut?1:0,f.max]),items:G.items.filter(i=>!i.gone).map(i=>[i.x,i.y,i.id]),fight:null,evs:(G.evs||[]).map(e=>[e.x,e.y,e.k,e.gone?1:0])})},130);
 async function coopHost(o){if(!G||G.over)return;
  if(o.t=='relics'){const at=G.relicAt||[G.p.x,G.p.y];
   G.relic={x:at[0],y:at[1],items:(o.items||[]).slice()};
   toast('相棒の亡骸が、そこに残された');ui();return}
  const pt=G.partner;if(!pt)return;
- if(o.t=='mv'){const nx=pt.x+o.dx,ny=pt.y+o.dy;pt.flip=o.dx<0?true:o.dx>0?false:pt.flip;if(G.m[ny][nx]||(nx==G.p.x&&ny==G.p.y))return;const f=G.foes.find(f=>f.hp>0&&!f.dormant&&f.x==nx&&f.y==ny);
-  if(f){if(G.fight){if(G.fight.foes.includes(f))coopHost({t:'atk'});return}if(G.busy)return;toast('相棒が'+f.n+'と交戦した！');startFight([f],'first',Math.max(1,Math.min(3,Math.abs(f.x-G.p.x)+Math.abs(f.y-G.p.y))));return}
-  if(G.fight)return;pt.x=nx;pt.y=ny;return}
+ if(o.t=='wait'){if(!G.ptAct&&!G.busy)coopTurn();return}
+ if(o.t=='mv'){if(G.ptAct||G.busy)return;const nx=pt.x+o.dx,ny=pt.y+o.dy;pt.flip=o.dx<0?true:o.dx>0?false:pt.flip;if(G.m[ny][nx]||(nx==G.p.x&&ny==G.p.y)||isPit(nx,ny)||(G.lava&&G.lava.has(nx+','+ny)))return;const f=G.foes.find(f=>f.hp>0&&!f.dormant&&f.x==nx&&f.y==ny);
+  if(f){await partnerStrike(f,o.w);coopTurn();return}
+  if(G.allies.some(a=>a.x==nx&&a.y==ny))return;pt.x=nx;pt.y=ny;coopTurn();return}
  if(o.t=='pick'){const i=G.items.findIndex(it=>it.x==pt.x&&it.y==pt.y&&!it.scout&&!(it.id+'').startsWith('bag:')&&ITEM[it.id]);if(i<0)return;const it=G.items[i];coopSend({t:'got',id:it.id,inst:it.inst||null});G.items.splice(i,1);toast('相棒が'+ITEM[it.id].n+'を拾った');return}
  if(o.t=='par'){COOP.par=1;return}
  if(o.t=='give'){if(addToBag(o.id,o.inst?{inst:o.inst}:null)){sfx('pick');toast('相棒から'+instName(o.id,o.inst)+'を受け取った');coopSend({t:'gaveok',id:o.id});if(!G.fight){G.busy=true;ui();wait(80).then(async()=>{try{await enemiesMove()}catch(e){}G.busy=false;ui()})}}else{sfx('no');coopSend({t:'msg',s:'相手のカバンに空きがない'})}ui();return}
  if(o.t=='tookok'){const i=G.bag.items.findIndex(q=>q.id==o.id);if(i>=0)G.bag.items.splice(i,1);sfx('pick');toast(ITEM[o.id].n+'を相棒に渡した');ui();return}
  if(o.t=='tookng'){sfx('no');toast('相棒のカバンに空きがない');return}
  if(o.t=='use'){const hv=healAmt(o.id);if(!hv)return;if(G.fight){if(G.fight.pAct)return;G.fight.pAct=1}
-  pt.hp=Math.min(pt.max,pt.hp+hv);fx({type:'heal',x:pt.x*T+4,y:pt.y*T});sfx('heal');toast('相棒が'+ITEM[o.id].n+'を使った（+'+hv+'）');coopSend({t:'spend',id:o.id});ui();return}
+  pt.hp=Math.min(pt.max,pt.hp+hv);fx({type:'heal',x:pt.x*T+4,y:pt.y*T});sfx('heal');toast('相棒が'+ITEM[o.id].n+'を使った（+'+hv+'）');coopSend({t:'spend',id:o.id});ui();if(!G.fight)coopTurn();return}
  if(o.t=='leave'){G.partner=null;toast('相棒はひとりで地上へ帰っていった');coopSend({t:'left',id:o.id});ui();return}
  if(!G.fight||G.fight.pAct)return;
  if(o.t=='atk'){const tgt=tgtFoe();if(!tgt)return;G.fight.pAct=1;const W=o.w&&ITEM[o.w];const dm=W&&W.dmg?W.dmg:3;
@@ -4502,12 +4505,26 @@ async function coopHost(o){if(!G||G.over)return;
   if(W)toast('相棒の'+W.n+'！');tgt.hitByMe=1;sfx('hit');toast('相棒の一撃！');await wait(250);if(!G.busy)await resolveDeaths();ui();return}
  if(o.t=='guard'){G.fight.pAct=1;G.guard=Math.max(G.guard||0,2);toast('相棒が盾になった。次の被害が半分になる');ui();return}
  if(o.t=='heal'){if(pt.heals<=0){coopSend({t:'msg',s:'手当ての布が尽きた'});return}G.fight.pAct=1;pt.heals--;G.p.hp=Math.min(G.p.max,G.p.hp+5);fx({type:'heal',x:G.p.rx,y:G.p.ry});sfx('heal');toast('相棒が手当てしてくれた（+5）');ui()}}
+// 相棒の一撃（シレン式：ぶつかれば殴る）
+async function partnerStrike(f,w){const pt=G.partner;if(!pt)return;const W=w&&ITEM[w];const dm=W&&W.dmg?W.dmg:3;pt.flip=f.x<pt.x;
+ try{await lunge(pt,f,3)}catch(e){}fx({type:'slash',x:f.rx+4,y:f.ry+2,c:'#8fe07a'});sfx('hit');
+ const d=f.armor&&!(W&&W.pierce)?Math.max(1,Math.floor(dm/2)):dm;f.aware=2;f.hitByMe=1;hit(f,d,pt);toast('相棒の'+(W?W.n:'こぶし')+'！（'+d+'）');
+ if(f.hp<=0){const F=engageTmp([f]);try{await resolveDeaths()}catch(e){}if(G.fight===F)G.fight=null}ui()}
+// 相棒が動いたら、その手番ぶん時間が進む（ホストが少し動かなければ、ひとりでに）
+function coopTurn(){G.ptAct=1;clearTimeout(G.ptT);const go=async()=>{if(!G||G.over||!G.ptAct)return;if(G.busy){G.ptT=setTimeout(go,200);return}G.busy=true;ui();try{await enemiesMove()}catch(e){}try{if(!G.over)turnTick()}catch(e){}G.busy=false;ui()};G.ptT=setTimeout(go,450)}
+// 敵の番：相棒の隣にいる敵は、相棒を殴る
+async function partnerHits(busy){if(!(COOP.on&&COOP.host))return;const pt=G.partner;if(!pt||pt.hp<=0)return;const p=G.p;
+ for(const f of G.foes){if(G.over||!G.partner)break;if(busy.includes(f)||f.hp<=0||f.aware!=2||f.broken||f.stun>0||f.charm>0||f.caged||f.dormant||f.fear>0||G._movedFoe.has(f))continue;if(cd(f.x,f.y,pt.x,pt.y)>1)continue;if(cd(f.x,f.y,p.x,p.y)<=1&&Math.random()<.5)continue;
+  await lunge(f,{rx:pt.x*T,ry:pt.y*T});const dmg=Math.max(1,Math.round((f.atk||2)*.7));pt.hp-=dmg;sfx('hit');fx({type:'num',s:'-'+dmg,x:pt.x*T+4,y:pt.y*T-9,c:'#ff7a6a'});toast('相棒が'+f.n+'に打たれた（-'+dmg+'）');coopSend({t:'hurt',n:f.n,d:dmg});await wait(120);
+  if(pt.hp<=0){G.relicAt=[pt.x,pt.y];G.partner=null;sfx('no');G.shake=14;toast('相棒が倒れた……');coopSend({t:'died'});ui();break}}}
+// 相棒の自然回復（ホストと同じ間隔）
+function partnerRegen(){const pt=G.partner;if(!pt||pt.hp<=0||pt.hp>=pt.max)return;G.ptRg=(G.ptRg||0)+1;if(G.ptRg>=Math.max(2,Math.round(120/pt.max))){G.ptRg=0;pt.hp++}}
 // guest side
 function coopGuest(o){
  if(o.t=='floor'){if(!G||!G.guest){const bk=store('yw13_save'),rn=runs;const MU=window.MUTS;window.MUTS=o.muts||[];newRaid(null,[],null,0);G.muts=(o.muts||[]).slice();window.MUTS=MU;runs=rn;saveMeta();if(bk)store('yw13_save',bk);G.guest=1;$('modal').innerHTML=''}
   FKEYS.forEach(k=>G[k]=o.F[k]);G.seen=new Set();drawBase();G.fi=o.fi;G.cond=o.cond;G.partner={x:0,y:0,rx:-99,ry:-99,ox:0,oy:0,flip:false,k:'hero'};G.p.max=30;if(!(G.p.hp>0))G.p.hp=30;G.fight=null;toast(THEMES[G.fi].n+'　自分のカバンを持って降り立った');ui();return}
  if(!G||!G.guest)return;
- if(o.t=='tick'){const h=o.h,q=G.partner;if(q.rx<-50){q.rx=h.x*T;q.ry=h.y*T}q.x=h.x;q.y=h.y;q.flip=h.flip;G.hostHp=h.hp+'/'+h.max;const p=G.p;if(p.x!=o.pt.x||p.y!=o.pt.y){p.flip=o.pt.x<p.x?true:o.pt.x>p.x?false:p.flip;p.x=o.pt.x;p.y=o.pt.y;reveal()}p.hp=o.pt.hp;G.pHeals=o.pt.heals;
+ if(o.t=='tick'){const h=o.h,q=G.partner;if(q.rx<-50){q.rx=h.x*T;q.ry=h.y*T}q.x=h.x;q.y=h.y;q.flip=h.flip;G.hostHp=h.hp+'/'+h.max;const p=G.p;if(p.x!=o.pt.x||p.y!=o.pt.y){p.flip=o.pt.x<p.x?true:o.pt.x>p.x?false:p.flip;p.x=o.pt.x;p.y=o.pt.y;reveal()}if(p.hp!==o.pt.hp){p.hp=o.pt.hp;try{ui()}catch(e){}}G.pHeals=o.pt.heals;
   o.foes.forEach((a,i)=>{let f=G.foes[i];if(!f||f.k!=a[5]){f=G.foes[i]=mkFoe(a[5],a[0],a[1],0);f.rx=a[0]*T;f.ry=a[1]*T}f.x=a[0];f.y=a[1];f.hp=a[2];f.alpha=a[2]>0?1:Math.max(0,(f.alpha||1)-.1);f.aware=a[4];f.mut=a[6];f.max=a[7]});G.foes.length=o.foes.length;
   G.items=o.items.map(a=>({x:a[0],y:a[1],id:a[2],drop:0}));if(o.evs)G.evs=o.evs.map(a=>({x:a[0],y:a[1],k:a[2],gone:a[3]}));G.coopFight=o.fight;coopPanel();return}
  if(o.t=='got'){if(addToBag(o.id,o.inst?{inst:o.inst}:null)){sfx('pick');toast(instName(o.id,o.inst)+'をカバンに入れた')}else{sfx('no');toast('カバンに入る場所がない')}ui();return}
@@ -4526,6 +4543,7 @@ function coopGuest(o){
   showBase('ひとりで帰還','持ち帰った物は、あなたの倉庫へ：'+(got.map(c=>instName(c.id,c.inst)).join('・')||'なし'));
   setTimeout(()=>{if(COOP.on)coopWait()},2500);return}
  if(o.t=='msg'){toast(o.s);return}
+ if(o.t=='hurt'){sfx('hit');G.hurt=8;G.shake=5;toast(o.n+'に打たれた（-'+o.d+'）');return}
  if(o.t=='end'){const pc=$('coopP');if(pc)pc.remove();G.over=true;if(o.ok){const got=G.bag.items.slice();got.forEach(c=>wh.push({id:c.id,inst:c.inst}));saveMeta();showBase('ふたりで帰還','持ち帰った物は、あなたの倉庫へ：'+(got.map(c=>instName(c.id,c.inst)).join('・')||'なし'))}else showBase('ホストが倒れた','拾った物は、ダンジョンに残った。');COOP.carry=[];setTimeout(()=>{if(COOP.on)coopWait()},2500)}}
 function coopGiveList(){const el=$('modal');const its=G.bag.items;
  el.innerHTML='<div class="modal"><div class="box"><h2>相棒に渡す</h2><div class="btns" id="gvw"></div><div class="btns"><button class="b sub" id="gvx">やめる</button></div></div></div>';
@@ -5809,6 +5827,8 @@ function confirmSpill(id,v){const now=performance.now();
  toast('もう一度押すと足元に叩きつける（'+(v=='fire'?'油が広がる':'毒気が広がる')+'）。飲むならカバンから');return false}
 async function slotUse(i){
  const pc=G.bag.items[i];if(!pc)return;const d=ITEM[pc.id];
+ if(G.guest){if(G.dead||G.over)return;if(d.weapon){const f=G.foes.find(f=>f.hp>0&&cd(f.x,f.y,G.p.x,G.p.y)<=1);if(f)step(Math.sign(f.x-G.p.x),Math.sign(f.y-G.p.y));else toast('となりの敵の方へ押すと、この武器で殴る');return}
+  if(healAmt(pc.id)){coopSend({t:'use',id:pc.id});return}toast('いっしょに潜っている間は、武器と薬が使える');return}
  if(!G.fight&&!G.busy&&!d.weapon&&!pc.out){const nf=nearFight();if(nf&&actHandles(pc,nf)){engageTmp(nf);return act(i)}}
  if(!G.fight&&!G.busy){const lf=G.foes.find(q=>q.hp>0&&!q.caged&&cd(q.x,q.y,G.p.x,G.p.y)<=1&&likeIdx(q)===i);if(lf){G.fight={foes:[lf],tgt:lf,mode:'first',open:1,dist:1,webbed:0,oneShot:true,hurt:0};spare();return}}
  if(d.weapon&&!pc.out&&(G.fight||!['whip','shovel'].includes(baseOf(pc.id))||weaponTarget(i))){if(G.busy)return;if(G.fight&&G.fight.oneShot)G.fight=null;return swing(i)}

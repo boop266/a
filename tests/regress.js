@@ -339,6 +339,26 @@ const cases = {
     });
     for (const k of ['bond', 'pet', 'canB', 'built', 'inn', 'done', 'claim', 'hunt', 'album', 'boardUI', 'buildUI', 'albumUI']) if (!r[k]) throw new Error(k + ': ' + JSON.stringify(r));
   },
+  // 協力プレイ：合言葉でつなぎ、同じ階で、相棒もぶつかって殴る・待つ・薬を使う
+  async '協力プレイ'(p) {
+    const W = ms => new Promise(r => setTimeout(r, ms));
+    const ctx2 = await p.context().browser().newContext({ viewport: { width: 390, height: 844 } }); await ctx2.route(/fonts\.g/, r => r.abort());
+    const g = await ctx2.newPage(); const gerr = []; g.on('pageerror', e => gerr.push(e.message)); await g.goto(FILE); await W(500);
+    try {
+      await p.evaluate(() => { coopUI(); document.getElementById('ch').click() }); await p.waitForSelector('#o1', { timeout: 15000 }); const off = await p.$eval('#o1', e => e.value);
+      await g.evaluate(() => { coopUI(); document.getElementById('cg').click() }); await g.fill('#o2', off); await g.click('#cn'); await g.waitForSelector('#a2', { timeout: 15000 }); const ans = await g.$eval('#a2', e => e.value);
+      await p.fill('#a1', ans); await p.click('#cn'); for (let k = 0; k < 40 && !(await p.evaluate(() => COOP.on)); k++) await W(200);
+      const o = { conn: await p.evaluate(() => COOP.on) && await g.evaluate(() => COOP.on) };
+      await p.evaluate(() => { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 0) }); await W(2500);
+      o.join = await g.evaluate(() => !!(typeof G != 'undefined' && G && G.guest && !G.over));
+      const d = await p.evaluate(() => { G.foes = []; const pt = G.partner; const d = DIRS.find(([a, b]) => walk(pt.x + a, pt.y + b) && !(pt.x + a == G.p.x && pt.y + b == G.p.y)); const f = mkFoe('rat', pt.x + d[0], pt.y + d[1], 0); f.rx = f.x * T; f.ry = f.y * T; f.aware = 2; f.alpha = 1; f.pers = null; f.hp = f.max = 30; G.foes.push(f); window.TF = f; return d });
+      await W(400); await g.evaluate(d => step(d[0], d[1]), d); await W(900); o.hit = await p.evaluate(() => TF.hp < 30);
+      const t0 = await p.evaluate(() => G.tick || 0); await g.evaluate(() => doWait()); await W(900); o.wait = (await p.evaluate(() => G.tick || 0)) > t0;
+      await p.evaluate(() => { G.partner.hp = 10 }); await W(300); await g.evaluate(() => { const i = G.bag.items.findIndex(q => healAmt(q.id)); if (i >= 0) slotUse(i) }); await W(900); o.heal = await p.evaluate(() => G.partner.hp > 10);
+      for (const k of ['conn', 'join', 'hit', 'wait', 'heal']) if (!o[k]) throw new Error(k + ': ' + JSON.stringify(o));
+      if (gerr.length) throw new Error('相棒側のJSエラー: ' + gerr.join(' / '));
+    } finally { await ctx2.close(); }
+  },
   // 物の性質（案A）と、地形を作り変える（案B）
   async '物の性質・置く・地形を作り変える'(p) {
     await arena(p);
