@@ -8,6 +8,13 @@
 *{box-sizing:border-box}
 html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .fimore{width:100%;text-align:left}.fimore summary{cursor:pointer;color:#7a70a8;font-size:13px;padding:4px 0}
+#wlab{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+#wlab span{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font:600 10px/1 "DotGothic16",sans-serif;padding:2px 4px 3px;border-radius:4px;background:#14122acc;color:#efe6d2;letter-spacing:.5px;box-shadow:0 0 0 1px #ffffff22}
+#wlab span.f{color:#ffb4a8;box-shadow:0 0 0 1px #e8485866}#wlab span.f.on{color:#fff;background:#a8283acc}
+#wlab span.i{color:#ffe08a;box-shadow:0 0 0 1px #f0c04e55}
+#wlab span.a{background:#14122a99;color:#b8d0ff;font-weight:500}
+#wlab span.pop{z-index:2;font-size:15px;color:#fff3b0;background:#c8501ecc;box-shadow:0 0 0 2px #ffd35a,0 0 14px #ff8a2a;animation:wpop 1.6s ease-out forwards}
+@keyframes wpop{0%{transform:translate(-50%,-60%) scale(.6);opacity:0}15%{transform:translate(-50%,-100%) scale(1.15);opacity:1}70%{opacity:1}100%{transform:translate(-50%,-190%) scale(1);opacity:0}}
 .ttl0{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 4px}.ttl0 b{font-size:26px;letter-spacing:3px;color:#282850;text-shadow:0 2px 0 #f0c04e}.ttl0 i{display:grid;grid-template-columns:repeat(4,18px);gap:3px;padding:7px 9px;background:#7a4a2a;border-radius:8px 8px 12px 12px;box-shadow:0 0 0 2px #3a2010}.ttl0 i s{width:18px;height:18px;background:#2a1a10;border-radius:3px;box-shadow:inset 0 0 0 1px #c09050}.ttl0 i s:first-child{background:radial-gradient(#ffe9a0,#d08a20);animation:ttl0 1.6s ease-in-out infinite}@keyframes ttl0{50%{filter:brightness(1.35)}}.ttl0 small{font-size:12px;color:#5a5478;letter-spacing:2px}
 body{background:var(--bg);color:var(--ink);font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;margin:0;font-size:15px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .wrap{position:fixed;inset:0}
@@ -514,7 +521,7 @@ body.lowhp .stage::before{box-shadow:inset 0 0 90px 30px #e8485899}
 </style>
 <div class="wrap">
 <div class="hud"><span>HP</span><div class="bar"><i id="hpb"></i></div><b id="hpt"></b><span>持ち帰り <b class="gold" id="val">0</b></span><span><b class="gold" id="stash">0</b>G</span></div>
-<div class="stage"><canvas id="scr" width="320" height="224"></canvas><div class="toast"><span id="toast" style="opacity:0" onclick="showLog()"></span><div id="toastOld"></div></div><div class="floorname" id="fname"></div><button class="ctl menu" id="menuBtn" aria-label="メニュー" onclick="openMenu()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button></div>
+<div class="stage"><canvas id="scr" width="320" height="224"></canvas><div id="wlab"></div><div class="toast"><span id="toast" style="opacity:0" onclick="showLog()"></span><div id="toastOld"></div></div><div class="floorname" id="fname"></div><button class="ctl menu" id="menuBtn" aria-label="メニュー" onclick="openMenu()" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button></div>
 <div class="row"><div class="btns" id="btns"></div>
 <div class="pad" id="pad"><button data-d="-1,-1" class="dg" aria-label="左上">◤</button><button data-d="0,-1" aria-label="上">▲</button><button data-d="1,-1" class="dg" aria-label="右上">◥</button><button data-d="-1,0" aria-label="左">◀</button><span></span><button data-d="1,0" aria-label="右">▶</button><button data-d="-1,1" class="dg" aria-label="左下">◣</button><button data-d="0,1" aria-label="下">▼</button><button data-d="1,1" class="dg" aria-label="右下">◢</button></div></div>
 </div>
@@ -1195,9 +1202,10 @@ const BIOME={
   for(let y=1;y<MH-1;y++){x+=Math.floor(Math.random()*3)-1;x=Math.max(8,Math.min(MW-10,x));for(let k=0;k<w;k++){const X=x+k;if(bioFloor(F,X,y)&&!P.has(X+','+y))F.holes.add(X+','+y)}}
   if(F.holes.size<4)return false;
   // どの床からも、橋を渡れば行き来できるように架ける
-  const key=(x,y)=>x+','+y;for(let it=0;it<14;it++){const D=Array.from({length:MH},()=>Array(MW).fill(1e9)),par={};const dq=[[F.start[0],F.start[1]]];D[F.start[1]][F.start[0]]=0;
+  const key=(x,y)=>x+','+y;for(let it=0;it<80;it++){const D=Array.from({length:MH},()=>Array(MW).fill(1e9)),par={};const dq=[[F.start[0],F.start[1]]];D[F.start[1]][F.start[0]]=0;
    while(dq.length){const[cx,cy]=dq.shift();for(const[a,b]of DIRS){const nx=cx+a,ny=cy+b;if(!(F.m[ny]&&F.m[ny][nx]===0))continue;const c=F.holes.has(key(nx,ny))?1:0;if(D[cy][cx]+c<D[ny][nx]){D[ny][nx]=D[cy][cx]+c;par[key(nx,ny)]=[cx,cy];if(c)dq.push([nx,ny]);else dq.unshift([nx,ny])}}}
-   let tgt=null;for(let y=1;y<MH-1&&!tgt;y++)for(let x2=1;x2<MW-1;x2++){if(F.m[y][x2]===0&&!F.holes.has(key(x2,y))&&D[y][x2]>0&&D[y][x2]<1e9){tgt=[x2,y];break}}
+   // 階段と出口には真っ先に橋を架ける（裂け目で行けなくならないように）
+   let tgt=[F.down,F.exit].find(t=>t&&D[t[1]]&&D[t[1]][t[0]]>0&&D[t[1]][t[0]]<1e9)||null;for(let y=1;y<MH-1&&!tgt;y++)for(let x2=1;x2<MW-1;x2++){if(F.m[y][x2]===0&&!F.holes.has(key(x2,y))&&D[y][x2]>0&&D[y][x2]<1e9){tgt=[x2,y];break}}
    if(!tgt)break;let c=tgt;while(c&&!(c[0]==F.start[0]&&c[1]==F.start[1])){const k=key(c[0],c[1]);if(F.holes.has(k)){F.holes.delete(k);F.bridges.add(k)}c=par[k]}}
   return true},
  // 茂み：背の高い草。中にいると遠くから見えない（敵も同じ）。よく燃える
@@ -5803,8 +5811,8 @@ function openTransfer(){const code=saveCode();
   if(!$('trLoad').dataset.sure){$('trLoad').dataset.sure=1;$('trLoad').textContent='本当に上書きする（いまの記録は消える）';$('trMsg').textContent=Object.keys(o).length+'項目の記録が見つかった。もう一度押すと復元する';return}
   try{const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('yw'))ks.push(k)}ks.forEach(k=>localStorage.removeItem(k));Object.entries(o).forEach(([k,v])=>localStorage.setItem(k,v));location.reload()}catch(e){$('trMsg').textContent='書き込めなかった：'+e.message}}}
 function openSettings(){const rows=[['m','全体の音量'],['s','効果音'],['a','環境音'],['mu','音楽'],['sh','画面の揺れ']];
- $('modal').innerHTML=`<div class="modal"><div class="box"><h2>設定</h2>${rows.map(([k,n])=>`<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">${n}</span><input type="range" min="0" max="1" step="0.05" value="${VOL[k]}" data-k="${k}" style="flex:1"></label>`).join('')}<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">振動</span><input type="checkbox" id="stvib" ${store('yw70_vib')==='0'?'':'checked'} style="width:22px;height:22px"></label><div class="btns"><button class="b" id="stok">閉じる</button></div></div></div>`;
- $('stvib').onchange=e=>{store('yw70_vib',e.target.checked?'1':'0');if(e.target.checked)buzz(30)};
+ $('modal').innerHTML=`<div class="modal"><div class="box"><h2>設定</h2>${rows.map(([k,n])=>`<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">${n}</span><input type="range" min="0" max="1" step="0.05" value="${VOL[k]}" data-k="${k}" style="flex:1"></label>`).join('')}<label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">名前を表示</span><input type="checkbox" id="stwl" ${store('yw90_wlab')==='0'?'':'checked'} style="width:22px;height:22px"></label><label style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:7em">振動</span><input type="checkbox" id="stvib" ${store('yw70_vib')==='0'?'':'checked'} style="width:22px;height:22px"></label><div class="btns"><button class="b" id="stok">閉じる</button></div></div></div>`;
+ $('stwl').onchange=e=>{store('yw90_wlab',e.target.checked?'1':'0');window.WLAB_ON=e.target.checked};$('stvib').onchange=e=>{store('yw70_vib',e.target.checked?'1':'0');if(e.target.checked)buzz(30)};
  {const bx=document.querySelector('#modal .box .btns');if(bx){const b=document.createElement('button');b.className='b sub';b.textContent='引き継ぎコード';b.onclick=openTransfer;bx.prepend(b)}}
  document.querySelectorAll('#modal input[type=range]').forEach(el=>el.oninput=()=>{VOL[el.dataset.k]=+el.value;applyVol();try{localStorage.setItem('yw13_vol',JSON.stringify(VOL))}catch(e){}if(el.dataset.k=='s')sfx('pick')});
  $('stok').onclick=()=>{$('modal').innerHTML=''}}
@@ -6168,6 +6176,32 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  const solo=()=>matchMedia('(display-mode: fullscreen),(display-mode: standalone)').matches;
  let wait=0;const go=()=>{if(fsEl()||solo()||wait)return;wait=1;try{const r=req.call(de,{navigationUI:'hide'});const done=()=>{wait=0;try{screen.orientation.lock('portrait').catch(()=>{})}catch(e){}};if(r&&r.then)r.then(done,()=>{wait=0});else done()}catch(e){wait=0}};
  ['pointerup','touchend','keydown'].forEach(ev=>addEventListener(ev,go,{capture:true,passive:true}));
+})()</script>
+<script>// 見えているもの全部の上に名前を出す（地面の広がりは一かたまりに一つ・魔物・落ちている物・仕掛け）。起きた反応はその場に大きく
+(function(){const box=document.getElementById('wlab');let L=[],last=0;const SKIP=/縄張り|匂い|足跡|血の跡/;
+ window.WLAB_ON=(()=>{try{return store('yw90_wlab')!=='0'}catch(e){return true}})();
+ window.wpop=(x,y,t)=>{if(!G||!G.view)return;const nw=performance.now();if(L.some(q=>q.pop&&q.el.textContent==t&&Math.abs(q.x-x)<=3&&Math.abs(q.y-y)<=3&&nw-q.t<1200))return;const e=document.createElement('span');e.className='pop';e.textContent=t;e.dataset.x=x;e.dataset.y=y;box.append(e);L.push({x,y,el:e,pop:1,t:nw});setTimeout(()=>{e.remove();L=L.filter(q=>q.el!==e)},1600)};
+ function build(){const V=G.view;const keep=L.filter(q=>q.pop);box.querySelectorAll('span:not(.pop)').forEach(e=>e.remove());L=keep;
+  const x0=Math.floor(V.cx/T)-1,y0=Math.floor(V.cy/T)-1,x1=Math.ceil((V.cx+V.vw)/T)+1,y1=Math.ceil((V.cy+V.vh)/T)+1;
+  const at={};for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){if(!G.seen.has(x+','+y))continue;let I;try{I=tileInfo(x,y)}catch(e){continue}I.H.forEach(h=>{const n=h[0];if(!n||SKIP.test(n))return;(at[n]=at[n]||[]).push([x,y])})}
+  const out=[];
+  for(const n in at){const cells=at[n],set=new Set(cells.map(c=>c[0]+','+c[1])),done=new Set();
+   for(const c of cells){const k=c[0]+','+c[1];if(done.has(k))continue;const g=[];const Q=[c];done.add(k);while(Q.length){const q=Q.pop();g.push(q);for(const [a,b] of [[1,0],[-1,0],[0,1],[0,-1]]){const kk=(q[0]+a)+','+(q[1]+b);if(set.has(kk)&&!done.has(kk)){done.add(kk);Q.push([q[0]+a,q[1]+b])}}}
+    let mx=0,my=0;g.forEach(q=>{mx+=q[0];my+=q[1]});mx/=g.length;my/=g.length;let best=g[0],bd=1e9;g.forEach(q=>{const d=(q[0]-mx)**2+(q[1]-my)**2;if(d<bd){bd=d;best=q}});
+    out.push({x:best[0],y:best[1],t:n,c:g.length>1?'a':'i',pr:g.length>1?1:2})}}
+  G.foes.forEach(f=>{if(f.hp<=0||!(f.alpha>0)||!G.seen.has(f.x+','+f.y))return;if(f.x<x0||f.x>x1||f.y<y0||f.y>y1)return;const D=FOE[f.k]||{};out.push({x:f.x,y:f.y,t:(D.n||f.n)+(f.aware==2?'！':f.mhSleep||f.stun>2?' 💤':''),c:'f'+(f.aware==2?' on':''),pr:3,foe:f})});
+  // 同じマスに重なった名前は一つにまとめる（多すぎる時は三つまで＋…）
+  {const byT={};const rest=[];out.forEach(o=>{if(o.foe){rest.push(o);return}const k=o.x+','+o.y;if(!byT[k])byT[k]={...o,ts:[]};byT[k].ts.push(o.t);byT[k].pr=Math.max(byT[k].pr,o.pr);if(o.c=='i')byT[k].c='i'});
+   out.length=0;rest.forEach(o=>out.push(o));Object.values(byT).forEach(o=>{o.t=o.ts.slice(0,3).join('・')+(o.ts.length>3?'…':'');out.push(o)})}
+  out.sort((a,b)=>b.pr-a.pr);
+  out.forEach(o=>{const e=document.createElement('span');e.className=o.c;e.textContent=o.t;box.append(e);L.push({x:o.x,y:o.y,el:e,foe:o.foe,pr:o.pr})})}
+ function place(){const V=G.view,rc=scr.getBoundingClientRect(),br=box.getBoundingClientRect();const sx=rc.width/V.vw,sy=rc.height/V.vh;const used=[];
+  L.forEach(q=>{const fx=q.foe?(q.foe.rx/T):q.x,fy=q.foe?(q.foe.ry/T):q.y;const X=rc.left-br.left+((fx+.5)*T-V.cx)*sx,Y=rc.top-br.top+((fy)*T-V.cy)*sy-2;let yy=Y;
+   if(!q.pop){const w=q.el.offsetWidth||40;for(let t=0;t<1;t++){if(used.some(u=>Math.abs(u[0]-X)<(u[2]+w)/2&&Math.abs(u[1]-yy)<14))yy-=14;else break}if(used.some(u=>Math.abs(u[0]-X)<(u[2]+w)/2&&Math.abs(u[1]-yy)<14)){q.el.style.display='none';return}q.el.style.display='';used.push([X,yy,w])}
+   q.el.style.left=X+'px';q.el.style.top=yy+'px'})}
+ function loop(now){requestAnimationFrame(loop);try{const hide=!WLAB_ON||!G||!G.view||G.over||G.map||!G.seen;box.style.display=hide?'none':'';if(hide)return;if(now-last>220){last=now;build()}place()}catch(e){}}
+ requestAnimationFrame(loop);
+ const _re=react;react=function(k,x,y){try{const kk=REACT_ALIAS[k]||k;const R=REACT.find(q=>q.k==kk);if(R&&x!=null&&G.seen&&G.seen.has(x+','+y)&&WLAB_ON)wpop(x,y,ELN[R.a]+'×'+ELN[R.b]+'！')}catch(e){}return _re.apply(this,arguments)};
 })()</script>
 <script>// ホーム画面のアイコン（カバンと8つの枠）をその場で描く
 (function(){try{const c=document.createElement('canvas');c.width=c.height=180;const g=c.getContext('2d');g.fillStyle='#14122a';g.fillRect(0,0,180,180);

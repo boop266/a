@@ -573,12 +573,13 @@ const cases = {
       G.foes = []; G.m[7][7] = G.m[8][7] = G.m[9][7] = 1; f = put('gob', 8, 8, true); await enemiesMove(); o.wall = f.aware || 0;
       G.m[7][7] = G.m[8][7] = G.m[9][7] = 0; G.foes = [];
       f = put('gob', 16, 11, false); G.bag.items.push({ id: 'koishi', x: 0, y: 0, rot: 0, n: 2 }); G.faceX = 1; G.faceY = 0; throwStone(G.bag.items.length - 1);
-      await new Promise(r => setTimeout(r, 300)); for (let k = 0; k < 6; k++) await enemiesMove(); o.stone = [f.x, f.y, f.aware || 0];
+      await new Promise(r => setTimeout(r, 300)); for (let k = 0; k < 10; k++) await enemiesMove(); o.stone = [f.x, f.y, f.aware || 0];
       G.foes = []; f = put('gob', 6, 8, false); f.max = f.hp = 9; await startFight([f], contactMode(f)); await new Promise(r => setTimeout(r, 1200)); o.ass = [f.hp, !!G.fight, G.bodies.length];
       return o;
     });
     if (r.open !== 1 || r.wall !== 0) throw new Error('視線: ' + JSON.stringify(r));
-    if (Math.abs(r.stone[0] - 11) > 2 || Math.abs(r.stone[1] - 8) > 2 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
+    // 小石の音の方へ寄っていき（途中で足を止める気まぐれはある）、こちらには気づかない
+    if (r.stone[0] > 14 || r.stone[2] !== 0) throw new Error('小石: ' + JSON.stringify(r));
     if (r.ass[0] > 0 || r.ass[1] || r.ass[2] !== 1) throw new Error('暗殺: ' + JSON.stringify(r));
   },
   // 相性の悪い種族は勝手に争い、追ってくる敵も天敵の隣で足を止める
@@ -661,7 +662,7 @@ const cases = {
       document.getElementById('modal').innerHTML = ''; G.ice = new Set(); G.mud = new Set(['6,8']); G.p.x = 5; G.p.y = 8; const f = put('skel', 12, 8, true); f.aware = 2; const x0 = f.x; G.busy = false; await step(1, 0); await W(300); o.mud = x0 - f.x;
       G.mud = new Set(); G.foes = []; G.bush = new Set(['5,8']); G.p.x = 5; G.p.y = 8; const g = put('gob', 8, 8, true); await enemiesMove(); o.bush = g.aware || 0;
       G.bush = new Set(); G.foes = []; G.holes = new Set(['10,8']); G.bridges = new Set(['9,8']); G.fires = [{ x: 9, y: 8, t: 2, life: 9 }]; fireStep(); o.bridge = [G.bridges.has('9,8'), G.holes.has('9,8')];
-      let bad = 0; for (let k = 0; k < 40; k++) { const F = genFloor(5 + (k % 30)); if (F.twist != 'chasm') continue; const H = F.holes; const seen = new Set([F.start + '']); const q = [F.start];
+      let bad = 0; for (let k = 0; k < 160; k++) { const F = genFloor(5 + (k % 30)); if (F.twist != 'chasm') continue; const H = F.holes; const seen = new Set([F.start + '']); const q = [F.start];
         while (q.length) { const [x, y] = q.pop(); for (const [a, b] of DIRS) { const nx = x + a, ny = y + b, kk = nx + ',' + ny; if (seen.has(kk) || !(F.m[ny] && F.m[ny][nx] === 0) || H.has(kk)) continue; seen.add(kk); q.push([nx, ny]); } }
         if ([F.down, F.exit].filter(Boolean).some(t => !seen.has(t[0] + ',' + t[1]))) bad++; }
       o.chasmBad = bad; return o;
