@@ -6177,6 +6177,62 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  let wait=0;const go=()=>{if(fsEl()||solo()||wait)return;wait=1;try{const r=req.call(de,{navigationUI:'hide'});const done=()=>{wait=0;try{screen.orientation.lock('portrait').catch(()=>{})}catch(e){}};if(r&&r.then)r.then(done,()=>{wait=0});else done()}catch(e){wait=0}};
  ['pointerup','touchend','keydown'].forEach(ev=>addEventListener(ev,go,{capture:true,passive:true}));
 })()</script>
+<script>// ===== ⑦ 熱・水・空気が流れる：マスごとに「水の量」「熱」があり、毎ターン隣へ広がる。どの階にも空気の流れがある =====
+(function(){
+ const K=(x,y)=>x+','+y,P=k=>k.split(',').map(Number);
+ const D4=[[1,0],[-1,0],[0,1],[0,-1]];
+ function F(){if(!G)return null;if(!G.flw||G.flw.fi!==G.fi||G.flw.ship!==!!G.ship){const dirs=[[1,0],[-1,0],[0,1],[0,-1]];const dr=G.wind?[G.wind.dx,G.wind.dy]:dirs[Math.floor(Math.random()*4)];G.flw={fi:G.fi,ship:!!G.ship,wv:new Map(),ht:new Map(),tmp:new Set(),draft:dr,t:0,said:{}}}return G.flw}
+ window.flowF=F;
+ // 水を足す（割れた水がめ・溶けた氷・投げた水）。量は低い方へ分かれて広がる
+ window.addWater=(x,y,v)=>{const W=F();if(!W||!walk(x,y))return;const k=K(x,y);W.wv.set(k,(W.wv.get(k)||0)+v)};
+ window.heatAt=(x,y)=>{const W=G&&G.flw;return W?(W.ht.get(K(x,y))||0):0};
+ const near=(x,y)=>Math.abs(x-G.p.x)<=18&&Math.abs(y-G.p.y)<=18;
+ const say=(k,t,x,y)=>{const W=G.flw;if(W.said[k])return;if(!(G.seen.has(K(x,y))&&cd(x,y,G.p.x,G.p.y)<=9))return;W.said[k]=1;toast(t)};
+ function flowStep(){const W=F();if(!W||G.over)return;W.t++;let dirty=false;
+  // --- 水：多い所から少ない所へ。穴に落ち、溶岩を固め、火を消す。ゆっくり乾く
+  const wv=W.wv,add=new Map();
+  wv.forEach((v,k)=>{const[x,y]=P(k);if(v<.05){wv.delete(k);return}
+   if(isPit(x,y)){wv.delete(k);say('pitw','水が穴へ流れ落ちていく',x,y);return}
+   if(G.lava&&G.lava.has(k)){G.lava.delete(k);wv.delete(k);try{react('water+lava',x,y)}catch(e){}dirty=true;return}
+   if((G.fires||[]).some(q=>q.x==x&&q.y==y)&&v>.3){G.fires=G.fires.filter(q=>!(q.x==x&&q.y==y));(G.steam=G.steam||[]).push({x,y,t:0,life:6});try{react('fire+water',x,y)}catch(e){}}
+   const nb=D4.map(([a,b])=>[x+a,y+b]).filter(([X,Y])=>walk(X,Y)&&!onStair(X,Y));let give=0;
+   nb.forEach(([X,Y])=>{const kk=K(X,Y);const nv=(wv.get(kk)||0)+(add.get(kk)||0)+(G.water[Y]&&G.water[Y][X]&&!W.tmp.has(kk)?99:0);if(nv<v-.15){const t=(v-nv)/4.5;add.set(kk,(add.get(kk)||0)+t);give+=t}});
+   wv.set(k,v-give)});
+  add.forEach((v,k)=>wv.set(k,(wv.get(k)||0)+v));
+  wv.forEach((v,k)=>{const[x,y]=P(k);const h=W.ht.get(k)||0;const nv=v*(h>2?.9:.99)-.003;wv.set(k,nv);
+   const isW=G.water[y]&&G.water[y][x];
+   if(nv>=.45&&!isW&&!(x==G.p.x&&y==G.p.y)&&!(G.mud&&G.mud.has(k))&&!isIce(x,y)){G.water[y][x]=true;W.tmp.add(k);dirty=true;if(hasOil(x,y))try{react('water+oil',x,y)}catch(e){}const f=foeAt(x,y);if(f){f.wetC=Math.max(f.wetC||0,3);f.burn=0}}
+   if(nv<.2&&isW&&W.tmp.has(k)){G.water[y][x]=false;W.tmp.delete(k);dirty=true}});
+  // --- 熱：火・溶岩・灯った火鉢から生まれ、隣へ伝わって冷めていく。氷は冷たさを出す
+  const ht=W.ht,nh=new Map();const src=(x,y,v)=>{if(near(x,y)){const k=K(x,y);nh.set(k,(nh.get(k)||0)+v)}};
+  (G.fires||[]).forEach(q=>src(q.x,q.y,6));if(G.lava)G.lava.forEach(k=>{const[x,y]=P(k);src(x,y,5)});
+  if(G.ice)G.ice.forEach(k=>{const[x,y]=P(k);src(x,y,-2)});
+  ht.forEach((h,k)=>{const[x,y]=P(k);const keep=h*.55;nh.set(k,(nh.get(k)||0)+keep);D4.forEach(([a,b])=>{const X=x+a,Y=y+b;if(!walk(X,Y)&&!(G.lava&&G.lava.has(K(X,Y))))return;const kk=K(X,Y);nh.set(kk,(nh.get(kk)||0)+h*.11)})});
+  W.ht=new Map([...nh].filter(([k,h])=>Math.abs(h)>=.4).map(([k,h])=>[k,Math.max(-8,Math.min(12,h))]));
+  W.ht.forEach((h,k)=>{const[x,y]=P(k);
+   if(h>=2.5&&isIce(x,y)){G.ice.delete(k);addWater(x,y,1.2);dirty=true;say('melt','熱で氷が溶けて、水になった',x,y)}
+   if(h>=4&&burnable(x,y)&&!(G.fires||[]).some(q=>q.x==x&&q.y==y)&&Math.random()<.15){ignite(x,y,'quiet');say('heatfire','熱で、触れてもいない物に火がついた',x,y)}
+   if(h>=4.5){const it=G.items.filter(i=>i.x==x&&i.y==y&&!i.hid&&BURNI.includes(i.id));it.forEach(i=>{G.items.splice(G.items.indexOf(i),1);fx({type:'spark',x:x*T+4,y:y*T+4,c:'#ff8a3a'});say('burnit','熱で、'+ITEM[i.id].n+'が燃えてしまった',x,y)})}
+   const f=foeAt(x,y);if(f&&h>=4&&!(FOE[f.k]||{}).fireOK){if(f.frozen>0)f.frozen=0;f.wetC=Math.max(0,(f.wetC||0)-1);if(h>=6&&Math.random()<.35&&!f.burn){try{hit(f,1)}catch(e){}f.fear=Math.max(f.fear||0,2);say('hotfoe',f.n+'は熱がって後ずさった',x,y)}}
+   if(x==G.p.x&&y==G.p.y&&h>=6&&!G.fight&&Math.random()<.5){G.p.hp=Math.max(1,G.p.hp-1);G.hurt=4;fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#ff8a3a'});say('hotme','熱い！　火のそばは焼ける',x,y)}
+   if(h<=-3&&W.tmp.has(k)&&G.water[y][x]){G.water[y][x]=false;W.tmp.delete(k);W.wv.delete(k);G.ice=G.ice||new Set();G.ice.add(k);dirty=true;say('freeze','冷気で、あふれた水が凍りついた',x,y)}});
+  // --- 空気：毒気と煙は風下へ流れる。風下の獣は、匂いでこちらに気づく
+  if(W.t%2==0){const [dx,dy]=W.draft;(G.gas||[]).forEach(g=>{if(Math.random()<.5&&walk(g.x+dx,g.y+dy)&&!(G.gas||[]).some(q=>q!==g&&q.x==g.x+dx&&q.y==g.y+dy)){g.x+=dx;g.y+=dy}});
+   (G.steam||[]).forEach(s=>{if(s.smoke&&Math.random()<.5&&walk(s.x+dx,s.y+dy)){s.x+=dx;s.y+=dy}});
+   const p=G.p;G.foes.forEach(f=>{if(f.hp<=0||f.aware||f.ally||f.caged)return;const rx=f.x-p.x,ry=f.y-p.y;const along=rx*dx+ry*dy,side=Math.abs(rx*dy-ry*dx);if(along>0&&along<=6&&side<=1&&kinOf(f)=='beast'&&!G.guise&&Math.random()<.2){f.aware=1;say('smell','風下の'+f.n+'が、こちらの匂いに鼻をひくつかせた',f.x,f.y)}})}
+  if(dirty){try{onWaterChanged()}catch(e){}try{drawBase()}catch(e){}}}
+ window.flowStep=flowStep;
+ const _t2=turnTick2;turnTick2=function(){try{flowStep()}catch(e){}return _t2.apply(this,arguments)};
+ // 割れた水がめ・投げた水は、量になって広がる
+ const _bp=breakPot;breakPot=function(q,why){const k=q&&q.k,x=q&&q.x,y=q&&q.y;const was=new Set();if(k=='water')for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++)if(G.water[y+b]&&G.water[y+b][x+a])was.add(K(x+a,y+b));const r=_bp.apply(this,arguments);if(k=='water'){const W=F();for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){const X=x+a,Y=y+b,kk=K(X,Y);if(G.water[Y]&&G.water[Y][X]&&!was.has(kk)){W.tmp.add(kk);addWater(X,Y,1.2)}}addWater(x,y,8)}return r};
+ // 煙は風下へ
+ const _fs=fireSmoke;fireSmoke=function(f){if(!G.wind&&G.flw){const W={dx:G.flw.draft[0],dy:G.flw.draft[1]};G.wind=W;try{return _fs.apply(this,arguments)}finally{G.wind=null}}return _fs.apply(this,arguments)};
+ // 見た目：熱いマスはゆらめく赤、冷たいマスは青。空気の流れは小さな塵が流れていく
+ const _rl=readLayer;readLayer=function(wc,t,p){const r=_rl.apply(this,arguments);try{const W=G.flw;if(W){W.ht.forEach((h,k)=>{const[x,y]=P(k);if(!G.seen.has(k))return;const a=Math.min(.32,Math.abs(h)*.05);if(a<.05)return;wc.globalAlpha=a*(h>0?(.75+.25*Math.sin(t*9+x*3+y)):1);wc.fillStyle=h>0?'#ff6a2a':'#9ad8ff';wc.fillRect(x*T,y*T,T,T)});wc.globalAlpha=1;
+   const[dx,dy]=W.draft;for(let q=0;q<14;q++){const ph=((t*.35+q*.137)%1);const bx=p.rx+((q*37)%19-9)*T,by=p.ry+((q*53)%15-7)*T;const X=Math.round(bx+dx*ph*24),Y=Math.round(by+dy*ph*24);const tx=X>>3,ty=Y>>3;if(!G.seen.has(K(tx,ty))||!walk(tx,ty))continue;wc.globalAlpha=Math.sin(ph*Math.PI)*.45;wc.fillStyle='#e8f0ff';wc.fillRect(X,Y,1,1);if(dx)wc.fillRect(X-dx,Y,1,1);else wc.fillRect(X,Y-dy,1,1)}wc.globalAlpha=1}}catch(e){}return r};
+ // 名前の表示にも：熱い・冷気
+ const _ti=tileInfo;tileInfo=function(x,y){const I=_ti.apply(this,arguments);try{const h=heatAt(x,y);if(h>=3)I.H.push(['熱い','火の熱が伝わっている。燃える物は燃え出し、氷は溶ける']);else if(h<=-2)I.H.push(['冷気','氷の冷たさ。あふれた水は凍る'])}catch(e){}return I};
+})()</script>
 <script>// 見えているもの全部の上に名前を出す（地面の広がりは一かたまりに一つ・魔物・落ちている物・仕掛け）。起きた反応はその場に大きく
 (function(){const box=document.getElementById('wlab');let L=[],last=0;const SKIP=/縄張り|匂い|足跡|血の跡/;
  window.WLAB_ON=(()=>{try{return store('yw90_wlab')!=='0'}catch(e){return true}})();

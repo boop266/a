@@ -364,6 +364,20 @@ const cases = {
       document.getElementById('modal').innerHTML = ''; G.busy = false; G.bumpF = null; await step(1, 0); await w(300); const a = !document.getElementById('modal').innerHTML && f.hp == f.max; G.busy = false; await step(1, 0); await w(300); return [a, document.getElementById('modal').innerText] });
     if (!r[0] || !/蹴る|なだめる|振る/.test(r[1])) throw new Error(JSON.stringify(r));
   },
+  // ⑦ 熱・水・空気が流れる：水がめの水は3×3より広がる・火のそばの氷は溶ける・毒気は風下へ流れる
+  async '熱・水・空気が流れる'(p) {
+    await arena(p);
+    const r = await p.evaluate(() => {
+      const o = {}; G.foes = []; G.items = []; G.fires = []; G.ice = new Set(); G.gas = [];
+      for (let y = 3; y < 14; y++) for (let x = 3; x < 20; x++) G.water[y][x] = false;
+      const q = { x: 10, y: 8, k: 'water' }; G.pots = [q]; breakPot(q); for (let t = 0; t < 6; t++) turnTick();
+      let n = 0; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (G.water[y] && G.water[y][x]) n++; o.water = n;
+      G.ice.add('16,5'); G.fires.push({ x: 15, y: 5, t: 0, life: 30 }); for (let t = 0; t < 5; t++) turnTick(); o.melt = !G.ice.has('16,5');
+      const [dx, dy] = G.flw.draft; G.gas = [{ x: 12, y: 11, t: 0, life: 40 }]; for (let t = 0; t < 8; t++) turnTick(); const g = G.gas[0]; o.drift = g ? (g.x - 12) * dx + (g.y - 11) * dy : -1;
+      return o;
+    });
+    if (r.water < 12 || !r.melt || r.drift < 1) throw new Error(JSON.stringify(r));
+  },
   // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
   async '強制フルスクリーン'(p) {
     await p.mouse.click(195, 400); await p.waitForTimeout(400);
