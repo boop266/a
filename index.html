@@ -6326,6 +6326,8 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
   const RULE={store:[['crate',.6,2]],kitchen:[['crate',.3,1]],camp:[['hay',.5,1]],nest:[['hay',.35,1]],barracks:[['armor',.55,1]],chapel:[['armor',.4,1]],prison:[['armor',.35,1]],garden:[['log',.35,1]],grave:[['log',.2,1]]};
   let n=0;const cap=G.fi==0?3:5;
   G.rooms.forEach(r=>{(RULE[r.type]||[]).forEach(([k,pr,mx])=>{if(n>=cap||Math.random()>pr)return;const m=1+Math.floor(Math.random()*mx);for(let c=0;c<m&&n<cap;c++){for(let tr=0;tr<12;tr++){const x=r.x+1+Math.floor(Math.random()*Math.max(1,r.w-2)),y=r.y+1+Math.floor(Math.random()*Math.max(1,r.h-2));if(busy(x,y))continue;if(DIRS.filter(([a,b])=>walk(x+a,y+b)&&!potAt(x+a,y+b)).length<3)continue;G.pots.push({x,y,k});n++;break}}})});
+  // 魔物の寝床のそばにも、その魔物らしい物を（獣は干し草で眠る・ゴブリンは木箱に溜め込む・死者のそばに鎧・虫は火鉢を嫌う・ぷるの水辺に丸太）
+  {const DK={beast:'hay',gob:'crate',dead:'armor',bug:'fire',ooze:'log',water:'log',plant:'hay'};let m=0;G.foes.forEach(f=>{if(m>=3||n>=cap+2||!f.home||Math.random()>.35)return;const k=DK[kinOf(f)];if(!k)return;for(let tr=0;tr<10;tr++){const x=f.home.x+Math.floor(Math.random()*5)-2,y=f.home.y+Math.floor(Math.random()*5)-2;if(busy(x,y)||(x==f.home.x&&y==f.home.y))continue;if(DIRS.filter(([a,b])=>walk(x+a,y+b)&&!potAt(x+a,y+b)).length<3)continue;G.pots.push({x,y,k});m++;n++;break}})}
   // 水辺の丸太（浮かべて乗れる）
   if(n<cap&&Math.random()<.35){for(let tr=0;tr<40;tr++){const x=1+Math.floor(Math.random()*(MW-2)),y=1+Math.floor(Math.random()*(MH-2));if(busy(x,y)||!DIRS.some(([a,b])=>G.water[y+b]&&G.water[y+b][x+a]))continue;G.pots.push({x,y,k:'log'});break}}
   try{drawBase();drawFurniture()}catch(e){}}
