@@ -6400,8 +6400,9 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
   L.forEach(q=>{const fx=q.foe?(q.foe.rx/T):q.x,fy=q.foe?(q.foe.ry/T):q.y;const X=rc.left-br.left+((fx+.5)*T-V.cx)*sx,Y=rc.top-br.top+((fy)*T-V.cy)*sy-2;let yy=Y;
    if(!q.pop){const w=q.el.offsetWidth||40;for(let t=0;t<0;t++){if(used.some(u=>Math.abs(u[0]-X)<(u[2]+w)/2&&Math.abs(u[1]-yy)<14))yy-=14;else break}if(used.some(u=>Math.abs(u[0]-X)<(u[2]+w)/2&&Math.abs(u[1]-yy)<14)){q.el.style.display='none';return}q.el.style.display='';used.push([X,yy,w])}
    q.el.style.left=X+'px';q.el.style.top=yy+'px'})}
- function loop(now){requestAnimationFrame(loop);try{const hide=!WLAB_ON||!G||!G.view||G.over||G.map||!G.seen;box.style.display=hide?'none':'';if(hide)return;if(now-last>220){last=now;build()}place()}catch(e){}}
- requestAnimationFrame(loop);
+ // 名前は drawIt：描画として扱われる（ボットの仮想時計でも、描画と同じ間隔でしか動かない）
+ function drawIt(now){requestAnimationFrame(drawIt);try{const hide=!WLAB_ON||!G||!G.view||G.over||G.map||!G.seen;box.style.display=hide?'none':'';if(hide)return;if(now-last>220){last=now;build()}place()}catch(e){}}
+ requestAnimationFrame(drawIt);
  const _re=react;react=function(k,x,y){try{const kk=REACT_ALIAS[k]||k;const R=REACT.find(q=>q.k==kk);if(R&&x!=null&&G.seen&&G.seen.has(x+','+y)&&WLAB_ON)wpop(x,y,ELN[R.a]+'×'+ELN[R.b]+'！')}catch(e){}return _re.apply(this,arguments)};
 })()</script>
 <script>// ホーム画面のアイコン（カバンと8つの枠）をその場で描く
