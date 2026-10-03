@@ -6212,7 +6212,7 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
   W.ht=new Map([...nh].filter(([k,h])=>Math.abs(h)>=.4).map(([k,h])=>[k,Math.max(-8,Math.min(12,h))]));
   W.ht.forEach((h,k)=>{const[x,y]=P(k);
    if(h>=2.5&&isIce(x,y)){G.ice.delete(k);addWater(x,y,1.2);dirty=true;say('melt','熱で氷が溶けて、水になった',x,y)}
-   if(h>=4&&burnable(x,y)&&!(G.fires||[]).some(q=>q.x==x&&q.y==y)&&Math.random()<.15){ignite(x,y,'quiet');say('heatfire','熱で、触れてもいない物に火がついた',x,y)}
+   if(h>=4&&burnable(x,y)&&!(G.fires||[]).some(q=>q.x==x&&q.y==y)&&(G.fires||[]).some(q=>Math.abs(q.x-x)<=2&&Math.abs(q.y-y)<=2)&&Math.random()<.15){ignite(x,y,'quiet');say('heatfire','熱で、触れてもいない物に火がついた',x,y)}
    if(h>=4.5){const it=G.items.filter(i=>i.x==x&&i.y==y&&!i.hid&&BURNI.includes(i.id));it.forEach(i=>{G.items.splice(G.items.indexOf(i),1);fx({type:'spark',x:x*T+4,y:y*T+4,c:'#ff8a3a'});say('burnit','熱で、'+ITEM[i.id].n+'が燃えてしまった',x,y)})}
    const f=foeAt(x,y);if(f&&h>=4&&!(FOE[f.k]||{}).fireOK){if(f.frozen>0)f.frozen=0;f.wetC=Math.max(0,(f.wetC||0)-1);if(h>=6&&Math.random()<.35&&!f.burn){try{hit(f,1)}catch(e){}f.fear=Math.max(f.fear||0,2);say('hotfoe',f.n+'は熱がって後ずさった',x,y)}}
    if(x==G.p.x&&y==G.p.y&&h>=6&&!G.fight&&Math.random()<.5){G.p.hp=Math.max(1,G.p.hp-1);G.hurt=4;fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#ff8a3a'});say('hotme','熱い！　火のそばは焼ける',x,y)}

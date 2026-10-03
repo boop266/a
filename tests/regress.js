@@ -360,7 +360,7 @@ const cases = {
   // のんびりした相手に二度ぶつかると、どうするかの札が出る（道をふさがれて詰まらない）
   async '二度ぶつかると札が出る'(p) {
     await arena(p);
-    const r = await p.evaluate(async () => { G.p.x = 5; G.p.y = 8; const f = put('puru', 6, 8); f.alpha = 1; f.aware = 0; f.pers = null; const w = ms => new Promise(r => setTimeout(r, ms));
+    const r = await p.evaluate(async () => { G.p.x = 5; G.p.y = 8; const f = put('puru', 6, 8); f.alpha = 1; f.aware = 0; f.pers = null; f.hp = f.max; f.mhSleep = 0; f.frail = 0; const w = ms => new Promise(r => setTimeout(r, ms));
       document.getElementById('modal').innerHTML = ''; G.busy = false; G.bumpF = null; await step(1, 0); await w(300); const a = !document.getElementById('modal').innerHTML && f.hp == f.max; G.busy = false; await step(1, 0); await w(300); return [a, document.getElementById('modal').innerText] });
     if (!r[0] || !/蹴る|なだめる|振る/.test(r[1])) throw new Error(JSON.stringify(r));
   },
