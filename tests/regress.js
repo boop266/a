@@ -786,7 +786,7 @@ async function arena(p) {
     G.title = null; const H = G.m.length, W = G.m[0].length;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
     G.rid = G.m.map(r => r.map(() => -1)); G.eco = null; G.nests = []; G.foes = []; G.items = []; G.srcs = []; G.exit = [2, 2]; G.down = [3, 2]; G.up = null; G.wind = null; G.cur = null; G.mud = new Set(); G.bush = new Set(); G.ice = new Set(); G.holes = new Set(); G.bridges = new Set(); G.lava = new Set(); G.webs = new Set(); G.oil = new Set(); G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
-    G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit);
+    G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit); G.pots = []; G.dens = []; G.ctxs = []; G.hideIn = null; G.onTop = null; G.flw = null;
     window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.slowV = 0; f.fastV = 0; f.slow = 0; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });
 }
