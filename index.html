@@ -1751,7 +1751,7 @@ const b=bandOf(G.fi);
 function changeFloor(dir){try{alliesHome()}catch(e){}G.floorT=0;G.dim=0;setTimeout(()=>{if(COOP.host&&G){coopPlacePartner();coopFloor()}},50);G.maxFi=Math.max(G.maxFi||0,G.fi+dir);
  saveFloor();const to=G.fi+dir;try{mutSync(to)}catch(e){}
  const back=!!G.floors[to];if(back)loadFloor(G.floors[to]);else loadFloor(genFloor(to));if(back)try{ecoCatchUp()}catch(e){}else if(G.eco)G.eco.leftAt=null;
- setTimeout(()=>{try{if(G.eco){toast('この階の様子　'+ecoLine());{const ev=G.eco.ev;if(ev&&!back)setTimeout(()=>{try{toast(ECOEV[ev][0]+'：'+ECOEV[ev][1])}catch(e){}},1800)}learn('ecoline','階の様子：入るたびに、湿り気・気温・餌の量・繁殖期・昼夜・出来事が変わる。草の燃えやすさ、魔物の空腹や眠り、巣の増え方に効く。地面をタップすると詳しく分かる')}}catch(e){}},1500);
+ setTimeout(()=>{try{if(G.eco){try{LOG.unshift('この階の様子　'+ecoLine())}catch(e){}{const ev=G.eco.ev;if(ev&&!back)setTimeout(()=>{try{toast(ECOEV[ev][0]+'：'+ECOEV[ev][1])}catch(e){}},1800)}learn('ecoline','階の様子：入るたびに、湿り気・気温・餌の量・繁殖期・昼夜・出来事が変わる。草の燃えやすさ、魔物の空腹や眠り、巣の増え方に効く。地面をタップすると詳しく分かる')}}catch(e){}},1500);
  placeAt(dir>0?G.up:G.down);if(dir>0)try{evInject()}catch(e){}
  sfx(dir>0?'stairs':'up');reveal();try{bandEnter()}catch(e){}toast(THEMES[G.fi].n+'　'+(MSTYLE[G.mstyle]||'')+'　空気は'+eroWord(G.ero||0)+(dir>0&&G.floors[G.fi-1]&&G.floors[G.fi-1].oneway?'　— 背後の階段が崩れた':''));G.lastZone=null;if(G.blight)showTitle(G.bname,'― 汚染区域 ―');ui();
 }
