@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>部品ゲーム 土台案</title>
+<style>
+:root{--cream:#fff9ec;--navy:#232046;--purple:#7a6bc9;--red:#e84855;--line:#d9d2f0}
+*{box-sizing:border-box;margin:0}
+body{background:var(--cream);color:var(--navy);font-family:"Hiragino Maru Gothic ProN","Rounded Mplus 1c",sans-serif}
+.phone{width:390px;height:844px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.top{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:3px solid var(--purple);font-weight:bold}
+.hp{display:flex;gap:4px}.hp i{width:18px;height:18px;background:var(--red);border-radius:50%;display:block}
+.hp i.e{background:var(--line)}
+.msg{height:44px;display:flex;align-items:center;justify-content:center;font-size:15px;background:#f1edff;border-bottom:1px solid var(--line)}
+canvas{image-rendering:pixelated;display:block}
+.bot{border-top:3px solid var(--purple);padding:12px 16px;display:flex;gap:10px;justify-content:center}
+.btn{flex:1;height:64px;border-radius:14px;border:3px solid var(--navy);background:#fff;font:inherit;font-weight:bold;font-size:17px;color:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.btn.r{background:var(--red);color:#fff}
+.slot{width:64px;height:64px;border:3px solid var(--navy);border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center}
+.tag{position:absolute;left:8px;top:72px;background:var(--navy);color:#fff;font-size:13px;padding:4px 10px;border-radius:8px;opacity:.85}
+</style></head><body>
+<div id="app"></div>
+<script>
+// ===== 部品：体 × 角 × 性（色）× 性格（目）=====
+const BODY=['まる','しずく','しかく','へび'],HORN=['なし','つの','はね','とげ'];
+const SEI=[{n:'火',c:'#e8553f',d:'#a8321f'},{n:'水',c:'#3f8fe8',d:'#1f5aa8'},{n:'草',c:'#4fbf5a',d:'#2c8236'},{n:'雷',c:'#f0c42e',d:'#b48a10'}];
+const EYE=['おこりんぼ','こわがり','のんびり','くいしんぼ'];
+const R=n=>Math.floor(Math.random()*n);
+const rollMon=()=>({b:R(4),h:R(4),s:R(4),e:R(4)});
+function drawMon(cv,m,px){const g=cv.getContext('2d'),S=16;cv.width=cv.height=S*px;g.imageSmoothingEnabled=false;
+ const P=(x,y,c)=>{g.fillStyle=c;g.fillRect(x*px,y*px,px,px)};const C=SEI[m.s];
+ const inB=(x,y)=>{const cx=7.5;switch(m.b){case 0:return (x-cx)**2+(y-9.5)**2<=27;case 1:return (x-cx)**2+(y-10.5)**2<=18||(Math.abs(x-cx)<=(y-3)*.6&&y>=4&&y<=10);case 2:return x>=3&&x<=12&&y>=5&&y<=14;case 3:return (y>=9&&y<=13&&x>=1&&x<=14&&!(y<=10&&x>=8))||((x-10.5)**2+(y-7)**2<=8)}};
+ // 角・はね・とげ
+ for(let y=0;y<S;y++)for(let x=0;x<S;x++){let top=inB(x,y)&&!inB(x,y-1);
+  if(m.h==1&&((x==4||x==11)&&y>=1&&y<=4&&!inB(x,y)&&inB(x,y+ (5-y)) ))P(x,y,'#f6eedd');}
+ if(m.h==1){for(let i=0;i<3;i++){P(4,3+i,'#f6eedd');P(11,3+i,'#f6eedd')}P(4,2,'#fff');P(11,2,'#fff')}
+ if(m.h==2){for(let i=0;i<4;i++){P(0+i,7-i,'#ffffffcc');P(15-i,7-i,'#ffffffcc');P(1+i,8-i,'#ffffffcc');P(14-i,8-i,'#ffffffcc')}}
+ for(let y=0;y<S;y++)for(let x=0;x<S;x++)if(inB(x,y)){const edge=!inB(x-1,y)||!inB(x+1,y)||!inB(x,y-1)||!inB(x,y+1);P(x,y,edge?C.d:C.c)}
+ if(m.h==3)for(let y=0;y<S;y++)for(let x=0;x<S;x+=3)if(inB(x,y)&&!inB(x,y-1)){P(x,y-1,C.d);P(x,y-2,'#fff')}
+ // 目＝性格
+ const ey=m.b==3?6:m.b==2?8:9,ex=m.b==3?[9,12]:[5,10];
+ ex.forEach((x,i)=>{const k='#1b1838';
+  if(m.e==0){P(x,ey,k);P(x+1,ey,k);P(i?x:x+1,ey-1,k)}               // つり目
+  else if(m.e==1){P(x,ey,k);P(x,ey+1,k);P(x+1,ey,'#fff');P(i?x+1:x-1,ey-1,k)} // こわがり：大きな白目
+  else if(m.e==2){P(x,ey,k);P(x+1,ey,k)}                               // 線目
+  else {P(x,ey,k);P(x+1,ey,k);P(x,ey+1,k);P(x+1,ey+1,k);P(x,ey,'#fff')}// きらきら
+ });
+ if(m.e==3){P(7,ey+3,'#1b1838');P(8,ey+3,'#1b1838');P(7,ey+4,'#e88');P(8,ey+4,'#e88')} else P(7,ey+3,'#1b1838'),P(8,ey+3,'#1b1838');
+}
+const monName=m=>SEI[m.s].n+'の'+['まる','しずく','はこ','へび'][m.b]+['','つの','はね','とげ'][m.h];
+const mk=(m,px)=>{const c=document.createElement('canvas');drawMon(c,m,px);return c};
+const hp=(n,t)=>'<div class="hp">'+Array.from({length:t},(_,i)=>`<i class="${i<n?'':'e'}"></i>`).join('')+'</div>';
+
+// ===== 案A：シレン型（マス目の部屋を歩く）=====
+function A(){const el=document.createElement('div');el.className='phone';
+ el.innerHTML=`<div class="top">${hp(4,5)}<span>3かい</span></div><div class="msg">ひのつのまるが こっちを みている</div><div id="f" style="flex:1;display:flex;align-items:center;justify-content:center;background:#2b2a3a"></div>
+ <div class="bot">${[0,1,2,3].map(()=>'<div class="slot"></div>').join('')}</div>`;
+ const f=el.querySelector('#f'),cv=document.createElement('canvas'),T=36,W=10,H=13;cv.width=W*T;cv.height=H*T;const g=cv.getContext('2d');
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const wall=x==0||y==0||x==W-1||y==H-1||(y==6&&x<4);g.fillStyle=wall?'#4a4560':((x+y)%2?'#e9e1c8':'#efe8d2');g.fillRect(x*T,y*T,T,T)}
+ g.fillStyle='#3f8fe8';for(let x=5;x<8;x++)for(let y=9;y<11;y++)g.fillRect(x*T,y*T,T,T);
+ const put=(m,x,y)=>{const c=mk(m,2);g.drawImage(c,x*T+2,y*T+2,32,32)};
+ [[2,3],[7,2],[6,6],[2,10]].forEach(([x,y])=>put(rollMon(),x,y));
+ g.fillStyle='#232046';g.beginPath();g.arc(4.5*T,8.5*T,12,0,7);g.fill();g.fillStyle='#fff9ec';g.fillRect(4.5*T-6,8.5*T-4,4,4);g.fillRect(4.5*T+2,8.5*T-4,4,4);
+ f.appendChild(cv);el.querySelector('.bot').insertAdjacentHTML('afterbegin','');
+ return el}
+
+// ===== 案B：出会い型（一体ずつ大きく、3つのボタン）=====
+function B(){const m=rollMon(),el=document.createElement('div');el.className='phone';
+ el.innerHTML=`<div class="top">${hp(4,5)}<span>12にんめ</span></div><div class="msg">${monName(m)}が あらわれた</div>
+ <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:linear-gradient(#cfe8ff,#fff9ec 70%)"><div id="big"></div>
+ <div style="display:flex;gap:8px">${['体','性','性格'].map((k,i)=>`<span style="border:2px solid var(--navy);border-radius:20px;padding:4px 12px;font-size:14px;background:#fff">${[BODY[m.b]+(m.h?'・'+HORN[m.h]:''),SEI[m.s].n,EYE[m.e]][i]}</span>`).join('')}</div></div>
+ <div class="bot"><button class="btn r">たたかう</button><button class="btn">なかよく</button><button class="btn">にげる</button></div>`;
+ el.querySelector('#big').appendChild(mk(m,14));return el}
+
+// ===== 案C：まぜる型（箱庭で部品を組み合わせて育てる）=====
+function C(){const el=document.createElement('div');el.className='phone';const a=rollMon(),b=rollMon(),k={b:a.b,h:b.h,s:b.s,e:a.e};
+ el.innerHTML=`<div class="top"><span>はたけ</span><span>なかま 6</span></div><div class="msg">2ひきを かさねると 部品がまざる</div>
+ <div id="yard" style="flex:1;position:relative;background:#9ed38a"></div>
+ <div class="bot" style="align-items:center"><div class="slot" id="s1"></div><b style="font-size:24px">＋</b><div class="slot" id="s2"></div><b style="font-size:24px">＝</b><div class="slot" id="s3" style="border-color:var(--red)"></div></div>`;
+ const y=el.querySelector('#yard');[[30,40],[220,30],[120,170],[260,240],[40,330],[200,420]].forEach(([x,t])=>{const c=mk(rollMon(),5);c.style.cssText=`position:absolute;left:${x}px;top:${t}px`;y.appendChild(c)});
+ [['s1',a],['s2',b],['s3',k]].forEach(([id,m])=>el.querySelector('#'+id).appendChild(mk(m,3)));return el}
+
+const o=new URLSearchParams(location.search).get('o')||'A';
+document.getElementById('app').appendChild({A,B,C}[o]());
+document.body.onclick=()=>location.reload();
+</script></body></html>
