@@ -7,6 +7,7 @@
  --stone:none;--parch:none;--leather:none}
 *{box-sizing:border-box}
 html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+.fimore{width:100%;text-align:left}.fimore summary{cursor:pointer;color:#7a70a8;font-size:13px;padding:4px 0}
 .ttl0{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 4px}.ttl0 b{font-size:26px;letter-spacing:3px;color:#282850;text-shadow:0 2px 0 #f0c04e}.ttl0 i{display:grid;grid-template-columns:repeat(4,18px);gap:3px;padding:7px 9px;background:#7a4a2a;border-radius:8px 8px 12px 12px;box-shadow:0 0 0 2px #3a2010}.ttl0 i s{width:18px;height:18px;background:#2a1a10;border-radius:3px;box-shadow:inset 0 0 0 1px #c09050}.ttl0 i s:first-child{background:radial-gradient(#ffe9a0,#d08a20);animation:ttl0 1.6s ease-in-out infinite}@keyframes ttl0{50%{filter:brightness(1.35)}}.ttl0 small{font-size:12px;color:#5a5478;letter-spacing:2px}
 body{background:var(--bg);color:var(--ink);font-family:"Shippori Mincho B1","Hiragino Mincho ProN",serif;margin:0;font-size:15px;-webkit-user-select:none;user-select:none;touch-action:manipulation}
 .wrap{position:fixed;inset:0}
@@ -3083,7 +3084,7 @@ function foeInfo(f){const D=FOE[f.k]||{};const r=f.hp/(f.max||f.hp||1);
  const hp=r>.8?'ほとんど無傷':r>.45?'傷ついている':'弱っている';
  let jn='';if(D.cap&&!D.boss&&ITEM[f.k]){const c=JOIND[f.k];jn=c?'仲間になる：'+JOINC[c].d:'仲間になる：どう倒されれば認めるのかは、まだ分からない'}
  const P=f.pers&&PERS.find(q=>q.k==f.pers);const kn=kinOf(f),KK=KIN[kn];const kl=KK?'<br><b>種族</b>　'+KK.n+'<br><b style="color:#9ad08a">好物</b>　'+KK.like.map(id=>ITEM[id]&&ITEM[id].n).filter(Boolean).join('・')+'（渡せば戦わずに済む）<br><b style="color:#e8a08a">苦手</b>　'+FEARN[KK.fear]+'（持っていると寄ってこない）'+(KK.guise.length?'<br><b>化ける</b>　'+KK.guise.map(id=>ITEM[id]&&ITEM[id].n).filter(Boolean).join('・')+'を身につけると気づかれない':'')+(KK.talk?'<br><b>話が通じる</b>　取引・通行料に応じる':''):'';
- $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+(f.caged?'（檻の中）':'')+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'<br>'+st.join('・')+(P?'<br>'+P.n+'個体：'+P.d:'')+(tr.length?'<br><b>性質</b>　'+tr.join('、'):'')+(wk.length?'<br><b style="color:#9ad08a">よく効く</b>　'+wk.join('・'):'')+(rs.length?'<br><b style="color:#e8806a">効きにくい</b>　'+rs.join('・'):'')+(perilOf(f)>=.3?'<br><b style="color:#ff8a70">大振り（！）をよく使う</b>（！が出たら一歩離れる）':'')+(jn?'<br><b>'+jn+'</b>':'')+kl+ecoFoeLines(f)+'</p><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
+ $('modal').innerHTML='<div class="modal"><div class="box"><h2>'+f.n+(f.caged?'（檻の中）':'')+'</h2><p class="hint" style="text-align:left;line-height:1.7">'+hp+'・'+st.join('・')+(wk.length?'<br><b style="color:#9ad08a">よく効く</b>　'+wk.join('・'):'')+(perilOf(f)>=.3?'<br><b style="color:#ff8a70">大振り（！）をよく使う</b>（！が出たら一歩離れる）':'')+'</p><details class="fimore"><summary>くわしく</summary><p class="hint" style="text-align:left;line-height:1.7">'+(P?P.n+'個体：'+P.d+'<br>':'')+(tr.length?'<b>性質</b>　'+tr.join('、')+'<br>':'')+(rs.length?'<b style="color:#e8806a">効きにくい</b>　'+rs.join('・')+'<br>':'')+(jn?'<b>'+jn+'</b>':'')+kl+ecoFoeLines(f)+'</p></details><div class="btns"><button class="b sub" id="fiX">閉じる</button></div></div></div>';
  $('fiX').onclick=()=>{$('modal').innerHTML='';ui()};{const A=foeActs(f);if(A.length){const bx=document.createElement('div');bx.className='btns';bx.style.width='100%';A.forEach(([tx,fn,c])=>{const b=document.createElement('button');b.className='b'+(c?' '+c:' sub2');b.textContent=tx;b.onclick=fn;bx.append(b)});const h=document.querySelector('#modal .box h2');h.after(bx)}}sfx('tick');learn('look','相手を見る：地図の上の魔物をタップすると、状態と性質が見られる。手番は使わない')}
 // タップした所まで歩く。見えている、安全な道だけを通る。何か起きたら止まる
 function trvCost(x,y,goal){if(!walk(x,y))return 0;const k=x+','+y;if(!G.seen.has(k))return 0;
@@ -5515,7 +5516,7 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
     H('世界のこと');
     P('世界の法則は、潜ってから決まる。10Fでひとつ、そこから15階ごとにもうひとつ、'
      +'霧が出たり、蜘蛛が巣を張ったり、亡者が行進しはじめる。組み合わせは毎回ちがう。'
-     +'<br><small>主人公は強くならない。深く行くほど、世界の方がおかしくなる。</small>');
+     +'<br><small>レベルは無い。強くなるのは、持ち込む道具と、覚えた知恵と、連れていく仲間。深く行くほど、世界の方がおかしくなる。</small>');
     {const ks=Object.keys(rec).map(Number).filter(n=>n>0).sort((a,b)=>b-a);
      if(ks.length)P('<small>これまでの記録：'+ks.slice(0,3).map(n=>'法則'+n+'つの世界で '+rec[n]+'F').join('　/　')+'</small>')}
     {const kn=MUTS.filter(m=>KNOW['mut_'+m[0]]);const cm=C();
@@ -5770,7 +5771,7 @@ function renderSheet(){try{syncDist()}catch(e){}
    bx.innerHTML='<div style="font-size:12px;opacity:.7;margin-bottom:4px">いまかかっている反応</div>'+ks.map(k=>{const r=RX.find(q=>q.k==k)||{};
     return '<div style="font-size:13px;line-height:1.5"><b style="color:#e8b64c">'+(r.n||k)+'</b>　'+(r.d||'')+'</div>'}).join('');
    el.append(bx)}}
-  const hint=document.createElement('p');hint.className='hint';hint.textContent='並べ替えの画面。使うのは下の8枠から。間合いは剣1・槍2・銃2〜3。届かない物は暗くなる。';bt.append(hint)}
+  const hint=document.createElement('p');hint.className='hint';hint.textContent='指で動かして詰め直せる。下の8つの枠に置いた物が、冒険中にすぐ使える。';bt.append(hint)}
  el.append(bt);
  {const x=document.createElement('button');x.className='xbtn';x.innerHTML=svg('x');x.setAttribute('aria-label','閉じる');x.onclick=()=>closeSheet();el.append(x)}
  requestAnimationFrame(()=>{fitSheet();requestAnimationFrame(fitSheet)});
