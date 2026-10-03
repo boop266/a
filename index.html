@@ -200,7 +200,7 @@ span.bback{background:none}
 .xbtn{width:44px!important;height:44px!important}.sheet .xbtn{position:absolute!important;top:6px;right:6px;margin:0!important}
 .b{min-height:46px}
 .distrow button{width:52px!important;min-width:52px;height:52px;flex:none;font-size:24px}
-.ctl small{font-size:8px;letter-spacing:0;white-space:nowrap}.ctl{overflow:visible}
+.ctl small{font-size:10px;letter-spacing:0;white-space:nowrap}.ctl{overflow:visible}
 .ctl{position:relative}
 .ctl b{position:absolute;right:5px;top:5px;font-size:9px;line-height:1;padding:1px 3px;border-radius:6px;background:#14120fd8;color:var(--gold);box-shadow:0 0 0 1px var(--brass2);letter-spacing:0;white-space:nowrap}
 .scrollmore{position:sticky;bottom:0;text-align:center;font-size:11px;color:#d9b35e;background:linear-gradient(transparent,#1a1620 70%);padding:10px 0 4px;pointer-events:none}
@@ -1070,7 +1070,7 @@ const base=document.createElement('canvas');base.width=WW;base.height=WH;const b
 const scr=document.getElementById('scr'),sc=scr.getContext('2d');sc.imageSmoothingEnabled=false;
 let VWL=128,VHL=224,SW=256,SH=448;
 let G;
-function fitScreen(){const w=innerWidth||390,h=innerHeight||780;VWL=w>h*0.9?200:(h/w>1.6?120:h/w>1.25?136:160);VHL=Math.round(Math.min(360,Math.max(112,VWL*h/w)));scr.width=VWL*2;scr.height=VHL*2;SW=scr.width;SH=scr.height;sc.imageSmoothingEnabled=false;if(G)G.mapPaper=null}
+function fitScreen(){const w=innerWidth||390,h=innerHeight||780;VWL=w>h*0.9?200:(h/w>1.6?88:h/w>1.25?112:160);VHL=Math.round(Math.min(360,Math.max(112,VWL*h/w)));scr.width=VWL*2;scr.height=VHL*2;SW=scr.width;SH=scr.height;sc.imageSmoothingEnabled=false;if(G)G.mapPaper=null}
 fitScreen();addEventListener('resize',fitScreen);
 const r=n=>Math.floor(Math.random()*n),pick=a=>a[r(a.length)];
 const $=id=>document.getElementById(id);
@@ -1785,7 +1785,9 @@ function stepOK(x,y,dx,dy){return walk(x+dx,y+dy)&&diagOK(x,y,dx,dy)}
 const gimAt=(x,y)=>G.gim.find(g=>g.x==x&&g.y==y);
 const foeAt=(x,y)=>G.foes.find(f=>f.hp>0&&f.x==x&&f.y==y);
 const hasTorch=()=>G.bag.items.some(p=>ITEM[p.id].lit&&!p.wet&&!p.off);const litMul=()=>Math.max(0,...G.bag.items.map(p=>(p.wet||p.off?0:ITEM[p.id].lit||0)));
-function reveal(){const p=G.p;let rad=(hasLight()?5:3)+(rxOn('B')?2:0)-(G.cond=='fog'?1:0)-(G.dim||0)-(inSteam(p.x,p.y)?2:0)-(G.blur>0?1:0);rad=Math.max(1,rad);if(G.mstyle=='shiren'&&G.rid&&!(G.rid[p.y]&&G.rid[p.y][p.x]>=0&&G.rooms[G.rid[p.y][p.x]].lit))rad=hasLight()?2:1;for(let j=-rad;j<=rad;j++)for(let i=-rad;i<=rad;i++)if(i*i+j*j<=rad*rad+1)G.seen.add((p.x+i)+','+(p.y+j))}
+function reveal(){const p=G.p;let rad=(hasLight()?5:3)+(rxOn('B')?2:0)-(G.cond=='fog'?1:0)-(G.dim||0)-(inSteam(p.x,p.y)?2:0)-(G.blur>0?1:0);rad=Math.max(1,rad);if(G.mstyle=='shiren'&&G.rid&&!(G.rid[p.y]&&G.rid[p.y][p.x]>=0&&G.rooms[G.rid[p.y][p.x]].lit))rad=hasLight()?2:1;for(let j=-rad;j<=rad;j++)for(let i=-rad;i<=rad;i++)if(i*i+j*j<=rad*rad+1)G.seen.add((p.x+i)+','+(p.y+j));
+ // 明るい部屋に入ったら、部屋の形（床と壁）がまるごと見える（シレン式。魔物は今までどおり、見えるときだけ映る）
+ try{const ri=G.rid&&G.rid[p.y]?G.rid[p.y][p.x]:-1;const r=ri>=0&&G.rooms[ri];if(r&&r.lit&&!(G.cond=='fog')&&!(G.dim>0)){for(let j=r.y-1;j<=r.y+r.h;j++)for(let i=r.x-1;i<=r.x+r.w;i++){if(!(G.rid[j]&&G.rid[j][i]===ri))continue;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++)G.seen.add((i+a)+','+(j+b))}}}catch(e){}}
 
 // ================= bag model
 const bagDef=()=>BAGS[G.bag.type];
@@ -2065,6 +2067,8 @@ const sprOf=o=>{let a=['puru','gyoro','koke','mochi','medama','ogyoro'].includes
  if(zc&&zc.type=='nest'){amb=[amb[0]*.8,amb[1]*.68,amb[2]*.85];fogC=[60,50,70]}
  if(G.blight){const k=Math.min(1,.35+(G.blightT||0)/140);amb=[amb[0]*(1-.25*k),amb[1]*(1+.35*k),amb[2]*(1-.5*k)];fogC=[40+20*k,90+40*k,40-20*k];fogM=1+k}
  if(G.ship){fogC=[50,70,90];fogM=.7}if(G.cond=='fog')fogM*=2.2;if(G.cond=='rain'){amb=amb.map(v=>v*.9)}
+ // 一度見た場所は、思い出せる明るさで残す（画面が真っ黒にならないように。深い階ほど暗い差はそのまま）
+ amb=amb.map(v=>Math.min(.75,v*1.6));
  if(G.fight)amb=amb.map(v=>v*.5);
  const img=wc.getImageData(x0,y0,w,h),d=img.data;const Ls=L.filter(l=>l.x+l.r>x0&&l.x-l.r<x0+w&&l.y+l.r>y0&&l.y-l.r<y0+h);
  const PX=p.rx+4,PY=p.ry+3,FR=G.fight?90:44;
@@ -2073,8 +2077,8 @@ const sprOf=o=>{let a=['puru','gyoro','koke','mochi','medama','ogyoro'].includes
  for(let tj=0;tj<TH;tj++)for(let ti=0;ti<TW;ti++){const X=(TX0+ti)*8+4,Y=(TY0+tj)*8+4;let R=amb[0],Gg=amb[1],B=amb[2];
   for(const l of Ls){const dx=X-l.x,dy=(Y-l.y)*1.15,q=1-Math.sqrt(dx*dx+dy*dy)/l.r;if(q>0){const f=q*q*l.i;R+=l.c[0]*f;Gg+=l.c[1]*f;B+=l.c[2]*f}}
   const k3=(tj*TW+ti)*3;LT[k3]=R;LT[k3+1]=Gg;LT[k3+2]=B}
- for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const X=x0+xx,Y=y0+yy;const ti=(X>>3)-TX0,tj=(Y>>3)-TY0;const k3=((tj<0?0:tj>=TH?TH-1:tj)*TW+(ti<0?0:ti>=TW?TW-1:ti))*3;let R=LT[k3],Gg=LT[k3+1],B=LT[k3+2];const pd=Math.hypot(X-PX,(Y-PY)*1.1),fall=pd>FR?Math.max(.42,1-(pd-FR)/140):1;
-  const k=(yy*w+xx)*4;if(!SG[(Y>>3)*MW+(X>>3)]){d[k]=d[k+1]=d[k+2]=3;continue}const tex=.88+hash(X,Y)*.16;d[k]=Math.min(255,d[k]*R*tex);d[k+1]=Math.min(255,d[k+1]*Gg*tex);d[k+2]=Math.min(255,d[k+2]*B*tex);if(fall<1){const v=(d[k]+d[k+1]+d[k+2])/3,m=(1-fall)*.7;d[k]=(d[k]+(v-d[k])*m)*fall;d[k+1]=(d[k+1]+(v-d[k+1])*m)*fall;d[k+2]=(d[k+2]+(v-d[k+2])*m)*fall}
+ for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const X=x0+xx,Y=y0+yy;const ti=(X>>3)-TX0,tj=(Y>>3)-TY0;const k3=((tj<0?0:tj>=TH?TH-1:tj)*TW+(ti<0?0:ti>=TW?TW-1:ti))*3;let R=LT[k3],Gg=LT[k3+1],B=LT[k3+2];const pd=Math.hypot(X-PX,(Y-PY)*1.1),fall=pd>FR?Math.max(.62,1-(pd-FR)/160):1;
+  const k=(yy*w+xx)*4;if(!SG[(Y>>3)*MW+(X>>3)]){const rk=15+hash(X>>1,Y>>1)*10+vnoise(X/11,Y/7)*14;d[k]=rk*.9;d[k+1]=rk*.85;d[k+2]=rk*1.15;continue}const tex=.88+hash(X,Y)*.16;d[k]=Math.min(255,d[k]*R*tex);d[k+1]=Math.min(255,d[k+1]*Gg*tex);d[k+2]=Math.min(255,d[k+2]*B*tex);if(fall<1){const v=(d[k]+d[k+1]+d[k+2])/3,m=(1-fall)*.7;d[k]=(d[k]+(v-d[k])*m)*fall;d[k+1]=(d[k+1]+(v-d[k+1])*m)*fall;d[k+2]=(d[k+2]+(v-d[k+2])*m)*fall}
   const fg=vnoise(X/22+t*.25,Y/14)*vnoise(X/9-t*.15,Y/9+3)*(G.fight?.25:.5)*fogM;d[k]+=fogC[0]*fg;d[k+1]+=fogC[1]*fg;d[k+2]+=fogC[2]*fg}
  wc.putImageData(img,x0,y0);
  try{readLayer(wc,t,p)}catch(e){}
@@ -2719,7 +2723,7 @@ function ecoTick(){const e=G.eco;if(!e||G.fight)return;e.clock++;G.turnAll=(G.tu
  const ph0=e.lastPh,ph=ecoPhase();
  if(ph!==ph0){e.lastPh=ph;if(ph0!=null){let s=0,w=0;G.foes.forEach(f=>{if(f.hp<=0||f.aware==2||(FOE[f.k]||{}).boss||f.caged||f.still)return;ecoInit(f);const night=nocturnal(f);
    const sleepNow=(ph==3&&!night)||(ph==1&&night);if(sleepNow&&!f.mhSleep&&Math.random()<.6){ecoSleep(f,0,night?'昼の眠り':'夜の眠り');s++}else if(!sleepNow&&f.ecoNap&&!f.napT){ecoWake(f);w++}});
-  ecoStat('phase');if(ph==3||ph==1)toast((ph==3?'夜になった。':'昼になった。')+(s?s+'体が眠りについた':'')+(w?(s?'。':'')+w+'体が目を覚ました':''));
+  ecoStat('phase');if(ph==3||ph==1)LOG.unshift((ph==3?'夜になった。':'昼になった。')+(s?s+'体が眠りについた':'')+(w?(s?'。':'')+w+'体が目を覚ました':''));
   learn('daynight','昼と夜：時間がたつと昼と夜が入れ替わる。夜は獣や小鬼が眠り、死者や影が起きる。昼はその逆。眠っている者は気づきにくいが、物音で起きる')}}
  const hr=.9*[1.6,1,.55][e.food]*(e.temp==0?1.3:1),tr=.5*(e.temp==2?1.6:1)*(e.hum==0?1.3:e.hum==2?.6:1);
  G.foes.forEach(f=>{if(f.hp<=0||(FOE[f.k]||{}).boss||f.still)return;ecoInit(f);f.hunger=Math.min(100,f.hunger+hr);f.thirst=Math.min(100,f.thirst+tr);
@@ -5479,6 +5483,8 @@ function showBase(h,p){ if(!h){let sv=null;try{sv=store('yw13_save')}catch(e){}i
    const cv=document.createElement('canvas');cv.width=160;cv.height=96;cv.style.cssText='width:100%;image-rendering:pixelated;border:1px solid #2d2636;border-radius:4px';tb.append(cv);villScene(cv);
    if(runs==0){const tt=document.createElement('div');tt.className='ttl0';tt.innerHTML='<b>八つ枠のカバン</b><i>'+'<s></s>'.repeat(8)+'</i><small>潜って、拾って、持ち帰る</small>';tb.prepend(tt)}
    if(runs==0){P('パン屋のおばさん「おや、見ない顔だね。……潜るのかい？　今日は何を持ち帰ってくる？」');B('潜る',()=>{audio();$('modal').innerHTML='';newRaid(null,[],null,0)},'go');B(COOP.on?'協力プレイ：つながっている':'協力プレイ（ふたりで潜る）',()=>{if(!COOP.on)coopUI()},'sub');iosHint(P);pd();return}
+   // 帰ってきた直後：持ち帰った宝は、その場でお金にできる（倉庫を探さなくていい。取っておきたければ押さなければいい）
+   if(h&&h.startsWith('脱出')){const tre=wh.filter(o=>(ITEM[o.id].tre||ITEM[o.id].val)&&!ITEM[o.id].deco);const sum=tre.reduce((s,o)=>s+sellPrice(o.id),0);if(sum>0){const sb=B('💰 持ち帰った宝を売る（'+sum+'G）',()=>{gold+=sum;wh=wh.filter(o=>!tre.includes(o));saveMeta();sfx('rare');try{$('stash').textContent=gold}catch(e){}sb.disabled=true;sb.textContent='売った！　'+sum+'G 手に入れた（村づくり・工房で使える）';draw&&draw()},'go')}}
    if(runs==2)P('<small>村の子「地下はね、100層あるんだって。いちばん下には、何があるのかな」</small>');
    P('地上の村。ここでは何も襲ってこない。人や仲間をタップすると話せる。');
    {const tot=bandTotals(),fnd=bandFound();const deep=+store('yw17_deep')||0;const maxSeen=Math.max(deep, (()=>{let m=0;Object.keys(DISC).forEach(k=>{if(DISCB[k]!=null)m=Math.max(m,(DISCB[k]+1)*10)});return m})());
