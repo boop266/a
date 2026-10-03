@@ -2245,7 +2245,9 @@ async function step(dx,dy){
  {const al=G.allies.find(a=>a.x==nx&&a.y==ny);if(al){al.x=p.x;al.y=p.y;al.flip=dx<0;p.x=nx;p.y=ny;G.busy=true;sfx('step');reveal();await wait(90);try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui();return}}
  const f=foeAt(nx,ny);if(f&&f.charm>0){f.x=p.x;f.y=p.y;f.flip=dx>0;p.x=nx;p.y=ny;G.busy=true;sfx('step');await wait(90);try{await enemiesMove()}catch(e){}try{turnTick()}catch(e){}G.busy=false;ui();return}
  // 襲ってくる相手にぶつかれば、そのまま持っている武器で殴る（シレン式）。気づいていない・のんびりした相手には、向くだけ（忍び寄る・手なずける余地を残す）
- if(f&&!f.dormant){if((f.aware==2||f.broken)&&!f.caged){G.prev=[p.x,p.y];G.faceX=dx;G.faceY=dy;await bumpAttack(f);return}faceFoe(f);return}
+ if(f&&!f.dormant){if((f.aware==2||f.broken)&&!f.caged){G.prev=[p.x,p.y];G.faceX=dx;G.faceY=dy;await bumpAttack(f);return}
+  // のんびりした相手に同じ向きで二度ぶつかったら、どうするかの札を出す（道をふさがれても、振る・なだめる・蹴る…を選べる）
+  if(G.bumpF===f&&performance.now()-(G.bumpT||0)<2500){G.bumpF=null;foeInfo(f);return}G.bumpF=f;G.bumpT=performance.now();faceFoe(f);return}
  G.prev=[p.x,p.y];p.x=nx;p.y=ny;
  if(isIce(p.x,p.y)){let n=0;while(n<12&&isIce(p.x,p.y)){const tx=p.x+dx,ty=p.y+dy,k2=tx+','+ty;const g2=gimAt(tx,ty);if(!stepOK(p.x,p.y,dx,dy)||foeAt(tx,ty)||(g2&&!passGim(g2))||(G.gim||[]).some(g=>g.type=='boulder'&&g.bx==tx&&g.by==ty)||(G.chest&&G.chest.x==tx&&G.chest.y==ty)||(G.barrels&&G.barrels.some(b=>b.x==tx&&b.y==ty))||(G.lava&&G.lava.has(k2))||(G.sdoor&&G.sdoor.x==tx&&G.sdoor.y==ty))break;p.x=tx;p.y=ty;n++;if(isPit(tx,ty)||(G.down&&tx==G.down[0]&&ty==G.down[1])||(G.exit&&tx==G.exit[0]&&ty==G.exit[1]))break}
   if(n){sfx('whoosh');if(!G.iceHint){G.iceHint=1;toast('氷の上を滑った！')}learn('icefloor',TWIST.ice[2]);reveal()}if(isPit(p.x,p.y)){fallDown('氷の上を滑って、穴に落ちた');return}}

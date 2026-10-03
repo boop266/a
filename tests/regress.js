@@ -357,6 +357,13 @@ const cases = {
     const r = await p.evaluate(async () => { G.title = null; const w = ms => new Promise(r => setTimeout(r, ms)); await w(800); toast('一'); toast('二'); toast('三'); const a = document.getElementById('toast').textContent; await w(750); const b = document.getElementById('toast').textContent; toast('危ない！'); const c = document.getElementById('toast').textContent; await w(1500); const d = document.getElementById('toast').textContent; return [a, b, c, d] });
     if (r[0] != '一' || r[1] != '二' || r[2] != '危ない！' || r[3] != '三') throw new Error(JSON.stringify(r));
   },
+  // のんびりした相手に二度ぶつかると、どうするかの札が出る（道をふさがれて詰まらない）
+  async '二度ぶつかると札が出る'(p) {
+    await arena(p);
+    const r = await p.evaluate(async () => { G.p.x = 5; G.p.y = 8; const f = put('puru', 6, 8); f.alpha = 1; f.aware = 0; const w = ms => new Promise(r => setTimeout(r, ms));
+      await step(1, 0); await w(300); const a = !document.getElementById('modal').innerHTML && f.hp == f.max; G.busy = false; await step(1, 0); await w(300); return [a, document.getElementById('modal').innerText] });
+    if (!r[0] || !/蹴る|なだめる|振る/.test(r[1])) throw new Error(JSON.stringify(r));
+  },
   // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
   async '強制フルスクリーン'(p) {
     await p.mouse.click(195, 400); await p.waitForTimeout(400);
