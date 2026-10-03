@@ -4435,7 +4435,9 @@ const COOP={pc:null,dc:null,host:false,guest:false,on:false,buf:'',carry:[]};
 SP.partner=recolor(SP.hero,{C:'L',c:'l'});
 function coopSend(o){try{if(COOP.dc&&COOP.dc.readyState=='open'){const s=JSON.stringify(o,(k,v)=>v instanceof Set?{__set:[...v]}:v);for(let i=0;i<s.length;i+=48000)COOP.dc.send((i+48000>=s.length?'E':'C')+s.slice(i,i+48000))}}catch(e){}}
 function coopRecv(m){COOP.buf+=m.slice(1);if(m[0]!='E')return;const o=JSON.parse(COOP.buf,(k,v)=>v&&v.__set?new Set(v.__set):v);COOP.buf='';(COOP.host?coopHost:coopGuest)(o)}
-function coopWire(){COOP.dc.onmessage=e=>coopRecv(e.data);COOP.dc.onopen=()=>{COOP.on=true;$('modal').innerHTML='';sfx('fanfare');toast(COOP.host?'相棒がつながった。準備して潜ろう':'つながった。ホストが潜るのを待っている…');if(COOP.guest)coopWait();else setTimeout(()=>showBase(),300)};COOP.dc.onclose=()=>{COOP.on=false;toast('相棒との接続が切れた');if(G&&G.guest){G.over=true;showBase()}if(G)G.partner=null}}
+function coopWire(){COOP.dc.onmessage=e=>coopRecv(e.data);COOP.dc.onopen=()=>coopOnOpen();COOP.dc.onclose=()=>coopOnClose()}
+function coopOnOpen(){{COOP.on=true;$('modal').innerHTML='';sfx('fanfare');toast(COOP.host?'相棒がつながった。準備して潜ろう':'つながった。ホストが潜るのを待っている…');if(COOP.guest)coopWait();else setTimeout(()=>showBase(),300)};}
+function coopOnClose(){COOP.on=false;toast('相棒との接続が切れた');if(G&&G.guest){G.over=true;showBase()}if(G)G.partner=null}
 const SDPT=(uf,pw,fp,setup,cands)=>['v=0','o=- 0 0 IN IP4 127.0.0.1','s=-','t=0 0','a=group:BUNDLE 0','a=msid-semantic: WMS','m=application 9 UDP/DTLS/SCTP webrtc-datachannel','c=IN IP4 0.0.0.0','a=ice-ufrag:'+uf,'a=ice-pwd:'+pw,'a=fingerprint:sha-256 '+fp,'a=setup:'+setup,'a=mid:0','a=sctp-port:5000','a=max-message-size:262144'].concat(cands).join('\r\n')+'\r\n';
 const enc=o=>{try{const S=o.sdp;
  const uf=(S.match(/a=ice-ufrag:(\S+)/)||[])[1],pw=(S.match(/a=ice-pwd:(\S+)/)||[])[1];
@@ -4467,7 +4469,7 @@ function pasteInto(id){const t=$(id);if(!t)return;t.focus();
  if(ok&&t.value.trim()){t.value=t.value.trim();toast('貼り付けた');return}
  if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(v=>{if(v){t.value=v.trim();toast('貼り付けた')}else toast('Ctrl+V（スマホは長押し→貼り付け）で入れてください')}).catch(()=>toast('Ctrl+V（スマホは長押し→貼り付け）で入れてください'));return}
  toast('Ctrl+V（スマホは長押し→貼り付け）で入れてください')}
-function coopUI(){const box=h=>{$('modal').innerHTML='<div class="modal"><div class="box"><h2>協力プレイ</h2>'+h+'</div></div>'};
+function coopUIOld(){const box=h=>{$('modal').innerHTML='<div class="modal"><div class="box"><h2>協力プレイ</h2>'+h+'</div></div>'};
  box('<p>ふたりで同じ世界に潜る。サーバーは使わず、「合言葉」を2回コピペし合ってつなぐ。</p><button class="b go" id="ch">部屋を作る（ホスト）</button><button class="b sub" id="cg">部屋に入る（相棒）</button><button class="b sub" id="cx">やめる</button>');
  $('cx').onclick=()=>closeModalSafe();
  $('ch').onclick=async()=>{if(typeof RTCPeerConnection=='undefined'){box('<p>この環境ではブラウザ同士の直接通信（WebRTC）が使えない。Chrome/Safariの通常のタブで開くと使える場合がある。</p><button class="b sub" onclick="showBase()">戻る</button>');return}try{COOP.host=true;COOP.guest=false;const pc=COOP.pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});COOP.dc=pc.createDataChannel('g');coopWire();await pc.setLocalDescription(await pc.createOffer());box('<p>合言葉を作っています…</p>');await iceDone(pc);
@@ -4478,6 +4480,34 @@ function coopUI(){const box=h=>{$('modal').innerHTML='<div class="modal"><div cl
   $('cn').onclick=async()=>{let off;try{off=dec($('o2').value)}catch(e){toast('合言葉が読めなかった');return}COOP.guest=true;COOP.host=false;const pc=COOP.pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});pc.ondatachannel=e=>{COOP.dc=e.channel;coopWire()};await pc.setRemoteDescription(off);await pc.setLocalDescription(await pc.createAnswer());box('<p>返事を作っています…</p>');await iceDone(pc);
    box('<p>② この返事をホストに送る。ホストが貼れば、つながる</p><textarea id="a2" readonly style="width:100%;height:80px;font-size:10px">'+enc(pc.localDescription)+'</textarea><button class="b sub" id="cp">コピー</button>');$('cp').onclick=()=>copyFrom('a2');setTimeout(()=>{try{$('a2').focus();$('a2').select()}catch(e){}},50)}}}
 function coopWait(){$('modal').innerHTML='<div class="modal"><div class="box"><h2>相棒として待機中</h2><p>ホストが潜ると、同じ階に降り立つ。<br>あなたは緑の冒険者。'+MOVEHINT()+'。敵にぶつかると一緒に戦う。拾った物（4つまで）は、生きて帰れば自分の倉庫に届く。</p></div></div>'}
+// ===== 絵のあいことば：3つの絵で、待ち合わせ場所（PeerJS）で落ち合う =====
+const CPICS=[['puru','ぷる'],['fish','さかな'],['torch','たいまつ'],['gem','ほうせき'],['key','かぎ'],['potion','くすり'],['bomb','ばくだん'],['crown','おうかん']];
+const PEERJS=['https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js'];
+function loadPeer(){return new Promise((res,rej)=>{if(window.Peer)return res();let i=0;const next=()=>{if(i>=PEERJS.length)return rej(new Error('net'));const sc=document.createElement('script');sc.src=PEERJS[i++];sc.onload=()=>window.Peer?res():next();sc.onerror=next;document.head.append(sc)};next()})}
+const croom=c=>'yatsuwaku8-'+c.join('');
+{const st=document.createElement('style');st.textContent='.cpics{display:flex;gap:8px;justify-content:center;margin:8px 0}.cpic{display:flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:3px dashed #b8a8e0;border-radius:12px;padding:6px 4px;min-width:64px}.cpic canvas{width:44px;height:44px;image-rendering:pixelated}.cpic small{font-size:13px;font-weight:700;color:#4a3a78}.cpic.empty{min-height:66px}.cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0}.cgrid button{display:flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:2px solid #d8cff0;border-radius:10px;padding:6px 2px;font:inherit}.cgrid button canvas{width:40px;height:40px;image-rendering:pixelated}.cgrid button small{font-size:12px;color:#4a3a78}.cgrid button:active{background:#ffe8ee;border-color:#e8506a}';document.head.append(st)}
+function cpicRow(code){const r=document.createElement('div');r.className='cpics';for(let k=0;k<3;k++){const d=document.createElement('div');d.className='cpic'+(code[k]==null?' empty':'');if(code[k]!=null){try{d.append(iconCanvas(CPICS[code[k]][0]))}catch(e){}const t=document.createElement('small');t.textContent=CPICS[code[k]][1];d.append(t)}r.append(d)}return r}
+// PeerJS のつながりを、いつもの通り道（COOP.dc）にする
+function coopUsePeer(conn){COOP.conn=conn;COOP.dc={send:x=>conn.send(x),get readyState(){return conn.open?'open':'closed'},close:()=>conn.close()};conn.on('data',d=>coopRecv(typeof d=='string'?d:String(d)));conn.on('close',()=>coopOnClose());conn.on('error',()=>{});if(conn.open)coopOnOpen();else conn.on('open',()=>coopOnOpen())}
+function coopStop(){try{COOP.peer&&COOP.peer.destroy()}catch(e){}COOP.peer=null;COOP.host=false;COOP.guest=false}
+function coopUI(){const box=h=>{$('modal').innerHTML='<div class="modal"><div class="box"><h2>協力プレイ</h2>'+h+'</div></div>'};
+ const fail=why=>{box('<p>'+why+'</p><p class="hint">インターネットにつながっているか確かめてね。だめなときは「前のやり方」でもつなげる。</p><button class="b sub" id="cold">前のやり方（合言葉をコピペ）</button><button class="b sub" id="cx">戻る</button>');$('cold').onclick=()=>{coopStop();coopUIOld()};$('cx').onclick=()=>{coopStop();closeModalSafe()}};
+ box('<p>ふたりで同じ世界に潜る。ホストが部屋を作ると、<b>3つの絵</b>が出る。相棒は同じ絵を順に選ぶだけ。</p><button class="b go" id="ch">部屋を作る（ホスト）</button><button class="b go" id="cg">部屋に入る（相棒）</button><button class="b sub" id="cold">うまくいかないとき（前のやり方）</button><button class="b sub" id="cx">やめる</button>');
+ $('cx').onclick=()=>closeModalSafe();$('cold').onclick=()=>coopUIOld();
+ $('ch').onclick=async()=>{box('<p>部屋を用意しています…</p>');try{await loadPeer()}catch(e){fail('待ち合わせ場所に届かなかった');return}
+  const make=()=>{const code=[0,0,0].map(()=>Math.floor(Math.random()*CPICS.length));coopStop();COOP.host=true;const peer=COOP.peer=new Peer(croom(code),window.PEER_OPTS||{});
+   peer.on('open',()=>{box('<p>この<b>3つの絵</b>を、順番どおり相棒に教えてね</p><div id="cpc"></div><p class="hint" style="text-align:center">相棒を待っています…</p><button class="b sub" id="cx">やめる</button>');$('cpc').append(cpicRow(code));$('cx').onclick=()=>{coopStop();closeModalSafe()}});
+   peer.on('connection',conn=>{if(COOP.on){conn.close();return}COOP.host=true;COOP.guest=false;coopUsePeer(conn)});
+   peer.on('error',e=>{if(e&&e.type=='unavailable-id'){make();return}if(!COOP.on)fail('部屋を作れなかった（'+((e&&e.type)||'error')+'）')})};make()};
+ $('cg').onclick=()=>{const sel=[];const draw=()=>{box('<p>相棒から聞いた<b>3つの絵</b>を、順番どおり選んでね</p><div id="cpc"></div><div class="cgrid" id="cgr"></div><button class="b sub" id="cbk">ひとつ戻す</button><button class="b sub" id="cx">やめる</button>');
+   $('cpc').append(cpicRow(sel));const g=$('cgr');CPICS.forEach((P,i)=>{const b=document.createElement('button');try{b.append(iconCanvas(P[0]))}catch(e){}const t=document.createElement('small');t.textContent=P[1];b.append(t);b.onclick=()=>{if(sel.length>=3)return;sfx('tick');sel.push(i);if(sel.length<3)draw();else join()};g.append(b)});
+   $('cbk').onclick=()=>{sel.pop();draw()};$('cx').onclick=()=>{coopStop();closeModalSafe()}};
+  const join=async()=>{box('<div id="cpc"></div><p style="text-align:center">部屋をさがしています…</p>');$('cpc').append(cpicRow(sel));try{await loadPeer()}catch(e){fail('待ち合わせ場所に届かなかった');return}
+   coopStop();COOP.guest=true;COOP.host=false;const peer=COOP.peer=new Peer(undefined,window.PEER_OPTS||{});let done=false;
+   const miss=why=>{if(done||COOP.on)return;done=true;coopStop();box('<div id="cpc"></div><p>'+why+'</p><button class="b go" id="cre">絵を選びなおす</button><button class="b sub" id="cx">やめる</button>');$('cpc').append(cpicRow(sel));$('cre').onclick=()=>{sel.length=0;draw()};$('cx').onclick=()=>closeModalSafe()};
+   peer.on('open',()=>{const conn=peer.connect(croom(sel),{reliable:true,serialization:'raw'});COOP.guest=true;coopUsePeer(conn);setTimeout(()=>miss('その絵の部屋が見つからなかった。絵と順番を確かめてね'),8000)});
+   peer.on('error',e=>{if(e&&e.type=='peer-unavailable')miss('その絵の部屋が見つからなかった。絵と順番を確かめてね');else miss('つなげなかった（'+((e&&e.type)||'error')+'）')})};
+  draw()}}
 // host side
 function coopPlacePartner(){if(!G)return;const p=G.p;const c=DIRS.map(([a,b])=>[p.x+a,p.y+b]).find(([x,y])=>!G.m[y][x])||[p.x,p.y];G.partner={x:c[0],y:c[1],rx:c[0]*T,ry:c[1]*T,ox:0,oy:0,hp:(G.partner&&G.partner.hp)||30,max:30,heals:(G.partner&&G.partner.heals!=null)?G.partner.heals:3,flip:false,k:'partner',n:'相棒',carry:(G.partner&&G.partner.carry)||0}}
 function coopFloor(){const F={};FKEYS.forEach(k=>F[k]=G[k]);coopSend({t:'floor',F,fi:G.fi,muts:G.muts,cond:G.cond})}

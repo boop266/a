@@ -345,8 +345,8 @@ const cases = {
     const ctx2 = await p.context().browser().newContext({ viewport: { width: 390, height: 844 } }); await ctx2.route(/fonts\.g/, r => r.abort());
     const g = await ctx2.newPage(); const gerr = []; g.on('pageerror', e => gerr.push(e.message)); await g.goto(FILE); await W(500);
     try {
-      await p.evaluate(() => { coopUI(); document.getElementById('ch').click() }); await p.waitForSelector('#o1', { timeout: 15000 }); const off = await p.$eval('#o1', e => e.value);
-      await g.evaluate(() => { coopUI(); document.getElementById('cg').click() }); await g.fill('#o2', off); await g.click('#cn'); await g.waitForSelector('#a2', { timeout: 15000 }); const ans = await g.$eval('#a2', e => e.value);
+      await p.evaluate(() => { coopUIOld(); document.getElementById('ch').click() }); await p.waitForSelector('#o1', { timeout: 15000 }); const off = await p.$eval('#o1', e => e.value);
+      await g.evaluate(() => { coopUIOld(); document.getElementById('cg').click() }); await g.fill('#o2', off); await g.click('#cn'); await g.waitForSelector('#a2', { timeout: 15000 }); const ans = await g.$eval('#a2', e => e.value);
       await p.fill('#a1', ans); await p.click('#cn'); for (let k = 0; k < 40 && !(await p.evaluate(() => COOP.on)); k++) await W(200);
       const o = { conn: await p.evaluate(() => COOP.on) && await g.evaluate(() => COOP.on) };
       await p.evaluate(() => { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 0) }); await W(2500);
