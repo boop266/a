@@ -4065,7 +4065,11 @@ async function enemiesMove(){
   if(!LU&&!shy&&f.aware!=2){try{if(ecoMove(f,opts))continue}catch(e){}try{if(trackStep(f,opts))continue}catch(e){}}
   if(LU&&!shy&&cd(LU.x,LU.y,f.x,f.y)>0){opts.sort((a,b)=>cd(a[0],a[1],LU.x,LU.y)-cd(b[0],b[1],LU.x,LU.y));const o=opts[0];if(o&&cd(o[0],o[1],LU.x,LU.y)<cd(f.x,f.y,LU.x,LU.y)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];f.moved=1}continue}
   if(f.aware==2&&!shy){opts.sort((a,b)=>cd(a[0],a[1],p.x,p.y)-cd(b[0],b[1],p.x,p.y));const o=opts[0];if(o&&cd(o[0],o[1],p.x,p.y)<dd){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1];f.moved=1}else if(G.planks&&G.planks.length){try{plankBash(f)}catch(e){}}}
-  else if((f.k=='wisp'||shy||(!f.aware&&!f.still&&Math.random()<.25))&&opts.length&&Math.random()<.4){const o=pick(opts);f.flip=o[0]<f.x;f.x=o[0];f.y=o[1]}
+  else if((f.k=='wisp'||shy)&&opts.length&&Math.random()<.4){const o=pick(opts);f.flip=o[0]<f.x;f.x=o[0];f.y=o[1]}
+  // シレンのように：気づいていない魔物も、行き先の部屋を決めて歩き回る（着いたら次の部屋へ）
+  else if(!f.aware&&!f.still&&!f.mhSleep&&!(f.stun>0)&&!window.NOPATROL&&opts.length&&Math.random()<.85){
+   if(!f.wp||(f.x==f.wp.x&&f.y==f.wp.y)||(f.wpT=(f.wpT||0)+1)>30){const R=(G.rooms||[]).filter(r=>r.w>1&&r.h>1);const r=R.length?pick(R):null;f.wp=r?{x:r.x+Math.floor(Math.random()*r.w),y:r.y+Math.floor(Math.random()*r.h)}:{x:f.x+Math.floor(Math.random()*9)-4,y:f.y+Math.floor(Math.random()*9)-4};f.wpT=0}
+   opts.sort((a,b)=>cd(a[0],a[1],f.wp.x,f.wp.y)-cd(b[0],b[1],f.wp.x,f.wp.y));const o=Math.random()<.85?opts[0]:pick(opts);if(o&&cd(o[0],o[1],f.wp.x,f.wp.y)<=cd(f.x,f.y,f.wp.x,f.wp.y)){f.flip=o[0]<f.x;f.x=o[0];f.y=o[1]}else f.wpT+=5}
  }
  try{G.foes.slice().forEach(f=>{if(f.px0!=null&&(f.x!==f.px0||f.y!==f.py0))foeTrap(f)})}catch(e){}
  const adj=G.foes.filter(f=>f.hp>0&&!f.dormant&&!f.caged&&!f.cowed&&!guised(f)&&!(f.eggChase&&eggOf(f)>=0)&&f.k!='puru'&&f.k!='koke'&&!(f.charm>0)&&!(f.fear>0)&&!(f.conf>0)&&!(f.blind>0)&&cd(f.x,f.y,p.x,p.y)==1&&diagOK(p.x,p.y,Math.sign(f.x-p.x),Math.sign(f.y-p.y)));
@@ -6178,7 +6182,7 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  let wait=0;const go=()=>{if(fsEl()||solo()||wait)return;wait=1;try{const r=req.call(de,{navigationUI:'hide'});const done=()=>{wait=0;try{screen.orientation.lock('portrait').catch(()=>{})}catch(e){}};if(r&&r.then)r.then(done,()=>{wait=0});else done()}catch(e){wait=0}};
  ['pointerup','touchend','keydown'].forEach(ev=>addEventListener(ev,go,{capture:true,passive:true}));
 })()</script>
-<script>// ===== ⑦ 熱・水・空気が流れる：マスごとに「水の量」「熱」があり、毎ターン隣へ広がる。どの階にも空気の流れがある =====
+<script>// ===== 水があふれて広がる：割れた水がめの水は量を持ち、低い方へ広がって、やがて乾く（熱・風・匂いは入れない：見えない仕組みは足さない）=====
 (function(){
  const K=(x,y)=>x+','+y,P=k=>k.split(',').map(Number);
  const D4=[[1,0],[-1,0],[0,1],[0,-1]];
@@ -6204,35 +6208,11 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
    const isW=G.water[y]&&G.water[y][x];
    if(nv>=.45&&!isW&&!(x==G.p.x&&y==G.p.y)&&!(G.mud&&G.mud.has(k))&&!isIce(x,y)){G.water[y][x]=true;W.tmp.add(k);dirty=true;if(hasOil(x,y))try{react('water+oil',x,y)}catch(e){}const f=foeAt(x,y);if(f){f.wetC=Math.max(f.wetC||0,3);f.burn=0}}
    if(nv<.2&&isW&&W.tmp.has(k)){G.water[y][x]=false;W.tmp.delete(k);dirty=true}});
-  // --- 熱：火・溶岩・灯った火鉢から生まれ、隣へ伝わって冷めていく。氷は冷たさを出す
-  const ht=W.ht,nh=new Map();const src=(x,y,v)=>{if(near(x,y)){const k=K(x,y);nh.set(k,(nh.get(k)||0)+v)}};
-  (G.fires||[]).forEach(q=>src(q.x,q.y,6));if(G.lava)G.lava.forEach(k=>{const[x,y]=P(k);src(x,y,5)});
-  if(G.ice)G.ice.forEach(k=>{const[x,y]=P(k);src(x,y,-2)});
-  ht.forEach((h,k)=>{const[x,y]=P(k);const keep=h*.55;nh.set(k,(nh.get(k)||0)+keep);D4.forEach(([a,b])=>{const X=x+a,Y=y+b;if(!walk(X,Y)&&!(G.lava&&G.lava.has(K(X,Y))))return;const kk=K(X,Y);nh.set(kk,(nh.get(kk)||0)+h*.11)})});
-  W.ht=new Map([...nh].filter(([k,h])=>Math.abs(h)>=.4).map(([k,h])=>[k,Math.max(-8,Math.min(12,h))]));
-  W.ht.forEach((h,k)=>{const[x,y]=P(k);
-   if(h>=2.5&&isIce(x,y)){G.ice.delete(k);addWater(x,y,1.2);dirty=true;say('melt','熱で氷が溶けて、水になった',x,y)}
-   if(h>=4&&burnable(x,y)&&!(G.fires||[]).some(q=>q.x==x&&q.y==y)&&(G.fires||[]).some(q=>Math.abs(q.x-x)<=2&&Math.abs(q.y-y)<=2)&&Math.random()<.15){ignite(x,y,'quiet');say('heatfire','熱で、触れてもいない物に火がついた',x,y)}
-   if(h>=4.5){const it=G.items.filter(i=>i.x==x&&i.y==y&&!i.hid&&BURNI.includes(i.id));it.forEach(i=>{G.items.splice(G.items.indexOf(i),1);fx({type:'spark',x:x*T+4,y:y*T+4,c:'#ff8a3a'});say('burnit','熱で、'+ITEM[i.id].n+'が燃えてしまった',x,y)})}
-   const f=foeAt(x,y);if(f&&h>=4&&!(FOE[f.k]||{}).fireOK){if(f.frozen>0)f.frozen=0;f.wetC=Math.max(0,(f.wetC||0)-1);if(h>=6&&Math.random()<.35&&!f.burn){try{hit(f,1)}catch(e){}f.fear=Math.max(f.fear||0,2);say('hotfoe',f.n+'は熱がって後ずさった',x,y)}}
-   if(x==G.p.x&&y==G.p.y&&h>=6&&!G.fight&&Math.random()<.5){G.p.hp=Math.max(1,G.p.hp-1);G.hurt=4;fx({type:'num',s:'-1',x:G.p.rx+4,y:G.p.ry-9,c:'#ff8a3a'});say('hotme','熱い！　火のそばは焼ける',x,y)}
-   if(h<=-3&&W.tmp.has(k)&&G.water[y][x]){G.water[y][x]=false;W.tmp.delete(k);W.wv.delete(k);G.ice=G.ice||new Set();G.ice.add(k);dirty=true;say('freeze','冷気で、あふれた水が凍りついた',x,y)}});
-  // --- 空気：毒気と煙は風下へ流れる。風下の獣は、匂いでこちらに気づく
-  if(W.t%2==0){const [dx,dy]=W.draft;(G.gas||[]).forEach(g=>{if(Math.random()<.5&&walk(g.x+dx,g.y+dy)&&!(G.gas||[]).some(q=>q!==g&&q.x==g.x+dx&&q.y==g.y+dy)){g.x+=dx;g.y+=dy}});
-   (G.steam||[]).forEach(s=>{if(s.smoke&&Math.random()<.5&&walk(s.x+dx,s.y+dy)){s.x+=dx;s.y+=dy}});
-   const p=G.p;G.foes.forEach(f=>{if(f.hp<=0||f.aware||f.ally||f.caged)return;const rx=f.x-p.x,ry=f.y-p.y;const along=rx*dx+ry*dy,side=Math.abs(rx*dy-ry*dx);if(along>0&&along<=6&&side<=1&&kinOf(f)=='beast'&&!G.guise&&Math.random()<.2){f.aware=1;say('smell','風下の'+f.n+'が、こちらの匂いに鼻をひくつかせた',f.x,f.y)}})}
   if(dirty){try{onWaterChanged()}catch(e){}try{drawBase();drawFurniture()}catch(e){}}}
  window.flowStep=flowStep;
  const _t2=turnTick2;turnTick2=function(){try{flowStep()}catch(e){}return _t2.apply(this,arguments)};
  // 割れた水がめ・投げた水は、量になって広がる
  const _bp=breakPot;breakPot=function(q,why){const k=q&&q.k,x=q&&q.x,y=q&&q.y;const was=new Set();if(k=='water')for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++)if(G.water[y+b]&&G.water[y+b][x+a])was.add(K(x+a,y+b));const r=_bp.apply(this,arguments);if(k=='water'){const W=F();for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){const X=x+a,Y=y+b,kk=K(X,Y);if(G.water[Y]&&G.water[Y][X]&&!was.has(kk)){W.tmp.add(kk);addWater(X,Y,1.2)}}addWater(x,y,8)}return r};
- // 煙は風下へ
- const _fs=fireSmoke;fireSmoke=function(f){if(!G.wind&&G.flw){const W={dx:G.flw.draft[0],dy:G.flw.draft[1]};G.wind=W;try{return _fs.apply(this,arguments)}finally{G.wind=null}}return _fs.apply(this,arguments)};
- // 見た目：熱いマスはゆらめく赤、冷たいマスは青。空気の流れは小さな塵が流れていく
- const _rl=readLayer;readLayer=function(wc,t,p){const r=_rl.apply(this,arguments);try{const W=G.flw;if(W){W.ht.forEach((h,k)=>{const[x,y]=P(k);if(!G.seen.has(k))return;const a=Math.min(.32,Math.abs(h)*.05);if(a<.05)return;wc.globalAlpha=a*(h>0?(.75+.25*Math.sin(t*9+x*3+y)):1);wc.fillStyle=h>0?'#ff6a2a':'#9ad8ff';wc.fillRect(x*T,y*T,T,T)});wc.globalAlpha=1;
-   const[dx,dy]=W.draft;for(let q=0;q<14;q++){const ph=((t*.35+q*.137)%1);const bx=p.rx+((q*37)%19-9)*T,by=p.ry+((q*53)%15-7)*T;const X=Math.round(bx+dx*ph*24),Y=Math.round(by+dy*ph*24);const tx=X>>3,ty=Y>>3;if(!G.seen.has(K(tx,ty))||!walk(tx,ty))continue;wc.globalAlpha=Math.sin(ph*Math.PI)*.45;wc.fillStyle='#e8f0ff';wc.fillRect(X,Y,1,1);if(dx)wc.fillRect(X-dx,Y,1,1);else wc.fillRect(X,Y-dy,1,1)}wc.globalAlpha=1}}catch(e){}return r};
- // 名前の表示にも：熱い・冷気
- const _ti=tileInfo;tileInfo=function(x,y){const I=_ti.apply(this,arguments);try{const h=heatAt(x,y);if(h>=3)I.H.push(['熱い','火の熱が伝わっている。燃える物は燃え出し、氷は溶ける']);else if(h<=-2)I.H.push(['冷気','氷の冷たさ。あふれた水は凍る'])}catch(e){}return I};
 })()</script>
 <script>// ===== ① 万物が同じルール：置いてある物はみな「性質」だけを持つ。押す・割る・乗る・入る・燃える・浮く・沈む・埋める は性質から決まる =====
 (function(){
@@ -6293,7 +6273,8 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  // ぶつかったら押す。続けてもう一度ぶつかったら、どうするかの札
  const _st=step;step=async function(dx,dy){try{if(G&&!G.busy&&!G.fight&&!G.over&&!G.guest&&!G.fishing&&!$('modal').innerHTML&&!(G.sheet=='bag')){const p=G.p,nx=p.x+dx,ny=p.y+dy,q=potAt(nx,ny);
    if(q&&!(dx&&dy&&!diagOK(p.x,p.y,dx,dy))){const t=TG(q);const twice=G.bumpQ===q&&performance.now()-(G.bumpQT||0)<2500;G.bumpQ=q;G.bumpQT=performance.now();
-    if(twice||!t.push){G.bumpQ=null;objCard(q);return}
+    // 札は出さない：押せる物は押す。押せない物（干し草）は、もぐって隠れる
+    if(!t.push){if(t.hide){hop(q,'hide');toast(POTN[q.k][0]+'にもぐった。じっとしていれば、見つかりにくい');afterUse();return}sfx('no');return}
     const r=objPush(q,dx,dy);if(r=='moved'){return _st.apply(this,arguments)}afterUse();return}}}catch(e){}
   return _st.apply(this,arguments)};
  // 重い・大きい物は持ち上げられない
@@ -6305,19 +6286,17 @@ showBase('','はじめは鞄ごとの初期装備だけ。潜って、持ち帰�
  let lastTurn=-1;function objTurn(){const p=G.p;if(!G.pots)return;
   if(G.hideIn&&(G.hideIn.x!==p.x||G.hideIn.y!==p.y||!G.pots.includes(G.hideIn)))G.hideIn=null;
   if(G.onTop&&(G.onTop.x!==p.x||G.onTop.y!==p.y||!G.pots.includes(G.onTop)))G.onTop=null;
+  // 自分で掘った穴に入っていれば、身を潜めている（魔物が踏めば落ちる穴のまま）
+  G.inHole=!!(G.traps||[]).find(t=>t.k=='pit'&&t.mine&&!t.used&&t.x==p.x&&t.y==p.y);
+  if(G.inHole&&!G.hideIn){G.foes.forEach(f=>{if(f.hp<=0||f.ally||f.caged)return;const d=cd(f.x,f.y,p.x,p.y);if(d>1){if(f.aware==2){f.aware=1;if(!G.lostSaid){G.lostSaid=1;toast(f.n+'は、こちらを見失ったようだ')}}}else if(f.aware){if(Math.random()<.2){f.aware=2;G.shake=6;sfx('spot');toast(f.n+'に穴を覗き込まれた！')}else f.aware=1}})}
   if(G.hideIn){const q=G.hideIn;G.foes.forEach(f=>{if(f.hp<=0||f.ally||f.caged)return;const d=cd(f.x,f.y,p.x,p.y);if(d>1){if(f.aware==2){f.aware=1;if(!G.lostSaid){G.lostSaid=1;toast(f.n+'は、こちらを見失ったようだ')}}}
     else if(f.aware){const ch=(TG(q).smell&&kinOf(f)=='beast')?.5:.2;if(Math.random()<ch){G.hideIn=null;f.aware=2;G.shake=6;sfx('spot');toast(f.n+'に覗き込まれた！')}else f.aware=1}})}
-  // 火鉢は熱を出す（⑦とつながる）
-  if(G.flw)G.pots.forEach(q=>{if(TG(q).hot){const k=K(q.x,q.y);G.flw.ht.set(k,Math.max(G.flw.ht.get(k)||0,3))}});
-  // 熱で、燃える物は燃える
-  G.pots.slice().forEach(q=>{if(TG(q).burn&&NEWK.includes(q.k)&&typeof heatAt=='function'&&heatAt(q.x,q.y)>=4.5&&Math.random()<.3)breakPot(q,'fire')});
-  // 水に浮いた物は、風下へ流れる。乗っていれば一緒に流される
-  if((G.tick||0)%2==0&&G.flw){const[dx,dy]=G.flw.draft;G.pots.forEach(q=>{if(!q.fl||!inWater(q.x,q.y))return;const tx=q.x+dx,ty=q.y+dy;if(!inWater(tx,ty)||potAt(tx,ty)||foeAt(tx,ty)||(tx==p.x&&ty==p.y&&G.onTop!==q))return;const ride=G.onTop===q;q.x=tx;q.y=ty;if(ride){p.x=tx;p.y=ty;reveal();say(q,POTN[q.k][0]+'に乗ったまま、流されていく')}})}}
+ }
  const _t2=turnTick2;turnTick2=function(){try{if(G.tick!==lastTurn){lastTurn=G.tick;objTurn()}}catch(e){}return _t2.apply(this,arguments)};
  // 金属は雷を伝える
  const _re=react;react=function(k,x,y){const r=_re.apply(this,arguments);try{if(/volt/.test(k)&&x!=null)(G.pots||[]).forEach(q=>{if(TG(q).metal&&cd(q.x,q.y,x,y)<=2){G.foes.forEach(f=>{if(f.hp>0&&cd(f.x,f.y,q.x,q.y)<=1){f.stun=Math.max(f.stun||0,2);fx({type:'spark',x:f.rx+4,y:f.ry,c:'#fff36a'})}});say(q,'雷が'+POTN[q.k][0]+'を伝って走った')}})}catch(e){}return r};
  // 隠れている間は、見えない（目だけ光る）
- const heroSP=SP.hero,hidSP=heroSP.map((r,j)=>j==6?'...k..k...':'..........');Object.defineProperty(SP,'hero',{configurable:true,get(){return (G&&G.hideIn)?hidSP:heroSP},set(v){}});
+ const heroSP=SP.hero,hidSP=heroSP.map((r,j)=>j==6?'...k..k...':'..........');Object.defineProperty(SP,'hero',{configurable:true,get(){return (G&&(G.hideIn||G.inHole))?hidSP:heroSP},set(v){}});
  // 置き方：まばらに、理由のある場所へ（倉庫に木箱、野営地に干し草、兵舎や礼拝堂に鎧、水辺や庭に丸太）
  if(!FKEYS.includes('objGen'))FKEYS.push('objGen');
  function genObjs(){if(G.objGen||!G.rooms||!G.pots)return;G.objGen=1;

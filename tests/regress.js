@@ -364,36 +364,40 @@ const cases = {
       document.getElementById('modal').innerHTML = ''; G.busy = false; G.bumpF = null; await step(1, 0); await w(300); const a = !document.getElementById('modal').innerHTML && f.hp == f.max; G.busy = false; await step(1, 0); await w(300); return [a, document.getElementById('modal').innerText] });
     if (!r[0] || !/蹴る|なだめる|振る/.test(r[1])) throw new Error(JSON.stringify(r));
   },
-  // ⑦ 熱・水・空気が流れる：水がめの水は3×3より広がる・火のそばの氷は溶ける・毒気は風下へ流れる
-  async '熱・水・空気が流れる'(p) {
+  // 水があふれて広がる：水がめの水は3×3より広がり、やがて乾く
+  async '水があふれて広がる'(p) {
     await arena(p);
     const r = await p.evaluate(() => {
-      const o = {}; G.foes = []; G.items = []; G.fires = []; G.ice = new Set(); G.gas = [];
+      G.foes = []; G.items = []; G.fires = [];
       for (let y = 3; y < 14; y++) for (let x = 3; x < 20; x++) G.water[y][x] = false;
       const q = { x: 10, y: 8, k: 'water' }; G.pots = [q]; breakPot(q); for (let t = 0; t < 6; t++) turnTick();
-      let n = 0; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (G.water[y] && G.water[y][x]) n++; o.water = n;
-      G.ice.add('16,5'); G.fires.push({ x: 15, y: 5, t: 0, life: 30 }); for (let t = 0; t < 5; t++) turnTick(); o.melt = !G.ice.has('16,5');
-      const [dx, dy] = G.flw.draft; G.gas = [{ x: 12, y: 11, t: 0, life: 40 }]; for (let t = 0; t < 8; t++) turnTick(); const g = G.gas[0]; o.drift = g ? (g.x - 12) * dx + (g.y - 11) * dy : -1;
-      return o;
+      const cnt = () => { let n = 0; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (G.water[y] && G.water[y][x]) n++; return n };
+      const a = cnt(); for (let t = 0; t < 400; t++) turnTick(); return [a, cnt()];
     });
-    if (r.water < 12 || !r.melt || r.drift < 1) throw new Error(JSON.stringify(r));
+    if (r[0] < 12 || r[1] > 2) throw new Error(JSON.stringify(r));
   },
-  // ① 万物が同じルール：押す（壁で割れる・穴を埋める・水に浮く）、乗って流される、中に隠れる、熱で燃える
+  // 万物が同じルール：ぶつかると押す（壁で割れる・穴を埋める・水に浮く）。干し草にはもぐれる。自分で掘った穴に入れば身を潜める。燃える物は火で燃える
   async '万物が同じルール'(p) {
     await arena(p);
     const r = await p.evaluate(async () => {
-      const o = {}; const w = ms => new Promise(r => setTimeout(r, ms)); const clr = () => { G.foes = []; G.pots = []; G.items = []; G.fires = []; document.getElementById('modal').innerHTML = ''; G.busy = false; G.bumpQ = null; G.hideIn = null; G.onTop = null };
+      const o = {}; const w = ms => new Promise(r => setTimeout(r, ms)); const clr = () => { G.foes = []; G.pots = []; G.items = []; G.fires = []; G.traps = []; document.getElementById('modal').innerHTML = ''; G.busy = false; G.hideIn = null };
       for (let y = 3; y < 14; y++) for (let x = 3; x < 20; x++) G.water[y][x] = false; G.holes = new Set();
       clr(); G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'crate' }); await step(1, 0); await w(300); o.push = G.pots[0].x == 7 && G.p.x == 6;
       clr(); G.p.x = 5; G.p.y = 8; G.m[8][7] = 1; G.pots.push({ x: 6, y: 8, k: 'crate' }); await step(1, 0); await w(300); o.wall = G.pots.length == 0 && G.items.length == 1; G.m[8][7] = 0;
       clr(); G.p.x = 5; G.p.y = 8; G.holes.add('7,8'); G.pots.push({ x: 6, y: 8, k: 'log' }); await step(1, 0); await w(300); o.fill = !G.holes.has('7,8');
-      clr(); for (let x = 7; x < 16; x++) G.water[8][x] = true; G.flw = null; flowF(); G.flw.draft = [0, 1]; G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'log' }); await step(1, 0); await w(300); const q = G.pots[0]; o.float = !!(q && q.fl);
-      G.busy = false; await step(1, 0); await w(200); const btn = [...document.querySelectorAll('#modal button')].find(b => /乗る/.test(b.textContent)); if (btn) { btn.click(); await w(300) } G.flw.draft = [1, 0]; const x0 = G.p.x; for (let t = 0; t < 6; t++) turnTick(); o.ride = G.p.x - x0; for (let x = 7; x < 16; x++) G.water[8][x] = false;
-      clr(); G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'crate' }); const f = put('gob', 12, 8); f.aware = 2; await step(1, 0); await w(200); G.busy = false; await step(1, 0); await w(200); const hb = [...document.querySelectorAll('#modal button')].find(b => /隠れる/.test(b.textContent)); if (hb) { hb.click(); await w(300) } turnTick(); o.hide = !!G.hideIn && f.aware != 2;
-      clr(); G.p.x = 5; G.p.y = 12; G.pots.push({ x: 12, y: 5, k: 'hay' }); G.fires.push({ x: 11, y: 5, t: 0, life: 20 }); for (let t = 0; t < 8; t++) turnTick(); o.hay = !G.pots.some(q => q.k == 'hay');
+      clr(); for (let x = 7; x < 16; x++) G.water[8][x] = true; G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'log' }); await step(1, 0); await w(300); o.float = !!(G.pots[0] && G.pots[0].fl); for (let x = 7; x < 16; x++) G.water[8][x] = false;
+      clr(); G.p.x = 5; G.p.y = 8; G.pots.push({ x: 6, y: 8, k: 'hay' }); const f = put('gob', 12, 8); f.aware = 2; await step(1, 0); await w(300); turnTick(); o.hay = !!G.hideIn && f.aware != 2 && !document.getElementById('modal').innerHTML;
+      clr(); G.p.x = 5; G.p.y = 8; G.traps = [{ x: 5, y: 8, k: 'pit', known: 1, mine: 1 }]; const g = put('gob', 13, 8); g.aware = 2; turnTick(); o.hole = !!G.inHole && g.aware != 2;
+      clr(); G.p.x = 5; G.p.y = 12; G.pots.push({ x: 12, y: 5, k: 'hay' }); G.fires.push({ x: 11, y: 5, t: 0, life: 20 }); try { ignite(12, 5, 'quiet') } catch (e) { } o.burn = !G.pots.some(q => q.k == 'hay');
       return o;
     });
-    if (!(r.push && r.wall && r.fill && r.float && r.ride >= 2 && r.hide && r.hay)) throw new Error(JSON.stringify(r));
+    if (!(r.push && r.wall && r.fill && r.float && r.hay && r.hole && r.burn)) throw new Error(JSON.stringify(r));
+  },
+  // シレンのように、気づいていない魔物も部屋から部屋へ歩き回る
+  async '魔物は歩き回る'(p) {
+    await dive(p);
+    const r = await p.evaluate(async () => { G.title = null; let moved = 0, n = 0; for (let t = 0; t < 3; t++) { document.getElementById('modal').innerHTML = ''; newRaid(null, [], null, 5); const st = G.foes.filter(f => !f.still).map(f => [f, f.x, f.y]); for (let k = 0; k < 20; k++) { G.busy = false; try { await enemiesMove() } catch (e) { } try { turnTick() } catch (e) { } } st.forEach(([f, x, y]) => { n++; if (f.x != x || f.y != y) moved++ }) } return moved / n });
+    if (r < .7) throw new Error('動いた割合 ' + r);
   },
   // 強制フルスクリーン：さわると全画面。抜けても、次にさわればまた全画面
   async '強制フルスクリーン'(p) {
@@ -786,7 +790,7 @@ async function arena(p) {
     G.title = null; const H = G.m.length, W = G.m[0].length;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) G.m[y][x] = (x >= 2 && x <= 20 && y >= 2 && y <= 14) ? 0 : 1;
     G.rid = G.m.map(r => r.map(() => -1)); G.eco = null; G.nests = []; G.foes = []; G.items = []; G.srcs = []; G.exit = [2, 2]; G.down = [3, 2]; G.up = null; G.wind = null; G.cur = null; G.mud = new Set(); G.bush = new Set(); G.ice = new Set(); G.holes = new Set(); G.bridges = new Set(); G.lava = new Set(); G.webs = new Set(); G.oil = new Set(); G.evs = []; G.chest = null; G.graves = []; G.cocoons = []; G.relic = null; G.volts = []; G.thin = []; G.loose = []; G.water = G.m.map(r => r.map(() => false)); G.gim = []; G.fires = []; G.bodies = []; G.hush = 0;
-    G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit); G.pots = []; G.dens = []; G.ctxs = []; G.hideIn = null; G.onTop = null; G.flw = null;
+    G.p.x = 5; G.p.y = 8; G.bag.items = G.bag.items.filter(q => !ITEM[q.id].lit); G.pots = []; G.dens = []; G.ctxs = []; G.hideIn = null; G.onTop = null; G.flw = null; window.NOPATROL = 1; // 練習部屋では、気づいていない魔物は歩き回らない（テストを決まった形に）
     window.put = (k, x, y, flip) => { const f = mkFoe(k, x, y, 0); f.pers = null; f.slowV = 0; f.fastV = 0; f.slow = 0; f.flip = flip; f.rx = x * T; f.ry = y * T; G.foes.push(f); return f; };
   });
 }
