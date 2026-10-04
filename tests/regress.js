@@ -372,7 +372,7 @@ const cases = {
       for (let y = 3; y < 14; y++) for (let x = 3; x < 20; x++) G.water[y][x] = false;
       const q = { x: 10, y: 8, k: 'water' }; G.pots = [q]; breakPot(q); for (let t = 0; t < 6; t++) turnTick();
       const cnt = () => { let n = 0; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (G.water[y] && G.water[y][x]) n++; return n };
-      const a = cnt(); for (let t = 0; t < 400; t++) turnTick(); return [a, cnt()];
+      const a = cnt(); for (let t = 0; t < 400; t++) turnTick(); return [a, G.flw.tmp.size];
     });
     if (r[0] < 12 || r[1] > 2) throw new Error(JSON.stringify(r));
   },

@@ -87,7 +87,7 @@ function botTick() {
     const page = await ctx.newPage();
     const errs = [];
     page.on('pageerror', e => errs.push('pageerror: ' + e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 5).map(x => x.trim().replace(/\(file:.*?index\.html[^:]*:/, '(')).join(' < ')));
-    page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|ERR_CERT|fonts/.test(m.text())) errs.push('console: ' + m.text()); });
+    page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|ERR_CERT|ERR_TUNNEL|fonts/.test(m.text())) errs.push('console: ' + m.text()); });
     // テスト時だけ、握りつぶされている例外も記録する
     const html = require('fs').readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8')
       .replace(/catch\((e|er|err)\)\{\}/g, (m, v) => `catch(${v}){window.__sw&&window.__sw(${v})}`)
