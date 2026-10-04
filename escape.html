@@ -48,98 +48,108 @@ const SPR={
  key:["....yyyy....","...y....y...","...y....y...","....yyyy....",".....yY.....",".....yY.....",".....yyyY...",".....yY.....",".....yyY....",".....yY....."]};
 const SC={};function spr(n){if(SC[n])return SC[n];const a=SPR[n],c=document.createElement('canvas');c.width=a[0].length;c.height=a.length;const x=c.getContext('2d');
  a.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!='.'){x.fillStyle=PAL[ch];x.fillRect(i,j,1,1)}}));return SC[n]=c}
-// ===== 刑務所をつくる =====
-// t：floor 床 / wall 壁 / bars 鉄格子 / gate 外への門。h：高さ。st：階段（上る向き）。obj：置いてある物。out：塀の外
-const MW=46,MH=28,LH=14;
-const BLOCK={bedT:1,bedB:1,toilet:1,rtable:1,mtable:1,counter:1,desk:1,bench:1,hoop:1,pullbar:1,locker:1,vend:1,weights:1,sbench:1};
-let C,P,key,gate,won,ROOMS=[];
+// ===== 刑務所をつくる（3階建て） =====
+// 階ごとの地図。t：floor 床 / wall 壁 / bars 鉄格子 / gate 外への門 / void 吹き抜けや建物の外（下の階が見える）
+// h：その階の中の段の高さ　st：段の階段　link：ほかの階へ行く階段　obj：置いてある物　out：塀の外
+const MW=46,MH=30,LH=14,NF=3,DROP=3*LH;
+const BLOCK={bedT:1,bedB:1,toilet:1,rtable:1,mtable:1,counter:1,desk:1,bench:1,hoop:1,pullbar:1,locker:1,vend:1,weights:1,sbench:1,shelf:1,mbed:1,cabinet:1,sdesk:1,bigdesk:1,plant:1,crate:1,washer:1,board:1};
+let FLs=[],ROOMSs=[],F=0,C,P,key,gate,won,ROOMS=[],BLD=null;
 const rnd=Math.random,ri=(a,b)=>a+Math.floor(rnd()*(b-a+1)),pick=a=>a[ri(0,a.length-1)];
 const cell=(x,y)=>C[y]&&C[y][x];
+function setF(f){F=f;C=FLs[f];ROOMS=ROOMSs[f]}
+// 階ごとの部屋：1階は暮らし、2階は学び・手当て、3階は見張り・管理
+const TYPES=[['mess','shower','work','laundry'],['library','infirmary','class','shower'],['guard','office','storage','library']];
+const FLR={cb:'lino',stairs:'conc',mess:'lino',shower:'tile',work:'conc',laundry:'tile',library:'wood',infirmary:'lino',class:'wood',guard:'lino',office:'carpet',storage:'conc'};
+function split(rest){const L=[rest];
+ for(let n=0;n<12&&L.length<5;n++){L.sort((a,b)=>(b.x1-b.x0)*(b.y1-b.y0)-(a.x1-a.x0)*(a.y1-a.y0));const r=L[0],w=r.x1-r.x0,h=r.y1-r.y0,vert=w>h*1.2?true:h>w*1.2?false:rnd()<.5;
+  if(vert&&w>=14){L.shift();const s=ri(r.x0+7,r.x1-7);L.push({x0:r.x0,x1:s,y0:r.y0,y1:r.y1},{x0:s,x1:r.x1,y0:r.y0,y1:r.y1})}
+  else if(!vert&&h>=12){L.shift();const s=ri(r.y0+6,r.y1-6);L.push({x0:r.x0,x1:r.x1,y0:r.y0,y1:s},{x0:r.x0,x1:r.x1,y0:s,y1:r.y1})}
+  else break}
+ return L}
+const free=v=>v&&v.t=='floor'&&!v.h&&!v.obj&&!v.st&&!v.bdoor&&!v.link&&!v.out;
 function gen(){
- for(let tries=0;tries<300;tries++){
-  C=[...Array(MH)].map((_,y)=>[...Array(MW)].map((_,x)=>{
-   const out=x==0||y==0||x==MW-1||y==MH-1,per=!out&&(x==1||y==1||x==MW-2||y==MH-2);
-   return out?{t:'floor',fl:'grass',h:0,out:true}:per?{t:'wall',h:y==MH-2?1:y==1?3.8:3,per:true}:{t:'wall',h:2}}));
-  // 監房棟（左か右）と、そのほかの部屋
-  const cw=ri(17,21),left=rnd()<.5;
-  const CB=left?{x0:1,x1:1+cw,y0:1,y1:MH-2,type:'cb'}:{x0:MW-2-cw,x1:MW-2,y0:1,y1:MH-2,type:'cb'};
-  const rest=left?{x0:1+cw,x1:MW-2,y0:1,y1:MH-2}:{x0:1,x1:MW-2-cw,y0:1,y1:MH-2};
-  let leaves=[rest];
-  while(leaves.length<4){leaves.sort((a,b)=>(b.x1-b.x0)*(b.y1-b.y0)-(a.x1-a.x0)*(a.y1-a.y0));const r=leaves.shift();
-   const w=r.x1-r.x0,h=r.y1-r.y0,vert=w>h*1.3?true:h>w*1.3?false:rnd()<.5;
-   if(vert&&w>=14){const s=ri(r.x0+7,r.x1-7);leaves.push({x0:r.x0,x1:s,y0:r.y0,y1:r.y1},{x0:s,x1:r.x1,y0:r.y0,y1:r.y1})}
-   else if(!vert&&h>=12){const s=ri(r.y0+6,r.y1-6);leaves.push({x0:r.x0,x1:r.x1,y0:r.y0,y1:s},{x0:r.x0,x1:r.x1,y0:s,y1:r.y1})}
-   else{leaves.push(r);break}}
-  if(leaves.length<3)continue;
-  leaves.sort((a,b)=>(b.x1-b.x0)*(b.y1-b.y0)-(a.x1-a.x0)*(a.y1-a.y0));
-  const types=['guard','mess','shower','work'];leaves.forEach((r,i)=>r.type=i==0?'yard':types[i-1]||'work');
-  const rooms=[CB,...leaves];
-  const FL={cb:'lino',yard:'asph',guard:'lino',mess:'lino',shower:'tile',work:'conc'};
-  rooms.forEach(r=>{for(let y=r.y0+1;y<r.y1;y++)for(let x=r.x0+1;x<r.x1;x++)C[y][x]={t:'floor',fl:FL[r.type],h:0,room:r.type}});
-  // 監房棟の中（3階建て）：奥から 3階の牢屋・通路 → 2階の牢屋・通路 → 吹き抜けの広間 → 1階の牢屋。2階から3階へは、はしの鉄の階段で
-  const a=CB.x0+1,b=CB.x1-1,c=CB.y0+1,d=CB.y1-1;const cells=[];
-  const row=(y,o)=>{for(let x=a;x<=b;x++)C[y][x]=Object.assign({},o)};
-  for(let y=c;y<=c+4;y++)row(y,{t:y==c+3?'bars':'floor',fl:y==c+4?'steel':'cellf',h:2,rail:y==c+4});
-  for(let y=c+5;y<=c+9;y++)row(y,{t:y==c+8?'bars':'floor',fl:y==c+9?'steel':'cellf',h:1,rail:y==c+9});
-  for(let y=d-3;y<=d;y++)row(y,{t:y==d-3?'bars':'floor',fl:'cellf',h:0});
-  const WH=[2,2.6,3.3];  // 仕切り壁の高さ（階ごと）
-  for(let y=c;y<=c+3;y++){C[y][a]={t:'wall',h:WH[2]};C[y][a+1]={t:'wall',h:WH[2]}}
-  for(let y=c+5;y<=c+8;y++){C[y][a]={t:'floor',fl:'steel',h:1};C[y][a+1]={t:'wall',h:WH[1]}}
-  C[c+5][a]={t:'floor',fl:'steel',h:1,st:[0,-1]};
-  // 牢屋の列：x0 から4マスごと。up=格子が手前（南）、そうでなければ奥（北）
-  const tier=(x0s,top,h,up)=>{const rows=[top,top+1,top+2,top+3];let x=x0s;
-   for(;x+2<=b;x+=4){
-    for(const y of rows)if(x+3<=b)C[y][x+3]={t:'wall',h:WH[h]};
-    const by=up?top+3:top,bed=up?top:top+2,toi=up?top:top+3;
-    C[bed][x].obj='bedT';C[bed+1][x].obj='bedB';C[toi][x+2].obj='toilet';C[by][x+1]={t:'floor',fl:'cellf',h:h,bdoor:true};cells.push([x+1,up?top+1:top+2])}
-   for(let xx=x-1;xx<=b;xx++)for(const y of rows)if(xx>=x0s)C[y][xx]={t:'wall',h:WH[h]}};
-  tier(a+2,c,2,true);tier(a+2,c+5,1,true);tier(a,d-3,0,false);
-  const stx=[];for(let i=0;i<2;i++){const x=ri(a+2,b-1);if(stx.some(s=>Math.abs(s-x)<4))continue;stx.push(x);C[c+10][x]={t:'floor',fl:'steel',h:0,st:[0,-1]}}
-  for(let y=c+12;y<=d-6;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6&&!stx.some(s=>Math.abs(s-x)<2))C[y][x].obj='rtable';
-  for(const x of[a,b])if(!C[c+11][x].obj&&!C[c+10][x].st&&rnd()<.8)C[c+11][x].obj='vend';
-  // ほかの部屋の中身
-  leaves.forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1;
-   if(r.type=='guard'){ // 看守室：一段高い見張り台に机とモニター。鍵は机の上
-    for(let y=y0;y<=y0+1;y++)for(let x=x0;x<=x1;x++)C[y][x]={t:'floor',fl:'plat',h:1};
-    const sx=ri(x0,x1);C[y0+2][sx]={t:'floor',fl:'steel',h:0,st:[0,-1]};
-    const ds=[];for(let x=x0;x<=x1;x+=2){C[y0][x].obj='desk';ds.push(x)}r.key=[pick(ds),y0];
-    for(let y=y0+3;y<=y1;y++)if(!C[y][x1].st)C[y][x1].obj='locker'}
-   if(r.type=='mess'){for(let x=x0;x<=x1;x++)C[y0][x].obj='counter';
-    for(let y=y0+2;y<y1;y+=2)for(let x=x0+1;x<x1;x++)if((x-x0)%6!=0)C[y][x].obj='mtable'}
-   if(r.type=='shower'){for(let x=x0+1;x<=x1-1;x+=2)C[y0][x].obj='shower';for(let x=x0+1;x<x1;x++)if(rnd()<.6)C[y1][x].obj='sbench'}
-   if(r.type=='work'){for(let y=y0+1;y<y1;y+=3)for(let x=x0+1;x<x1;x+=3)C[y][x].obj='bench'}
-   if(r.type=='yard'){const w=x1-x0+1,h=y1-y0+1;
-    const hx=ri(x0+2,x1-2);C[y0][hx].obj='hoop';r.court={x:Math.max(x0,hx-3),y:y0,w:Math.min(7,x1-Math.max(x0,hx-3)+1),h:Math.min(5,y1-y0)};C[y1][ri(x0,x1)].obj='pullbar';for(let i=0;i<2;i++){const wx=ri(x0,x1),wy=ri(y0+1,y1);if(C[wy][wx].t=='floor'&&!C[wy][wx].obj&&!C[wy][wx].h)C[wy][wx].obj='weights'}
-    if(w>=8&&h>=7){const bw=ri(4,Math.min(7,w-3)),bx=ri(x0+1,x1-bw),by=ri(y0+2,y1-3);  // 観覧席（一段高い）
-     for(let y=by;y<by+2;y++)for(let x=bx;x<bx+bw;x++)C[y][x]={t:'floor',fl:'plat',h:1};C[by+2][ri(bx,bx+bw-1)]={t:'floor',fl:'steel',h:0,st:[0,-1]}}}});
-  // 部屋どうしの出入口（どこへでも行けるように）
-  const free=v=>v.t=='floor'&&!v.h&&!v.obj&&!v.st&&!v.bdoor;
-  const adj=[];for(let i=0;i<rooms.length;i++)for(let j=0;j<rooms.length;j++){if(i==j)continue;const A=rooms[i],B=rooms[j];
-   if(A.x1==B.x0){const ys=[];for(let y=Math.max(A.y0,B.y0)+1;y<=Math.min(A.y1,B.y1)-1;y++)if(free(cell(A.x1-1,y))&&free(cell(A.x1+1,y)))ys.push(y);if(ys.length)adj.push([i,j,ys.map(y=>[A.x1,y])])}
-   if(A.y1==B.y0){const xs=[];for(let x=Math.max(A.x0,B.x0)+1;x<=Math.min(A.x1,B.x1)-1;x++)if(free(cell(x,A.y1-1))&&free(cell(x,A.y1+1)))xs.push(x);if(xs.length)adj.push([i,j,xs.map(x=>[x,A.y1])])}}
-  const grp=rooms.map((_,i)=>i),fd=i=>grp[i]==i?i:grp[i]=fd(grp[i]);
-  adj.sort(()=>rnd()-.5).forEach(([i,j,ps],k)=>{if(fd(i)!=fd(j)||k%5==0){grp[fd(i)]=fd(j);const[x,y]=pick(ps);C[y][x]={t:'floor',fl:'conc',h:0,door:true}}});
-  // 外への門：運動場に面した塀
-  const Yd=leaves.find(r=>r.type=='yard'),G=leaves.find(r=>r.type=='guard');if(!G)continue;
-  const gc=[];
-  for(let x=Yd.x0+1;x<Yd.x1;x++){if(Yd.y0==1)gc.push([x,1,0,1]);if(Yd.y1==MH-2)gc.push([x,MH-2,0,-1])}
-  for(let y=Yd.y0+1;y<Yd.y1;y++){if(Yd.x0==1)gc.push([1,y,1,0]);if(Yd.x1==MW-2)gc.push([MW-2,y,-1,0])}
-  const okg=gc.filter(([x,y,dx,dy])=>free(cell(x+dx,y+dy)));if(!okg.length)continue;
-  const gp=pick(okg);gate={x:gp[0],y:gp[1],open:false};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'};
-  key=G.key;
-  const s=pick(cells);
-  const D=reach(s[0],s[1]);if(!D.has(key[0]+','+(key[1]+1))||!D.has((gp[0]+gp[2])+','+(gp[1]+gp[3])))continue;
-  P={x:s[0],y:s[1],px:s[0],py:s[1],ph:hOf(s[0],s[1]),f:'down',flip:false,key:false,mv:0};won=false;ROOMS=rooms;return}
+ for(let tries=0;tries<400;tries++){
+  const yl=rnd()<.5,yw=ri(10,12);
+  const B=yl?{x0:1+yw,x1:MW-2,y0:1,y1:MH-2}:{x0:1,x1:MW-2-yw,y0:1,y1:MH-2};BLD=B;
+  const YD={x0:yl?1:B.x1,x1:yl?B.x0:MW-2,y0:1,y1:MH-2,type:'yard'};
+  const cw=ri(15,18),cbl=rnd()<.5;
+  const CB={x0:cbl?B.x0:B.x1-cw,x1:cbl?B.x0+cw:B.x1,y0:B.y0,y1:B.y1};
+  const leaves=split(cbl?{x0:B.x0+cw,x1:B.x1,y0:B.y0,y1:B.y1}:{x0:B.x0,x1:B.x1-cw,y0:B.y0,y1:B.y1});
+  if(leaves.length<4)continue;
+  const ar=r=>(r.x1-r.x0-1)*(r.y1-r.y0-1);
+  const okS=leaves.filter(r=>r.x1-r.x0-1>=5&&r.y1-r.y0-1>=4).sort((a,b)=>ar(a)-ar(b));if(!okS.length)continue;
+  const SL=okS[0],others=leaves.filter(r=>r!==SL).sort((a,b)=>ar(b)-ar(a));
+  const base=[CB,SL,...others],cells=[];let bad=false;FLs=[];ROOMSs=[];
+  const inB=(x,y)=>x>=B.x0&&x<=B.x1&&y>=B.y0&&y<=B.y1;
+  for(let f=0;f<NF&&!bad;f++){
+   C=[...Array(MH)].map((_,y)=>[...Array(MW)].map((_,x)=>{
+    const out=x==0||y==0||x==MW-1||y==MH-1,per=!out&&(x==1||y==1||x==MW-2||y==MH-2),edge=inB(x,y)&&(x==B.x0||x==B.x1||y==B.y0||y==B.y1),lowS=y==MH-2;
+    if(f==0){if(out)return{t:'floor',fl:'grass',h:0,out:true};if(per)return{t:'wall',h:lowS?1:y==1?3.8:3,per:true};if(edge)return{t:'wall',h:2.6,ext:true};if(inB(x,y))return{t:'wall',h:2};return{t:'floor',fl:'asph',h:0}}
+    if(inB(x,y))return{t:'wall',h:lowS?1:edge?2.6:2,ext:edge};return{t:'void',h:0}}));
+   const RM=base.map(r=>({x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}));RM[0].type='cb';RM[1].type='stairs';RM.slice(2).forEach((r,i)=>r.type=TYPES[f][i]||'storage');
+   RM.forEach(r=>{for(let y=r.y0+1;y<r.y1;y++)for(let x=r.x0+1;x<r.x1;x++)C[y][x]={t:'floor',fl:FLR[r.type],h:0}});
+   // 監房棟：北と南に牢屋の列。1階はまん中が広間、2階・3階は牢屋の前の通路と吹き抜け
+   const a=CB.x0+1,b=CB.x1-1,c=CB.y0+1,d=CB.y1-1;
+   const rowSet=(y,o)=>{for(let x=a;x<=b;x++)C[y][x]=Object.assign({},o)};
+   rowSet(c+3,{t:'bars',fl:'cellf',h:0});rowSet(d-3,{t:'bars',fl:'cellf',h:0});for(const y of[c,c+1,c+2,d-2,d-1,d])rowSet(y,{t:'floor',fl:'cellf',h:0});
+   const tier=(top,up)=>{const rows=[top,top+1,top+2,top+3];let x=a;
+    for(;x+2<=b;x+=4){for(const y of rows)if(x+3<=b)C[y][x+3]={t:'wall',h:2};
+     const by=up?top+3:top,bed=up?top:top+2,toi=up?top:top+3;
+     C[bed][x].obj='bedT';C[bed+1][x].obj='bedB';C[toi][x+2].obj='toilet';C[by][x+1]={t:'floor',fl:'cellf',h:0,bdoor:true};cells.push([f,x+1,up?top+1:top+2])}
+    for(let xx=x-1;xx<=b;xx++)for(const y of rows)if(xx>=a)C[y][xx]={t:'wall',h:2}};
+   tier(c,true);tier(d-3,false);
+   if(f==0){for(let y=c+6;y<=d-7;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6)C[y][x].obj='rtable';for(const x of[a,b])if(rnd()<.8)C[c+5][x].obj='vend'}
+   else{rowSet(c+4,{t:'floor',fl:'steel',h:0});rowSet(d-4,{t:'floor',fl:'steel',h:0});for(let y=c+5;y<=d-5;y++)rowSet(y,{t:'void',h:0})}
+   // ほかの部屋の中身
+   RM.slice(1).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;const at=(x,y,o)=>{const v=C[y]&&C[y][x];if(v&&v.t=='floor'&&!v.obj&&!v.st&&!v.link)v.obj=o};
+    switch(r.type){
+     case 'guard':for(let y=y0;y<=y0+1;y++)for(let x=x0;x<=x1;x++)C[y][x]={t:'floor',fl:'plat',h:1};{const sx=ri(x0,x1);C[y0+2][sx]={t:'floor',fl:'steel',h:0,st:[0,-1]};const ds=[];for(let x=x0;x<=x1;x+=2){C[y0][x].obj='desk';ds.push(x)}r.key=[pick(ds),y0];for(let y=y0+3;y<=y1;y++)at(x1,y,'locker')}break;
+     case 'mess':for(let x=x0;x<=x1;x++)at(x,y0,'counter');for(let y=y0+2;y<y1;y+=2)for(let x=x0+1;x<x1;x++)if((x-x0)%6)at(x,y,'mtable');break;
+     case 'shower':for(let x=x0+1;x<x1;x+=2)at(x,y0,'shower');for(let x=x0+1;x<x1;x++)if(rnd()<.6)at(x,y1,'sbench');break;
+     case 'work':for(let y=y0+1;y<y1;y+=3)for(let x=x0+1;x<x1;x+=3)at(x,y,'bench');break;
+     case 'laundry':for(let x=x0;x<=x1;x+=2)at(x,y0,'washer');if(h>4)for(let x=x0+1;x<x1;x+=3)at(x,y0+3,'sbench');break;
+     case 'library':for(let y=y0;y<y1;y+=3)for(let x=x0+1;x<x1;x++)if((x-x0)%5)at(x,y,'shelf');if(h>5)at((x0+x1)>>1,y1-1,'rtable');break;
+     case 'infirmary':for(let x=x0;x<=x1;x+=2)at(x,y0,'mbed');at(x1,y1,'cabinet');at(x0,y1,'cabinet');break;
+     case 'class':{const m=(x0+x1)>>1;for(let x=m-1;x<=m+1;x++)at(x,y0,'board');for(let y=y0+2;y<=y1;y+=2)for(let x=x0+1;x<x1;x+=2)at(x,y,'sdesk')}break;
+     case 'office':at((x0+x1)>>1,(y0+y1)>>1,'bigdesk');at(x0,y0,'plant');at(x1,y0,'plant');at(x1,y1,'cabinet');for(let x=x0+1;x<x1;x+=2)at(x,y0,'shelf');break;
+     case 'storage':for(let i=0;i<w*h/5;i++)at(ri(x0,x1),ri(y0,y1),rnd()<.6?'crate':'shelf');break;
+     case 'stairs':{const A=x0+1,Bc=x0+3;if(f<NF-1)C[y0][f==0?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f+1},sdir:'up'};if(f>0)C[y0][f==1?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f-1},sdir:'down'}}break}});
+   // 部屋どうしの出入口（その階のどこへでも行けるように）
+   const adj=[];for(let i=0;i<RM.length;i++)for(let j=0;j<RM.length;j++){if(i==j)continue;const A=RM[i],Bq=RM[j];
+    if(A.x1==Bq.x0){const ys=[];for(let y=Math.max(A.y0,Bq.y0)+1;y<=Math.min(A.y1,Bq.y1)-1;y++)if(free(cell(A.x1-1,y))&&free(cell(A.x1+1,y)))ys.push(y);if(ys.length)adj.push([i,j,ys.map(y=>[A.x1,y])])}
+    if(A.y1==Bq.y0){const xs=[];for(let x=Math.max(A.x0,Bq.x0)+1;x<=Math.min(A.x1,Bq.x1)-1;x++)if(free(cell(x,A.y1-1))&&free(cell(x,A.y1+1)))xs.push(x);if(xs.length)adj.push([i,j,xs.map(x=>[x,A.y1])])}}
+   const grp=RM.map((_,i)=>i),fd=i=>grp[i]==i?i:grp[i]=fd(grp[i]);
+   adj.sort(()=>rnd()-.5).forEach(([i,j,ps],k)=>{if(fd(i)!=fd(j)||k%5==0){grp[fd(i)]=fd(j);const[x,y]=pick(ps);C[y][x]={t:'floor',fl:'conc',h:0,door:true}}});
+   if(f==0){
+    // 建物から運動場への出入口
+    const bx=yl?B.x0:B.x1,ox=yl?-1:1,ys=[];for(let y=B.y0+1;y<B.y1;y++)if(free(C[y][bx-ox])&&free(C[y][bx+ox]))ys.push(y);if(!ys.length){bad=true;break}
+    C[pick(ys)][bx]={t:'floor',fl:'conc',h:0,door:true};
+    // 運動場：バスケットのゴール・コート・鉄棒・筋トレ台
+    const x0=YD.x0+1,x1=YD.x1-1,y0=2,y1=MH-3,hx=ri(x0+2,x1-2);C[y0][hx].obj='hoop';YD.court={x:Math.max(x0,hx-3),y:y0,w:Math.min(7,x1-Math.max(x0,hx-3)+1),h:5};
+    C[y1][ri(x0,x1)].obj='pullbar';for(let i=0;i<2;i++){const v=C[ri(y0+6,y1)][ri(x0,x1)];if(free(v))v.obj='weights'}
+    // 外への門
+    const gc=[];for(let x=YD.x0+1;x<YD.x1;x++){gc.push([x,1,0,1]);gc.push([x,MH-2,0,-1])}const sx=yl?1:MW-2;for(let y=2;y<MH-2;y++)gc.push([sx,y,yl?1:-1,0]);
+    const okg=gc.filter(([x,y,dx,dy])=>free(C[y+dy][x+dx])&&C[y+dy][x+dx].fl=='asph');if(!okg.length){bad=true;break}
+    const gp=pick(okg);gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
+   if(f==NF-1){const Gd=RM.find(r=>r.type=='guard');if(!Gd){bad=true;break}key=Gd.key}
+   FLs[f]=C;ROOMSs[f]=f==0?[...RM,YD]:RM}
+  if(bad)continue;
+  const s=pick(cells),Rc=reachAll(s[0],s[1],s[2]);
+  if(!Rc.has((NF-1)+','+key[0]+','+(key[1]+1))||!Rc.has('0,'+gate.ix+','+gate.iy))continue;
+  setF(s[0]);P={x:s[1],y:s[2],px:s[1],py:s[2],ph:0,f:'down',flip:false,key:false,mv:0};won=false;return}
 }
 const hOf=(x,y)=>{const c=cell(x,y);return c.h+(c.st?.5:0)};
-function can(x,y,dx,dy){const a=cell(x,y),b=cell(x+dx,y+dy);if(!b)return false;
+function canG(G,x,y,dx,dy){const a=G[y]&&G[y][x],b=G[y+dy]&&G[y+dy][x+dx];if(!a||!b)return false;
  if(b.t=='gate')return gate.open;
  if(b.t!='floor'||BLOCK[b.obj])return false;
  if(a.h==b.h)return true;
  if(a.st&&b.h==a.h+1&&a.st[0]==dx&&a.st[1]==dy)return true;
  if(b.st&&a.h==b.h+1&&b.st[0]==-dx&&b.st[1]==-dy)return true;
  return false}
-function reach(sx,sy){const S=new Set([sx+','+sy]),q=[[sx,sy]];while(q.length){const[x,y]=q.shift();for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const k=(x+dx)+','+(y+dy);if(!S.has(k)&&can(x,y,dx,dy)){S.add(k);q.push([x+dx,y+dy])}}}return S}
+const can=(x,y,dx,dy)=>canG(C,x,y,dx,dy);
+// 階段を使って、どの階のどこまで歩けるか
+function reachAll(f,sx,sy){const S=new Set([f+','+sx+','+sy]),q=[[f,sx,sy]];while(q.length){const[ff,x,y]=q.shift();const G=FLs[ff];
+ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){if(!canG(G,x,y,dx,dy))continue;let nf=ff,nx=x+dx,ny=y+dy;const t=G[ny][nx];if(t.link){nf=t.link.to;ny+=1}const k=nf+','+nx+','+ny;if(!S.has(k)){S.add(k);q.push([nf,nx,ny])}}}return S}
 // ===== 横画面 =====
 let W,H,dpr,S,rot=false,cam={x:0,y:0};
 function resize(){const iw=innerWidth,ih=innerHeight;rot=ih>iw;W=rot?ih:iw;H=rot?iw:ih;
@@ -170,16 +180,22 @@ addEventListener('contextmenu',e=>e.preventDefault());
 // ===== 動き =====
 function face(d){P.f=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])P.flip=d[0]<0}
 const fdir=()=>P.f=='up'?[0,-1]:P.f=='down'?[0,1]:[P.flip?-1:1,0];
+let flT=-1e9;
+const KEYF=NF-1;
 function update(dt){if(won)return;P.mv-=dt;
  let d=padDir;if(!d)for(const k of held){d=K[k];break}if(!d&&tap&&P.mv<=0)d=tap;if(P.mv<=0)tap=null;
- if(P.mv<=0&&d){face(d);if(can(P.x,P.y,d[0],d[1])){P.x+=d[0];P.y+=d[1];P.mv=150;if(cell(P.x,P.y).out){won=true;setTimeout(()=>document.getElementById('win').style.display='flex',400)}}else P.mv=90}
+ if(P.mv<=0&&d){face(d);if(can(P.x,P.y,d[0],d[1])){P.x+=d[0];P.y+=d[1];P.mv=150;const t=cell(P.x,P.y);
+   // 階段：上の階（下の階）の、同じ場所の階段の前に出る
+   if(t.link){setF(t.link.to);P.y+=1;P.px=P.x;P.py=P.y;P.ph=hOf(P.x,P.y);P.f='down';P.mv=260;flT=performance.now();fx=[]}
+   else if(t.out){won=true;setTimeout(()=>document.getElementById('win').style.display='flex',400)}}else P.mv=90}
  if(aHit){aHit=false;const[dx,dy]=fdir(),fx2=P.x+dx,fy2=P.y+dy;
-  if(!P.key&&((P.x==key[0]&&P.y==key[1])||(fx2==key[0]&&fy2==key[1]))){P.key=true;pop(key[0],key[1],'#ffd35a');hud()}
-  else if(P.key&&!gate.open&&fx2==gate.x&&fy2==gate.y){gate.open=true;pop(gate.x,gate.y,'#bff5a8')}}
+  if(F==KEYF&&!P.key&&((P.x==key[0]&&P.y==key[1])||(fx2==key[0]&&fy2==key[1]))){P.key=true;pop(key[0],key[1],'#ffd35a');hud()}
+  else if(F==0&&P.key&&!gate.open&&fx2==gate.x&&fy2==gate.y){gate.open=true;pop(gate.x,gate.y,'#bff5a8')}}
  const k=Math.min(1,dt/80);P.px+=(P.x-P.px)*k;P.py+=(P.y-P.py)*k;P.ph+=(hOf(P.x,P.y)-P.ph)*k}
 let fx=[];function pop(x,y,c){const h=hOf(x,y);for(let i=0;i<16;i++)fx.push({x:x*16+8,y:y*16+8-h*LH,vx:(rnd()-.5)*3,vy:-rnd()*3,t:30,c})}
 // ===== 案内：部屋ごとの名前・色・絵記号 =====
-const INFO={cb:{n:'監房棟',c:'#E69F00',i:'bed'},guard:{n:'看守室',c:'#0072B2',i:'badge'},mess:{n:'食堂',c:'#D55E00',i:'fork'},shower:{n:'シャワー室',c:'#56B4E9',i:'shower'},work:{n:'作業場',c:'#CC79A7',i:'tool'},yard:{n:'運動場',c:'#F0E442',i:'ball'},exit:{n:'出口',c:'#009E73',i:'exit'}};
+const INFO={cb:{n:'監房棟',c:'#E69F00',i:'bed'},guard:{n:'看守室',c:'#0072B2',i:'badge'},mess:{n:'食堂',c:'#D55E00',i:'fork'},shower:{n:'シャワー室',c:'#56B4E9',i:'shower'},work:{n:'作業場',c:'#CC79A7',i:'tool'},yard:{n:'運動場',c:'#F0E442',i:'ball'},exit:{n:'出口',c:'#009E73',i:'exit'},
+ stairs:{n:'階段',c:'#6a6a74',i:'stairs'},laundry:{n:'洗濯室',c:'#3a88aa',i:'shirt'},library:{n:'図書室',c:'#8b5a2b',i:'book'},infirmary:{n:'医務室',c:'#c8283a',i:'cross'},class:{n:'教室',c:'#3a7a4a',i:'board'},office:{n:'所長室',c:'#6a3a9a',i:'star'},storage:{n:'倉庫',c:'#7a6a50',i:'box'}};
 const ICON={
  bed:[".........","o........","o..ooooo.","oo.ooooo.","ooooooooo","ooooooooo","o.......o","o.......o","........."],
  badge:["oo.ooo.oo","ooooooooo",".ooo.ooo.",".oo...oo.",".ooo.ooo.","..ooooo..","..ooooo..","...ooo...","....o...."],
@@ -188,44 +204,39 @@ const ICON={
  tool:[".oooo....","oooooo...",".oooo....","...oo....","....oo...",".....oo..","......oo.",".......oo","........o"],
  ball:["...ooo...",".oo.o.oo.",".o..o..o.","o...o...o","ooooooooo","o...o...o",".o..o..o.",".oo.o.oo.","...ooo..."],
  exit:["......oo.","......oo.","...ooo...","..o.oooo.",".o..oo...","...o..o..","..o....o.",".o.....o.","........."],
- up:["....o....","...ooo...","..ooooo..",".ooooooo.","...ooo...","...ooo...","...ooo...","...ooo...","........."]};
+ up:["....o....","...ooo...","..ooooo..",".ooooooo.","...ooo...","...ooo...","...ooo...","...ooo...","........."],
+ stairs:["........o",".......oo","......ooo",".....oooo","....ooooo","...oooooo","..ooooooo",".oooooooo","ooooooooo"],
+ shirt:["..o...o..",".ooo.ooo.","ooooooooo","o.ooooo.o","..ooooo..","..ooooo..","..ooooo..","..ooooo..","........."],
+ book:["oooo.oooo","o..o.o..o","o.oo.oo.o","o..o.o..o","o.oo.oo.o","o..o.o..o","oooo.oooo",".ooooooo.","........."],
+ cross:["...ooo...","...ooo...","...ooo...","ooooooooo","ooooooooo","ooooooooo","...ooo...","...ooo...","...ooo..."],
+ board:["ooooooooo","o.......o","o.oo.o..o","o.......o","o..ooo..o","o.......o","ooooooooo","..o...o..",".o.....o."],
+ star:["....o....","....o....","...ooo...","ooooooooo",".ooooooo.","..ooooo..","..oo.oo..",".oo...oo.","o.......o"],
+ box:["ooooooooo","o...o...o","ooooooooo","o.......o","o.ooooo.o","o.......o","o.......o","o.......o","ooooooooo"]};
 function icon(name,X,Y,col,k){k=k||1;q.fillStyle=col;ICON[name].forEach((r,j)=>{for(let i=0;i<9;i++)if(r[i]=='o')q.fillRect(X+i*k,Y+j*k,k,k)})}
 function roomOf(x,y){for(const r of ROOMS)if(x>r.x0&&x<r.x1&&y>r.y0&&y<r.y1)return r.type;return null}
 function dark(hex,k){const n=parseInt(hex.slice(1),16);return`rgb(${(n>>16)*k|0},${(n>>8&255)*k|0},${(n&255)*k|0})`}
 const JF="bold 8px 'Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif";
-// 名札：色の板に白い絵記号と名前
-function plate(type,cx,cy,txt){const I=INFO[type];q.font=JF;const t=txt||I.n,w=Math.ceil(q.measureText(t).width)+16,X=Math.round(cx-w/2),Y=Math.round(cy);
- R('#00000060',X+1,Y+1,w,12);R(I.c,X,Y,w,12);R('#ffffff50',X,Y,w,1);R(dark(I.c,.6),X,Y+11,w,1);R(dark(I.c,.75),X+w-1,Y,1,12);R(dark(I.c,.55),X+1,Y+1,11,10);icon(I.i,X+2,Y+2,type=='yard'?'#1a1a1a':'#fff');R('#d8dce0',X+w-3,Y+2,1,1);R('#d8dce0',X+w-3,Y+9,1,1);
- const dk=type=='yard';q.fillStyle=dk?'#ffffff90':'#000000a0';q.fillText(t,X+13.5,Y+9.5);q.fillStyle=dk?'#1a1a1a':'#fff';q.fillText(t,X+13,Y+9)}
-function buildSigns(){
- // 部屋の名札（北の壁の面のまん中）
- ROOMS.forEach(r=>{const y=r.y0,mid=(r.x0+r.x1)/2,near=x=>{for(let yy=y-1;yy<=y+2;yy++)for(let xx=x-3;xx<=x+3;xx++)if(C[yy]&&C[yy][xx]&&C[yy][xx].door)return true;return false};
-  const cand=[];for(let x=r.x0+2;x<=r.x1-2;x++){const w=C[y][x],s=C[y+1]&&C[y+1][x];if(!w||w.t!='wall'||!s||s.t!='floor')continue;if(topH(w)-topH(s)<14||near(x))continue;cand.push(x)}
-  if(!cand.length)return;const cx=cand.sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0],w=C[y][cx];q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);plate(r.type,cx*16+8,TP-topH(w)+16+3)});
- // 出入口：枠・まぐさ（上の梁）・敷居を描き、上に「入る部屋」の看板
- for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(!c.door)continue;const X=x*16,ns=!(C[y][x-1]&&C[y][x-1].t=='floor');
-  // 出入口の両側に敷物（どこが出入口か、離れていても分かる）
-  (ns?[[x,y-1],[x,y+1]]:[[x-1,y],[x+1,y]]).forEach(([mx,my])=>{const m=C[my]&&C[my][mx];if(!m||m.t!='floor'||m.obj||m.st||m.bdoor)return;const qq=ROWS[my].getContext('2d');q=qq;q.setTransform(2,0,0,2,0,0);const MX=mx*16,MY=TP-topH(m);
-   R('#00000040',MX+2,MY+3,13,12);R('#3c414c',MX+1,MY+2,14,12);R('#585e6a',MX+1,MY+2,14,1);R('#2a2e36',MX+1,MY+13,14,1);q.fillStyle='#4a505c';for(let i=3;i<14;i+=3)q.fillRect(MX+i,MY+4,1,8)});
-  if(ns){const wl=C[y][x-1],wt=wl&&wl.t=='wall'?topH(wl):2*LH,Yt=TP-wt;q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);
-   R('#6a6870',X,Yt,16,16);R('#8a8890',X,Yt,16,1);R('#55535a',X,Yt+15,16,1);
-   vgrad(X,Yt+16,16,7,'#9a968c','#6a665e');R('#3a3a40',X,Yt+22,16,1);
-   for(const jx of[X,X+14]){vgrad(jx,Yt+16,2,wt,'#7a808a','#4a5058');R('#a8aeb8',jx,Yt+16,1,wt)}
-   R('#00000030',X+2,Yt+23,12,3);
-   R('#8a9099',X,TP+13,16,3);R('#b8bec6',X,TP+13,16,1);
-   const to=roomOf(x,y-1);if(to)plate(to,X+8,Yt+10)}
-  else{const w=C[y-1]&&C[y-1][x];q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);
-   R('#8a9099',X+6,TP,4,16);R('#b8bec6',X+6,TP,1,16);
-   R('#4a5058',X,TP,2,16);R('#4a5058',X+14,TP,2,16);
-   }}
- // 牢屋の番号（格子の上の板）：1階は101〜、2階は201〜、3階は301〜
- const NO=[1,1,1];for(let x=0;x<MW;x++)for(let y=0;y<MH;y++){const c=C[y][x];if(!c.bdoor)continue;const no=(100*(c.h+1)+NO[c.h]++)+'';q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);const X=x*16,Y=TP-topH(c)-30;
-  R('#00000060',X+1,Y+1,16,9);R('#f4ecd8',X,Y,16,9);R('#E69F00',X,Y,16,2);q.font="bold 7px sans-serif";q.fillStyle='#222';q.fillText(no,X+1.5,Y+8)}}
+// 名札：壁にとめた金属の板（色・白い絵記号・名前）
+function plate(type,cx,cy,txt){const I=INFO[type];q.font=JF;const t=txt||I.n,w=Math.ceil(q.measureText(t).width)+16,X=Math.round(cx-w/2),Y=Math.round(cy),dk=type=='yard';
+ R('#00000060',X+1,Y+1,w,12);R(I.c,X,Y,w,12);R('#ffffff50',X,Y,w,1);R(dark(I.c,.6),X,Y+11,w,1);R(dark(I.c,.75),X+w-1,Y,1,12);R(dark(I.c,.55),X+1,Y+1,11,10);icon(I.i,X+2,Y+2,dk?'#1a1a1a':'#fff');R('#d8dce0',X+w-3,Y+2,1,1);R('#d8dce0',X+w-3,Y+9,1,1);
+ q.fillStyle=dk?'#ffffff90':'#000000a0';q.fillText(t,X+13.5,Y+9.5);q.fillStyle=dk?'#1a1a1a':'#fff';q.fillText(t,X+13,Y+9)}
+// 名札・番号札・階段の札（文字がくっきりするよう、毎こま画面に直接描く）
+function buildSigns(){const SG=[...Array(MH)].map(()=>[]);
+ const near=(x,y)=>{for(let yy=y-1;yy<=y+2;yy++)for(let xx=x-3;xx<=x+3;xx++){const v=C[yy]&&C[yy][xx];if(v&&(v.door||v.link))return true}return false};
+ ROOMS.forEach(r=>{const y=r.y0,mid=(r.x0+r.x1)/2,cand=[];
+  for(let x=r.x0+2;x<=r.x1-2;x++){const w=C[y][x],s=C[y+1]&&C[y+1][x];if(!w||w.t!='wall'||!s||s.t!='floor')continue;if(topH(w)-topH(s)<14||near(x,y))continue;cand.push(x)}
+  if(!cand.length)return;const cx=cand.sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0],w=C[y][cx],wy=y*16-topH(w)+16+3;SG[y].push(()=>plate(r.type,cx*16+8,wy))});
+ for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];
+  if(c.door&&!(C[y][x-1]&&C[y][x-1].t=='floor')){const wl=C[y][x-1],wt=wl&&wl.t=='wall'?topH(wl):2*LH,to=roomOf(x,y-1);if(to)SG[y].push(()=>plate(to,x*16+8,y*16-wt+10))}
+  if(c.link){const w=C[y-1][x];if(w&&w.t=='wall'){const wy=(y-1)*16-topH(w)+16+3,t=(c.link.to+1)+'F へ';SG[y-1].push(()=>plate('stairs',x*16+8,wy,t))}}}
+ const NO=[0];for(let x=0;x<MW;x++)for(let y=0;y<MH;y++){const c=C[y][x];if(!c.bdoor)continue;const no=(100*(F+1)+(++NO[0]))+'',X=x*16,Y=y*16-topH(c)-30;
+  SG[y].push(()=>{R('#00000060',X+1,Y+1,16,9);R('#f4ecd8',X,Y,16,9);R('#E69F00',X,Y,16,2);q.font="bold 7px sans-serif";q.fillStyle='#222';q.fillText(no,X+1.5,Y+8)})}
+ return SG}
 // ===== 描く =====
 // 1列ずつ下ごしらえした絵（床・段差の面・壁・置き物）を、奥の列から順に重ねる。人は自分の列のあとに描くので、手前の壁や格子に正しく隠れる
 const TP=80,RH=TP+16+64;
 const hs=(x,y,k)=>{let n=(Math.imul(x,374761393)+Math.imul(y,668265263)+Math.imul(k||0,982451653))|0;n=Math.imul(n^(n>>>13),1274126177);return((n^(n>>>16))>>>0)/4294967296};
-const topH=c=>c.h*LH+(c.st?LH/2:0);
+const topH=c=>c.t=='void'?-6:c.h*LH+(c.st?LH/2:0);
 let ROWS=[],LIGHT=null,ANIM=[];
 let q=null;const R=(c,x,y,w,h)=>{q.fillStyle=c;q.fillRect(x,y,w,h)};
 function vgrad(x,y,w,h,c0,c1){const gr=q.createLinearGradient(0,y,0,y+h);gr.addColorStop(0,c0);gr.addColorStop(1,c1);q.fillStyle=gr;q.fillRect(x,y,w,h)}
@@ -244,6 +255,8 @@ function ftile(fl,v){const k=fl+v;if(FT[k])return FT[k];const c=document.createE
   else if(fl=='tile'){[r,g2,b]=[184,214,222];if(i%4==0||j%4==0){[r,g2,b]=[150,176,184]}else{const f=z*10-5;r+=f;g2+=f;b+=f;if(i%4==1&&j%4==1){r+=20;g2+=20;b+=16}}}
   else if(fl=='asph'){[r,g2,b]=[92,92,98];const f=z*22-11;r+=f;g2+=f;b+=f;if(n(i,j,4)<.05){r+=40;g2+=38;b+=34}}
   else if(fl=='plat'){[r,g2,b]=[150,142,126];if(j%8==0||i==0){r-=26;g2-=26;b-=24}if(j%8==1){r+=14;g2+=14;b+=12}const f=z*8-4;r+=f;g2+=f;b+=f}
+  else if(fl=='wood'){[r,g2,b]=[150,108,68];if(j%4==0){r-=30;g2-=24;b-=18}else{const f=n(i>>2,j>>2,6)*24-12+(n(i,j,8)<.15?-10:0);r+=f;g2+=f*.8;b+=f*.6}if((i+(j>>2)*5)%11==0&&j%4){r-=18;g2-=14;b-=10}}
+  else if(fl=='carpet'){[r,g2,b]=[128,46,48];const f=z*20-10;r+=f;g2+=f*.5;b+=f*.5;if(i==1||i==14||j==1||j==14){r+=30;g2+=24;b+=10}}
   else{[r,g2,b]=[90,138,70];const f=z*26-13;r+=f*.6;g2+=f;b+=f*.4;if(n(i,j,5)<.07){r+=30;g2+=40;b+=10}}
   const o=(j*16+i)*4;d[o]=r;d[o+1]=g2;d[o+2]=b;d[o+3]=255}
  x.putImageData(im,0,0);return FT[k]=c}
@@ -271,8 +284,11 @@ function drawFace(c,X,Y,fh,x,y){
  if(c.fl=='plat'){vgrad(X,Y,16,fh,'#7a7060','#554c3e');R('#a49a86',X,Y,16,1);q.fillStyle='#00000030';q.fillRect(X+((x%2)?0:8),Y+2,1,fh-2);return}
  vgrad(X,Y,16,fh,'#7c7972','#5a5852');R('#ffffff20',X,Y,16,1)}
 // --- 壁の面の飾り（部屋側を向いている面だけ）
-function wallDeco(c,X,Y,fh,x,y,s){if(!s||s.t!='floor'||s.out||fh<20)return;const k=hs(x,y,40);
- if(c.per&&y<=1&&k<.5&&x%3==1){ // 鉄格子の窓：外の光
+function wallDeco(c,X,Y,fh,x,y,s){if(!s||fh<20)return;const k=hs(x,y,40);
+ // 建物の外壁（外や吹き抜けに向いた面）：窓が並ぶ
+ if(c.ext&&(s.t=='void'||s.fl=='asph')){if(x%2==0){R('#2a2620',X+3,Y+5,10,10);vgrad(X+4,Y+6,8,8,'#4a5a6a','#2a3440');R('#ffe8a860',X+4,Y+6,8,3);R('#4a4a50',X+6,Y+6,1,8);R('#4a4a50',X+9,Y+6,1,8);R('#ffffff40',X+4,Y+6,8,1)}return}
+ if(s.t!='floor'||s.out)return;
+ if((c.per||c.ext)&&y<=1&&k<.5&&x%3==1){ // 鉄格子の窓：外の光
   R('#2a2620',X+3,Y+4,10,10);vgrad(X+4,Y+5,8,8,'#d8f0ff','#8ab8d8');R('#4a4a50',X+6,Y+5,1,8);R('#4a4a50',X+9,Y+5,1,8);R('#ffffff60',X+4,Y+5,8,1);LW.push([X+8,Y+12+CY*16,'win']);return}
  if(c.per)return;
  if(k<.07){R('#3a5a8a',X+4,Y+4,9,6);R('#e8e8e8',X+5,Y+5,5,1);R('#e8e8e8',X+5,Y+7,7,1);return}       // 掲示
@@ -305,89 +321,116 @@ function obj(o,X,Y,x,y){switch(o){
   R('#e86a2a',X+4,Y-15,8,1);q.fillStyle='#ffffffa0';for(let i=0;i<4;i++)q.fillRect(X+5+i*2,Y-14,1,4);break;
  case 'pullbar':oval(X+8,Y+14,7,2,'#00000040');R('#4a4f58',X+2,Y-10,2,25);R('#4a4f58',X+12,Y-10,2,25);R('#9aa0aa',X+2,Y-10,12,2);R('#c8ccd0',X+2,Y-10,12,1);break;
  case 'weights':shadow(X,Y+2,16,13);R('#3a3e46',X+3,Y+7,10,4);R('#5a5f68',X+3,Y+7,10,1);R('#2a2e34',X+4,Y+11,2,4);R('#2a2e34',X+10,Y+11,2,4);R('#9aa0aa',X,Y+3,16,1);
-  R('#2a2a2e',X+1,Y,3,8);R('#2a2a2e',X+12,Y,3,8);R('#4a4a50',X+1,Y,1,8);R('#4a4a50',X+12,Y,1,8);break}}
-let LW=[],CY=0;
-function buildStatic(){LW=[];ANIM=[];ROWS=[];
- for(let y=0;y<MH;y++){const cv2=document.createElement('canvas');cv2.width=MW*16*2;cv2.height=RH*2;q=cv2.getContext('2d');q.scale(2,2);ANIM[y]=[];CY=y;
-  for(let x=0;x<MW;x++){const c=C[y][x],X=x*16,hh=topH(c),Y=TP-hh,s=cell(x,y+1);const fh=hh-(s?topH(s):0);
+  R('#2a2a2e',X+1,Y,3,8);R('#2a2a2e',X+12,Y,3,8);R('#4a4a50',X+1,Y,1,8);R('#4a4a50',X+12,Y,1,8);break
+ case 'shelf':shadow(X,Y,16,16);vgrad(X+1,Y-14,14,29,'#7a5434','#5a3c22');R('#9a6e46',X+1,Y-14,14,1);for(let r2=0;r2<4;r2++){R('#3a2614',X+2,Y-12+r2*7,12,6);for(let i=0;i<6;i++)R(['#c84a3a','#3a7ac8','#e8c040','#4aa860','#e8e0d0','#8a4ab8'][(i+r2+x)%6],X+2+i*2,Y-11+r2*7+(i%3==0?1:0),2,5-(i%3==0?1:0))}break;
+ case 'mbed':shadow(X+1,Y,14,16);R('#c8ccd4',X+1,Y+1,14,14);R('#f4f6f8',X+2,Y+2,12,5);vgrad(X+2,Y+7,12,7,'#e8eef4','#cfd8e0');R('#c8283a',X+6,Y+9,4,1);R('#c8283a',X+7,Y+8,2,3);R('#8a9099',X+1,Y+14,14,2);R('#9aa0aa',X+13,Y-8,1,9);R('#e8f0f4b0',X+13,Y-8,3,14);break;
+ case 'cabinet':shadow(X,Y,16,16);vgrad(X+2,Y-12,12,27,'#f0f2f4','#c8ccd4');R('#ffffff',X+2,Y-12,12,1);R('#9aa0aa',X+8,Y-11,1,25);R('#a8c8e0',X+3,Y-10,4,8);R('#a8c8e0',X+9,Y-10,4,8);R('#c8283a',X+5,Y+4,6,2);R('#c8283a',X+7,Y+2,2,6);break;
+ case 'sdesk':shadow(X+1,Y+3,14,12);R('#8a6440',X+2,Y+3,12,5);R('#a47c52',X+2,Y+3,12,1);R('#5a3e26',X+3,Y+8,1,4);R('#5a3e26',X+12,Y+8,1,4);R('#e8e4d8',X+5,Y+4,4,3);R('#4a5058',X+5,Y+11,6,2);R('#6a707a',X+5,Y+11,6,1);R('#3a3e46',X+6,Y+13,1,3);R('#3a3e46',X+10,Y+13,1,3);break;
+ case 'board':R('#7a5434',X,Y-20,16,16);R('#2e5a3e',X,Y-19,16,13);if(x%3==0){R('#e8e8d8',X+3,Y-16,8,1);R('#e8e8d8',X+3,Y-13,5,1)}else{R('#e8e8d8',X+2,Y-15,6,1);R('#e8e8d8',X+9,Y-11,4,1)}R('#9a7448',X,Y-6,16,2);R('#e8e8e8',X+11,Y-6,3,1);break;
+ case 'bigdesk':shadow(X-4,Y+1,24,15);R('#6a4228',X-4,Y+2,24,6);R('#8a5a36',X-4,Y+2,24,1);vgrad(X-4,Y+8,24,6,'#5a3820','#40281a');R('#c8a050',X+4,Y+10,4,1);R('#f0ece0',X-2,Y+3,6,4);R('#f0ece0',X-1,Y+2,6,4);R('#2a2e34',X+8,Y-4,8,7);R('#4a90c0',X+9,Y-3,6,4);R('#c84a3a',X+16,Y+3,2,3);break;
+ case 'plant':oval(X+8,Y+14,5,2,'#00000040');vgrad(X+4,Y+6,8,9,'#a85a3a','#7a3e26');R('#c87048',X+4,Y+6,8,1);oval(X+8,Y+2,6,5,'#3e7a34');oval(X+5,Y,3,4,'#4e9040');oval(X+11,Y-1,3,4,'#5aa04a');oval(X+8,Y-4,3,3,'#4e9040');break;
+ case 'crate':shadow(X+1,Y+1,14,15);R('#9a7040',X+1,Y-2,14,4);R('#b48a58',X+1,Y-2,14,1);vgrad(X+1,Y+2,14,13,'#8a6038','#6a4628');q.fillStyle='#5a3c20';q.fillRect(X+1,Y+7,14,1);q.fillRect(X+1,Y+11,14,1);q.fillRect(X+2,Y+2,1,13);q.fillRect(X+13,Y+2,1,13);R('#3a2a18',X+6,Y+4,4,1);break;
+ case 'washer':shadow(X,Y,16,16);vgrad(X+1,Y-6,14,21,'#f4f6f8','#c8ccd4');R('#ffffff',X+1,Y-6,14,1);R('#8a9099',X+2,Y-4,6,2);R('#5aa0e0',X+11,Y-4,2,2);oval(X+8,Y+6,5,5,'#8a9099');oval(X+8,Y+6,4,4,'#3a5a7a');oval(X+7,Y+5,2,1.5,'#a8d0f0');break;}}
+// 吹き抜けのまわりの手すり（下が見える側に）
+function rails(x,y,X,Y){const V=v=>v&&v.t=='void',n=cell(x,y-1),s=cell(x,y+1),e=cell(x+1,y),w=cell(x-1,y);
+ if(V(s)){R('#00000030',X,Y+13,16,2);R('#b8bec8',X,Y+7,16,1);R('#6a707a',X,Y+8,16,1);R('#8a909a',X,Y+11,16,1);for(const i of[1,9]){R('#9aa0aa',X+i,Y+7,1,8);R('#5a606a',X+i+1,Y+7,1,8)}}
+ if(V(n)){R('#b8bec8',X,Y-7,16,1);R('#6a707a',X,Y-6,16,1);R('#8a909a',X,Y-3,16,1);for(const i of[1,9])R('#9aa0aa',X+i,Y-7,1,8)}
+ if(V(e)){R('#9aa0aa',X+14,Y-7,1,22);R('#6a707a',X+15,Y-6,1,21);R('#b8bec8',X+14,Y-7,2,1)}
+ if(V(w)){R('#9aa0aa',X+1,Y-7,1,22);R('#6a707a',X,Y-6,1,21);R('#b8bec8',X,Y-7,2,1)}}
+// ほかの階へ行く階段：上り（明るくなっていく段）・下り（暗い下へ向かう段）
+function stairs(c,X,Y){R('#5a5852',X,Y,16,16);
+ if(c.sdir=='up')for(let k=0;k<5;k++){const yy=Y+12-k*3;R(`hsl(40,5%,${44+k*8}%)`,X+1,yy,14,3);R('#F0E442',X+1,yy,14,1)}
+ else for(let k=0;k<5;k++){const yy=Y+1+k*3;R(`hsl(40,5%,${10+k*9}%)`,X+1,yy,14,3);R('#F0E442',X+1,yy+2,14,1)}
+ R('#4a5058',X,Y-10,1,26);R('#4a5058',X+15,Y-10,1,26);R('#9aa0aa',X,Y-10,2,1);R('#9aa0aa',X+14,Y-10,2,1);q.globalAlpha=.9;icon('up',X+4,Y+3,'#fff');q.globalAlpha=1}
+let LW=[],CY=0,ROWSs=[],ANIMs=[],LIGHTs=[],SGs=[];
+function buildFloor(f){const keep=F;setF(f);LW=[];ANIM=[];ROWS=[];
+ for(let y=0;y<MH;y++){const cv2=document.createElement('canvas');cv2.width=MW*16;cv2.height=RH;q=cv2.getContext('2d');ANIM[y]=[];CY=y;
+  for(let x=0;x<MW;x++){const c=C[y][x];if(c.t=='void')continue;const X=x*16,hh=topH(c),Y=TP-hh,s=cell(x,y+1);const fh=hh-(s?topH(s):0);
    if(fh>0){drawFace(c,X,Y+16,fh,x,y);if(c.t=='wall')wallDeco(c,X,Y+16,fh,x,y,s)}
    if(c.t=='wall'){if(c.per){R('#6e6758',X,Y,16,16);R('#857d6c',X,Y+14,16,2);R('#5a5446',X,Y,16,1);
      q.strokeStyle='#00000050';q.lineWidth=1;q.beginPath();q.arc(X+4.5,Y+8.5,3.5,0,7);q.moveTo(X+15.5,Y+8.5);q.arc(X+12.5,Y+8.5,3.5,0,7);q.stroke();
      q.strokeStyle='#c8ccd4';q.beginPath();q.arc(X+4,Y+7.5,3.5,0,7);q.moveTo(X+15,Y+7.5);q.arc(X+12,Y+7.5,3.5,0,7);q.stroke()}
-    else{R('#6a6870',X,Y,16,16);q.fillStyle='#ffffff10';if(hs(x,y,60)<.5)q.fillRect(X+3,Y+5,4,2);const wn=cell(x,y-1),ww=cell(x-1,y),we=cell(x+1,y);if(!wn||wn.t!='wall')R('#8a8890',X,Y,16,1);if(!ww||ww.t!='wall')R('#7c7a82',X,Y,1,16);if(!we||we.t!='wall')R('#4a4850',X+15,Y,1,16);R('#55535a',X,Y+15,16,1)}
+    else{R(c.ext?'#7a7670':'#6a6870',X,Y,16,16);q.fillStyle='#ffffff10';if(hs(x,y,60)<.5)q.fillRect(X+3,Y+5,4,2);const wn=cell(x,y-1),ww=cell(x-1,y),we=cell(x+1,y);if(!wn||wn.t!='wall')R('#8a8890',X,Y,16,1);if(!ww||ww.t!='wall')R('#7c7a82',X,Y,1,16);if(!we||we.t!='wall')R('#4a4850',X+15,Y,1,16);R('#55535a',X,Y+15,16,1)}
     continue}
    floorTile(c,X,Y,x,y);
    const n=cell(x,y-1),e=cell(x+1,y),w=cell(x-1,y);
-   // 壁ぎわ・段の下の暗がり
-   if(n&&(n.t=='wall'||topH(n)>hh)&&!c.out){vgrad(X,Y,16,9,'#00000070','#00000000')}
+   if(n&&(n.t=='wall'||topH(n)>hh)&&!c.out)vgrad(X,Y,16,9,'#00000070','#00000000');
    if(w&&(w.t=='wall'||topH(w)>hh)&&!c.out)hgrad(X,Y,5,16,'#00000050','#00000000');
    if(e&&(e.t=='wall'||topH(e)>hh)&&!c.out)hgrad(X+11,Y,5,16,'#00000000','#00000050');
-   // 段の上のふち
-   if(n&&n.t!='wall'&&topH(n)<hh){R('#ffffff50',X,Y,16,1)}
-   if(e&&e.t!='wall'&&topH(e)<hh)R('#00000050',X+15,Y,1,16);if(w&&w.t!='wall'&&topH(w)<hh)R('#ffffff28',X,Y,1,16);
+   if(n&&n.t=='floor'&&topH(n)<hh)R('#ffffff50',X,Y,16,1);
+   if(e&&e.t=='floor'&&topH(e)<hh)R('#00000050',X+15,Y,1,16);if(w&&w.t=='floor'&&topH(w)<hh)R('#ffffff28',X,Y,1,16);
    if(c.st){for(let k=0;k<4;k++){R('#4e545c',X+1,Y+1+k*4,14,1);R('#F0E442',X+1,Y+2+k*4,14,1)}R('#3a3e46',X,Y,1,16);R('#3a3e46',X+15,Y,1,16);q.globalAlpha=.85;icon('up',X+4,Y+4,'#ffffff');q.globalAlpha=1}
-   if(s&&s.t=='floor'&&topH(s)<hh&&!c.st&&!(s.st)){for(let i=0;i<16;i+=4){R('#F0E442',X+i,Y+14,2,2);R('#1a1a1a',X+i+2,Y+14,2,2)}}
-   if(c.door){R('#d8b03080',X+1,Y,14,1);R('#00000040',X,Y,16,2)}
+   if(s&&s.t=='floor'&&topH(s)<hh&&!c.st&&!s.st){for(let i=0;i<16;i+=4){R('#F0E442',X+i,Y+14,2,2);R('#1a1a1a',X+i+2,Y+14,2,2)}}
+   if(c.link)stairs(c,X,Y);
+   if(c.door)R('#00000040',X,Y,16,2);
    if(c.t=='bars'||c.bdoor){R('#30343a',X,Y-24,16,3);R('#5a606a',X,Y-24,16,1);
     if(c.bdoor){for(const i of[1,3])vgrad(X+i,Y-21,1,35,'#6a717b','#3a3e46');R('#30343a',X+1,Y-6,3,1)}else for(let i=1;i<16;i+=3){vgrad(X+i,Y-21,1,35,'#6a717b','#3a3e46');R('#00000030',X+i+1,Y-21,1,35)}R('#30343a',X,Y+12,16,2)}
-   if(c.rail&&!(s&&s.st)){R('#00000030',X,Y+13,16,2);R('#b8bec8',X,Y+7,16,1);R('#6a707a',X,Y+8,16,1);R('#8a909a',X,Y+11,16,1);for(const i of[1,9]){R('#9aa0aa',X+i,Y+7,1,8);R('#5a606a',X+i+1,Y+7,1,8)}}
+   rails(x,y,X,Y);
    if(c.out&&hs(x,y,70)<.18){oval(X+8,Y+12,6,2,'#00000030');oval(X+8,Y+8,6,5,'#3e6e30');oval(X+7,Y+6,4,3,'#5a8e44')}
    if(c.obj)obj(c.obj,X,Y,x,y);
-   if(c.obj=='desk'||c.obj=='shower'||c.t=='gate')ANIM[y].push([c.obj||'gate',x]);}
+   if(c.obj=='desk'||c.obj=='shower'||c.t=='gate')ANIM[y].push([c.obj||'gate',x])}
   ROWS[y]=cv2}
- // 運動場のコートの線
- courtLines();
- buildSigns();
- buildLight()}
-function courtLines(){ROOMS.filter(r=>r.court).forEach(r=>{const k=r.court;for(let y=k.y;y<k.y+k.h;y++){q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);q.fillStyle='#e8e8e0b0';
-  for(let x=k.x;x<k.x+k.w;x++){const c=C[y][x];if(c.h||c.obj)continue;const X=x*16,Y=TP;
+ courtLines();doorStatic();
+ ROWSs[f]=ROWS;ANIMs[f]=ANIM;SGs[f]=buildSigns();LIGHTs[f]=buildLight();setF(keep)}
+// 出入口：枠・まぐさ（上の梁）・敷居・両側の敷物
+function doorStatic(){for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(!c.door)continue;const X=x*16,ns=!(C[y][x-1]&&C[y][x-1].t=='floor');
+ (ns?[[x,y-1],[x,y+1]]:[[x-1,y],[x+1,y]]).forEach(([mx,my])=>{const m=C[my]&&C[my][mx];if(!m||m.t!='floor'||m.obj||m.st||m.bdoor||m.link)return;q=ROWS[my].getContext('2d');const MX=mx*16,MY=TP-topH(m);
+  R('#00000040',MX+2,MY+3,13,12);R('#3c414c',MX+1,MY+2,14,12);R('#585e6a',MX+1,MY+2,14,1);R('#2a2e36',MX+1,MY+13,14,1);q.fillStyle='#4a505c';for(let i=3;i<14;i+=3)q.fillRect(MX+i,MY+4,1,8)});
+ q=ROWS[y].getContext('2d');
+ if(ns){const wl=C[y][x-1],wt=wl&&wl.t=='wall'?topH(wl):2*LH,Yt=TP-wt;
+  R('#6a6870',X,Yt,16,16);R('#8a8890',X,Yt,16,1);R('#55535a',X,Yt+15,16,1);vgrad(X,Yt+16,16,7,'#9a968c','#6a665e');R('#3a3a40',X,Yt+22,16,1);
+  for(const jx of[X,X+14]){vgrad(jx,Yt+16,2,wt,'#7a808a','#4a5058');R('#a8aeb8',jx,Yt+16,1,wt)}
+  R('#00000030',X+2,Yt+23,12,3);R('#8a9099',X,TP+13,16,3);R('#b8bec6',X,TP+13,16,1)}
+ else{R('#8a9099',X+6,TP,4,16);R('#b8bec6',X+6,TP,1,16);R('#4a5058',X,TP,2,16);R('#4a5058',X+14,TP,2,16)}}}
+function courtLines(){ROOMS.filter(r=>r.court).forEach(r=>{const k=r.court;for(let y=k.y;y<k.y+k.h;y++){q=ROWS[y].getContext('2d');q.fillStyle='#e8e8e0b0';
+  for(let x=k.x;x<k.x+k.w;x++){const c=C[y][x];if(c.h||c.obj||c.t!='floor')continue;const X=x*16,Y=TP;
    if(y==k.y+k.h-1)q.fillRect(X,Y+12,16,1);if(x==k.x)q.fillRect(X+2,Y,1,16);if(x==k.x+k.w-1)q.fillRect(X+13,Y,1,16);
    const mx=k.x+(k.w>>1);if(Math.abs(x-mx)<=1&&y<k.y+3){if(Math.abs(x-mx)==1)q.fillRect(X+(x<mx?14:1),Y,1,16);if(y==k.y+2)q.fillRect(X,Y+12,16,1)}}}})}
-// --- 光：部屋の中は暗めに、天井の灯り・窓の光・機械の光を足す。最後に全体へ掛け合わせる
-function buildLight(){const L=document.createElement('canvas');L.width=MW*16;L.height=MH*16+TP;q=L.getContext('2d');
- R('#fff6ea',0,0,L.width,L.height);
- const indoor=(x,y)=>ROOMS.some(r=>r.type!='yard'&&x>=r.x0&&x<=r.x1&&y>=r.y0&&y<=r.y1)&&!(C[y][x].per&&y==1&&false);
+// 光：建物の中は暗めに、天井の灯り・窓の光・出入口の灯り・機械の光を足す（吹き抜けと外はそのまま）
+function buildLight(){const L=document.createElement('canvas');L.width=MW*16;L.height=MH*16+TP;q=L.getContext('2d');R('#fff6ea',0,0,L.width,L.height);
  const sh=document.createElement('canvas');sh.width=L.width;sh.height=L.height;const s2=sh.getContext('2d');
- for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(!indoor(x,y)||c.per)continue;const Y=y*16+TP-topH(c);s2.fillStyle=c.t=='wall'?'#a4a2b0':'#8e8ca2';s2.fillRect(x*16,Y,16,16+LH*2)}
- q.filter='blur(4px)';q.drawImage(sh,0,0);q.filter='none';
- q.globalCompositeOperation='lighter';
+ for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.t=='void'||c.out||c.per||c.fl=='asph'||c.t=='gate')continue;const Y=y*16+TP-topH(c);s2.fillStyle=c.t=='wall'?'#a4a2b0':'#8e8ca2';s2.fillRect(x*16,Y,16,16+(c.t=='wall'?topH(c):0))}
+ q.filter='blur(4px)';q.drawImage(sh,0,0);q.filter='none';q.globalCompositeOperation='lighter';
  const glow=(x,y,r,col,a)=>{const gr=q.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,`rgba(${col},${a})`);gr.addColorStop(1,`rgba(${col},0)`);q.fillStyle=gr;q.fillRect(x-r,y-r,r*2,r*2)};
- ROOMS.forEach(r=>{if(r.type=='yard')return;for(let y=r.y0+2;y<r.y1;y+=5)for(let x=r.x0+2;x<r.x1;x+=5){const c=C[y][x];glow(x*16+8,y*16+TP-topH(c)+8,62,'255,226,170',.32)}});
- for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.door)glow(x*16+8,y*16+TP-4,30,'255,236,200',.45)}
- for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.obj=='desk')glow(x*16+8,y*16+TP-topH(c)-2,22,'120,255,170',.35)}
- LW.forEach(([X,wy,t])=>{
-  if(t=='win'){q.fillStyle='rgba(210,232,255,.22)';q.beginPath();q.moveTo(X-5,wy);q.lineTo(X+5,wy);q.lineTo(X+22,wy+70);q.lineTo(X+6,wy+70);q.fill();glow(X+12,wy+60,22,'220,236,255',.25)}
+ ROOMS.forEach(r=>{if(r.type=='yard')return;for(let y=r.y0+2;y<r.y1;y+=5)for(let x=r.x0+2;x<r.x1;x+=5){const c=C[y][x];if(c.t!='void')glow(x*16+8,y*16+TP-topH(c)+8,62,'255,226,170',.32)}});
+ for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.door)glow(x*16+8,y*16+TP-4,30,'255,236,200',.45);if(c.link)glow(x*16+8,y*16+TP+4,26,'255,240,190',.35);if(c.obj=='desk')glow(x*16+8,y*16+TP-topH(c)-2,22,'120,255,170',.35)}
+ LW.forEach(([X,wy,t])=>{if(t=='win'){q.fillStyle='rgba(210,232,255,.22)';q.beginPath();q.moveTo(X-5,wy);q.lineTo(X+5,wy);q.lineTo(X+22,wy+70);q.lineTo(X+6,wy+70);q.fill();glow(X+12,wy+60,22,'220,236,255',.25)}
   if(t=='lamp')glow(X,wy+6,34,'255,220,160',.4);if(t=='vend')glow(X,wy+8,30,'255,120,110',.3)});
- LIGHT=L}
-function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
- const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
- const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
- g.imageSmoothingEnabled=false;g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-cy*S)*dpr));
- const y0=Math.max(0,Math.floor((cy-hh)/16)-1),y1=Math.min(MH-1,Math.ceil((cy+hh)/16)+5);
- q=g;
- for(let y=y0;y<=y1;y++){g.drawImage(ROWS[y],0,y*16-TP,MW*16,RH);
-  ANIM[y].forEach(([t,x])=>{const c=C[y][x],X=x*16,Y=y*16-topH(c);
-   if(t=='desk'){const f=.85+.15*Math.sin(now/300+x);R(`rgba(70,${200*f|0},130,1)`,X+3,Y-8,10,7);q.fillStyle='#00000030';for(let i=0;i<7;i+=2)q.fillRect(X+3,Y-8+i,10,1);R('#d8ffe0',X+4,Y-7,4,1);R('#a8f0c0',X+4,Y-5,6,1)}
+ return L}
+// 1つの階を描く（今いる階より下の階は、吹き抜けや窓の外から見下ろす形で、下にずらして暗めに）
+function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs[f],oy=(F-f)*DROP;
+ const y0=Math.max(0,Math.floor((cy-hh-oy)/16)-1),y1=Math.min(MH-1,Math.ceil((cy+hh-oy)/16)+5);q=g;
+ for(let y=y0;y<=y1;y++){g.drawImage(ROWS2[y],0,y*16-TP);
+  A2[y].forEach(([t,x])=>{const c=G[y][x],X=x*16,Y=y*16-topH(c);
+   if(t=='desk'){const k=.85+.15*Math.sin(now/300+x);R(`rgba(70,${200*k|0},130,1)`,X+3,Y-8,10,7);q.fillStyle='#00000030';for(let i=0;i<7;i+=2)q.fillRect(X+3,Y-8+i,10,1);R('#d8ffe0',X+4,Y-7,4,1);R('#a8f0c0',X+4,Y-5,6,1)}
    if(t=='shower'){q.fillStyle='#d8eef8b0';for(let i=0;i<4;i++){const ph=(now/90+i*2.3)%9;q.fillRect(X+5+i*2,Y-2+ph*1.4,1,2)}}
-   if(t=='gate'){R('#30343a',X,Y-34,16,3);R('#5a606a',X,Y-34,16,1);const n2=gate.open?2:8;for(let i=0;i<n2;i++)vgrad(X+1+i*2,Y-31,1,46,'#7a818b','#3a3e46');
-    q=g;plate('exit',X+8,Y-50);
+   if(t=='gate'){R('#30343a',X,Y-34,16,3);R('#5a606a',X,Y-34,16,1);const n2=gate.open?2:8;for(let i=0;i<n2;i++)vgrad(X+1+i*2,Y-31,1,46,'#7a818b','#3a3e46');plate('exit',X+8,Y-50);
     if(!gate.open){R('#d8b030',X,Y-12,16,2);R('#2a2a2a',X+2,Y-12,2,2);R('#2a2a2a',X+8,Y-12,2,2);R('#ffd35a',X+6,Y-3,4,4);R('#8a6a1a',X+7,Y-2,2,2);R(`rgba(255,211,90,${.12+.12*Math.sin(now/250)})`,X,Y-34,16,48)}}});
-  if(!P.key&&key[1]==y){const kh=hOf(key[0],y)*LH,kx=key[0]*16+2,ky=y*16-kh+1+Math.sin(now/300)*1.5;oval(kx+6,ky+6,8,7,`rgba(255,211,90,${.25+.15*Math.sin(now/250)})`);g.drawImage(spr('key'),kx,ky)}
-  if(Math.round(P.py)==y&&!won){const X=P.px*16,Y=P.py*16-P.ph*LH;oval(X+8,Y+15,5,2,'#00000055');const mv=Math.abs(P.x-P.px)+Math.abs(P.y-P.py)>.05;
-   const[fdx,fdy]=fdir(),fx3=P.x+fdx,fy3=P.y+fdy;let bub=null;if(!P.key&&((fx3==key[0]&&fy3==key[1])||(P.x==key[0]&&P.y==key[1])))bub='A';else if(!gate.open&&fx3==gate.x&&fy3==gate.y)bub=P.key?'A':'nokey';
+  SG[y].forEach(fn=>fn());
+  if(f==KEYF&&!P.key&&key[1]==y){const kh=G[y][key[0]].h*LH,kx=key[0]*16+2,ky=y*16-kh+1+Math.sin(now/300)*1.5;oval(kx+6,ky+6,8,7,`rgba(255,211,90,${.25+.15*Math.sin(now/250)})`);g.drawImage(spr('key'),kx,ky)}
+  if(f==F&&Math.round(P.py)==y&&!won){const X=P.px*16,Y=P.py*16-P.ph*LH;oval(X+8,Y+15,5,2,'#00000055');const mv=Math.abs(P.x-P.px)+Math.abs(P.y-P.py)>.05;
+   const[fdx,fdy]=fdir(),fx3=P.x+fdx,fy3=P.y+fdy;let bub=null;if(F==KEYF&&!P.key&&((fx3==key[0]&&fy3==key[1])||(P.x==key[0]&&P.y==key[1])))bub='A';else if(F==0&&!gate.open&&fx3==gate.x&&fy3==gate.y)bub=P.key?'A':'nokey';
    if(bub){const bx=X+1,by=Y-15+Math.sin(now/200);R('#000000a0',bx+1,by+1,14,12);R('#ffffff',bx,by,14,12);R('#ffffff',bx+5,by+12,4,2);
     if(bub=='A'){oval(bx+7,by+6,5,5,'#c8284a');q.font='bold 8px sans-serif';q.fillStyle='#fff';q.fillText('A',bx+4.5,by+9)}else{g.drawImage(spr('key'),bx+1,by+1);q.strokeStyle='#d0202a';q.lineWidth=2;q.beginPath();q.moveTo(bx+2,by+2);q.lineTo(bx+12,by+10);q.moveTo(bx+12,by+2);q.lineTo(bx+2,by+10);q.stroke()}}
    g.save();if(P.f=='side'&&P.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.drawImage(spr(P.f),X+2,Y+2+(mv?Math.sin(now/50)*.7:0));g.restore()}}
- fx.forEach(f=>{f.x+=f.vx;f.y+=f.vy;f.vy+=.15;f.t--;g.globalAlpha=f.t/30;R(f.c,f.x,f.y,2,2)});g.globalAlpha=1;fx=fx.filter(f=>f.t>0);
- g.globalCompositeOperation='multiply';g.drawImage(LIGHT,0,-TP);g.globalCompositeOperation='source-over';
- // 画面のふちを少し暗く
- g.setTransform(1,0,0,1,0,0);const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}
+ if(f==F){fx.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.t--;g.globalAlpha=p.t/30;R(p.c,p.x,p.y,2,2)});g.globalAlpha=1;fx=fx.filter(p=>p.t>0)}
+ g.globalCompositeOperation='multiply';g.drawImage(LIGHTs[f],0,-TP);g.globalCompositeOperation='source-over'}
+function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
+ const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
+ const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
+ g.imageSmoothingEnabled=false;
+ for(let f=0;f<=F;f++){const oy=(F-f)*DROP;g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-(cy-oy)*S)*dpr));drawLayer(f,now,cy,hh);
+  if(f<F){g.setTransform(1,0,0,1,0,0);g.fillStyle='rgba(8,10,24,.42)';g.fillRect(0,0,cv.width,cv.height)}}
+ g.setTransform(1,0,0,1,0,0);
+ // 階が変わったら、まん中に何階かを少しだけ出す
+ const ft=now-flT;if(ft<1300){const a=ft<200?ft/200:Math.max(0,1-(ft-800)/500);g.globalAlpha=a;g.font=`bold ${Math.round(46*dpr)}px sans-serif`;g.textAlign='center';g.fillStyle='#000a';g.fillText((F+1)+'F',cv.width/2+3*dpr,cv.height/2+3*dpr);g.fillStyle='#fff';g.fillText((F+1)+'F',cv.width/2,cv.height/2);g.textAlign='left';g.globalAlpha=1}
+ const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}
 function hud(){const x=document.getElementById('hk').getContext('2d');x.clearRect(0,0,12,12);x.globalCompositeOperation='source-over';x.drawImage(spr('key'),0,1);if(!P.key){x.globalCompositeOperation='source-in';x.fillStyle='#ffffff40';x.fillRect(0,0,12,12)}}
 let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt);draw(t);requestAnimationFrame(frame)}
-function start(){gen();buildStatic();hud();cam.x=P.x*16+8;cam.y=P.y*16;document.getElementById('win').style.display='none'}
+function start(){gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=performance.now();document.getElementById('win').style.display='none'}
 document.getElementById('again').onclick=start;
 start();requestAnimationFrame(frame);
-window.__esc={get C(){return C},get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},can,gen:start,reach};
+window.__esc={get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
 })();
 </script>
 </body></html>
