@@ -59,7 +59,7 @@ function gen(){
  for(let tries=0;tries<300;tries++){
   C=[...Array(MH)].map((_,y)=>[...Array(MW)].map((_,x)=>{
    const out=x==0||y==0||x==MW-1||y==MH-1,per=!out&&(x==1||y==1||x==MW-2||y==MH-2);
-   return out?{t:'floor',fl:'grass',h:0,out:true}:per?{t:'wall',h:y==MH-2?1:3,per:true}:{t:'wall',h:2}}));
+   return out?{t:'floor',fl:'grass',h:0,out:true}:per?{t:'wall',h:y==MH-2?1:y==1?3.8:3,per:true}:{t:'wall',h:2}}));
   // 監房棟（左か右）と、そのほかの部屋
   const cw=ri(17,21),left=rnd()<.5;
   const CB=left?{x0:1,x1:1+cw,y0:1,y1:MH-2,type:'cb'}:{x0:MW-2-cw,x1:MW-2,y0:1,y1:MH-2,type:'cb'};
@@ -76,20 +76,27 @@ function gen(){
   const rooms=[CB,...leaves];
   const FL={cb:'lino',yard:'asph',guard:'lino',mess:'lino',shower:'tile',work:'conc'};
   rooms.forEach(r=>{for(let y=r.y0+1;y<r.y1;y++)for(let x=r.x0+1;x<r.x1;x++)C[y][x]={t:'floor',fl:FL[r.type],h:0,room:r.type}});
-  // 監房棟の中：上の階の牢屋・通路（手すり）・鉄の階段・吹き抜けの広間・下の階の牢屋
+  // 監房棟の中（3階建て）：奥から 3階の牢屋・通路 → 2階の牢屋・通路 → 吹き抜けの広間 → 1階の牢屋。2階から3階へは、はしの鉄の階段で
   const a=CB.x0+1,b=CB.x1-1,c=CB.y0+1,d=CB.y1-1;const cells=[];
-  const n=Math.floor((b-a+2)/4);
-  for(let y=c;y<=c+4;y++)for(let x=a;x<=b;x++)C[y][x]={t:y==c+3?'bars':'floor',fl:y==c+4?'steel':'cellf',h:1,rail:y==c+4};
-  for(let y=d-3;y<=d;y++)for(let x=a;x<=b;x++)C[y][x]={t:y==d-3?'bars':'floor',fl:'cellf',h:0};
-  for(let k=0;k<n;k++){const wx=a+4*k+3;if(wx>b)break;for(const y of[c,c+1,c+2,c+3,d-3,d-2,d-1,d])C[y][wx]={t:'wall',h:2}}
-  for(let x=a+4*n-1;x<=b;x++)for(const y of[c,c+1,c+2,c+3,d-3,d-2,d-1,d])C[y][x]={t:'wall',h:2};
-  for(let k=0;k<n;k++){const x0=a+4*k;if(x0+2>b)break;
-   // 上の階：ベッド（左）・便器と洗面台（右奥）、格子のまん中が戸
-   C[c][x0].obj='bedT';C[c+1][x0].obj='bedB';C[c][x0+2].obj='toilet';C[c+3][x0+1]={t:'floor',fl:'cellf',h:1,bdoor:true};cells.push([x0+1,c+1]);
-   C[d-1][x0].obj='bedT';C[d][x0].obj='bedB';C[d][x0+2].obj='toilet';C[d-3][x0+1]={t:'floor',fl:'cellf',h:0,bdoor:true};cells.push([x0+1,d-1])}
-  const stx=[];for(let i=0;i<2;i++){const x=ri(a+1,b-1);if(stx.some(s=>Math.abs(s-x)<4))continue;stx.push(x);C[c+5][x]={t:'floor',fl:'steel',h:0,st:[0,-1]}}
-  for(let y=c+7;y<=d-6;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6&&!stx.some(s=>Math.abs(s-x)<2))C[y][x].obj='rtable';
-  for(const x of[a,b])if(!C[c+6][x].obj&&!C[c+5][x].st&&rnd()<.8)C[c+6][x].obj='vend';
+  const row=(y,o)=>{for(let x=a;x<=b;x++)C[y][x]=Object.assign({},o)};
+  for(let y=c;y<=c+4;y++)row(y,{t:y==c+3?'bars':'floor',fl:y==c+4?'steel':'cellf',h:2,rail:y==c+4});
+  for(let y=c+5;y<=c+9;y++)row(y,{t:y==c+8?'bars':'floor',fl:y==c+9?'steel':'cellf',h:1,rail:y==c+9});
+  for(let y=d-3;y<=d;y++)row(y,{t:y==d-3?'bars':'floor',fl:'cellf',h:0});
+  const WH=[2,2.6,3.3];  // 仕切り壁の高さ（階ごと）
+  for(let y=c;y<=c+3;y++){C[y][a]={t:'wall',h:WH[2]};C[y][a+1]={t:'wall',h:WH[2]}}
+  for(let y=c+5;y<=c+8;y++){C[y][a]={t:'floor',fl:'steel',h:1};C[y][a+1]={t:'wall',h:WH[1]}}
+  C[c+5][a]={t:'floor',fl:'steel',h:1,st:[0,-1]};
+  // 牢屋の列：x0 から4マスごと。up=格子が手前（南）、そうでなければ奥（北）
+  const tier=(x0s,top,h,up)=>{const rows=[top,top+1,top+2,top+3];let x=x0s;
+   for(;x+2<=b;x+=4){
+    for(const y of rows)if(x+3<=b)C[y][x+3]={t:'wall',h:WH[h]};
+    const by=up?top+3:top,bed=up?top:top+2,toi=up?top:top+3;
+    C[bed][x].obj='bedT';C[bed+1][x].obj='bedB';C[toi][x+2].obj='toilet';C[by][x+1]={t:'floor',fl:'cellf',h:h,bdoor:true};cells.push([x+1,up?top+1:top+2])}
+   for(let xx=x-1;xx<=b;xx++)for(const y of rows)if(xx>=x0s)C[y][xx]={t:'wall',h:WH[h]}};
+  tier(a+2,c,2,true);tier(a+2,c+5,1,true);tier(a,d-3,0,false);
+  const stx=[];for(let i=0;i<2;i++){const x=ri(a+2,b-1);if(stx.some(s=>Math.abs(s-x)<4))continue;stx.push(x);C[c+10][x]={t:'floor',fl:'steel',h:0,st:[0,-1]}}
+  for(let y=c+12;y<=d-6;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6&&!stx.some(s=>Math.abs(s-x)<2))C[y][x].obj='rtable';
+  for(const x of[a,b])if(!C[c+11][x].obj&&!C[c+10][x].st&&rnd()<.8)C[c+11][x].obj='vend';
   // ほかの部屋の中身
   leaves.forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1;
    if(r.type=='guard'){ // 看守室：一段高い見張り台に机とモニター。鍵は机の上
@@ -190,17 +197,12 @@ const JF="bold 8px 'Hiragino Sans','Noto Sans JP','Yu Gothic',sans-serif";
 function plate(type,cx,cy,txt){const I=INFO[type];q.font=JF;const t=txt||I.n,w=Math.ceil(q.measureText(t).width)+16,X=Math.round(cx-w/2),Y=Math.round(cy);
  R('#00000060',X+1,Y+1,w,12);R(I.c,X,Y,w,12);R('#ffffff50',X,Y,w,1);R(dark(I.c,.6),X,Y+11,w,1);R(dark(I.c,.75),X+w-1,Y,1,12);R(dark(I.c,.55),X+1,Y+1,11,10);icon(I.i,X+2,Y+2,type=='yard'?'#1a1a1a':'#fff');R('#d8dce0',X+w-3,Y+2,1,1);R('#d8dce0',X+w-3,Y+9,1,1);
  const dk=type=='yard';q.fillStyle=dk?'#ffffff90':'#000000a0';q.fillText(t,X+13.5,Y+9.5);q.fillStyle=dk?'#1a1a1a':'#fff';q.fillText(t,X+13,Y+9)}
-function arrowSign(L,Rr,cx,cy){q.font=JF;const half=[L,Rr].map(t=>t?Math.ceil(q.measureText(INFO[t].n).width)+24:0),w=half[0]+half[1]+(half[0]&&half[1]?2:0),X=Math.round(cx-w/2),Y=Math.round(cy);
- R('#3a3a40',X+w/2-1,Y-4,2,4);R('#00000060',X+1,Y+1,w,12);let ox=X;
- [[L,-1],[Rr,1]].forEach(([t,d],i)=>{if(!t)return;const I=INFO[t],ww=half[i];R(I.c,ox,Y,ww,12);R('#ffffff50',ox,Y,ww,1);R(dark(I.c,.6),ox,Y+11,ww,1);const dk=t=='yard',fg=dk?'#1a1a1a':'#fff';
-  q.fillStyle=fg;q.beginPath();const ax=d<0?ox+3:ox+ww-3;q.moveTo(ax,Y+6);q.lineTo(ax-d*4,Y+2);q.lineTo(ax-d*4,Y+10);q.fill();
-  const ix=d<0?ox+8:ox+3;icon(I.i,ix,Y+2,fg);q.fillStyle=fg;q.fillText(I.n,ix+11,Y+9);ox+=ww+2})}
 function buildSigns(){
  // 部屋の名札（北の壁の面のまん中）
  ROOMS.forEach(r=>{const y=r.y0,mid=(r.x0+r.x1)/2,near=x=>{for(let yy=y-1;yy<=y+2;yy++)for(let xx=x-3;xx<=x+3;xx++)if(C[yy]&&C[yy][xx]&&C[yy][xx].door)return true;return false};
   const cand=[];for(let x=r.x0+2;x<=r.x1-2;x++){const w=C[y][x],s=C[y+1]&&C[y+1][x];if(!w||w.t!='wall'||!s||s.t!='floor')continue;if(topH(w)-topH(s)<14||near(x))continue;cand.push(x)}
   if(!cand.length)return;const cx=cand.sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0],w=C[y][cx];q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);plate(r.type,cx*16+8,TP-topH(w)+16+3)});
- // 出入口：枠・まぐさ（上の梁）・敷居を描き、上に「入る部屋」の看板。横向きの出入口は、上の壁に左右の矢印つきの看板
+ // 出入口：枠・まぐさ（上の梁）・敷居を描き、上に「入る部屋」の看板
  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(!c.door)continue;const X=x*16,ns=!(C[y][x-1]&&C[y][x-1].t=='floor');
   // 出入口の両側に敷物（どこが出入口か、離れていても分かる）
   (ns?[[x,y-1],[x,y+1]]:[[x-1,y],[x+1,y]]).forEach(([mx,my])=>{const m=C[my]&&C[my][mx];if(!m||m.t!='floor'||m.obj||m.st||m.bdoor)return;const qq=ROWS[my].getContext('2d');q=qq;q.setTransform(2,0,0,2,0,0);const MX=mx*16,MY=TP-topH(m);
@@ -215,9 +217,9 @@ function buildSigns(){
   else{const w=C[y-1]&&C[y-1][x];q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);
    R('#8a9099',X+6,TP,4,16);R('#b8bec6',X+6,TP,1,16);
    R('#4a5058',X,TP,2,16);R('#4a5058',X+14,TP,2,16);
-   if(w&&w.t=='wall'){const s2=C[y][x];const fh=topH(w)-topH(s2);if(fh>=12){q=ROWS[y-1].getContext('2d');q.setTransform(2,0,0,2,0,0);arrowSign(roomOf(x-1,y),roomOf(x+1,y),X+8,TP-topH(w)+16+Math.max(2,fh/2-6))}}}}
- // 牢屋の番号（格子の上の板）：1階は101〜、2階は201〜
- let n1=1,n2=1;for(let x=0;x<MW;x++)for(let y=0;y<MH;y++){const c=C[y][x];if(!c.bdoor)continue;const no=(c.h?200+n2++:100+n1++)+'';q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);const X=x*16,Y=TP-topH(c)-30;
+   }}
+ // 牢屋の番号（格子の上の板）：1階は101〜、2階は201〜、3階は301〜
+ const NO=[1,1,1];for(let x=0;x<MW;x++)for(let y=0;y<MH;y++){const c=C[y][x];if(!c.bdoor)continue;const no=(100*(c.h+1)+NO[c.h]++)+'';q=ROWS[y].getContext('2d');q.setTransform(2,0,0,2,0,0);const X=x*16,Y=TP-topH(c)-30;
   R('#00000060',X+1,Y+1,16,9);R('#f4ecd8',X,Y,16,9);R('#E69F00',X,Y,16,2);q.font="bold 7px sans-serif";q.fillStyle='#222';q.fillText(no,X+1.5,Y+8)}}
 // ===== 描く =====
 // 1列ずつ下ごしらえした絵（床・段差の面・壁・置き物）を、奥の列から順に重ねる。人は自分の列のあとに描くので、手前の壁や格子に正しく隠れる
