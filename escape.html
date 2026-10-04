@@ -26,6 +26,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0c12;color:#f0e8d4;
 .btn::after{content:"";position:absolute;inset:-16px;border-radius:50%}
 .btn.on{background:#ffffffa0;transform:scale(.94)}
 #ba{right:22px;bottom:86px}#bb{right:104px;bottom:28px}
+#intro{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:22px;padding:14px 26px;background:radial-gradient(#1c1a26f4,#0a090ef8);z-index:5}
+#intro .pf{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none}
+#intro canvas{width:120px;height:120px;image-rendering:pixelated;background:#2a2838;border-radius:10px;box-shadow:0 0 0 3px #b08a44,0 0 0 6px #2a2218}
+#intro .nm{font:bold 15px sans-serif;color:#ffd35a;background:#2a2218;padding:2px 10px;border-radius:6px;box-shadow:0 0 0 2px #b08a44}
+#intro .tr{font:12px sans-serif;color:#d8c8a0}
+#intro .tx{flex:1;max-width:600px;max-height:calc(100% - 4px);overflow:auto;font:14px/1.6 'Hiragino Sans','Noto Sans JP',sans-serif;color:#f4ecd8;background:#14121ccc;border-radius:12px;padding:10px 16px;box-shadow:0 0 0 2px #b08a4488;white-space:pre-wrap}
+#intro .go{display:block;margin-top:10px;text-align:right;font:bold 14px sans-serif;color:#ffd35a;opacity:0;transition:opacity .3s}
 #win{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0d0c12dd;font-size:30px;letter-spacing:.2em;color:#ffd35a}
 #win button{font:20px monospace;padding:10px 22px;border:0;border-radius:8px;background:#c8501e;color:#fff}
 </style></head><body>
@@ -34,17 +41,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0c12;color:#f0e8d4;
 <div class="hud"><canvas id="hk" width="12" height="12"></canvas></div>
 <div id="padz"></div><div id="pad"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="c"></i><b class="bu"></b><b class="bd"></b><b class="bl"></b><b class="br"></b></div>
 <div class="btn" id="bb">B</div><div class="btn" id="ba">A</div>
+<div id="intro"><div class="pf"><canvas id="wp" width="12" height="12"></canvas><div class="nm" id="wn"></div><div class="tr" id="wt"></div></div><div class="tx"><span id="wl"></span><span class="go" id="wg">Ａ で はじめる ▶</span></div></div>
 <div id="win">だっしゅつ！<button id="again">もう一回</button></div>
 </div>
 <script>
 (()=>{
 const root=document.getElementById('root'),cv=document.getElementById('c'),g=cv.getContext('2d');
 // ===== ドット絵（人・鍵） =====
-const PAL={h:'#3a2a1c',s:'#f2c8a0',e:'#222',b:'#2a2a2a',c:'#e8823a',C:'#c86a2a',y:'#ffd35a',Y:'#c89a2a'};
+const PAL={h:'#3a2a1c',s:'#f2c8a0',e:'#222',b:'#2a2a2a',c:'#e8823a',C:'#c86a2a',y:'#ffd35a',Y:'#c89a2a',k:'#1a2238',m:'#4a3420',n:'#2a3458',w:'#e8e8e8',r:'#b8283a'};
 const SPR={
  down:["....hhhh....","...hhhhhh...","...hssssh...","...sesses...","...ssssss...","....ssss....","..cccccccc..",".sccCCcccs..",".s.cccccc.s.","...cccccc...","...cc..cc...","...bb..bb..."],
  up:  ["....hhhh....","...hhhhhh...","...hhhhhh...","...hhhhhh...","...shhhhs...","....ssss....","..cccccccc..",".scccccccs..",".s.cccccc.s.","...cccccc...","...cc..cc...","...bb..bb..."],
  side:["....hhhh....","...hhhhhh...","...hhhsss...","...hhssse...","...hsssss...","....ssss....","...cccccc...","...cccCcs...","...ccccs....","...cccccc...","...cc.cc....","...bb.bb...."],
+ warden:["..kkkkkkkk..",".kkkyyyykkk.","...ssssss...","...sesses...","...smmmms...","....ssss....","..nnnwwnnn..",".snnnrwnnns.",".s.nnrrnn.s.","...nnnnnn...","...nn..nn...","...bb..bb..."],
  key:["....yyyy....","...y....y...","...y....y...","....yyyy....",".....yY.....",".....yY.....",".....yyyY...",".....yY.....",".....yyY....",".....yY....."]};
 const SC={};function spr(n){if(SC[n])return SC[n];const a=SPR[n],c=document.createElement('canvas');c.width=a[0].length;c.height=a.length;const x=c.getContext('2d');
  a.forEach((r,j)=>[...r].forEach((ch,i)=>{if(ch!='.'){x.fillStyle=PAL[ch];x.fillRect(i,j,1,1)}}));return SC[n]=c}
@@ -52,7 +61,7 @@ const SC={};function spr(n){if(SC[n])return SC[n];const a=SPR[n],c=document.crea
 // 階ごとの地図。t：floor 床 / wall 壁 / bars 鉄格子 / gate 外への門 / void 吹き抜けや建物の外（下の階が見える）
 // h：その階の中の段の高さ　st：段の階段　link：ほかの階へ行く階段　obj：置いてある物　out：塀の外
 const MW=46,MH=30,LH=14,NF=3,DROP=3*LH;
-const BLOCK={bedT:1,bedB:1,toilet:1,rtable:1,mtable:1,counter:1,desk:1,bench:1,hoop:1,pullbar:1,locker:1,vend:1,weights:1,sbench:1,shelf:1,mbed:1,cabinet:1,sdesk:1,bigdesk:1,plant:1,crate:1,washer:1,board:1};
+const BLOCK={warden:1,bedT:1,bedB:1,toilet:1,rtable:1,mtable:1,counter:1,desk:1,bench:1,hoop:1,pullbar:1,locker:1,vend:1,weights:1,sbench:1,shelf:1,mbed:1,cabinet:1,sdesk:1,bigdesk:1,plant:1,crate:1,washer:1,board:1};
 let FLs=[],ROOMSs=[],F=0,C,P,key,gate,won,ROOMS=[],BLD=null;
 const rnd=Math.random,ri=(a,b)=>a+Math.floor(rnd()*(b-a+1)),pick=a=>a[ri(0,a.length-1)];
 const cell=(x,y)=>C[y]&&C[y][x];
@@ -67,18 +76,48 @@ function split(rest){const L=[rest];
   else break}
  return L}
 const free=v=>v&&v.t=='floor'&&!v.h&&!v.obj&&!v.st&&!v.bdoor&&!v.link&&!v.out;
-function gen(){
+// ===== 所長：刑務所をどう作るか考え、理由をことばに残す =====
+const WNAMES=['鬼瓦 権蔵','鉄村 厳','黒岩 剛','堅田 守','石垣 正義','鋼 鉄之助'];
+const WTRAIT=[
+ {k:'worry',t:'心配性',say:'わしは心配性でな。看守の目が届かん場所は、ひとつも作らん。'},
+ {k:'vain',t:'見栄っぱり',say:'刑務所は所長の顔だ。わしの部屋はいちばん広くした。'},
+ {k:'thrift',t:'倹約家',say:'電気代がもったいない。灯りは少なめにしておいた。'},
+ {k:'strict',t:'きびしい',say:'規則は規則だ。逃げ道など、ひとつも残さん。'}];
+let WARDEN=null;
+const touch=(A,B)=>((A.x1==B.x0||B.x1==A.x0)&&Math.min(A.y1,B.y1)-Math.max(A.y0,B.y0)>=3)||((A.y1==B.y0||B.y1==A.y0)&&Math.min(A.x1,B.x1)-Math.max(A.x0,B.x0)>=3);
+const ctr=r=>[(r.x0+r.x1)/2,(r.y0+r.y1)/2],dist=(A,B)=>{const a=ctr(A),b=ctr(B);return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])};
+function perms(a){if(a.length<=1)return[a];const o=[];a.forEach((x,i)=>perms([...a.slice(0,i),...a.slice(i+1)]).forEach(p=>o.push([x,...p])));return o}
+// 1つの階の部屋の割り当て：決まりを満たすほど点が高い。満たした決まりは、所長のことばになる
+function planFloor(f,CB,SL,others,faceYard,W){let best=null;
+ for(const p of perms(TYPES[f].slice(0,others.length))){const T={};others.forEach((r,i)=>T[p[i]]=r);let s=rnd()*.5;const why=[];
+  const rule=(ok,pts,msg)=>{if(ok){s+=pts;why.push(msg)}};
+  if(f==0){rule(T.mess&&touch(T.mess,CB),3,'食堂は監房棟のとなり。囚人の行き来が短ければ、見張りも楽になる。');
+   rule(T.shower&&touch(T.shower,CB),3,'シャワー室も監房棟のとなりだ。毎日使うからな。');
+   rule(T.laundry&&T.shower&&touch(T.laundry,T.shower),2,'洗濯室はシャワー室のとなり。脱いだ服をすぐ洗える。');
+   rule(T.work&&faceYard(T.work),2,'作業場は運動場の側に置いた。材料を運び入れやすい。')}
+  if(f==1){rule(T.infirmary&&touch(T.infirmary,SL),3,'医務室は階段のそば。急病人が出ても、すぐ運べる。');
+   rule(T.library&&T.class&&touch(T.library,T.class),2,'図書室と教室は並べた。学ぶ場所はひとまとめだ。');
+   rule(T.shower&&touch(T.shower,CB),2,'2階のシャワー室も、監房棟のとなりにした。')}
+  if(f==2){rule(T.guard&&touch(T.guard,SL),3,'看守室は階段のそば。上り下りする者を、全部見張れる。');
+   rule(T.guard&&touch(T.guard,CB),W.k=='worry'?5:2,'看守室は監房棟のとなりにもした。囚人のそばで目を光らせる。');
+   rule(T.storage&&T.guard&&touch(T.storage,T.guard),2,'倉庫は看守室のとなり。勝手に持ち出させはせん。');
+   if(T.office){const od=dist(T.office,CB);s+=od/6;if(od>=Math.max(...others.map(r=>dist(r,CB)))-.1)why.push('わしの部屋は、監房棟からいちばん遠くにした。囚人の声は聞きたくない。');
+    if(W.k=='vain'&&T.office===others[0]){s+=9;why.push('所長室は、この階でいちばん広い部屋だ。')}}}
+  if(!best||s>best.s)best={s,p,why}}
+ return best}
+function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
  for(let tries=0;tries<400;tries++){
   const yl=rnd()<.5,yw=ri(10,12);
   const B=yl?{x0:1+yw,x1:MW-2,y0:1,y1:MH-2}:{x0:1,x1:MW-2-yw,y0:1,y1:MH-2};BLD=B;
   const YD={x0:yl?1:B.x1,x1:yl?B.x0:MW-2,y0:1,y1:MH-2,type:'yard'};
-  const cw=ri(15,18),cbl=rnd()<.5;
+  const cw=ri(15,18),cbl=yl;  // 監房棟は運動場の側：囚人を外へ出すとき、ほかの部屋を通らせない
   const CB={x0:cbl?B.x0:B.x1-cw,x1:cbl?B.x0+cw:B.x1,y0:B.y0,y1:B.y1};
   const leaves=split(cbl?{x0:B.x0+cw,x1:B.x1,y0:B.y0,y1:B.y1}:{x0:B.x0,x1:B.x1-cw,y0:B.y0,y1:B.y1});
   if(leaves.length<4)continue;
   const ar=r=>(r.x1-r.x0-1)*(r.y1-r.y0-1);
   const okS=leaves.filter(r=>r.x1-r.x0-1>=5&&r.y1-r.y0-1>=4).sort((a,b)=>ar(a)-ar(b));if(!okS.length)continue;
-  const SL=okS[0],others=leaves.filter(r=>r!==SL).sort((a,b)=>ar(b)-ar(a));
+  const SL=okS.map(r=>[r,leaves.reduce((t,o)=>t+dist(r,o),0)+rnd()*2]).sort((a,b)=>a[1]-b[1])[0][0],others=leaves.filter(r=>r!==SL).sort((a,b)=>ar(b)-ar(a));
+  const faceYard=r=>yl?r.x0==B.x0:r.x1==B.x1,PLAN=[0,1,2].map(f=>planFloor(f,CB,SL,others,faceYard,W));let gateWhy='';
   const base=[CB,SL,...others],cells=[];let bad=false;FLs=[];ROOMSs=[];
   const inB=(x,y)=>x>=B.x0&&x<=B.x1&&y>=B.y0&&y<=B.y1;
   for(let f=0;f<NF&&!bad;f++){
@@ -86,7 +125,7 @@ function gen(){
     const out=x==0||y==0||x==MW-1||y==MH-1,per=!out&&(x==1||y==1||x==MW-2||y==MH-2),edge=inB(x,y)&&(x==B.x0||x==B.x1||y==B.y0||y==B.y1),lowS=y==MH-2;
     if(f==0){if(out)return{t:'floor',fl:'grass',h:0,out:true};if(per)return{t:'wall',h:lowS?1:y==1?3.8:3,per:true};if(edge)return{t:'wall',h:2.6,ext:true};if(inB(x,y))return{t:'wall',h:2};return{t:'floor',fl:'asph',h:0}}
     if(inB(x,y))return{t:'wall',h:lowS?1:edge?2.6:2,ext:edge};return{t:'void',h:0}}));
-   const RM=base.map(r=>({x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}));RM[0].type='cb';RM[1].type='stairs';RM.slice(2).forEach((r,i)=>r.type=TYPES[f][i]||'storage');
+   const RM=base.map(r=>({x0:r.x0,x1:r.x1,y0:r.y0,y1:r.y1}));RM[0].type='cb';RM[1].type='stairs';RM.slice(2).forEach((r,i)=>r.type=PLAN[f].p[i]||'storage');
    RM.forEach(r=>{for(let y=r.y0+1;y<r.y1;y++)for(let x=r.x0+1;x<r.x1;x++)C[y][x]={t:'floor',fl:FLR[r.type],h:0}});
    // 監房棟：北と南に牢屋の列。1階はまん中が広間、2階・3階は牢屋の前の通路と吹き抜け
    const a=CB.x0+1,b=CB.x1-1,c=CB.y0+1,d=CB.y1-1;
@@ -111,7 +150,7 @@ function gen(){
      case 'library':for(let y=y0;y<y1;y+=3)for(let x=x0+1;x<x1;x++)if((x-x0)%5)at(x,y,'shelf');if(h>5)at((x0+x1)>>1,y1-1,'rtable');break;
      case 'infirmary':for(let x=x0;x<=x1;x+=2)at(x,y0,'mbed');at(x1,y1,'cabinet');at(x0,y1,'cabinet');break;
      case 'class':{const m=(x0+x1)>>1;for(let x=m-1;x<=m+1;x++)at(x,y0,'board');for(let y=y0+2;y<=y1;y+=2)for(let x=x0+1;x<x1;x+=2)at(x,y,'sdesk')}break;
-     case 'office':at((x0+x1)>>1,(y0+y1)>>1,'bigdesk');at(x0,y0,'plant');at(x1,y0,'plant');at(x1,y1,'cabinet');for(let x=x0+1;x<x1;x+=2)at(x,y0,'shelf');break;
+     case 'office':at((x0+x1)>>1,(y0+y1)>>1,'bigdesk');at((x0+x1)>>1,((y0+y1)>>1)-1,'warden');at(x0,y0,'plant');at(x1,y0,'plant');at(x1,y1,'cabinet');for(let x=x0+1;x<x1;x+=2)at(x,y0,'shelf');break;
      case 'storage':for(let i=0;i<w*h/5;i++)at(ri(x0,x1),ri(y0,y1),rnd()<.6?'crate':'shelf');break;
      case 'stairs':{const A=x0+1,Bc=x0+3;if(f<NF-1)C[y0][f==0?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f+1},sdir:'up'};if(f>0)C[y0][f==1?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f-1},sdir:'down'}}break}});
    // 部屋どうしの出入口（その階のどこへでも行けるように）
@@ -123,19 +162,22 @@ function gen(){
    if(f==0){
     // 建物から運動場への出入口
     const bx=yl?B.x0:B.x1,ox=yl?-1:1,ys=[];for(let y=B.y0+1;y<B.y1;y++)if(free(C[y][bx-ox])&&free(C[y][bx+ox]))ys.push(y);if(!ys.length){bad=true;break}
-    C[pick(ys)][bx]={t:'floor',fl:'conc',h:0,door:true};
+    const cbYs=ys.filter(y=>{const v=C[y][bx-ox];return v.fl=='lino'&&(cbl==yl)});const dy=pick(cbYs.length?cbYs:ys);C[dy][bx]={t:'floor',fl:'conc',h:0,door:true};
     // 運動場：バスケットのゴール・コート・鉄棒・筋トレ台
     const x0=YD.x0+1,x1=YD.x1-1,y0=2,y1=MH-3,hx=ri(x0+2,x1-2);C[y0][hx].obj='hoop';YD.court={x:Math.max(x0,hx-3),y:y0,w:Math.min(7,x1-Math.max(x0,hx-3)+1),h:5};
     C[y1][ri(x0,x1)].obj='pullbar';for(let i=0;i<2;i++){const v=C[ri(y0+6,y1)][ri(x0,x1)];if(free(v))v.obj='weights'}
     // 外への門
     const gc=[];for(let x=YD.x0+1;x<YD.x1;x++){gc.push([x,1,0,1]);gc.push([x,MH-2,0,-1])}const sx=yl?1:MW-2;for(let y=2;y<MH-2;y++)gc.push([sx,y,yl?1:-1,0]);
     const okg=gc.filter(([x,y,dx,dy])=>free(C[y+dy][x+dx])&&C[y+dy][x+dx].fl=='asph');if(!okg.length){bad=true;break}
-    const gp=pick(okg);gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
+    okg.sort((a,b)=>(Math.abs(b[0]-bx)+Math.abs(b[1]-dy))-(Math.abs(a[0]-bx)+Math.abs(a[1]-dy)));
+    const gp=W.k=='strict'?okg[0]:okg[ri(0,Math.max(0,Math.floor(okg.length*.4)-1))];gateWhy=W.k=='strict'?'外への門は、建物の出口からいちばん遠い塀につけた。走って逃げても、すぐ追いつく。':'外への門は、運動場の塀にある。そこまで行ければの話だがな。';gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
    if(f==NF-1){const Gd=RM.find(r=>r.type=='guard');if(!Gd){bad=true;break}key=Gd.key}
    FLs[f]=C;ROOMSs[f]=f==0?[...RM,YD]:RM}
   if(bad)continue;
   const s=pick(cells),Rc=reachAll(s[0],s[1],s[2]);
   if(!Rc.has((NF-1)+','+key[0]+','+(key[1]+1))||!Rc.has('0,'+gate.ix+','+gate.iy))continue;
+  const pickWhy=PLAN.map(pl=>pl.why).map(w=>w.length?pick(w):null).filter(Boolean);
+  WARDEN={name:WN,trait:W,lines:['わしがこの刑務所の所長、'+WN+'だ。',W.say,'階段は建物のまん中あたりに置いた。どの部屋からも近い。','監房棟は運動場の側に建てた。囚人を外へ出すとき、ほかの部屋を通らせん。',...pickWhy,'鍵は3階、看守室の机の上だ。取れるものなら取ってみろ。',gateWhy,pick(['せいぜい、抜け出してみるがいい。','ここから出た者は、まだひとりもおらん。','おとなしく、牢屋で寝ていることだな。'])]};
   setF(s[0]);P={x:s[1],y:s[2],px:s[1],py:s[2],ph:0,f:'down',flip:false,key:false,mv:0};won=false;return}
 }
 const hOf=(x,y)=>{const c=cell(x,y);return c.h+(c.st?.5:0)};
@@ -182,7 +224,14 @@ function face(d){P.f=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])P.flip=d[0]<0}
 const fdir=()=>P.f=='up'?[0,-1]:P.f=='down'?[0,1]:[P.flip?-1:1,0];
 let flT=-1e9;
 const KEYF=NF-1;
-function update(dt){if(won)return;P.mv-=dt;
+let INTRO=null;
+function showIntro(){const el=document.getElementById('intro');el.style.display='flex';document.getElementById('wn').textContent='所長　'+WARDEN.name;document.getElementById('wt').textContent='性格：'+WARDEN.trait.t;
+ const wp=document.getElementById('wp').getContext('2d');wp.clearRect(0,0,12,12);wp.drawImage(spr('warden'),0,0);
+ INTRO={txt:WARDEN.lines.join('\n'),n:0};document.getElementById('wg').style.opacity=0}
+function introStep(dt){const I=INTRO;if(aHit){aHit=false;if(I.n<I.txt.length)I.n=I.txt.length;else{INTRO=null;document.getElementById('intro').style.display='none';flT=performance.now();return}}
+ if(I.n<I.txt.length)I.n=Math.min(I.txt.length,I.n+dt*.035);document.getElementById('wl').textContent=I.txt.slice(0,Math.floor(I.n));const tb=document.querySelector('#intro .tx');tb.scrollTop=tb.scrollHeight;document.getElementById('wg').style.opacity=I.n>=I.txt.length?1:0}
+document.getElementById('intro').addEventListener('pointerdown',e=>{if(e.target.closest('.btn'))return;aHit=true});
+function update(dt){if(INTRO){introStep(dt);return}if(won)return;P.mv-=dt;
  let d=padDir;if(!d)for(const k of held){d=K[k];break}if(!d&&tap&&P.mv<=0)d=tap;if(P.mv<=0)tap=null;
  if(P.mv<=0&&d){face(d);if(can(P.x,P.y,d[0],d[1])){P.x+=d[0];P.y+=d[1];P.mv=150;const t=cell(P.x,P.y);
    // 階段：上の階（下の階）の、同じ場所の階段の前に出る
@@ -322,6 +371,7 @@ function obj(o,X,Y,x,y){switch(o){
  case 'pullbar':oval(X+8,Y+14,7,2,'#00000040');R('#4a4f58',X+2,Y-10,2,25);R('#4a4f58',X+12,Y-10,2,25);R('#9aa0aa',X+2,Y-10,12,2);R('#c8ccd0',X+2,Y-10,12,1);break;
  case 'weights':shadow(X,Y+2,16,13);R('#3a3e46',X+3,Y+7,10,4);R('#5a5f68',X+3,Y+7,10,1);R('#2a2e34',X+4,Y+11,2,4);R('#2a2e34',X+10,Y+11,2,4);R('#9aa0aa',X,Y+3,16,1);
   R('#2a2a2e',X+1,Y,3,8);R('#2a2a2e',X+12,Y,3,8);R('#4a4a50',X+1,Y,1,8);R('#4a4a50',X+12,Y,1,8);break
+ case 'warden':oval(X+8,Y+15,5,2,'#00000055');q.drawImage(spr('warden'),X+2,Y+1);break;
  case 'shelf':shadow(X,Y,16,16);vgrad(X+1,Y-14,14,29,'#7a5434','#5a3c22');R('#9a6e46',X+1,Y-14,14,1);for(let r2=0;r2<4;r2++){R('#3a2614',X+2,Y-12+r2*7,12,6);for(let i=0;i<6;i++)R(['#c84a3a','#3a7ac8','#e8c040','#4aa860','#e8e0d0','#8a4ab8'][(i+r2+x)%6],X+2+i*2,Y-11+r2*7+(i%3==0?1:0),2,5-(i%3==0?1:0))}break;
  case 'mbed':shadow(X+1,Y,14,16);R('#c8ccd4',X+1,Y+1,14,14);R('#f4f6f8',X+2,Y+2,12,5);vgrad(X+2,Y+7,12,7,'#e8eef4','#cfd8e0');R('#c8283a',X+6,Y+9,4,1);R('#c8283a',X+7,Y+8,2,3);R('#8a9099',X+1,Y+14,14,2);R('#9aa0aa',X+13,Y-8,1,9);R('#e8f0f4b0',X+13,Y-8,3,14);break;
  case 'cabinet':shadow(X,Y,16,16);vgrad(X+2,Y-12,12,27,'#f0f2f4','#c8ccd4');R('#ffffff',X+2,Y-12,12,1);R('#9aa0aa',X+8,Y-11,1,25);R('#a8c8e0',X+3,Y-10,4,8);R('#a8c8e0',X+9,Y-10,4,8);R('#c8283a',X+5,Y+4,6,2);R('#c8283a',X+7,Y+2,2,6);break;
@@ -392,7 +442,7 @@ function buildLight(){const L=document.createElement('canvas');L.width=MW*16;L.h
  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.t=='void'||c.out||c.per||c.fl=='asph'||c.t=='gate')continue;const Y=y*16+TP-topH(c);s2.fillStyle=c.t=='wall'?'#a4a2b0':'#8e8ca2';s2.fillRect(x*16,Y,16,16+(c.t=='wall'?topH(c):0))}
  q.filter='blur(4px)';q.drawImage(sh,0,0);q.filter='none';q.globalCompositeOperation='lighter';
  const glow=(x,y,r,col,a)=>{const gr=q.createRadialGradient(x,y,0,x,y,r);gr.addColorStop(0,`rgba(${col},${a})`);gr.addColorStop(1,`rgba(${col},0)`);q.fillStyle=gr;q.fillRect(x-r,y-r,r*2,r*2)};
- ROOMS.forEach(r=>{if(r.type=='yard')return;for(let y=r.y0+2;y<r.y1;y+=5)for(let x=r.x0+2;x<r.x1;x+=5){const c=C[y][x];if(c.t!='void')glow(x*16+8,y*16+TP-topH(c)+8,62,'255,226,170',.32)}});
+ ROOMS.forEach(r=>{if(r.type=='yard')return;for(let y=r.y0+2;y<r.y1;y+=5)for(let x=r.x0+2;x<r.x1;x+=5){const c=C[y][x];if(c.t!='void')glow(x*16+8,y*16+TP-topH(c)+8,62,'255,226,170',WARDEN&&WARDEN.trait.k=='thrift'?.16:.32)}});
  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(c.door)glow(x*16+8,y*16+TP-4,30,'255,236,200',.45);if(c.link)glow(x*16+8,y*16+TP+4,26,'255,240,190',.35);if(c.obj=='desk')glow(x*16+8,y*16+TP-topH(c)-2,22,'120,255,170',.35)}
  LW.forEach(([X,wy,t])=>{if(t=='win'){q.fillStyle='rgba(210,232,255,.22)';q.beginPath();q.moveTo(X-5,wy);q.lineTo(X+5,wy);q.lineTo(X+22,wy+70);q.lineTo(X+6,wy+70);q.fill();glow(X+12,wy+60,22,'220,236,255',.25)}
   if(t=='lamp')glow(X,wy+6,34,'255,220,160',.4);if(t=='vend')glow(X,wy+8,30,'255,120,110',.3)});
@@ -427,10 +477,10 @@ function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(
  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}
 function hud(){const x=document.getElementById('hk').getContext('2d');x.clearRect(0,0,12,12);x.globalCompositeOperation='source-over';x.drawImage(spr('key'),0,1);if(!P.key){x.globalCompositeOperation='source-in';x.fillStyle='#ffffff40';x.fillRect(0,0,12,12)}}
 let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt);draw(t);requestAnimationFrame(frame)}
-function start(){gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=performance.now();document.getElementById('win').style.display='none'}
+function start(){gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none';showIntro()}
 document.getElementById('again').onclick=start;
 start();requestAnimationFrame(frame);
-window.__esc={get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
+window.__esc={skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
 })();
 </script>
 </body></html>
