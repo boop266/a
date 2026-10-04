@@ -527,15 +527,31 @@ function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs
    g.save();if(P.f=='side'&&P.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.drawImage(spr(P.f),X+2,Y+2+(mv?Math.sin(now/50)*.7:0));g.restore()}}
  if(f==F){fx.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.t--;g.globalAlpha=p.t/30;R(p.c,p.x,p.y,2,2)});g.globalAlpha=1;fx=fx.filter(p=>p.t>0)}
  g.globalCompositeOperation='multiply';g.drawImage(LIGHTs[f],0,-TP);g.globalCompositeOperation='source-over';if(f<F){g.fillStyle='rgba(40,60,110,.05)';g.fillRect(0,-TP,MW*16,MH*16+TP)}}
+// 吹き抜けの内側の壁：上の階のふち（穴のへり）と、下の階での同じ線を結ぶ面。奥の壁は明るく、横は中くらい、手前は暗く
+function shaft(L,tU,tD,proj){const G=FLs[L];g.setTransform(dpr,0,0,dpr,0,0);
+ const face=(x0,y0,x1,y1,c0,c1)=>{const a=proj(tU,x0,y0),b=proj(tU,x1,y1),c=proj(tD,x1,y1),d=proj(tD,x0,y0);const gr=g.createLinearGradient(0,Math.min(a[1],b[1]),0,Math.max(c[1],d[1])+1);gr.addColorStop(0,c0);gr.addColorStop(1,c1);
+  g.fillStyle=gr;g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.lineTo(c[0],c[1]);g.lineTo(d[0],d[1]);g.closePath();g.fill()};
+ const V=(x,y)=>G[y]&&G[y][x]&&G[y][x].t=='void';
+ for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){if(!V(x,y))continue;const X=x*16,Y=y*16;
+  if(!V(x,y-1)&&G[y-1])face(X,Y,X+16,Y,'rgba(150,146,136,.97)','rgba(40,40,52,.75)');
+  if(!V(x-1,y)&&G[y][x-1])face(X,Y+16,X,Y,'rgba(96,94,90,.97)','rgba(24,24,34,.75)');
+  if(!V(x+1,y)&&G[y][x+1])face(X+16,Y,X+16,Y+16,'rgba(96,94,90,.97)','rgba(24,24,34,.75)');
+  if(!V(x,y+1)&&G[y+1])face(X+16,Y+16,X,Y+16,'rgba(50,50,58,.97)','rgba(14,14,22,.8)')}
+ // 階の境目の線（床板の厚み）
+ g.strokeStyle='rgba(0,0,0,.35)';g.lineWidth=dpr>1?1:1}
 let ZM=1;function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
  let nearV=false;if(F>0)for(let dy=-2;dy<=2&&!nearV;dy++)for(let dx=-2;dx<=2;dx++){const v=cell(P.x+dx,P.y+dy);if(v&&v.t=='void'&&BLD&&P.x+dx>BLD.x0&&P.x+dx<BLD.x1){nearV=true;break}}
  ZM=1;const S0=S;S=S0*ZM;try{
  const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
  const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
  g.imageSmoothingEnabled=false;
- for(let f=0;f<=F;f++){const oy=(F-f)*DROP;g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-cy*S)*dpr));
-  if(f<F){g.save();g.beginPath();g.rect(0,0,MW*16,MH*16);g.clip();g.translate(0,oy);drawLayer(f,now,cy-oy,hh);g.restore();
-   g.setTransform(1,0,0,1,0,0);g.fillStyle=`rgba(10,14,30,${.14+.06*(F-f-1)})`;g.fillRect(0,0,cv.width,cv.height)}
+ // 遠近：下の階ほど小さく（画面のまん中へ縮める）、少し下へずらす。各階の吹き抜けのふちから、すぐ下の階まで縦の壁をつなぐ
+ const PK=.8,PD=20,T=f=>{const d=F-f,k=Math.pow(PK,d);return{k,a:S*k,ox:W/2-cx*S*k,oy:H/2+(d*PD-cy)*S*k}};
+ const proj=(t,x,y)=>[t.ox+x*t.a,t.oy+y*t.a];
+ for(let f=0;f<=F;f++){const t=T(f);g.setTransform(t.a*dpr,0,0,t.a*dpr,Math.round(t.ox*dpr),Math.round(t.oy*dpr));
+  if(f<F){g.save();g.beginPath();g.rect(0,0,MW*16,MH*16);g.clip();drawLayer(f,now,cy,hh/t.k+40);g.restore();
+   g.setTransform(1,0,0,1,0,0);g.fillStyle=`rgba(10,14,30,${.16+.05*(F-f-1)})`;g.fillRect(0,0,cv.width,cv.height);
+   shaft(f+1,T(f+1),T(f),proj)}
   else drawLayer(f,now,cy,hh)}
  g.setTransform(1,0,0,1,0,0);
  // 階が変わったら、まん中に何階かを少しだけ出す
