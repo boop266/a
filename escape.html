@@ -72,6 +72,15 @@ function split(rest){const L=[rest];
   else break}
  return L}
 const free=v=>v&&v.t=='floor'&&!v.h&&!v.obj&&!v.st&&!v.bdoor&&!v.link&&!v.out;
+// 置き物どうしは1マスあける。本棚・カウンター・長机・黒板だけは横に並べてよい。背の高い物の上のマスは空ける
+const TALL={locker:1,vend:1,shelf:1,cabinet:1,washer:1,board:1,mbed:1,hoop:1,pullbar:1,counter:1,desk:1,plant:1,shower:1,toilet:1};
+const ROWOK={counter:1,mtable:1,board:1,shelf:1};
+function place(x,y,o){const v=C[y]&&C[y][x];if(!v||v.t!='floor'||v.obj||v.st||v.link||v.door||v.bdoor||v.out)return false;
+ for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const u=C[y+dy]&&C[y+dy][x+dx];if(!u)continue;if(u.door||u.link||u.st)return false;
+  if(u.obj){if(ROWOK[o]&&u.obj==o&&dy==0)continue;if(o=='warden'&&u.obj=='bigdesk'&&dy==1&&dx==0)continue;return false}}
+ if(TALL[o])for(const k of[1,2]){const n=C[y-k]&&C[y-k][x];if(n&&n.t=='floor'&&n.obj)return false}
+ for(const k of[1,2]){const u=C[y+k]&&C[y+k][x];if(u&&u.obj&&TALL[u.obj])return false}
+ v.obj=o;return true}
 // ===== 所長：刑務所をどう作るか考え、理由をことばに残す =====
 const WNAMES=['鬼瓦 権蔵','鉄村 厳','黒岩 剛','堅田 守','石垣 正義','鋼 鉄之助'];
 const WTRAIT=[
@@ -136,18 +145,18 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
    if(f==0){for(let y=c+6;y<=d-7;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6)C[y][x].obj='rtable';for(const x of[a,b])if(rnd()<.8)C[c+5][x].obj='vend'}
    else{rowSet(c+4,{t:'floor',fl:'steel',h:0});rowSet(d-4,{t:'floor',fl:'steel',h:0});for(let y=c+5;y<=d-5;y++)rowSet(y,{t:'void',h:0})}
    // ほかの部屋の中身
-   RM.slice(1).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;const at=(x,y,o)=>{const v=C[y]&&C[y][x];if(v&&v.t=='floor'&&!v.obj&&!v.st&&!v.link)v.obj=o};
+   RM.slice(1).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;const at=(x,y,o)=>place(x,y,o);
     switch(r.type){
-     case 'guard':for(let y=y0;y<=y0+1;y++)for(let x=x0;x<=x1;x++)C[y][x]={t:'floor',fl:'plat',h:1};{const sx=ri(x0,x1);C[y0+2][sx]={t:'floor',fl:'steel',h:0,st:[0,-1]};const ds=[];for(let x=x0;x<=x1;x+=2){C[y0][x].obj='desk';ds.push(x)}r.key=[pick(ds),y0];for(let y=y0+3;y<=y1;y++)at(x1,y,'locker')}break;
+     case 'guard':for(let y=y0;y<=y0+1;y++)for(let x=x0;x<=x1;x++)C[y][x]={t:'floor',fl:'plat',h:1};{const sx=ri(x0,x1);C[y0+2][sx]={t:'floor',fl:'steel',h:0,st:[0,-1]};const ds=[];for(let x=x0;x<=x1;x+=2){C[y0][x].obj='desk';ds.push(x)}r.key=[pick(ds),y0];for(let y=y0+3;y<=y1;y+=2)at(x1,y,'locker')}break;
      case 'mess':for(let x=x0;x<=x1;x++)at(x,y0,'counter');for(let y=y0+2;y<y1;y+=2)for(let x=x0+1;x<x1;x++)if((x-x0)%6)at(x,y,'mtable');break;
-     case 'shower':for(let x=x0+1;x<x1;x+=2)at(x,y0,'shower');for(let x=x0+1;x<x1;x++)if(rnd()<.6)at(x,y1,'sbench');break;
+     case 'shower':for(let x=x0+1;x<x1;x+=2)at(x,y0,'shower');for(let x=x0+1;x<x1;x+=2)at(x,y1,'sbench');break;
      case 'work':for(let y=y0+1;y<y1;y+=3)for(let x=x0+1;x<x1;x+=3)at(x,y,'bench');break;
      case 'laundry':for(let x=x0;x<=x1;x+=2)at(x,y0,'washer');if(h>4)for(let x=x0+1;x<x1;x+=3)at(x,y0+3,'sbench');break;
      case 'library':for(let y=y0;y<y1;y+=3)for(let x=x0+1;x<x1;x++)if((x-x0)%5)at(x,y,'shelf');if(h>5)at((x0+x1)>>1,y1-1,'rtable');break;
      case 'infirmary':for(let x=x0;x<=x1;x+=2)at(x,y0,'mbed');at(x1,y1,'cabinet');at(x0,y1,'cabinet');break;
      case 'class':{const m=(x0+x1)>>1;for(let x=m-1;x<=m+1;x++)at(x,y0,'board');for(let y=y0+2;y<=y1;y+=2)for(let x=x0+1;x<x1;x+=2)at(x,y,'sdesk')}break;
      case 'office':at((x0+x1)>>1,(y0+y1)>>1,'bigdesk');at((x0+x1)>>1,((y0+y1)>>1)-1,'warden');at(x0,y0,'plant');at(x1,y0,'plant');at(x1,y1,'cabinet');for(let x=x0+1;x<x1;x+=2)at(x,y0,'shelf');break;
-     case 'storage':for(let i=0;i<w*h/5;i++)at(ri(x0,x1),ri(y0,y1),rnd()<.6?'crate':'shelf');break;
+     case 'storage':for(let i=0;i<w*h;i++)at(ri(x0,x1),ri(y0,y1),rnd()<.6?'crate':'shelf');break;
      case 'stairs':{const A=x0+1,Bc=x0+3;if(f<NF-1)C[y0][f==0?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f+1},sdir:'up'};if(f>0)C[y0][f==1?A:Bc]={t:'floor',fl:'conc',h:0,link:{to:f-1},sdir:'down'}}break}});
    // 部屋どうしの出入口（その階のどこへでも行けるように）
    const adj=[];for(let i=0;i<RM.length;i++)for(let j=0;j<RM.length;j++){if(i==j)continue;const A=RM[i],Bq=RM[j];
@@ -161,12 +170,16 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
     const cbYs=ys.filter(y=>{const v=C[y][bx-ox];return v.fl=='lino'&&(cbl==yl)});const dy=pick(cbYs.length?cbYs:ys);C[dy][bx]={t:'floor',fl:'conc',h:0,door:true};
     // 運動場：バスケットのゴール・コート・鉄棒・筋トレ台
     const x0=YD.x0+1,x1=YD.x1-1,y0=2,y1=MH-3,hx=ri(x0+2,x1-2);C[y0][hx].obj='hoop';YD.court={x:Math.max(x0,hx-3),y:y0,w:Math.min(7,x1-Math.max(x0,hx-3)+1),h:5};
-    C[y1][ri(x0,x1)].obj='pullbar';for(let i=0;i<2;i++){const v=C[ri(y0+6,y1)][ri(x0,x1)];if(free(v))v.obj='weights'}
+    C[y1][ri(x0,x1)].obj='pullbar';for(let i=0;i<6;i++)place(ri(x0,x1),ri(y0+6,y1),'weights')
     // 外への門
     const gc=[];for(let x=YD.x0+1;x<YD.x1;x++){gc.push([x,1,0,1]);gc.push([x,MH-2,0,-1])}const sx=yl?1:MW-2;for(let y=2;y<MH-2;y++)gc.push([sx,y,yl?1:-1,0]);
     const okg=gc.filter(([x,y,dx,dy])=>free(C[y+dy][x+dx])&&C[y+dy][x+dx].fl=='asph');if(!okg.length){bad=true;break}
     okg.sort((a,b)=>(Math.abs(b[0]-bx)+Math.abs(b[1]-dy))-(Math.abs(a[0]-bx)+Math.abs(a[1]-dy)));
     const gp=W.k=='strict'?okg[0]:okg[ri(0,Math.max(0,Math.floor(okg.length*.4)-1))];gateWhy=W.k=='strict'?'外への門：建物の出口からいちばん遠い塀。走っても追いつける距離に。':'外への門：運動場の塀。';gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
+   const keepObj={desk:1,bigdesk:1,warden:1,bedT:1,bedB:1,toilet:1};
+   for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];if(!c.door&&c.t!='gate')continue;
+    for(const[ax,ay]of[[x-1,y],[x+1,y],[x,y-1],[x,y+1]]){const a=C[ay]&&C[ay][ax];if(!a||a.t!='floor')continue;
+     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const u=C[ay+dy]&&C[ay+dy][ax+dx];if(u&&u.obj&&!keepObj[u.obj])delete u.obj}}}
    if(f==NF-1){const Gd=RM.find(r=>r.type=='guard');if(!Gd){bad=true;break}key=Gd.key}
    FLs[f]=C;ROOMSs[f]=f==0?[...RM,YD]:RM}
   if(bad)continue;
@@ -268,7 +281,7 @@ function plate(type,cx,cy,txt){const I=INFO[type];q.font=JF;const t=txt||I.n,w=M
 function buildSigns(){const SG=[...Array(MH)].map(()=>[]);
  const near=(x,y)=>{for(let yy=y-1;yy<=y+2;yy++)for(let xx=x-3;xx<=x+3;xx++){const v=C[yy]&&C[yy][xx];if(v&&(v.door||v.link))return true}return false};
  ROOMS.forEach(r=>{const y=r.y0,mid=(r.x0+r.x1)/2,cand=[];
-  for(let x=r.x0+2;x<=r.x1-2;x++){const w=C[y][x],s=C[y+1]&&C[y+1][x];if(!w||w.t!='wall'||!s||s.t!='floor')continue;if(topH(w)-topH(s)<14||near(x,y))continue;cand.push(x)}
+  for(let x=r.x0+2;x<=r.x1-2;x++){const w=C[y][x],s=C[y+1]&&C[y+1][x];if(!w||w.t!='wall'||!s||s.t!='floor')continue;if(topH(w)-topH(s)<14||near(x,y))continue;let hit=false;for(let xx=x-2;xx<=x+2;xx++){const u=C[y+1]&&C[y+1][xx];if(u&&u.obj&&TALL[u.obj])hit=true}if(hit)continue;cand.push(x)}
   if(!cand.length)return;const cx=cand.sort((a,b)=>Math.abs(a-mid)-Math.abs(b-mid))[0],w=C[y][cx],wy=y*16-topH(w)+16+3;SG[y].push(()=>plate(r.type,cx*16+8,wy))});
  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const c=C[y][x];
   if(c.door&&!(C[y][x-1]&&C[y][x-1].t=='floor')){const wl=C[y][x-1],wt=wl&&wl.t=='wall'?topH(wl):2*LH,to=roomOf(x,y-1);if(to)SG[y].push(()=>plate(to,x*16+8,y*16-wt+10))}
@@ -328,7 +341,7 @@ function drawFace(c,X,Y,fh,x,y){
  if(c.fl=='plat'){vgrad(X,Y,16,fh,'#7a7060','#554c3e');R('#a49a86',X,Y,16,1);q.fillStyle='#00000030';q.fillRect(X+((x%2)?0:8),Y+2,1,fh-2);return}
  vgrad(X,Y,16,fh,'#7c7972','#5a5852');R('#ffffff20',X,Y,16,1)}
 // --- 壁の面の飾り（部屋側を向いている面だけ）
-function wallDeco(c,X,Y,fh,x,y,s){if(!s||fh<20)return;const k=hs(x,y,40);
+function wallDeco(c,X,Y,fh,x,y,s){if(!s||fh<20||(s.obj&&TALL[s.obj]))return;const k=hs(x,y,40);
  // 建物の外壁（外や吹き抜けに向いた面）：窓が並ぶ
  if(c.ext&&(s.t=='void'||s.fl=='asph')){if(x%2==0){R('#2a2620',X+3,Y+5,10,10);vgrad(X+4,Y+6,8,8,'#4a5a6a','#2a3440');R('#ffe8a860',X+4,Y+6,8,3);R('#4a4a50',X+6,Y+6,1,8);R('#4a4a50',X+9,Y+6,1,8);R('#ffffff40',X+4,Y+6,8,1)}return}
  if(s.t!='floor'||s.out)return;
@@ -390,7 +403,11 @@ function stairs(c,X,Y){R('#5a5852',X,Y,16,16);
 let LW=[],CY=0,ROWSs=[],ANIMs=[],LIGHTs=[],SGs=[];
 function buildFloor(f){const keep=F;setF(f);LW=[];ANIM=[];ROWS=[];
  for(let y=0;y<MH;y++){const cv2=document.createElement('canvas');cv2.width=MW*16;cv2.height=RH;q=cv2.getContext('2d');ANIM[y]=[];CY=y;
-  for(let x=0;x<MW;x++){const c=C[y][x];if(c.t=='void')continue;const X=x*16,hh=topH(c),Y=TP-hh,s=cell(x,y+1);const fh=hh-(s?topH(s):0);
+  for(let x=0;x<MW;x++){const c=C[y][x];
+   if(c.t=='void'){const X=x*16,Y=TP+6,inb=BLD&&x>=BLD.x0&&x<=BLD.x1&&y>=BLD.y0&&y<=BLD.y1,n=cell(x,y-1);
+    if(inb){R('#101016',X,Y-6,16,16);if(n&&n.t!='void')vgrad(X,Y-6,16,12,'#000000b0','#00000000');R('#c8ccd02c',X,Y-2,16,1);R('#c8ccd02c',X,Y+6,16,1);R('#c8ccd02c',X+4,Y-6,1,16);R('#c8ccd02c',X+12,Y-6,1,16)}
+    else{R(hs(x,y,80)<.5?'#1c2026':'#1a1e24',X,Y-6,16,16);if(n&&n.t!='void')vgrad(X,Y-6,16,10,'#00000090','#00000000')}
+    continue}const X=x*16,hh=topH(c),Y=TP-hh,s=cell(x,y+1);const fh=hh-(s?topH(s):0);
    if(fh>0){drawFace(c,X,Y+16,fh,x,y);if(c.t=='wall')wallDeco(c,X,Y+16,fh,x,y,s)}
    if(c.t=='wall'){if(c.per){R('#6e6758',X,Y,16,16);R('#857d6c',X,Y+14,16,2);R('#5a5446',X,Y,16,1);
      q.strokeStyle='#00000050';q.lineWidth=1;q.beginPath();q.arc(X+4.5,Y+8.5,3.5,0,7);q.moveTo(X+15.5,Y+8.5);q.arc(X+12.5,Y+8.5,3.5,0,7);q.stroke();
@@ -442,7 +459,7 @@ function buildLight(){const L=document.createElement('canvas');L.width=MW*16;L.h
  LW.forEach(([X,wy,t])=>{if(t=='win'){q.fillStyle='rgba(210,232,255,.22)';q.beginPath();q.moveTo(X-5,wy);q.lineTo(X+5,wy);q.lineTo(X+22,wy+70);q.lineTo(X+6,wy+70);q.fill();glow(X+12,wy+60,22,'220,236,255',.25)}
   if(t=='lamp')glow(X,wy+6,34,'255,220,160',.4);if(t=='vend')glow(X,wy+8,30,'255,120,110',.3)});
  return L}
-// 1つの階を描く（今いる階より下の階は、吹き抜けや窓の外から見下ろす形で、下にずらして暗めに）
+// 1つの階を描く（ほかの階は描かない）
 function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs[f],oy=(F-f)*DROP;
  const y0=Math.max(0,Math.floor((cy-hh-oy)/16)-1),y1=Math.min(MH-1,Math.ceil((cy+hh-oy)/16)+5);q=g;
  for(let y=y0;y<=y1;y++){g.drawImage(ROWS2[y],0,y*16-TP);
@@ -464,8 +481,7 @@ function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(
  const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
  const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
  g.imageSmoothingEnabled=false;
- for(let f=0;f<=F;f++){const oy=(F-f)*DROP;g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-(cy-oy)*S)*dpr));drawLayer(f,now,cy,hh);
-  if(f<F){g.setTransform(1,0,0,1,0,0);g.fillStyle='rgba(8,10,24,.42)';g.fillRect(0,0,cv.width,cv.height)}}
+ g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-cy*S)*dpr));drawLayer(F,now,cy,hh);
  g.setTransform(1,0,0,1,0,0);
  // 階が変わったら、まん中に何階かを少しだけ出す
  const ft=now-flT;if(ft<1300){const a=ft<200?ft/200:Math.max(0,1-(ft-800)/500);g.globalAlpha=a;g.font=`bold ${Math.round(46*dpr)}px sans-serif`;g.textAlign='center';g.fillStyle='#000a';g.fillText((F+1)+'F',cv.width/2+3*dpr,cv.height/2+3*dpr);g.fillStyle='#fff';g.fillText((F+1)+'F',cv.width/2,cv.height/2);g.textAlign='left';g.globalAlpha=1}
@@ -475,7 +491,7 @@ let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt)
 function start(){gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none';showIntro()}
 document.getElementById('again').onclick=start;
 start();requestAnimationFrame(frame);
-window.__esc={skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
+window.__esc={get ROWSs(){return ROWSs},get LIGHTs(){return LIGHTs},TP,DROP,MW,MH,skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
 })();
 </script>
 </body></html>
