@@ -65,6 +65,9 @@ const SPR={
  warden:["..kkkkkkkk..",".kkkyyyykkk.","...ssssss...","...sesses...","...smmmms...","....ssss....","..nnnLLnnn..",".snnnrLnnns.",".s.nnrrnn.s.","...nnnnnn...","...nn..nn...","...bb..bb..."],
  bag:["....wwww....","...w....w...","..WWWWWWWW..",".WwwwwwwwwW.",".WwwwyywwwW.",".WwwwyywwwW.",".WWWWWWWWWW.",".WwwwwwwwwW.",".WwwwwwwwwW.",".WwwwwwwwwW.",".WWWWWWWWWW.","............"],
  key:["....yyyy....","...y....y...","...y....y...","....yyyy....",".....yY.....",".....yY.....",".....yyyY...",".....yY.....",".....yyY....",".....yY....."]};
+SPR.zdown=["....hhhh....","...hhhhhh...","...hssssh...","...sesses...","...ssssss...","....ssss....","ssccccccccss","..cccCcccc..","...cccccc...","...cc.cccc..","...cc..cc...","...bb..bb..."];
+SPR.zup=["....hhhh....","...hhhhhh...","...hhhhhh...","...hhhhhh...","...shhhhs...","....ssss....","..cccccccc..",".scccccccs..",".s.cCcccc.s.","...cccccc...","...cc..cc...","...bb..bb..."];
+SPR.zside=["....hhhh....","...hhhhhh...","...hhhsss...","...hhssse...","...hsssss...","....ssss....","...ccccccsss","...cccCcc...","...ccccc....","...cc.ccc...","...cc.cc....","...bb.bb...."];
 SPR.gdown=["..kkkkkkkk..",".kkkkyykkkk.","...ssssss...","...sesses...","...ssssss...","....ssss....","..gggggggg..",".sggyggggs..",".s.gggggg.s.","...gggggg...","...gg..gg...","...bb..bb..."];
 SPR.gup=["..kkkkkkkk..",".kkkkkkkkkk.","...hhhhhh...","...hhhhhh...","...shhhhs...","....ssss....","..gggggggg..",".sggggggggs.",".s.gggggg.s.","...gggggg...","...gg..gg...","...bb..bb..."];
 SPR.gside=["..kkkkkkk...",".kkkkkkkkkk.","...hhhsss...","...hhssse...","...hsssss...","....ssss....","...gggggg...","...gggggs...","...ggggs....","...gggggg...","...gg.gg....","...bb.bb...."];
@@ -173,7 +176,7 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
      C[bed][x].obj='bedT';C[bed+1][x].obj='bedB';C[toi][x+2].obj='toilet';C[by][x+1]={t:'floor',fl:'cellf',h:0,bdoor:true};cells.push([f,x+1,up?top+1:top+2])}
     for(let xx=x-1;xx<=b;xx++)for(const y of rows)if(xx>=a)C[y][xx]={t:'wall',h:2}};
    tier(c,true);tier(d-3,false);
-   if(f==0){for(let y=c+5;y<=d-5;y+=3){C[y][a+1]={t:'wall',h:3.2,pillar:true};C[y][b-1]={t:'wall',h:3.2,pillar:true}}
+   if(f==0){
     const mx=((a+b)>>1)-1,my=((c+d)>>1)-1;const pd=platform(mx,my,2,2,1,'steel',CB);if(pd)C[my][mx].obj='desk';
     for(let y=c+6;y<=d-7;y+=3)for(let x=a+3;x<=b-3;x+=4)if(rnd()<.6)place(x,y,'rtable');for(const x of[a,b])if(rnd()<.8)place(x,c+5,'vend')}
    else{rowSet(c+4,{t:'floor',fl:'steel',h:0});rowSet(d-4,{t:'floor',fl:'steel',h:0});for(let y=c+5;y<=d-5;y++){rowSet(y,{t:'void',h:0});C[y][a]={t:'floor',fl:'steel',h:0};C[y][b]={t:'floor',fl:'steel',h:0}}}
@@ -181,8 +184,7 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
    RM.slice(2).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;
     if(r.type=='work'&&w>=7&&h>=6)platform(x1-3,y0+1,3,2,1,'steel',r);
     if(r.type=='storage'&&w>=6&&h>=6)platform(x0+1,y0+2,3,2,1,'plat',r);
-    if(r.type=='library'&&w>=7&&h>=7)platform(x1-2,y1-3,2,2,1,'wood',r);
-    if(w>=9&&h>=7&&r.type!='guard')for(let y=y0+3;y<=y1-2;y+=4)for(let x=x0+3;x<=x1-2;x+=5)if(rnd()<.7)pillar(x,y,r)});
+    if(r.type=='library'&&w>=7&&h>=7)platform(x1-2,y1-3,2,2,1,'wood',r);});
    // ほかの部屋の中身
    RM.slice(1).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;const at=(x,y,o)=>place(x,y,o);
     switch(r.type){
@@ -231,8 +233,8 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
   if(!Rc.has((NF-1)+','+key[0]+','+(key[1]+1))||!Rc.has('0,'+gate.ix+','+gate.iy))continue;
   const pickWhy=PLAN.map(pl=>pl.why).map(w=>w.length?pick(w):null).filter(Boolean);
   WARDEN={name:WN,trait:W,lines:[...(W.k=='vain'&&pickWhy.some(l=>l.startsWith('所長室：この階'))?[]:[W.say]),'階段：建物のまん中。どの部屋からも近く。','監房棟：運動場の側。外へ出すとき、ほかの部屋を通らせない。',...pickWhy,'鍵：3階 看守室の机の上。',gateWhy].map(l=>'・'+l)};
-  placePeople(W,s);if(W.k=='worry')WARDEN.lines.splice(WARDEN.lines.length-2,0,'・看守：各階に多めに配置。');else WARDEN.lines.splice(WARDEN.lines.length-2,0,'・看守：看守室・監房棟の通路・階段・運動場に。');
-  setF(s[0]);P={x:s[1],y:s[2],px:s[1],py:s[2],ph:0,f:'down',flip:false,key:false,mv:0};won=false;return}
+  placePeople(W,s);WARDEN.lines.splice(WARDEN.lines.length-2,0,'・囚人のようすがおかしい。近づかないこと。');
+  setF(s[0]);P={x:s[1],y:s[2],px:s[1],py:s[2],ph:0,f:'down',flip:false,key:false,mv:0,home:[s[0],s[1],s[2]]};won=false;return}
 }
 // ===== 人：看守と囚人（まばらに。自分の部屋の中をのんびり歩く） =====
 let NPC=[];
@@ -240,17 +242,28 @@ const GUARD_AT={guard:1,stairs:1,cb:1,yard:1},INM_AT={cb:1,yard:1,mess:1,library
 function standOK(G,x,y,rm){const c=G[y]&&G[y][x];if(!c||c.t!='floor'||c.obj||c.door||c.link||c.st||c.bdoor||c.out||c.fl=='cellf'||c.t=='gate')return false;
  if(rm&&!(x>rm.x0&&x<rm.x1&&y>rm.y0&&y<rm.y1))return false;
  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const u=G[y+dy]&&G[y+dy][x+dx];if(u&&(u.door||u.link||u.st||u.bdoor||u.t=='gate'))return false}return true}
-function placePeople(W,start){NPC=[];const HAIR=['#3a2a1c','#1a1a1a','#8a5a2a','#c8c0b0','#5a3a1a'],SKIN=['#f2c8a0','#e0b088','#c89068','#a87850'],SUIT=['#c8703a','#b8683a','#d0804a'];
- const busy=(f,x,y)=>NPC.some(n=>n.f==f&&Math.abs(n.x-x)+Math.abs(n.y-y)<3)||(start[0]==f&&Math.abs(start[1]-x)+Math.abs(start[2]-y)<3);
- for(let f=0;f<NF;f++){const G=FLs[f],RMs=ROOMSs[f];
-  const put=(kind,want,n)=>{const rs=RMs.filter(r=>want[r.type]);let tries=0;while(n>0&&tries++<300){const r=pick(rs);if(!r)return;const x=ri(r.x0+1,r.x1-1),y=ri(r.y0+1,r.y1-1);
-    if(!standOK(G,x,y,r)||busy(f,x,y)||G[y][x].h)continue;
-    NPC.push({kind,f,x,y,px:x,py:y,rm:r,fc:'down',flip:false,t:500+rnd()*3000,o:kind=='g'?{}:{h:pick(HAIR),s:pick(SKIN),c:pick(SUIT),C:'#9a5028'}});n--}};
-  put('g',GUARD_AT,ri(2,3)+(W.k=='worry'?1:0));put('i',INM_AT,ri(3,6))}}
+// ゾンビ：同じ階をうろつき、近くで見つけると追ってくる（足は遅い。階段は使えない）
+function placePeople(W,start){NPC=[];
+ for(let f=0;f<NF;f++){const G=FLs[f];let n=ri(3,5),tries=0;
+  while(n>0&&tries++<600){const x=ri(2,MW-3),y=ri(2,MH-3);if(!standOK(G,x,y,null)||G[y][x].h)continue;
+   if(start[0]==f&&Math.abs(start[1]-x)+Math.abs(start[2]-y)<10)continue;if(NPC.some(m=>m.f==f&&Math.abs(m.x-x)+Math.abs(m.y-y)<5))continue;
+   NPC.push({kind:'z',f,x,y,px:x,py:y,fc:'down',flip:false,t:500+rnd()*2500,chase:false,o:{s:pick(['#8fae74','#7a9a62','#9ab88a']),h:'#3a3a2a',e:'#d02020',c:pick(['#9a5a34','#8a5030']),C:'#5a3418'}});n--}}}
 const npcAt=(x,y)=>NPC.find(n=>n.f==F&&n.x==x&&n.y==y);
-function npcStep(dt){NPC.forEach(n=>{n.px+=(n.x-n.px)*Math.min(1,dt/120);n.py+=(n.y-n.py)*Math.min(1,dt/120);if(n.f!=F&&n.t>0){n.t-=dt;return}n.t-=dt;if(n.t>0)return;
-  n.t=(n.kind=='g'?1800:1200)+rnd()*3500;const d=pick([[1,0],[-1,0],[0,1],[0,-1]]);n.fc=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])n.flip=d[0]<0;
-  if(rnd()<.35)return;const G=FLs[n.f],nx=n.x+d[0],ny=n.y+d[1];if(!standOK(G,nx,ny,n.rm)||G[ny][nx].h!=G[n.y][n.x].h)return;if(NPC.some(m=>m!==n&&m.f==n.f&&m.x==nx&&m.y==ny))return;if(n.f==F&&P.x==nx&&P.y==ny)return;n.x=nx;n.y=ny})}
+function seeP(n){if(n.f!=F)return false;const dx=P.x-n.x,dy=P.y-n.y;if(Math.abs(dx)+Math.abs(dy)>7)return false;const G=FLs[n.f],st=Math.max(Math.abs(dx),Math.abs(dy));
+ for(let i=1;i<st;i++){const x=Math.round(n.x+dx*i/st),y=Math.round(n.y+dy*i/st),c=G[y]&&G[y][x];if(!c||c.t=='wall'||c.t=='bars')return false}return true}
+function zStepTo(n,tx,ty){const G=FLs[n.f],prev={},q=[[n.x,n.y]],k0=n.x+','+n.y;prev[k0]=null;let found=false;
+ while(q.length){const[x,y]=q.shift();if(x==tx&&y==ty){found=true;break}if(Math.abs(x-n.x)+Math.abs(y-n.y)>14)continue;
+  for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const k=(x+dx)+','+(y+dy);if(k in prev||!canG(G,x,y,dx,dy))continue;if(NPC.some(m=>m!==n&&m.f==n.f&&m.x==x+dx&&m.y==y+dy))continue;prev[k]=[x,y];q.push([x+dx,y+dy])}}
+ if(!found)return null;let k=tx+','+ty,last=null;while(prev[k]){last=k;const p=prev[k];if(p[0]==n.x&&p[1]==n.y)break;k=p[0]+','+p[1]}return last&&last.split(',').map(Number)}
+let caughtT=-1e9,safeT=0;
+function npcStep(dt){NPC.forEach(n=>{n.px+=(n.x-n.px)*Math.min(1,dt/200);n.py+=(n.y-n.py)*Math.min(1,dt/200);n.t-=dt;
+  if(seeP(n))n.chase=true;else if(n.chase&&(n.f!=F||Math.abs(P.x-n.x)+Math.abs(P.y-n.y)>10))n.chase=false;
+  if(n.t>0)return;
+  if(n.chase){n.t=430;const nx=zStepTo(n,P.x,P.y);if(nx){const d=[nx[0]-n.x,nx[1]-n.y];n.fc=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])n.flip=d[0]<0;n.x=nx[0];n.y=nx[1]}return}
+  n.t=1000+rnd()*2500;const d=pick([[1,0],[-1,0],[0,1],[0,-1]]);n.fc=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])n.flip=d[0]<0;
+  if(rnd()<.3)return;const G=FLs[n.f],nx=n.x+d[0],ny=n.y+d[1];if(!standOK(G,nx,ny,null)||!canG(G,n.x,n.y,d[0],d[1]))return;if(NPC.some(m=>m!==n&&m.f==n.f&&m.x==nx&&m.y==ny))return;if(n.f==F&&P.x==nx&&P.y==ny)return;n.x=nx;n.y=ny});
+ // つかまった：自分の牢屋へ戻される（持ち物はそのまま）。戻ったあと少しのあいだは安全
+ if(safeT>0)safeT-=dt;else if(NPC.some(n=>n.f==F&&n.x==P.x&&n.y==P.y)){caughtT=performance.now();safeT=2500;setF(P.home[0]);P.x=P.px=P.home[1];P.y=P.py=P.home[2];P.ph=0;P.f='down';NPC.forEach(n=>n.chase=false);fx=[]}}
 // ぶつかられたら横へよける
 function npcMoveAside(n){const G=FLs[n.f];for(const d of[[1,0],[-1,0],[0,1],[0,-1]].sort(()=>rnd()-.5)){const nx=n.x+d[0],ny=n.y+d[1];const c=G[ny]&&G[ny][nx];if(!c||c.t!='floor'||BLOCK[c.obj]||c.door||c.link||c.bdoor||c.h!=G[n.y][n.x].h)continue;if(P.x==nx&&P.y==ny)continue;if(NPC.some(m=>m!==n&&m.f==n.f&&m.x==nx&&m.y==ny))continue;n.x=nx;n.y=ny;n.fc=d[1]<0?'up':d[1]>0?'down':'side';if(d[0])n.flip=d[0]<0;n.t=1500;return true}return false}
 const hOf=(x,y)=>{const c=cell(x,y);return c.h+(c.st?.5:0)};
@@ -314,7 +327,7 @@ function invToggle(v){INVO=v==null?!INVO:v;document.getElementById('inv').style.
 function invStep(){let d=tap;tap=null;if(d){const c=icur%4+d[0],r=(icur>>2)+d[1];if(c>=0&&c<4&&r>=0&&r<2){icur=r*4+c;invDraw()}}if(bHit){bHit=false;invToggle(false)}aHit=false}
 function update(dt){if(INTRO){introStep(dt);return}if(INVO){invStep();return}bHit=false;if(won)return;npcStep(dt);P.mv-=dt;
  let d=padDir;if(!d)for(const k of held){d=K[k];break}if(!d&&tap&&P.mv<=0)d=tap;if(P.mv<=0)tap=null;
- if(P.mv<=0&&d){face(d);const nb=npcAt(P.x+d[0],P.y+d[1]);if(nb&&can(P.x,P.y,d[0],d[1])&&npcMoveAside(nb)){P.mv=120}else if(can(P.x,P.y,d[0],d[1])){if(nb){nb.x=P.x;nb.y=P.y;nb.t=1500}P.x+=d[0];P.y+=d[1];P.mv=150;const t=cell(P.x,P.y);
+ if(P.mv<=0&&d){face(d);if(can(P.x,P.y,d[0],d[1])){P.x+=d[0];P.y+=d[1];P.mv=150;const t=cell(P.x,P.y);
    if(t.out){won=true;setTimeout(()=>document.getElementById('win').style.display='flex',400)}}else P.mv=90}
  if(aHit){aHit=false;const[dx,dy]=fdir(),fx2=P.x+dx,fy2=P.y+dy;
   if(F==KEYF&&!P.key&&((P.x==key[0]&&P.y==key[1])||(fx2==key[0]&&fy2==key[1]))){P.key=true;INV.push('key');pop(key[0],key[1],'#ffd35a');hud()}
@@ -546,7 +559,8 @@ function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs
   SG[y].forEach(fn=>fn());
   if(f==KEYF&&!P.key&&key[1]==y){const kh=G[y][key[0]].h*LH,kx=key[0]*16+2,ky=y*16-kh+1+Math.sin(now/300)*1.5;oval(kx+6,ky+6,8,7,`rgba(255,211,90,${.25+.15*Math.sin(now/250)})`);g.drawImage(spr('key'),kx,ky)}
   NPC.forEach(n=>{if(n.f!=f||Math.round(n.py)!=y)return;const X=n.px*16,Y=n.py*16-G[n.y][n.x].h*LH,mv=Math.abs(n.x-n.px)+Math.abs(n.y-n.py)>.05;oval(X+8,Y+15,5,2,'#00000055');
-   const sp=n.kind=='g'?spr(n.fc=='up'?'gup':n.fc=='side'?'gside':'gdown'):sprV(n.fc,n.o);g.save();if(n.fc=='side'&&n.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.drawImage(sp,X+2,Y+2+(mv?Math.sin(now/60)*.6:0));g.restore()});
+   const sp=sprV(n.fc=='up'?'zup':n.fc=='side'?'zside':'zdown',n.o);g.save();if(n.fc=='side'&&n.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.translate(X+8,Y+14);g.rotate(Math.sin(now/300+n.x)*.06);g.drawImage(sp,-6,-12+(mv?Math.sin(now/90)*.6:0));g.restore();
+   if(n.chase&&f==F){R('#d02020',X+7,Y-6,2,4);R('#d02020',X+7,Y-1,2,1)}});
   if(f==F&&Math.round(P.py)==y&&!won){const X=P.px*16,Y=P.py*16-P.ph*LH;oval(X+8,Y+15,5,2,'#00000055');const mv=Math.abs(P.x-P.px)+Math.abs(P.y-P.py)>.05;
    const[fdx,fdy]=fdir(),fx3=P.x+fdx,fy3=P.y+fdy;let bub=null;if(F==KEYF&&!P.key&&((fx3==key[0]&&fy3==key[1])||(P.x==key[0]&&P.y==key[1])))bub='A';else if(F==0&&!gate.open&&fx3==gate.x&&fy3==gate.y)bub=P.key?'A':'nokey';else if(G[fy3]&&G[fy3][fx3]&&G[fy3][fx3].link)bub='A';
    if(bub){const bx=X+1,by=Y-15+Math.sin(now/200);R('#000000a0',bx+1,by+1,14,12);R('#ffffff',bx,by,14,12);R('#ffffff',bx+5,by+12,4,2);
@@ -582,6 +596,7 @@ let ZM=1;function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.
   else drawLayer(f,now,cy,hh)}
  g.setTransform(1,0,0,1,0,0);
  // 階が変わったら、まん中に何階かを少しだけ出す
+ const ct=now-caughtT;if(ct<1400){const a=Math.max(0,1-ct/1400);g.fillStyle=`rgba(160,10,10,${.45*a})`;g.fillRect(0,0,cv.width,cv.height);g.globalAlpha=a;g.font=`bold ${Math.round(34*dpr)}px sans-serif`;g.textAlign='center';g.fillStyle='#000a';g.fillText('つかまった…',cv.width/2+3*dpr,cv.height/2+3*dpr);g.fillStyle='#fff';g.fillText('つかまった…',cv.width/2,cv.height/2);g.textAlign='left';g.globalAlpha=1}
  const ft=now-flT;if(ft<1300){const a=ft<200?ft/200:Math.max(0,1-(ft-800)/500);g.globalAlpha=a;g.font=`bold ${Math.round(46*dpr)}px sans-serif`;g.textAlign='center';g.fillStyle='#000a';g.fillText((F+1)+'F',cv.width/2+3*dpr,cv.height/2+3*dpr);g.fillStyle='#fff';g.fillText((F+1)+'F',cv.width/2,cv.height/2);g.textAlign='left';g.globalAlpha=1}
  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}finally{S=S0}}
 function hud(){const x=document.getElementById('hk').getContext('2d');x.clearRect(0,0,12,12);x.drawImage(spr('bag'),0,0);const n=document.getElementById('bagn');n.textContent=INV.length;n.style.display=INV.length?'block':'none'}
@@ -589,7 +604,7 @@ let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt)
 function start(){INV=[];invToggle(false);gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none';showIntro()}
 document.getElementById('again').onclick=start;
 start();requestAnimationFrame(frame);
-window.__esc={get NPC(){return NPC},get INV(){return INV},get INVO(){return INVO},get ROWSs(){return ROWSs},get LIGHTs(){return LIGHTs},TP,DROP,MW,MH,skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
+window.__esc={freezeZ:()=>{NPC.forEach(n=>{n.t=1e12;n.chase=false});safeT=1e12},get NPC(){return NPC},get INV(){return INV},get INVO(){return INVO},get ROWSs(){return ROWSs},get LIGHTs(){return LIGHTs},TP,DROP,MW,MH,skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
 })();
 </script>
 </body></html>
