@@ -164,7 +164,7 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
     for(let xx=x-1;xx<=b;xx++)for(const y of rows)if(xx>=a)C[y][xx]={t:'wall',h:2}};
    tier(c,true);tier(d-3,false);
    if(f==0){for(let y=c+6;y<=d-7;y+=3)for(let x=a+2;x<=b-2;x+=4)if(rnd()<.6)C[y][x].obj='rtable';for(const x of[a,b])if(rnd()<.8)C[c+5][x].obj='vend'}
-   else{rowSet(c+4,{t:'floor',fl:'steel',h:0});rowSet(d-4,{t:'floor',fl:'steel',h:0});for(let y=c+5;y<=d-5;y++)rowSet(y,{t:'void',h:0})}
+   else{rowSet(c+4,{t:'floor',fl:'steel',h:0});rowSet(d-4,{t:'floor',fl:'steel',h:0});for(let y=c+5;y<=d-5;y++){rowSet(y,{t:'void',h:0});C[y][a]={t:'floor',fl:'steel',h:0};C[y][b]={t:'floor',fl:'steel',h:0}}}
    // ほかの部屋の中身
    RM.slice(1).forEach(r=>{const x0=r.x0+1,x1=r.x1-1,y0=r.y0+1,y1=r.y1-1,w=x1-x0+1,h=y1-y0+1;const at=(x,y,o)=>place(x,y,o);
     switch(r.type){
@@ -454,7 +454,7 @@ function buildFloor(f){const keep=F;setF(f);LW=[];ANIM=[];ROWS=[];
  for(let y=0;y<MH;y++){const cv2=document.createElement('canvas');cv2.width=MW*16;cv2.height=RH;q=cv2.getContext('2d');ANIM[y]=[];CY=y;
   for(let x=0;x<MW;x++){const c=C[y][x];
    if(c.t=='void'){const X=x*16,Y=TP+6,inb=BLD&&x>=BLD.x0&&x<=BLD.x1&&y>=BLD.y0&&y<=BLD.y1,n=cell(x,y-1);
-    if(inb){if(n&&n.t!='void')vgrad(X,Y-6,16,10,'#00000070','#00000000');R('#d8dce040',X,Y-2,16,1);R('#d8dce040',X,Y+6,16,1);R('#d8dce040',X+4,Y-6,1,16);R('#d8dce040',X+12,Y-6,1,16)}
+    if(inb&&n&&n.t!='void')vgrad(X,Y-6,16,8,'#00000060','#00000000');
     continue}const X=x*16,hh=topH(c),Y=TP-hh,s=cell(x,y+1);const fh=hh-(s?topH(s):0);
    if(fh>0){drawFace(c,X,Y+16,fh,x,y);if(c.t=='wall')wallDeco(c,X,Y+16,fh,x,y,s)}
    if(c.t=='wall'){if(c.per){R('#6e6758',X,Y,16,16);R('#857d6c',X,Y+14,16,2);R('#5a5446',X,Y,16,1);
@@ -526,19 +526,21 @@ function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs
     if(bub=='A'){oval(bx+7,by+6,5,5,'#c8284a');q.font='bold 8px sans-serif';q.fillStyle='#fff';q.fillText('A',bx+4.5,by+9)}else{g.drawImage(spr('key'),bx+1,by+1);q.strokeStyle='#d0202a';q.lineWidth=2;q.beginPath();q.moveTo(bx+2,by+2);q.lineTo(bx+12,by+10);q.moveTo(bx+12,by+2);q.lineTo(bx+2,by+10);q.stroke()}}
    g.save();if(P.f=='side'&&P.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.drawImage(spr(P.f),X+2,Y+2+(mv?Math.sin(now/50)*.7:0));g.restore()}}
  if(f==F){fx.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.15;p.t--;g.globalAlpha=p.t/30;R(p.c,p.x,p.y,2,2)});g.globalAlpha=1;fx=fx.filter(p=>p.t>0)}
- g.globalCompositeOperation='multiply';g.drawImage(LIGHTs[f],0,-TP);g.globalCompositeOperation='source-over';if(f<F){g.fillStyle='rgba(40,60,110,.16)';g.fillRect(0,-TP,MW*16,MH*16+TP)}}
-function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
+ g.globalCompositeOperation='multiply';g.drawImage(LIGHTs[f],0,-TP);g.globalCompositeOperation='source-over';if(f<F){g.fillStyle='rgba(40,60,110,.05)';g.fillRect(0,-TP,MW*16,MH*16+TP)}}
+let ZM=1;function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
+ let nearV=false;if(F>0)for(let dy=-2;dy<=2&&!nearV;dy++)for(let dx=-2;dx<=2;dx++){const v=cell(P.x+dx,P.y+dy);if(v&&v.t=='void'&&BLD&&P.x+dx>BLD.x0&&P.x+dx<BLD.x1){nearV=true;break}}
+ ZM+=((nearV?.72:1)-ZM)*.06;const S0=S;S=S0*ZM;try{
  const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
  const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
  g.imageSmoothingEnabled=false;
  for(let f=0;f<=F;f++){const oy=(F-f)*DROP;g.setTransform(S*dpr,0,0,S*dpr,Math.round((W/2-cx*S)*dpr),Math.round((H/2-cy*S)*dpr));
   if(f<F){g.save();g.beginPath();g.rect(0,0,MW*16,MH*16);g.clip();g.translate(0,oy);drawLayer(f,now,cy-oy,hh);g.restore();
-   g.setTransform(1,0,0,1,0,0);g.fillStyle=`rgba(10,14,30,${.38+.06*(F-f-1)})`;g.fillRect(0,0,cv.width,cv.height)}
+   g.setTransform(1,0,0,1,0,0);g.fillStyle=`rgba(10,14,30,${.14+.06*(F-f-1)})`;g.fillRect(0,0,cv.width,cv.height)}
   else drawLayer(f,now,cy,hh)}
  g.setTransform(1,0,0,1,0,0);
  // 階が変わったら、まん中に何階かを少しだけ出す
  const ft=now-flT;if(ft<1300){const a=ft<200?ft/200:Math.max(0,1-(ft-800)/500);g.globalAlpha=a;g.font=`bold ${Math.round(46*dpr)}px sans-serif`;g.textAlign='center';g.fillStyle='#000a';g.fillText((F+1)+'F',cv.width/2+3*dpr,cv.height/2+3*dpr);g.fillStyle='#fff';g.fillText((F+1)+'F',cv.width/2,cv.height/2);g.textAlign='left';g.globalAlpha=1}
- const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}
+ const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}finally{S=S0}}
 function hud(){const x=document.getElementById('hk').getContext('2d');x.clearRect(0,0,12,12);x.drawImage(spr('bag'),0,0);const n=document.getElementById('bagn');n.textContent=INV.length;n.style.display=INV.length?'block':'none'}
 let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt);draw(t);requestAnimationFrame(frame)}
 function start(){INV=[];invToggle(false);gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none';showIntro()}
