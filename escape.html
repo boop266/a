@@ -529,7 +529,7 @@ function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs
  g.globalCompositeOperation='multiply';g.drawImage(LIGHTs[f],0,-TP);g.globalCompositeOperation='source-over';if(f<F){g.fillStyle='rgba(40,60,110,.05)';g.fillRect(0,-TP,MW*16,MH*16+TP)}}
 let ZM=1;function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.fillRect(0,0,cv.width,cv.height);
  let nearV=false;if(F>0)for(let dy=-2;dy<=2&&!nearV;dy++)for(let dx=-2;dx<=2;dx++){const v=cell(P.x+dx,P.y+dy);if(v&&v.t=='void'&&BLD&&P.x+dx>BLD.x0&&P.x+dx<BLD.x1){nearV=true;break}}
- ZM+=((nearV?.72:1)-ZM)*.06;const S0=S;S=S0*ZM;try{
+ ZM=1;const S0=S;S=S0*ZM;try{
  const tx=P.px*16+8,ty=P.py*16+8-P.ph*LH;cam.x+=(tx-cam.x)*.15;cam.y+=(ty-cam.y)*.15;
  const hw=W/2/S,hh=H/2/S;const cx=Math.max(hw-90,Math.min(MW*16-hw+90,cam.x)),cy=Math.max(hh-60,Math.min(MH*16-hh+70,cam.y));
  g.imageSmoothingEnabled=false;
