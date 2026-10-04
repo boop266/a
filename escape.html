@@ -26,13 +26,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0c12;color:#f0e8d4;
 .btn::after{content:"";position:absolute;inset:-16px;border-radius:50%}
 .btn.on{background:#ffffffa0;transform:scale(.94)}
 #ba{right:22px;bottom:86px}#bb{right:104px;bottom:28px}
-#intro{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:22px;padding:14px 26px;background:radial-gradient(#1c1a26f4,#0a090ef8);z-index:5}
-#intro .pf{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none}
-#intro canvas{width:120px;height:120px;image-rendering:pixelated;background:#2a2838;border-radius:10px;box-shadow:0 0 0 3px #b08a44,0 0 0 6px #2a2218}
-#intro .nm{font:bold 15px sans-serif;color:#ffd35a;background:#2a2218;padding:2px 10px;border-radius:6px;box-shadow:0 0 0 2px #b08a44}
-#intro .tr{font:12px sans-serif;color:#d8c8a0}
-#intro .tx{flex:1;max-width:600px;max-height:calc(100% - 4px);overflow:auto;font:14px/1.6 'Hiragino Sans','Noto Sans JP',sans-serif;color:#f4ecd8;background:#14121ccc;border-radius:12px;padding:10px 16px;box-shadow:0 0 0 2px #b08a4488;white-space:pre-wrap}
-#intro .go{display:block;margin-top:10px;text-align:right;font:bold 14px sans-serif;color:#ffd35a;opacity:0;transition:opacity .3s}
+#intro{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:12px 20px;background:#0a090ee6;z-index:5}
+#intro .tx{width:min(560px,100%);max-height:calc(100% - 4px);overflow:auto;font:14px/26px 'Hiragino Sans','Noto Sans JP',sans-serif;color:#2a2620;background:#efe6cf repeating-linear-gradient(#0000 0 25px,#9ab4c860 25px 26px);background-position:0 10px;border-radius:3px;padding:10px 18px 8px 26px;box-shadow:0 6px 18px #000a,inset 3px 0 0 #d08a8a;white-space:pre-wrap;transform:rotate(-.6deg)}
+#intro .go{display:block;text-align:right;font:13px sans-serif;color:#8a7a60;opacity:0;transition:opacity .3s}
 #win{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0d0c12dd;font-size:30px;letter-spacing:.2em;color:#ffd35a}
 #win button{font:20px monospace;padding:10px 22px;border:0;border-radius:8px;background:#c8501e;color:#fff}
 </style></head><body>
@@ -41,7 +37,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0c12;color:#f0e8d4;
 <div class="hud"><canvas id="hk" width="12" height="12"></canvas></div>
 <div id="padz"></div><div id="pad"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="c"></i><b class="bu"></b><b class="bd"></b><b class="bl"></b><b class="br"></b></div>
 <div class="btn" id="bb">B</div><div class="btn" id="ba">A</div>
-<div id="intro"><div class="pf"><canvas id="wp" width="12" height="12"></canvas><div class="nm" id="wn"></div><div class="tr" id="wt"></div></div><div class="tx"><span id="wl"></span><span class="go" id="wg">Ａ で はじめる ▶</span></div></div>
+<div id="intro"><div class="tx"><span id="wl"></span><span class="go" id="wg">▶</span></div></div>
 <div id="win">だっしゅつ！<button id="again">もう一回</button></div>
 </div>
 <script>
@@ -79,10 +75,10 @@ const free=v=>v&&v.t=='floor'&&!v.h&&!v.obj&&!v.st&&!v.bdoor&&!v.link&&!v.out;
 // ===== 所長：刑務所をどう作るか考え、理由をことばに残す =====
 const WNAMES=['鬼瓦 権蔵','鉄村 厳','黒岩 剛','堅田 守','石垣 正義','鋼 鉄之助'];
 const WTRAIT=[
- {k:'worry',t:'心配性',say:'わしは心配性でな。看守の目が届かん場所は、ひとつも作らん。'},
- {k:'vain',t:'見栄っぱり',say:'刑務所は所長の顔だ。わしの部屋はいちばん広くした。'},
- {k:'thrift',t:'倹約家',say:'電気代がもったいない。灯りは少なめにしておいた。'},
- {k:'strict',t:'きびしい',say:'規則は規則だ。逃げ道など、ひとつも残さん。'}];
+ {k:'worry',t:'心配性',say:'看守の目が届かない場所は作らないこと。'},
+ {k:'vain',t:'見栄っぱり',say:'所長室は広く、立派に。'},
+ {k:'thrift',t:'倹約家',say:'電気代節約。灯りは少なめ。'},
+ {k:'strict',t:'きびしい',say:'逃げ道は、ひとつも残さないこと。'}];
 let WARDEN=null;
 const touch=(A,B)=>((A.x1==B.x0||B.x1==A.x0)&&Math.min(A.y1,B.y1)-Math.max(A.y0,B.y0)>=3)||((A.y1==B.y0||B.y1==A.y0)&&Math.min(A.x1,B.x1)-Math.max(A.x0,B.x0)>=3);
 const ctr=r=>[(r.x0+r.x1)/2,(r.y0+r.y1)/2],dist=(A,B)=>{const a=ctr(A),b=ctr(B);return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])};
@@ -91,18 +87,18 @@ function perms(a){if(a.length<=1)return[a];const o=[];a.forEach((x,i)=>perms([..
 function planFloor(f,CB,SL,others,faceYard,W){let best=null;
  for(const p of perms(TYPES[f].slice(0,others.length))){const T={};others.forEach((r,i)=>T[p[i]]=r);let s=rnd()*.5;const why=[];
   const rule=(ok,pts,msg)=>{if(ok){s+=pts;why.push(msg)}};
-  if(f==0){rule(T.mess&&touch(T.mess,CB),3,'食堂は監房棟のとなり。囚人の行き来が短ければ、見張りも楽になる。');
-   rule(T.shower&&touch(T.shower,CB),3,'シャワー室も監房棟のとなりだ。毎日使うからな。');
-   rule(T.laundry&&T.shower&&touch(T.laundry,T.shower),2,'洗濯室はシャワー室のとなり。脱いだ服をすぐ洗える。');
-   rule(T.work&&faceYard(T.work),2,'作業場は運動場の側に置いた。材料を運び入れやすい。')}
-  if(f==1){rule(T.infirmary&&touch(T.infirmary,SL),3,'医務室は階段のそば。急病人が出ても、すぐ運べる。');
-   rule(T.library&&T.class&&touch(T.library,T.class),2,'図書室と教室は並べた。学ぶ場所はひとまとめだ。');
-   rule(T.shower&&touch(T.shower,CB),2,'2階のシャワー室も、監房棟のとなりにした。')}
-  if(f==2){rule(T.guard&&touch(T.guard,SL),3,'看守室は階段のそば。上り下りする者を、全部見張れる。');
-   rule(T.guard&&touch(T.guard,CB),W.k=='worry'?5:2,'看守室は監房棟のとなりにもした。囚人のそばで目を光らせる。');
-   rule(T.storage&&T.guard&&touch(T.storage,T.guard),2,'倉庫は看守室のとなり。勝手に持ち出させはせん。');
-   if(T.office){const od=dist(T.office,CB);s+=od/6;if(od>=Math.max(...others.map(r=>dist(r,CB)))-.1)why.push('わしの部屋は、監房棟からいちばん遠くにした。囚人の声は聞きたくない。');
-    if(W.k=='vain'&&T.office===others[0]){s+=9;why.push('所長室は、この階でいちばん広い部屋だ。')}}}
+  if(f==0){rule(T.mess&&touch(T.mess,CB),3,'食堂：監房棟のとなり。行き来を短く、見張りを楽に。');
+   rule(T.shower&&touch(T.shower,CB),3,'シャワー室：監房棟のとなり。毎日使うため。');
+   rule(T.laundry&&T.shower&&touch(T.laundry,T.shower),2,'洗濯室：シャワー室のとなり。脱いだ服をすぐ洗える。');
+   rule(T.work&&faceYard(T.work),2,'作業場：運動場の側。材料の運び入れ用。')}
+  if(f==1){rule(T.infirmary&&touch(T.infirmary,SL),3,'医務室：階段のそば。急病人をすぐ運べる。');
+   rule(T.library&&T.class&&touch(T.library,T.class),2,'図書室と教室：並べる。学ぶ場所はひとまとめに。');
+   rule(T.shower&&touch(T.shower,CB),2,'2階のシャワー室：監房棟のとなり。')}
+  if(f==2){rule(T.guard&&touch(T.guard,SL),3,'看守室：階段のそば。上り下りを全部見張る。');
+   rule(T.guard&&touch(T.guard,CB),W.k=='worry'?5:2,'看守室：監房棟のとなりにも。囚人のそばで見張る。');
+   rule(T.storage&&T.guard&&touch(T.storage,T.guard),2,'倉庫：看守室のとなり。持ち出し防止。');
+   if(T.office){const od=dist(T.office,CB);s+=od/6;if(od>=Math.max(...others.map(r=>dist(r,CB)))-.1)why.push('所長室：監房棟からいちばん遠く。囚人の声が届かない所。');
+    if(W.k=='vain'&&T.office===others[0]){s+=9;why.push('所長室：この階でいちばん広い部屋に。')}}}
   if(!best||s>best.s)best={s,p,why}}
  return best}
 function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
@@ -170,14 +166,14 @@ function gen(){const W=WTRAIT[ri(0,WTRAIT.length-1)],WN=pick(WNAMES);
     const gc=[];for(let x=YD.x0+1;x<YD.x1;x++){gc.push([x,1,0,1]);gc.push([x,MH-2,0,-1])}const sx=yl?1:MW-2;for(let y=2;y<MH-2;y++)gc.push([sx,y,yl?1:-1,0]);
     const okg=gc.filter(([x,y,dx,dy])=>free(C[y+dy][x+dx])&&C[y+dy][x+dx].fl=='asph');if(!okg.length){bad=true;break}
     okg.sort((a,b)=>(Math.abs(b[0]-bx)+Math.abs(b[1]-dy))-(Math.abs(a[0]-bx)+Math.abs(a[1]-dy)));
-    const gp=W.k=='strict'?okg[0]:okg[ri(0,Math.max(0,Math.floor(okg.length*.4)-1))];gateWhy=W.k=='strict'?'外への門は、建物の出口からいちばん遠い塀につけた。走って逃げても、すぐ追いつく。':'外への門は、運動場の塀にある。そこまで行ければの話だがな。';gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
+    const gp=W.k=='strict'?okg[0]:okg[ri(0,Math.max(0,Math.floor(okg.length*.4)-1))];gateWhy=W.k=='strict'?'外への門：建物の出口からいちばん遠い塀。走っても追いつける距離に。':'外への門：運動場の塀。';gate={x:gp[0],y:gp[1],open:false,ix:gp[0]+gp[2],iy:gp[1]+gp[3]};C[gp[1]][gp[0]]={t:'gate',h:0,fl:'conc'}}
    if(f==NF-1){const Gd=RM.find(r=>r.type=='guard');if(!Gd){bad=true;break}key=Gd.key}
    FLs[f]=C;ROOMSs[f]=f==0?[...RM,YD]:RM}
   if(bad)continue;
   const s=pick(cells),Rc=reachAll(s[0],s[1],s[2]);
   if(!Rc.has((NF-1)+','+key[0]+','+(key[1]+1))||!Rc.has('0,'+gate.ix+','+gate.iy))continue;
   const pickWhy=PLAN.map(pl=>pl.why).map(w=>w.length?pick(w):null).filter(Boolean);
-  WARDEN={name:WN,trait:W,lines:['わしがこの刑務所の所長、'+WN+'だ。',W.say,'階段は建物のまん中あたりに置いた。どの部屋からも近い。','監房棟は運動場の側に建てた。囚人を外へ出すとき、ほかの部屋を通らせん。',...pickWhy,'鍵は3階、看守室の机の上だ。取れるものなら取ってみろ。',gateWhy,pick(['せいぜい、抜け出してみるがいい。','ここから出た者は、まだひとりもおらん。','おとなしく、牢屋で寝ていることだな。'])]};
+  WARDEN={name:WN,trait:W,lines:[...(W.k=='vain'&&pickWhy.some(l=>l.startsWith('所長室：この階'))?[]:[W.say]),'階段：建物のまん中。どの部屋からも近く。','監房棟：運動場の側。外へ出すとき、ほかの部屋を通らせない。',...pickWhy,'鍵：3階 看守室の机の上。',gateWhy].map(l=>'・'+l)};
   setF(s[0]);P={x:s[1],y:s[2],px:s[1],py:s[2],ph:0,f:'down',flip:false,key:false,mv:0};won=false;return}
 }
 const hOf=(x,y)=>{const c=cell(x,y);return c.h+(c.st?.5:0)};
@@ -225,8 +221,7 @@ const fdir=()=>P.f=='up'?[0,-1]:P.f=='down'?[0,1]:[P.flip?-1:1,0];
 let flT=-1e9;
 const KEYF=NF-1;
 let INTRO=null;
-function showIntro(){const el=document.getElementById('intro');el.style.display='flex';document.getElementById('wn').textContent='所長　'+WARDEN.name;document.getElementById('wt').textContent='性格：'+WARDEN.trait.t;
- const wp=document.getElementById('wp').getContext('2d');wp.clearRect(0,0,12,12);wp.drawImage(spr('warden'),0,0);
+function showIntro(){document.getElementById('intro').style.display='flex';
  INTRO={txt:WARDEN.lines.join('\n'),n:0};document.getElementById('wg').style.opacity=0}
 function introStep(dt){const I=INTRO;if(aHit){aHit=false;if(I.n<I.txt.length)I.n=I.txt.length;else{INTRO=null;document.getElementById('intro').style.display='none';flT=performance.now();return}}
  if(I.n<I.txt.length)I.n=Math.min(I.txt.length,I.n+dt*.035);document.getElementById('wl').textContent=I.txt.slice(0,Math.floor(I.n));const tb=document.querySelector('#intro .tx');tb.scrollTop=tb.scrollHeight;document.getElementById('wg').style.opacity=I.n>=I.txt.length?1:0}
