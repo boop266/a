@@ -358,13 +358,16 @@ const LOOT=[['memo',1,['bigdesk']],['map',1,['shelf:library']],['driver',2,['ben
 let CONT={},DROPS=[],SRCH=null,INVMAX=4;const EQ={hand:null,body:null};
 function buildLoot(){CONT={};DROPS=[];
  FLs.forEach((G,f)=>{const RMs=ROOMSs[f];for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){const o=G[y][x].obj;if(!SEARCH[o])continue;let rt=null;for(const r of RMs)if(x>r.x0&&x<r.x1&&y>r.y0&&y<r.y1){rt=r.type;break}
-  CONT[f+','+x+','+y]={f,x,y,o,room:rt,loud:SEARCH[o]=='l',items:[],open:false}}});
+  const W=(dx,dy)=>{const v=G[y+dy]&&G[y+dy][x+dx];return !v||v.t=='wall'};const fr=W(0,-1)?[0,1]:W(1,0)?[-1,0]:W(-1,0)?[1,0]:[0,1];
+  CONT[f+','+x+','+y]={f,x,y,o,room:rt,loud:SEARCH[o]=='l',items:[],open:false,fx:x+fr[0],fy:y+fr[1]}}});
  const all=Object.values(CONT);
  // 門の鍵：3階・看守室の決まった机
  const kc=CONT[KEYF+','+key[0]+','+key[1]];if(kc)kc.items.push(mkItem('key'));
  LOOT.forEach(([id,n,where])=>{const ok=all.filter(c=>where.some(w=>{const[o,rm]=w.split(':');return c.o==o&&(!rm||c.room==rm)})&&c.items.length<3);
   for(let i=0;i<n&&ok.length;i++){const c=ok.splice(ri(0,ok.length-1),1)[0];c.items.push(mkItem(id))}})}
 const contAt=(x,y)=>CONT[F+','+x+','+y];
+// 正面に立って、家具のほうを向いているときだけ調べられる
+const atFront=c=>c&&P.x==c.fx&&P.y==c.fy&&(()=>{const[dx,dy]=fdir();return P.x+dx==c.x&&P.y+dy==c.y})();
 let msgT=0;function say(t){const m=document.getElementById('msg');m.textContent=t;m.style.opacity=1;clearTimeout(msgT);msgT=setTimeout(()=>m.style.opacity=0,1800)}
 let INV=[],INVO=false,icur=0,bHit=false;
 document.getElementById('inv').addEventListener('pointerdown',e=>{if(e.target.id=='inv')invToggle(false)});
@@ -401,7 +404,7 @@ function update(dt){if(INTRO){introStep(dt);return}if(INVO){invStep();return}bHi
   const st=cell(fx2,fy2),ct=contAt(fx2,fy2);
   if(F==0&&!gate.open&&fx2==gate.x&&fy2==gate.y){if(hasItem('key')){gate.open=true;pop(gate.x,gate.y,'#bff5a8')}else say('鍵がかかっている')}
   else if(pickDrop()){}
-  else if(ct&&(!ct.open||ct.items.length))startSearch(ct);
+  else if(ct&&atFront(ct)&&(!ct.open||ct.items.length))startSearch(ct);
   else{if(st&&st.link){setF(st.link.to);P.px=P.x;P.py=P.y;P.ph=hOf(P.x,P.y);P.f='up';P.mv=260;flT=performance.now();fx=[]}}}
  const k=Math.min(1,dt/80);P.px+=(P.x-P.px)*k;P.py+=(P.y-P.py)*k;P.ph+=(hOf(P.x,P.y)-P.ph)*k}
 let fx=[];function pop(x,y,c){const h=hOf(x,y);for(let i=0;i<16;i++)fx.push({x:x*16+8,y:y*16+8-h*LH,vx:(rnd()-.5)*3,vy:-rnd()*3,t:30,c})}
@@ -639,7 +642,7 @@ function drawLayer(f,now,cy,hh){const G=FLs[f],ROWS2=ROWSs[f],A2=ANIMs[f],SG=SGs
    const sp=sprV(n.fc=='up'?'zup':n.fc=='side'?'zside':'zdown',n.o);g.save();if(n.fc=='side'&&n.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.translate(X+8,Y+14);g.rotate(Math.sin(now/300+n.x)*.06);g.drawImage(sp,-6,-12+(mv?Math.sin(now/90)*.6:0));g.restore();
    if(n.chase&&f==F){R('#d02020',X+7,Y-6,2,4);R('#d02020',X+7,Y-1,2,1)}});
   if(f==F&&Math.round(P.py)==y&&!won){const X=P.px*16,Y=P.py*16-P.ph*LH;oval(X+8,Y+15,5,2,'#00000055');const mv=Math.abs(P.x-P.px)+Math.abs(P.y-P.py)>.05;
-   const[fdx,fdy]=fdir(),fx3=P.x+fdx,fy3=P.y+fdy;let bub=null;const fc3=CONT[F+','+fx3+','+fy3];if(F==0&&!gate.open&&fx3==gate.x&&fy3==gate.y)bub=hasItem('key')?'A':'nokey';else if(DROPS.some(q=>q.f==F&&((q.x==P.x&&q.y==P.y)||(q.x==fx3&&q.y==fy3))))bub='A';else if(fc3&&(!fc3.open||fc3.items.length))bub='A';else if(G[fy3]&&G[fy3][fx3]&&G[fy3][fx3].link)bub='A';
+   const[fdx,fdy]=fdir(),fx3=P.x+fdx,fy3=P.y+fdy;let bub=null;const fc3=CONT[F+','+fx3+','+fy3];if(F==0&&!gate.open&&fx3==gate.x&&fy3==gate.y)bub=hasItem('key')?'A':'nokey';else if(DROPS.some(q=>q.f==F&&((q.x==P.x&&q.y==P.y)||(q.x==fx3&&q.y==fy3))))bub='A';else if(fc3&&atFront(fc3)&&(!fc3.open||fc3.items.length))bub='A';else if(G[fy3]&&G[fy3][fx3]&&G[fy3][fx3].link)bub='A';
    if(bub){const bx=X+1,by=Y-15+Math.sin(now/200);R('#000000a0',bx+1,by+1,14,12);R('#ffffff',bx,by,14,12);R('#ffffff',bx+5,by+12,4,2);
     if(bub=='A'){oval(bx+7,by+6,5,5,'#c8284a');q.font='bold 8px sans-serif';q.fillStyle='#fff';q.fillText('A',bx+4.5,by+9)}else{g.drawImage(spr('key'),bx+1,by+1);q.strokeStyle='#d0202a';q.lineWidth=2;q.beginPath();q.moveTo(bx+2,by+2);q.lineTo(bx+12,by+10);q.moveTo(bx+12,by+2);q.lineTo(bx+2,by+10);q.stroke()}}
    g.save();if(P.f=='side'&&P.flip){g.translate(X*2+16,0);g.scale(-1,1)}g.drawImage(spr(P.f),X+2,Y+2+(mv?Math.sin(now/50)*.7:0));g.restore();
