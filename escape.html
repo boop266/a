@@ -601,7 +601,7 @@ let ZM=1;function draw(now){g.setTransform(1,0,0,1,0,0);g.fillStyle='#0d0c12';g.
  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*.35,cv.width/2,cv.height/2,cv.width*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height)}finally{S=S0}}
 function hud(){const x=document.getElementById('hk').getContext('2d');x.clearRect(0,0,12,12);x.drawImage(spr('bag'),0,0);const n=document.getElementById('bagn');n.textContent=INV.length;n.style.display=INV.length?'block':'none'}
 let last=0;function frame(t){const dt=Math.min(50,t-(last||t));last=t;update(dt);draw(t);requestAnimationFrame(frame)}
-function start(){INV=[];invToggle(false);gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none';showIntro()}
+function start(){INV=[];invToggle(false);gen();for(let f=0;f<NF;f++)buildFloor(f);hud();cam.x=P.x*16+8;cam.y=P.y*16;flT=-1e9;document.getElementById('win').style.display='none'}
 document.getElementById('again').onclick=start;
 start();requestAnimationFrame(frame);
 window.__esc={freezeZ:()=>{NPC.forEach(n=>{n.t=1e12;n.chase=false});safeT=1e12},get NPC(){return NPC},get INV(){return INV},get INVO(){return INVO},get ROWSs(){return ROWSs},get LIGHTs(){return LIGHTs},TP,DROP,MW,MH,skipIntro:()=>{INTRO=null;document.getElementById('intro').style.display='none'},get WARDEN(){return WARDEN},get C(){return C},get FLs(){return FLs},get F(){return F},setF,get P(){return P},get key(){return key},get gate(){return gate},get won(){return won},KEYF,can,gen:start,reachAll};
