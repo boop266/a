@@ -469,7 +469,7 @@
   /* ---------------------------------------------------------------------------
      9. 学習の入口
      --------------------------------------------------------------------------- */
-  const HALF_LIVES = [1e9, 40, 15];
+  const HALF_LIVES = [1e9, 40, 15]; let HL_MARGIN = 0;
   function fit(works, fbs, history, opts) {
     opts = opts || {};
     // 好みの変化：古い反応の重みを下げる半減期を、最近の作品での予測の当たり具合で自動選択（∞ / 40作 / 15作）。
@@ -491,7 +491,7 @@
           let sc = 0; for (const r of rows.slice(-m)) { const pr = predictPhi(M1, featurize(r.aw, M1.tagIndex, M1.p)); const v = pr.var + M1.sigma2 + r.tau; sc += -0.5 * Math.log(2 * Math.PI * v) - 0.5 * (r.y - pr.mean) ** 2 / v; }
           scores[hl] = sc;
         }
-        let hl = 1e9; for (const h of HALF_LIVES) if (scores[h] > scores[hl] + 1.0) hl = h; // 1.0：変化ありと判断する小さな余裕
+        let hl = 1e9; for (const h of HALF_LIVES) if (scores[h] > scores[hl] + HL_MARGIN) hl = h; // 変化ありと判断する余裕（検証で決めた値）
         best = fitWith(hl); best.M.halfLifeScores = scores;
       }
     }
