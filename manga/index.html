@@ -276,8 +276,8 @@ function drawPerson(ctx, X, Y, h, id, o, r) {
     if (o.hold === 'towel') { ctx.fillStyle = '#fff'; ctx.lineWidth = lw; ctx.beginPath(); ctx.rect(cx - 10, cy - 3, 20, 12); ctx.fill(); ctx.stroke(); ctx.fillStyle = LIGHT(ctx, u); ctx.fillRect(cx - 10, cy + 3, 20, 3); }
     if (o.hold === 'broom') {
       const down = pose === 'broomdown', hand = down ? hands[s2i(fw)] : (hands[0][1] < hands[1][1] ? hands[1] : hands[0]);
-      let ux = down ? fw * 0.18 : fw * 0.85, uy = down ? 1 : -1; const l2 = Math.hypot(ux, uy); ux /= l2; uy /= l2;
-      const st = [hand[0] - ux * (down ? 6 : 10), hand[1] - uy * (down ? 6 : 10)], len = down ? Math.max(18, -hand[1] - 26) : 34, en = [hand[0] + ux * len, hand[1] + uy * len];
+      let ux = down ? fw * 0.18 : fw * 1.5, uy = down ? 1 : -1; const l2 = Math.hypot(ux, uy); ux /= l2; uy /= l2;
+      const st = [hand[0] - ux * (down ? 6 : 10), hand[1] - uy * (down ? 6 : 10)], len = down ? Math.max(18, -hand[1] - 26) : 26, en = [hand[0] + ux * len, hand[1] + uy * len];
       if (!down) limb(ctx, [st, en], 2.6, '#fff', lw * 0.8);
       else limb(ctx, [st, en], 2.6, '#fff', lw * 0.8);
       ctx.save(); ctx.translate(en[0], en[1]); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 2);
@@ -971,8 +971,8 @@ const STORY = [
     { ...YARD({ gy: 0.85, noRoofs: true }), under: [{ t: 'shadow', x: 0.45, y: 0.95, rx: 0.4, ry: 0.06 }],
       chars: [{ id: 'moku', x: 0.42, y: 0.14, s: 0.22, m: 'happy' }, { id: 'mom', x: 0.42, y: 1.15, s: 0.82, m: 'gentle', f: 1, look: 'up' }],
       b: [{ t: 'あら、\nすずしい', x: 0.85, y: 0.5, w: 1 }] },
-    { bg: 'plain', chars: [{ id: 'mom', x: 0.55, y: 1.25, s: 1.1, m: 'happy', f: -1, p: 'chin' }, { id: 'haru', x: 0.15, y: 1.04, s: 0.6, m: 'sweat', f: 1 }],
-      b: [{ t: 'あんた、\n便利ねぇ', x: 0.9, y: 0.38, w: 0, fs: 21 }, { t: 'お母さん…', x: 0.33, y: 0.25, w: 1, type: 'small' }] },
+    { bg: 'plain', chars: [{ id: 'mom', x: 0.54, y: 1.25, s: 1.1, m: 'happy', f: -1, p: 'chin' }, { id: 'haru', x: 0.15, y: 1.04, s: 0.6, m: 'sweat', f: 1 }],
+      b: [{ t: 'あんた、\n便利ねぇ', x: 0.92, y: 0.42, w: 0, fs: 20 }, { t: 'お母さん…', x: 0.33, y: 0.25, w: 1, type: 'small' }] },
   ] },
   /* 9 ── 夕方 */
   { rows: [[1.3, [1]], [1, [1.1, 1]], [0.9, [1]]], panels: [
@@ -1005,7 +1005,7 @@ const STORY = [
   /* 11 ── 次の朝 */
   { rows: [[1.75, [1.45, 1]], [1, [1, 1]], [1.05, [1]]], panels: [
     { ...YARD({ pole: [0.1, 0.9, 0.86], laundry: [], gy: 0.93, fenceH: 0.04, noRoofs: true, birds: [[0.4, 0.42], [0.47, 0.46], [0.75, 0.55]] }), nar: { t: '次の朝' },
-      chars: [{ id: 'papa', x: 0.3, y: 0.1, s: 0.15, m: 'worried' }, { id: 'mama', x: 0.58, y: 0.08, s: 0.12, m: 'worried' }, { id: 'moku', x: 0.5, y: 0.83, s: 0.14, m: 'shock', look: 'up' }],
+      chars: [{ id: 'papa', x: 0.3, y: 0.09, s: 0.12, m: 'worried' }, { id: 'mama', x: 0.56, y: 0.07, s: 0.1, m: 'worried' }, { id: 'moku', x: 0.5, y: 0.83, s: 0.14, m: 'shock', look: 'up' }],
       fx: [{ t: 'dots', x: 0.5, y1: 0.22, y2: 0.72 }],
       b: [{ t: 'モクー', x: 0.1, y: 0.26, w: 0, type: 'small' }, { t: 'どこー？', x: 0.8, y: 0.3, w: 1, type: 'small' }, { t: 'みんなだ！', x: 0.2, y: 0.64, w: 2, type: 'shout', fs: 20 }] },
     { bg: 'plain', speed: 'v', chars: [{ id: 'papa', x: 0.35, y: 0.06, s: 0.18, m: 'worried' }, { id: 'moku', x: 0.5, y: 0.6, s: 0.55, m: 'jump' }],
@@ -1028,8 +1028,8 @@ const STORY = [
       b: [{ t: 'ごめん…\n笑えないよ', x: 0.15, y: 0.35, w: 0, type: 'small' }] },
     { ...YARD({ gy: 0.85, noRoofs: true, fenceH: 0.12, birds: [[0.6, 0.2]] }),
       chars: [{ id: 'papa', x: 0.1, y: 0.1, s: 0.13, m: 'worried' }, { id: 'mama', x: 0.24, y: 0.07, s: 0.1, m: 'worried' },
-        { id: 'haru', x: 0.72, y: 1.0, s: 0.6, m: 'cry', f: -1, look: 'up' }, { id: 'mom', x: 0.27, y: 1.0, s: 0.85, m: 'determined', f: 1, p: 'hips' }],
-      fx: [{ t: 'lines', at: [[0.02, 0.32, 0.12, 0.32], [0.05, 0.4, 0.16, 0.4], [0.3, 0.24, 0.38, 0.24]] }],
+        { id: 'haru', x: 0.72, y: 1.0, s: 0.6, m: 'cry', f: -1, look: 'up' }, { id: 'mom', x: 0.3, y: 1.0, s: 0.74, m: 'determined', f: 1, p: 'hips' }],
+      fx: [{ t: 'lines', at: [[0.36, 0.1, 0.48, 0.1], [0.38, 0.17, 0.52, 0.17]] }],
       sfx: [{ t: 'ゴォォ', x: 0.53, y: 0.25, s: 36 }],
       b: [{ t: '行っちゃう！', x: 0.9, y: 0.32, w: 2, fs: 21 }, { t: 'どいて、\nハル', x: 0.5, y: 0.6, w: 3 }] },
   ] },
