@@ -565,7 +565,7 @@
       const open = kind === 'open';
       // 手のひら：手首から指の付け根へ広がる台形
       const palm = catmull([L(-0.02, -0.19), L(0.4, -0.24), L(0.46, 0.0), L(0.42, 0.24), L(0.15, 0.26), L(-0.02, 0.19)], 4, true);
-      const spread = open ? 0.2 : 0.05, curl = open ? 0.15 : 0.6;
+      const spread = open ? 0.3 : 0.06, curl = open ? 0.1 : 0.6;
       const lens = [0.36, 0.41, 0.38, 0.29], ys = [-0.17, -0.055, 0.06, 0.17];
       // 奥の指から
       for (let i = 3; i >= 0; i--) fp(finger(L(0.4, ys[i]), (i - 1.5) * -spread, hs * lens[i], hs * 0.07, curl * (1 + i * 0.12)), 0.75);
