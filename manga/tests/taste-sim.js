@@ -204,8 +204,6 @@ if (want('gen') && RESULTS.main) {
     for (const m of ['random', 'old', 'greedy', 'ts']) console.log((lab[m] + '　　　　　　　　　　　　　').slice(0, 17) + ' ' + GN.map(n => fmt(mean(rows[m + ':' + n][key])).padStart(8)).join(''));
   }
   console.log('\n探索の割合（トンプソン抽出の狙いのうち、不確かさで動いた分）' + GN.map(n => pct(mean(rows['ts:' + n].rate)).padStart(8)).join(''));
-  console.log('\n読者タイプ別：好みで作る（TS）の好き度の平均  n=20 / n=80   （ランダムは 0.00）');
-  // タイプ別は rows を作り直さずに再計算するのは重いので、要約だけ
   RESULTS.gen = rows;
 }
 
