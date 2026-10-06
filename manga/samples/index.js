@@ -4,6 +4,7 @@
    ・nameScript … 第1稿（git の「漫画: 第1稿『うちの物干しに雲がいる』（編集チェック前）」の manga/index.html）を同じ形に移したもの
    ・extras     … manga/extras/author.md（作者）と editor.md（編集者）から
    ・meeting    … この作品は、企画会議の工程ができる前に作られました。会議の記録はないので null にしています（作り話の会議は入れない）。
+   2冊目『本日も大行列』・3冊目『これは父です』… samples/ の同名 .json（企画・脚本担当）をそのまま埋め込み。無い項目は null。
    このファイルは scratchpad の port/build.js から書き出しています。 */
 window.MangaSamples = [
  {
@@ -132,7 +133,7 @@ window.MangaSamples = [
     "bg": "park",
     "time": "day",
     "weather": "clear",
-    "catch": "うちの洗濯物にだけ、雨がふる。",
+    "catch": "洗濯物にだけ、\n雨がふる。",
     "cast": [
      {
       "id": "mom",
@@ -261,7 +262,7 @@ window.MangaSamples = [
        "shot": "bust",
        "bg": "park",
        "time": "day",
-       "weather": "clear",
+       "weather": "cloudy",
        "cast": [
         {
          "id": "haru",
@@ -814,7 +815,7 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "bust",
+       "shot": "up",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -1127,7 +1128,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "flowers",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -1148,7 +1149,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "flowers",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -1176,13 +1177,13 @@ window.MangaSamples = [
        "cast": [
         {
          "id": "moku",
-         "x": 0.42,
+         "x": 0.3,
          "expr": "happy",
          "pose": "float"
         },
         {
          "id": "mom",
-         "x": 0.42,
+         "x": 0.68,
          "expr": "smile",
          "pose": "stand",
          "face": "right",
@@ -1498,29 +1499,20 @@ window.MangaSamples = [
      ],
      "panels": [
       {
-       "shot": "full",
-       "bg": "park",
+       "shot": "long",
+       "bg": "sky",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
          "id": "papa",
-         "x": 0.3,
-         "expr": "worried",
-         "pose": "float"
+         "pose": "float",
+         "expr": "worried"
         },
         {
          "id": "mama",
-         "x": 0.56,
-         "expr": "worried",
-         "pose": "float"
-        },
-        {
-         "id": "moku",
-         "x": 0.5,
-         "expr": "shock",
          "pose": "float",
-         "look": "up"
+         "expr": "worried"
         }
        ],
        "say": [
@@ -1533,11 +1525,6 @@ window.MangaSamples = [
          "who": "mama",
          "type": "whisper",
          "text": "どこー？"
-        },
-        {
-         "who": "moku",
-         "type": "shout",
-         "text": "みんなだ！"
         }
        ],
        "narr": "次の朝"
@@ -1549,12 +1536,6 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "papa",
-         "x": 0.35,
-         "expr": "worried",
-         "pose": "float"
-        },
-        {
          "id": "moku",
          "x": 0.5,
          "expr": "determined",
@@ -1562,6 +1543,11 @@ window.MangaSamples = [
         }
        ],
        "say": [
+        {
+         "who": "moku",
+         "type": "shout",
+         "text": "みんなだ！"
+        },
         {
          "who": "moku",
          "type": "speech",
@@ -1775,18 +1761,6 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "papa",
-         "x": 0.1,
-         "expr": "worried",
-         "pose": "float"
-        },
-        {
-         "id": "mama",
-         "x": 0.24,
-         "expr": "worried",
-         "pose": "float"
-        },
-        {
          "id": "haru",
          "x": 0.72,
          "expr": "cry",
@@ -1821,6 +1795,9 @@ window.MangaSamples = [
          "text": "ゴォォ",
          "size": "m"
         }
+       ],
+       "fx": [
+        "wind"
        ]
       }
      ]
@@ -1885,7 +1862,7 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "bust",
+       "shot": "up",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -1893,17 +1870,9 @@ window.MangaSamples = [
         {
          "id": "mom",
          "x": 0.5,
-         "expr": "funny",
+         "expr": "laugh",
          "pose": "surprise",
          "face": "front",
-         "hold": "none"
-        },
-        {
-         "id": "haru",
-         "x": 0.11,
-         "expr": "shock",
-         "pose": "stand",
-         "face": "right",
          "hold": "none"
         }
        ],
@@ -1922,8 +1891,15 @@ window.MangaSamples = [
        ],
        "fx": [
         "focus",
+        "shake",
         "impact"
-       ]
+       ],
+       "art": {
+        "deform": 1,
+        "eyeSize": 0.9,
+        "dynamism": 1,
+        "note": "お母さんの本気の変顔。ここだけ思いきり崩す"
+       }
       },
       {
        "shot": "up",
@@ -1983,7 +1959,7 @@ window.MangaSamples = [
      ],
      "panels": [
       {
-       "shot": "full",
+       "shot": "long",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -2004,7 +1980,7 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "up",
+       "shot": "full",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -2025,7 +2001,7 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "up",
+       "shot": "bust",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -2113,45 +2089,24 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "long",
-       "bg": "park",
+       "bg": "sky",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "papa",
-         "x": 0.25,
-         "expr": "happy",
-         "pose": "float"
-        },
-        {
          "id": "mama",
-         "x": 0.75,
-         "expr": "happy",
-         "pose": "float"
+         "pose": "float",
+         "expr": "happy"
         },
         {
          "id": "moku",
-         "x": 0.5,
-         "expr": "laugh",
-         "pose": "float"
+         "pose": "float",
+         "expr": "laugh"
         },
         {
-         "id": "haru",
-         "x": 0.42,
-         "expr": "happy",
-         "pose": "wave",
-         "face": "right",
-         "look": "up",
-         "hold": "none"
-        },
-        {
-         "id": "mom",
-         "x": 0.56,
-         "expr": "laugh",
-         "pose": "cheer",
-         "face": "left",
-         "look": "up",
-         "hold": "none"
+         "id": "papa",
+         "pose": "float",
+         "expr": "happy"
         }
        ],
        "say": [
@@ -2161,7 +2116,7 @@ window.MangaSamples = [
          "text": "とどいた！"
         },
         {
-         "who": "haru",
+         "who": "off",
          "type": "shout",
          "text": "いけーっ！"
         }
@@ -2226,7 +2181,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "street",
+       "bg": "sky",
        "time": "day",
        "weather": "rain",
        "cast": [
@@ -2261,7 +2216,8 @@ window.MangaSamples = [
        ],
        "fx": [
         "sparkle"
-       ]
+       ],
+       "narr": "空に、大きな虹。"
       }
      ]
     },
@@ -2343,56 +2299,35 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "full",
-       "bg": "park",
+       "shot": "long",
+       "bg": "sky",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "papa",
-         "x": 0.14,
-         "expr": "happy",
-         "pose": "float"
-        },
-        {
          "id": "mama",
-         "x": 0.36,
-         "expr": "happy",
-         "pose": "float"
+         "pose": "float",
+         "expr": "happy"
         },
         {
          "id": "moku",
-         "x": 0.27,
-         "expr": "happy",
-         "pose": "float"
+         "pose": "float",
+         "expr": "happy"
         },
         {
-         "id": "haru",
-         "x": 0.8,
-         "expr": "happy",
-         "pose": "wave",
-         "face": "left",
-         "look": "up",
-         "hold": "none"
-        },
-        {
-         "id": "mom",
-         "x": 0.55,
-         "expr": "smile",
-         "pose": "hips",
-         "face": "left",
-         "look": "up",
-         "hold": "none"
+         "id": "papa",
+         "pose": "float",
+         "expr": "happy"
         }
        ],
        "say": [
         {
-         "who": "haru",
+         "who": "off",
          "type": "speech",
          "text": "モクー！"
         },
         {
-         "who": "mom",
+         "who": "off",
          "type": "speech",
          "text": "洗濯物には\n降らないでよー！"
         },
@@ -2401,6 +2336,9 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "はーい"
         }
+       ],
+       "fx": [
+        "sparkle"
        ]
       }
      ]
@@ -2527,7 +2465,7 @@ window.MangaSamples = [
     "bg": "park",
     "time": "day",
     "weather": "clear",
-    "catch": "うちの洗濯物にだけ、雨がふる。",
+    "catch": "洗濯物にだけ、\n雨がふる。",
     "cast": [
      {
       "id": "mom",
@@ -4685,5 +4623,3567 @@ window.MangaSamples = [
   },
   "extras": null,
   "meeting": null
+ },
+ {
+  "meeting": null,
+  "nameScript": {
+   "title": "本日も大行列",
+   "genre": "ほのぼの日常",
+   "logline": "閉店を口止めされた漁師の孫ナギは、その秘密を町中にしゃべってしまい、罪ほろぼしに一言もしゃべらない。ところが町じゅうの人が写真館に押し寄せ、祖母は猫にだけ「計算どおり」とささやく。",
+   "ending": "end",
+   "characters": [
+    {
+     "id": "nagi",
+     "name": "ナギ",
+     "role": "孫・漁師",
+     "species": "human",
+     "age": "adult",
+     "body": "tall",
+     "hair": "messy",
+     "hairColor": "black",
+     "eyes": "round",
+     "outfit": "hoodie",
+     "pattern": "stripe",
+     "items": [
+      "headband"
+     ],
+     "desc": "はちまきの若い漁師"
+    },
+    {
+     "id": "fumi",
+     "name": "フミ",
+     "role": "祖母・写真館の店主",
+     "species": "human",
+     "age": "elder",
+     "body": "round",
+     "hair": "bun",
+     "hairColor": "white",
+     "eyes": "narrow",
+     "outfit": "apron",
+     "pattern": "dots",
+     "items": [
+      "glasses",
+      "camera"
+     ],
+     "desc": "眼鏡とカメラのおばあちゃん"
+    },
+    {
+     "id": "kuro",
+     "name": "クロ",
+     "role": "看板猫",
+     "species": "cat",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "black",
+     "eyes": "sleepy",
+     "outfit": "none",
+     "pattern": "white",
+     "items": [
+      "crown"
+     ],
+     "desc": "紙の王冠をかぶった黒猫"
+    },
+    {
+     "id": "gen",
+     "name": "ゲン",
+     "role": "酒屋の主人",
+     "species": "human",
+     "age": "adult",
+     "body": "round",
+     "hair": "bald",
+     "hairColor": "black",
+     "eyes": "dot",
+     "outfit": "shirt",
+     "pattern": "check",
+     "items": [
+      "mustache"
+     ],
+     "desc": "ひげの酒屋"
+    },
+    {
+     "id": "mei",
+     "name": "メイ",
+     "role": "近所の子",
+     "species": "human",
+     "age": "child",
+     "body": "normal",
+     "hair": "twintail",
+     "hairColor": "tone",
+     "eyes": "sparkle",
+     "outfit": "sailor",
+     "pattern": "white",
+     "items": [
+      "ribbon"
+     ],
+     "desc": "リボンの女の子"
+    }
+   ],
+   "cover": {
+    "bg": "stage",
+    "time": "day",
+    "weather": "clear",
+    "cast": [
+     {
+      "id": "nagi",
+      "expr": "nervous",
+      "pose": "hide"
+     },
+     {
+      "id": "fumi",
+      "expr": "smug",
+      "pose": "hold",
+      "hold": "camera"
+     },
+     {
+      "id": "kuro",
+      "expr": "sleepy",
+      "pose": "sit"
+     }
+    ],
+    "catch": "孫は今日、しゃべらない。"
+   },
+   "pages": [
+    {
+     "rows": [
+      1,
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "blank",
+         "pose": "sit"
+        },
+        {
+         "id": "kuro",
+         "expr": "sleepy",
+         "pose": "sit"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ふじ写真館\n本日も大行列",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smile",
+         "pose": "hold",
+         "hold": "camera"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "いらっしゃい…\nって、ナギかい"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "カラン",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "worried",
+         "pose": "stand"
+        },
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "hide"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "なんで\n黙ってるんだい"
+        }
+       ],
+       "narr": "【速報】孫、今日は\nしゃべらない",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "washitsu",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "sit"
+        },
+        {
+         "id": "nagi",
+         "expr": "surprised",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "店を閉めるよ"
+        },
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "誰にも\n言うんじゃないよ"
+        }
+       ],
+       "narr": "【昨夜】",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      },
+      {
+       "shot": "bust",
+       "bg": "washitsu",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "determined",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "shock",
+         "pose": "surprise"
+        },
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "point"
+        }
+       ],
+       "say": [
+        {
+         "who": "gen",
+         "type": "shout",
+         "text": "閉店！？"
+        }
+       ],
+       "narr": "【けさ】",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "think",
+         "pose": "armscross"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "誰にも\n言ってないね？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "shock",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat",
+        "shake"
+       ]
+      },
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuro",
+         "expr": "normal",
+         "pose": "sit"
+        },
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】孫、うなずく",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "bg",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "迷子の\nお知らせです"
+        },
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "坂の上の写真館\nをさがしている\n方…"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "surprised",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "迷子？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "smile",
+         "pose": "wave"
+        },
+        {
+         "id": "mei",
+         "expr": "happy",
+         "pose": "hold",
+         "hold": "flower"
+        }
+       ],
+       "say": [
+        {
+         "who": "gen",
+         "type": "speech",
+         "text": "写真、\n撮ってくれるかい"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "カラン",
+         "size": "m"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      3,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "shock",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat"
+       ]
+      },
+      {
+       "shot": "bg",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "迷子は\n三十人です"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "laugh",
+         "pose": "cheer"
+        },
+        {
+         "id": "mei",
+         "expr": "happy",
+         "pose": "jump"
+        },
+        {
+         "id": "fumi",
+         "expr": "surprised",
+         "pose": "surprise"
+        },
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "hide"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ほんとうに\n大行列",
+       "sfx": [
+        {
+         "text": "ワイワイ",
+         "size": "l"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "kneel"
+        },
+        {
+         "id": "fumi",
+         "expr": "normal",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "hips"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "…言ったね？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "laugh",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "さすが、\nわたしの孫だ"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "laugh",
+         "pose": "cheer"
+        },
+        {
+         "id": "mei",
+         "expr": "happy",
+         "pose": "wave"
+        },
+        {
+         "id": "nagi",
+         "expr": "happy",
+         "pose": "stand"
+        },
+        {
+         "id": "kuro",
+         "expr": "smile",
+         "pose": "sit"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ふじ写真館\n本日も大行列",
+       "sfx": [
+        {
+         "text": "パシャ",
+         "size": "l"
+        }
+       ],
+       "fx": [
+        "sparkle"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "kneel"
+        },
+        {
+         "id": "kuro",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "あの子に話せば\n町中に伝わる"
+        },
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "計算どおりさ"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuro",
+         "expr": "smug",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】店主は\n何も知らなかった模様",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    }
+   ]
+  },
+  "extras": {
+   "characters": [
+    {
+     "id": "nagi",
+     "name": "ナギ",
+     "profile": "二十六歳。坂の下の港で、祖母の写真館の二階に住む漁師。朝が早い。",
+     "past": "子どものころ、祖母に撮ってもらった写真を一枚だけ持っていない。撮られる日に、魚市場へ逃げたから。",
+     "secret": "漁船の名前を、まだ祖母に言えていない（写真館と同じ名前をつけた）。",
+     "catchphrase": "（本編ではしゃべらない）",
+     "likes": [
+      "凪の朝",
+      "祖母の味噌汁"
+     ],
+     "dislikes": [
+      "写真に撮られること",
+      "内緒話"
+     ],
+     "designNote": "はちまきとしま模様は海の男の記号。本編で一言もしゃべらないので、顔より体の動きで見える服を選んだ。",
+     "basis": "創作"
+    },
+    {
+     "id": "fumi",
+     "name": "フミ",
+     "profile": "七十八歳。坂の上の写真館の二代目。眼鏡は老眼鏡ではなく、ファインダー用。",
+     "past": "若いころ、町の新聞の写真係だった。速報の見出しを考えるのが得意だった。",
+     "secret": "閉店のお知らせの紙は、三年前から同じ一枚を使っている（孫に見せたのは今回で三度目）。",
+     "catchphrase": "さすが、わたしの孫だ",
+     "likes": [
+      "行列",
+      "焼きたてのせんべい"
+     ],
+     "dislikes": [
+      "ピントの甘い写真",
+      "正直すぎる見出し"
+     ],
+     "designNote": "丸い体型と水玉のエプロンで『ただのやさしいおばあちゃん』に見せて、得意げな顔とのズレを作った。",
+     "basis": "創作"
+    },
+    {
+     "id": "kuro",
+     "name": "クロ",
+     "profile": "写真館の看板猫。年齢不詳。紙の王冠は撮影用の小道具を勝手にかぶったもの。",
+     "past": "もとは港の猫。ナギの船から写真館へ、勝手に引っ越してきた。",
+     "secret": "三年前の『閉店のお知らせ』のときも、全部見ていた。",
+     "catchphrase": "（猫なので無言）",
+     "likes": [
+      "日だまりの撮影台",
+      "速報の時間"
+     ],
+     "dislikes": [
+      "フラッシュ"
+     ],
+     "designNote": "最初は黒い毛だったが、最後のアップの得意顔が見えるように灰色の毛にして、服を着せた。",
+     "basis": "どこをどう直したか3"
+    },
+    {
+     "id": "gen",
+     "name": "ゲン",
+     "profile": "商店街の酒屋の主人。声が大きい。",
+     "past": "フミの写真館で、結婚写真を撮った最初の客。",
+     "secret": "放送の『迷子のお知らせ』を流そうと言い出したのは、じつはゲン。",
+     "catchphrase": "閉店！？",
+     "likes": [
+      "記念写真",
+      "町内放送"
+     ],
+     "dislikes": [
+      "静かな商店街"
+     ],
+     "designNote": "ひげとチェックのシャツで、遠景でもすぐゲンだと分かるように。",
+     "basis": "創作"
+    },
+    {
+     "id": "mei",
+     "name": "メイ",
+     "profile": "近所の小学生。いつも花を一輪持ってくる。",
+     "past": "写真館で撮った七五三の写真が、店のショーウィンドウに飾られている。",
+     "secret": "ナギの秘密のしゃべり先の、最初の一人。",
+     "catchphrase": "（本編ではしゃべらない）",
+     "likes": [
+      "リボン",
+      "ショーウィンドウ"
+     ],
+     "dislikes": [
+      "閉店"
+     ],
+     "designNote": "ツインテールとリボンで、群衆の中でも子どもだと一目で分かる形に。",
+     "basis": "創作"
+    }
+   ],
+   "world": {
+    "summary": "坂の上の写真館『ふじ写真館』がある、港の小さな町。町内放送のスピーカーは、迷子と落とし物と、ときどき大事なお知らせを流す。",
+    "rules": [
+     "この町の迷子のお知らせは、本当の迷子より、集合の合図に使われることのほうが多い",
+     "写真館の前の坂は、行列ができると港から見える"
+    ],
+    "places": [
+     {
+      "name": "ふじ写真館",
+      "note": "撮影台の上の日だまりは、クロの指定席。"
+     },
+     {
+      "name": "商店街",
+      "note": "スピーカーは酒屋の屋根の上にある。"
+     }
+    ]
+   },
+   "authorAfterword": {
+    "text": "くじで『主人公は一言もしゃべらない』を引いたとき、欠点が『秘密を守れない』だったので、しゃべらないのは罪ほろぼしなんだ、とすぐ決まりました。最初のネームでは、ナギは山場で土下座をするだけでした。編集さんから『黙ったままでもできる、自分で選んだ行動を一つ』と言われて、閉店のお知らせを黙って破るページを足しました。いちばん苦労したのは、その破るコマです。セリフが無いので、手を伸ばす形と効果音だけで伝えなければいけないコマでした。お気に入りは最後の猫のアップ。速報が最後まで嘘をつき、猫だけが本当のことを知っている顔をしています。くじにあった目覚まし時計は、一日の話の中で役目を作れず、使えませんでした。ごめんね、目覚まし時計。",
+    "favoritePanel": "9-3",
+    "hardestPanel": "7-3",
+    "basis": [
+     "作者の最初のネーム",
+     "編集者の指摘1",
+     "どこをどう直したか1",
+     "使わなかった企画の種"
+    ]
+   },
+   "editorNote": {
+    "text": "絵柄は、古い新聞の挿絵のような細い線と斜線にしました。お話はほのぼのですが、笑いの芯は『速報が大真面目に嘘をつく』こと。絵まで報道写真のように大真面目にすると、嘘とのズレがくすぐったくなると考えました。ただ一コマ、最後の猫だけは頭を大きく崩して漫画らしくしています。真実を知る者の得意顔です。ネームからの大きな変更は、山場の前に1ページ足したこと。それから、看板猫を黒い毛から灰色に変えました。最後のアップで表情が見えなかったからです。ひらめきの種の『鉛筆の落書き帳』『設計図』『お菓子の包み紙』は、どれも今回は使いませんでした。",
+    "basis": [
+     "編集者が絵柄を決めたときの狙い",
+     "どこをどう直したか1",
+     "どこをどう直したか3",
+     "採用しなかった「ひらめきの種」"
+    ]
+   },
+   "foreshadowing": [
+    {
+     "setup": "2-1",
+     "what": "嘘の速報『本日も大行列』と、からっぽの写真館",
+     "payoff": "9-1",
+     "how": "同じ構図、同じ見出しで、今度は本当の大行列"
+    },
+    {
+     "setup": "3-1",
+     "what": "口止めするフミの得意げな顔と、閉店のお知らせの紙",
+     "payoff": "9-2",
+     "how": "秘密を守れない孫に話したのは、わざとだった"
+    },
+    {
+     "setup": "3-1",
+     "what": "閉店のお知らせの紙",
+     "payoff": "7-3",
+     "how": "ナギが黙って破る"
+    }
+   ],
+   "cutIdeas": [
+    {
+     "title": "孫、土下座だけで終わる",
+     "what": "最初のネームの山場。ナギは土下座で謝るだけで、自分からは何もしなかった。",
+     "whyCut": "主人公が山場で何もしていない、という編集の指摘で、破るページに変わった。",
+     "basis": "作者の最初のネーム・編集者の指摘1"
+    },
+    {
+     "title": "幻の目覚まし時計",
+     "what": "くじで引いた小物。",
+     "whyCut": "一日の話の中で役目を作れなかった。",
+     "basis": "使わなかった企画の種"
+    }
+   ],
+   "visual": {
+    "designs": [],
+    "nameVsFinal": [
+     {
+      "panel": "7-3",
+      "comment": "ネームに無かったページ。黙って破るのが山場に"
+     },
+     {
+      "panel": "9-3",
+      "comment": "ネームでは黒猫。表情が見えず灰色の毛に"
+     }
+    ],
+    "expressions": [
+     {
+      "id": "fumi",
+      "expr": "smug",
+      "comment": "smug：口止めと『計算どおり』。三回出てくる"
+     },
+     {
+      "id": "nagi",
+      "expr": "nervous",
+      "comment": "nervous：しゃべれない孫の基本の顔"
+     },
+     {
+      "id": "nagi",
+      "expr": "determined",
+      "comment": "determined：破るときだけの顔"
+     },
+     {
+      "id": "kuro",
+      "expr": "smug",
+      "comment": "smug：最後のアップ。真実を知る顔"
+     }
+    ]
+   },
+   "sequelHints": [
+    {
+     "hint": "閉店のお知らせは、三年前にも一度あったらしい。",
+     "root": "3-1"
+    },
+    {
+     "hint": "ナギの船の名前を、フミはまだ知らない。",
+     "root": "2-3"
+    },
+    {
+     "hint": "放送の迷子は三十人。町の人が次に集まるのは、いつだろう。",
+     "root": "6-2"
+    }
+   ]
+  },
+  "profile": {
+   "axes": {
+    "humor": 0.62,
+    "warmth": 0.82,
+    "tension": 0.3,
+    "tempo": 0.6,
+    "dark": 0.1,
+    "fantasy": 0.1,
+    "romance": 0,
+    "action": 0.2,
+    "mystery": 0.45,
+    "tearjerk": 0.4,
+    "absurd": 0.35,
+    "charDriven": 0.6,
+    "talky": 0.3,
+    "growth": 0.45,
+    "everyday": 0.85,
+    "scale": 0.05,
+    "twist": 0.75,
+    "afterglow": 0.35,
+    "cute": 0.5,
+    "smart": 0.55
+   },
+   "tags": {
+    "genre": [
+     "ほのぼの",
+     "コメディ"
+    ],
+    "setting": [
+     "写真館",
+     "商店街"
+    ],
+    "protagonist": [
+     "人間"
+    ],
+    "age": [
+     "大人"
+    ],
+    "relation": [
+     "祖母と孫"
+    ],
+    "ending": [
+     "どんでん返し"
+    ],
+    "humor": [
+     "ほっこり",
+     "とぼけた"
+    ],
+    "motif": [
+     "速報",
+     "嘘",
+     "写真"
+    ]
+   }
+  },
+  "id": "sample-honjitsu",
+  "script": {
+   "title": "本日も大行列",
+   "genre": "ほのぼの日常",
+   "logline": "閉店を口止めされた漁師の孫ナギは、その秘密を町中にしゃべってしまい、罪ほろぼしに一言もしゃべらない。ところが町じゅうの人が写真館に押し寄せ、祖母は猫にだけ「計算どおり」とささやく。",
+   "ending": "end",
+   "characters": [
+    {
+     "id": "nagi",
+     "name": "ナギ",
+     "role": "孫・漁師",
+     "species": "human",
+     "age": "adult",
+     "body": "tall",
+     "hair": "messy",
+     "hairColor": "black",
+     "eyes": "round",
+     "outfit": "hoodie",
+     "pattern": "stripe",
+     "items": [
+      "headband"
+     ],
+     "desc": "はちまきの若い漁師"
+    },
+    {
+     "id": "fumi",
+     "name": "フミ",
+     "role": "祖母・写真館の店主",
+     "species": "human",
+     "age": "elder",
+     "body": "round",
+     "hair": "bun",
+     "hairColor": "white",
+     "eyes": "narrow",
+     "outfit": "apron",
+     "pattern": "dots",
+     "items": [
+      "glasses"
+     ],
+     "desc": "眼鏡のおばあちゃん"
+    },
+    {
+     "id": "kuro",
+     "name": "クロ",
+     "role": "看板猫",
+     "species": "cat",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "tone",
+     "eyes": "sleepy",
+     "outfit": "suit",
+     "pattern": "black",
+     "items": [
+      "crown"
+     ],
+     "desc": "紙の王冠をかぶった灰色の猫"
+    },
+    {
+     "id": "gen",
+     "name": "ゲン",
+     "role": "酒屋の主人",
+     "species": "human",
+     "age": "adult",
+     "body": "round",
+     "hair": "bald",
+     "hairColor": "black",
+     "eyes": "dot",
+     "outfit": "shirt",
+     "pattern": "check",
+     "items": [
+      "mustache"
+     ],
+     "desc": "ひげの酒屋"
+    },
+    {
+     "id": "mei",
+     "name": "メイ",
+     "role": "近所の子",
+     "species": "human",
+     "age": "child",
+     "body": "normal",
+     "hair": "twintail",
+     "hairColor": "tone",
+     "eyes": "sparkle",
+     "outfit": "sailor",
+     "pattern": "white",
+     "items": [
+      "ribbon"
+     ],
+     "desc": "リボンの女の子"
+    }
+   ],
+   "cover": {
+    "bg": "stage",
+    "time": "day",
+    "weather": "clear",
+    "cast": [
+     {
+      "id": "nagi",
+      "expr": "nervous",
+      "pose": "hide"
+     },
+     {
+      "id": "fumi",
+      "expr": "smug",
+      "pose": "hold",
+      "hold": "camera"
+     },
+     {
+      "id": "kuro",
+      "expr": "sleepy",
+      "pose": "sit"
+     }
+    ],
+    "catch": "孫は今日、しゃべらない。"
+   },
+   "pages": [
+    {
+     "rows": [
+      1,
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "blank",
+         "pose": "sit"
+        },
+        {
+         "id": "kuro",
+         "expr": "sleepy",
+         "pose": "sit"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ふじ写真館\n本日も大行列",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smile",
+         "pose": "hold",
+         "hold": "camera"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "いらっしゃい…\nって、ナギかい"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "カラン",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "worried",
+         "pose": "stand"
+        },
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "hide"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "なんで\n黙ってるんだい"
+        }
+       ],
+       "narr": "【速報】孫、今日は\nしゃべらない",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "washitsu",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "hold",
+         "hold": "letter"
+        },
+        {
+         "id": "nagi",
+         "expr": "surprised",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "店を閉めるよ"
+        },
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "誰にも\n言うんじゃないよ"
+        }
+       ],
+       "narr": "【昨夜】",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      },
+      {
+       "shot": "bust",
+       "bg": "washitsu",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "determined",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "shock",
+         "pose": "surprise"
+        },
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "point"
+        }
+       ],
+       "say": [
+        {
+         "who": "gen",
+         "type": "shout",
+         "text": "閉店！？"
+        }
+       ],
+       "narr": "【けさ】",
+       "sfx": [],
+       "fx": [
+        "flashback"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "think",
+         "pose": "armscross"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "誰にも\n言ってないね？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "shock",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat",
+        "shake"
+       ]
+      },
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuro",
+         "expr": "normal",
+         "pose": "sit"
+        },
+        {
+         "id": "nagi",
+         "expr": "nervous",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】孫、うなずく",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "bg",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "迷子の\nお知らせです"
+        },
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "写真館を\nさがしている方…"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "surprised",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "迷子？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "smile",
+         "pose": "wave"
+        },
+        {
+         "id": "mei",
+         "expr": "happy",
+         "pose": "hold",
+         "hold": "flower"
+        }
+       ],
+       "say": [
+        {
+         "who": "gen",
+         "type": "speech",
+         "text": "写真、\n撮ってくれるかい"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "カラン",
+         "size": "m"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      3,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "shock",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "sweat"
+       ]
+      },
+      {
+       "shot": "bg",
+       "bg": "street",
+       "time": "day",
+       "weather": "clear",
+       "cast": [],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "迷子は\n三十人です"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "laugh",
+         "pose": "cheer"
+        },
+        {
+         "id": "mei",
+         "expr": "happy",
+         "pose": "jump"
+        },
+        {
+         "id": "fumi",
+         "expr": "surprised",
+         "pose": "surprise"
+        },
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "hide"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ほんとうに\n大行列",
+       "sfx": [
+        {
+         "text": "ワイワイ",
+         "size": "l"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "worried",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "gen",
+         "type": "speech",
+         "text": "閉店って、\nほんとかい？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "sad",
+         "pose": "hold",
+         "hold": "letter"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "それはね…"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "determined",
+         "pose": "reach",
+         "hold": "letter"
+        },
+        {
+         "id": "fumi",
+         "expr": "surprised",
+         "pose": "surprise"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "ビリッ",
+         "size": "l"
+        }
+       ],
+       "fx": [
+        "impact",
+        "focus"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "nagi",
+         "expr": "cry",
+         "pose": "kneel"
+        },
+        {
+         "id": "fumi",
+         "expr": "normal",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "hips"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "…言ったね？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "laugh",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "speech",
+         "text": "さすが、\nわたしの孫だ"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "stage",
+       "time": "evening",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "gen",
+         "expr": "laugh",
+         "pose": "cheer"
+        },
+        {
+         "id": "mei",
+         "expr": "laugh",
+         "pose": "wave"
+        },
+        {
+         "id": "nagi",
+         "expr": "happy",
+         "pose": "stand"
+        },
+        {
+         "id": "kuro",
+         "expr": "smile",
+         "pose": "sit"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】ふじ写真館\n本日も大行列",
+       "sfx": [
+        {
+         "text": "パシャ",
+         "size": "l"
+        }
+       ],
+       "fx": [
+        "sparkle"
+       ]
+      },
+      {
+       "shot": "full",
+       "bg": "stage",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "fumi",
+         "expr": "smug",
+         "pose": "stand"
+        },
+        {
+         "id": "kuro",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "あの子に話せば\n町中に伝わる"
+        },
+        {
+         "who": "fumi",
+         "type": "whisper",
+         "text": "計算どおりさ"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "stage",
+       "time": "night",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuro",
+         "expr": "smug",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "【速報】店主は\n何も知らなかった模様",
+       "sfx": [],
+       "fx": [],
+       "art": {
+        "headRatio": 2.8,
+        "deform": 0.85,
+        "hatching": 0,
+        "crossHatch": 0,
+        "softness": 0.8,
+        "grain": 0,
+        "eyeStyle": "dot",
+        "note": "真実を知る猫だけ漫画に"
+       }
+      }
+     ]
+    }
+   ],
+   "art": {
+    "line": {
+     "weight": 0.35,
+     "taper": 0.8,
+     "jitter": 0.05,
+     "roughness": 0.1
+    },
+    "headRatio": 6.2,
+    "deform": 0.15,
+    "eyeSize": 0.3,
+    "hatching": 0.7,
+    "crossHatch": 0.35,
+    "black": 0.35,
+    "tone": 0.15,
+    "detail": 0.75,
+    "perspective": 0.3,
+    "dynamism": 0.15,
+    "sparkle": 0,
+    "softness": 0.2,
+    "grain": 0.45,
+    "eyeStyle": "simple",
+    "toneKind": "kakeami",
+    "panelFrame": "clean",
+    "direction": "古い新聞の挿絵のように、細い線と斜線で陰影をつける。頭身は高め、表情は控えめに描き、速報のナレーションが『報道写真』の上に乗っているように見せる。トーンは使わず、斜線と紙のざらつきで。",
+    "aim": "町の小さな嘘を、新聞写真の大真面目さで",
+    "reason": "話はほのぼのだが、笑いの芯は『速報が大真面目に嘘をつく』ことにある。絵まで大真面目な報道調にすると、嘘とのズレがくすぐったさになる。最後の猫だけを漫画らしく崩して、真実を知る者の得意顔を際立たせる。"
+   }
+  },
+  "meta": {
+   "mode": "sample",
+   "bundled": true,
+   "seedNote": "ジャンル: ほのぼの日常／語り口: ニュース速報の調子／舞台: 町の写真館／主人公: 二十代の漁師（秘密を守れない）／関係性: 祖父母と孫／葛藤: 大事な人に嘘をついてしまった／目的: 店をつぶさない／仕掛け: 語り手が嘘をついている／結末: 動物だけが真実を知っている／小物: 紙の王冠・目覚まし時計・迷子のお知らせ放送／制約: 主人公は一言もしゃべらない",
+   "memo": {
+    "core": "秘密を守れない漁師の孫が、祖母の閉店の秘密を町中にしゃべってしまい、罪ほろぼしに一言もしゃべらない一日で写真館を救う話",
+    "hook": "「本日も大行列」という速報のナレーションの下で、写真館はからっぽ（ナレーションの嘘が絵でばれる）",
+    "turn": "4ページ目：町内放送の「迷子のお知らせ」で、写真館をさがす人が次々に来る（孫がしゃべったせいだと分かる）",
+    "climax": "6ページ目：閉店は本当かと訊かれ、口ごもる祖母の手から、孫が黙って閉店のお知らせを取って破る。7ページ目：声を出さずに土下座で謝る",
+    "punch": "1ページ目と同じ構図で、今度は本当に大行列。祖母は猫にだけ「計算どおり」とささやく。速報は最後まで嘘をつく",
+    "foreshadow": [
+     {
+      "setup": "3ページ1コマ目：祖母が口止めするときの得意げな顔",
+      "payoff": "8ページ2コマ目：わざと孫に話したと分かる"
+     },
+     {
+      "setup": "2ページ1コマ目：嘘の速報『本日も大行列』",
+      "payoff": "8ページ1コマ目：同じ構図で本当になる"
+     },
+     {
+      "setup": "3ページ1コマ目：祖母が見せた閉店のお知らせの紙",
+      "payoff": "6ページ3コマ目：孫が破る"
+     }
+    ],
+    "change": "自分の欠点を恥じて口を閉じていた孫が、欠点ごと祖母に頼られていたと知る（本人は知らないまま）",
+    "motifPlan": "紙の王冠は写真館の看板猫クロがいつもかぶっている。迷子のお知らせ放送は電話・機械の声（electric）で画面の外から",
+    "dropped": "目覚まし時計：一日の話の中で役目を作れなかった"
+   },
+   "editor": [
+    {
+     "stage": "name",
+     "verdict": "ok",
+     "notes": [
+      "5ページ1コマ目の放送は、二つ目の吹き出しを9字に詰めた（写真館を／さがしている方…）",
+      "最後のページの祖母は座らせると頭が沈むので立たせた"
+     ],
+     "originality": "問題なし（速報口調の語りも、祖母の計算も、既存作品の筋に寄っていない）",
+     "feeling": "くすぐったい",
+     "approach": "対位",
+     "panelArt": [
+      {
+       "page": 9,
+       "panel": 3,
+       "art": {
+        "headRatio": 2.8,
+        "deform": 0.85,
+        "hatching": 0,
+        "crossHatch": 0,
+        "softness": 0.8,
+        "grain": 0,
+        "eyeStyle": "dot",
+        "note": "真実を知る猫だけ漫画に"
+       },
+       "note": "真実を知る猫だけ漫画に"
+      }
+     ]
+    }
+   ],
+   "note": "prompts.js の指示文に従って企画・脚本担当が書いた見本。nameScript は最初のネーム",
+   "extrasHistory": {
+    "firstDraft": "7ページ。孫は閉店の秘密を町中にしゃべってしまい、罪ほろぼしに一言もしゃべらない。町の人が押し寄せ、山場で孫は土下座し、祖母は「言ったね？」と笑う。最後に祖母は猫にだけ「計算どおり」とささやく。",
+    "editorNotes": [
+     "主人公が山場で何もしていない。黙ったままでもできる「自分で選んだ行動」を一つ入れる",
+     "ナレーションの速報口調は語り口として残してよい",
+     "黒い毛の猫は最後のアップで表情が見えない"
+    ],
+    "changes": [
+     "山場の前に1ページ足し、閉店は本当かと訊かれて口ごもる祖母の手から、孫が黙って閉店のお知らせを取って破るようにした",
+     "3ページ1コマ目で、祖母が閉店のお知らせの紙を見せるようにした（破る場面の伏線）",
+     "看板猫クロの毛を黒から灰色にし、服を着せた",
+     "最後のページの祖母を、座りから立ちに変えた（頭がコマから沈むため）",
+     "町内放送の吹き出しを9字に詰めた"
+    ],
+    "artDecision": {
+     "feeling": "くすぐったい",
+     "approach": "対位",
+     "aim": "町の小さな嘘を、新聞写真の大真面目さで",
+     "direction": "古い新聞の挿絵のように、細い線と斜線で陰影をつける。頭身は高め、表情は控えめに描き、速報のナレーションが『報道写真』の上に乗っているように見せる。トーンは使わず、斜線と紙のざらつきで。",
+     "reason": "話はほのぼのだが、笑いの芯は『速報が大真面目に嘘をつく』ことにある。絵まで大真面目な報道調にすると、嘘とのズレがくすぐったさになる。最後の猫だけを漫画らしく崩して、真実を知る者の得意顔を際立たせる。",
+     "panelArt": [
+      {
+       "page": 9,
+       "panel": 3,
+       "art": {
+        "headRatio": 0.85,
+        "deform": 0.85,
+        "hatching": 0,
+        "crossHatch": 0,
+        "softness": 0.8,
+        "grain": 0,
+        "eyeStyle": "dot",
+        "note": "真実を知る猫だけ漫画に"
+       },
+       "note": "真実を知る猫だけ漫画に"
+      }
+     ]
+    },
+    "droppedSeeds": [
+     "目覚まし時計（一日の話の中で役目を作れなかった）"
+    ]
+   }
+  }
+ },
+ {
+  "meeting": null,
+  "nameScript": {
+   "title": "これは父です",
+   "genre": "不条理ギャグ",
+   "logline": "毎日ひとつずつ物が消える世界で、着ぐるみの父は無表情に弁当を食べる。父の正体は世界を片付ける消し職人で、明日の注文は『父』だった。",
+   "ending": "end",
+   "characters": [
+    {
+     "id": "kuma",
+     "name": "父",
+     "role": "着ぐるみの中の人・消し職人",
+     "species": "bear",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "light",
+     "eyes": "dot",
+     "outfit": "none",
+     "pattern": "white",
+     "items": [
+      "key"
+     ],
+     "desc": "鍵を下げた、無表情なくまの着ぐるみ"
+    },
+    {
+     "id": "mimi",
+     "name": "ミミ",
+     "role": "しっかり者の娘",
+     "species": "human",
+     "age": "child",
+     "body": "slim",
+     "hair": "bob",
+     "hairColor": "black",
+     "eyes": "sharp",
+     "outfit": "uniform",
+     "pattern": "check",
+     "items": [
+      "glasses"
+     ],
+     "desc": "眼鏡のしっかり者"
+    },
+    {
+     "id": "kero",
+     "name": "かえる",
+     "role": "砂漠のかえる",
+     "species": "frog",
+     "age": "adult",
+     "body": "normal",
+     "hair": "short",
+     "hairColor": "tone",
+     "eyes": "round",
+     "outfit": "none",
+     "pattern": "white",
+     "items": [],
+     "desc": "ずっと見ているかえる"
+    },
+    {
+     "id": "chichi",
+     "name": "父（中の人）",
+     "role": "着ぐるみを脱いだ父",
+     "species": "human",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "black",
+     "eyes": "dot",
+     "outfit": "shirt",
+     "pattern": "white",
+     "items": [],
+     "desc": "後ろ姿だけの父"
+    }
+   ],
+   "cover": {
+    "bg": "desert",
+    "time": "day",
+    "weather": "clear",
+    "cast": [
+     {
+      "id": "kuma",
+      "expr": "blank",
+      "pose": "stand"
+     },
+     {
+      "id": "mimi",
+      "expr": "determined",
+      "pose": "hold",
+      "hold": "food"
+     },
+     {
+      "id": "kero",
+      "expr": "surprised",
+      "pose": "sit"
+     }
+    ],
+    "catch": "父の顔は、だれも知らない。"
+   },
+   "pages": [
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "normal",
+         "pose": "stand"
+        },
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "これはさばくです。\nきのうまで海でした。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "これは父です。\n父は着ぐるみです。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "smile",
+         "pose": "hold",
+         "hold": "food"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "お父さん、\nお弁当"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "sit",
+         "hold": "food"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "うむ"
+        }
+       ],
+       "narr": "父の顔は\nだれも知りません。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "think",
+         "pose": "hold",
+         "hold": "book"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "月曜は海、\n火曜は町"
+        },
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "今日は何が\n消えるかな"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "worried",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "それ、\n何の鍵？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "armscross"
+        },
+        {
+         "id": "kero",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "仕事の鍵だ"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "ケロ",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "walk"
+        },
+        {
+         "id": "mimi",
+         "expr": "nervous",
+         "pose": "hide"
+        }
+       ],
+       "say": [],
+       "narr": "父は毎日夕方に\nひみつの場所へ行きます。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bg",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [],
+       "say": [],
+       "narr": "これは電話ボックスです。\nさばくのまん中にあります。",
+       "sfx": [
+        {
+         "text": "リリリン",
+         "size": "m"
+        }
+       ],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "はい、\n消し屋です"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        },
+        {
+         "id": "mimi",
+         "expr": "shock",
+         "pose": "surprise"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "明日は\n何を消しますか"
+        }
+       ],
+       "narr": "父は世界を\n片付ける職人でした。",
+       "sfx": [],
+       "fx": [
+        "focus"
+       ]
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "rage",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "shout",
+         "text": "海を消したの、\nお父さん！？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "shrug"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "注文だから"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        }
+       ],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "明日は\n『父』を\nお願いします"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "cry",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        },
+        {
+         "id": "kero",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "かしこまりました"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "gloom"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "angry",
+         "pose": "point"
+        },
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "shout",
+         "text": "断ってよ！"
+        },
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "職人は\n断らない"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "point"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "ただし、\n読み方は\n職人が決める"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "surprised",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "question"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "reach"
+        }
+       ],
+       "say": [],
+       "narr": "父は着ぐるみです。",
+       "sfx": [
+        {
+         "text": "カチャリ",
+         "size": "l"
+        }
+       ],
+       "fx": [
+        "magic",
+        "focus"
+       ]
+      },
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "chichi",
+         "expr": "normal",
+         "pose": "walk",
+         "face": "back"
+        },
+        {
+         "id": "mimi",
+         "expr": "happy",
+         "pose": "walk",
+         "face": "back"
+        },
+        {
+         "id": "kero",
+         "expr": "shock",
+         "pose": "surprise",
+         "face": "front"
+        }
+       ],
+       "say": [
+        {
+         "who": "kero",
+         "type": "shout",
+         "text": "ケロ！？"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "ザッザッ",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kero",
+         "expr": "smug",
+         "pose": "sit"
+        }
+       ],
+       "say": [],
+       "narr": "これはかえるです。\nかえるは父の顔を知っています。",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    }
+   ]
+  },
+  "extras": null,
+  "profile": {
+   "axes": {
+    "humor": 0.7,
+    "warmth": 0.6,
+    "tension": 0.35,
+    "tempo": 0.5,
+    "dark": 0.3,
+    "fantasy": 0.75,
+    "romance": 0,
+    "action": 0.15,
+    "mystery": 0.5,
+    "tearjerk": 0.35,
+    "absurd": 0.9,
+    "charDriven": 0.55,
+    "talky": 0.35,
+    "growth": 0.3,
+    "everyday": 0.3,
+    "scale": 0.55,
+    "twist": 0.75,
+    "afterglow": 0.6,
+    "cute": 0.45,
+    "smart": 0.65
+   },
+   "tags": {
+    "genre": [
+     "不条理ギャグ"
+    ],
+    "setting": [
+     "砂漠"
+    ],
+    "protagonist": [
+     "くま（着ぐるみ）"
+    ],
+    "age": [
+     "大人"
+    ],
+    "relation": [
+     "親子"
+    ],
+    "ending": [
+     "動物だけが知っている"
+    ],
+    "humor": [
+     "シュール",
+     "真顔"
+    ],
+    "motif": [
+     "例文",
+     "鍵",
+     "弁当"
+    ]
+   }
+  },
+  "id": "sample-korechichi",
+  "script": {
+   "title": "これは父です",
+   "genre": "不条理ギャグ",
+   "logline": "毎日ひとつずつ物が消える世界で、着ぐるみの父は無表情に弁当を食べる。父の正体は世界を片付ける消し職人で、明日の注文は『父』だった。",
+   "ending": "end",
+   "characters": [
+    {
+     "id": "kuma",
+     "name": "父",
+     "role": "着ぐるみの中の人・消し職人",
+     "species": "bear",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "light",
+     "eyes": "dot",
+     "outfit": "jersey",
+     "pattern": "white",
+     "items": [
+      "key"
+     ],
+     "desc": "鍵を下げた、無表情なくまの着ぐるみ（ジャージ）"
+    },
+    {
+     "id": "mimi",
+     "name": "ミミ",
+     "role": "しっかり者の娘",
+     "species": "human",
+     "age": "child",
+     "body": "slim",
+     "hair": "bob",
+     "hairColor": "black",
+     "eyes": "sharp",
+     "outfit": "uniform",
+     "pattern": "check",
+     "items": [
+      "glasses"
+     ],
+     "desc": "眼鏡のしっかり者"
+    },
+    {
+     "id": "kero",
+     "name": "かえる",
+     "role": "砂漠のかえる",
+     "species": "frog",
+     "age": "adult",
+     "body": "normal",
+     "hair": "short",
+     "hairColor": "tone",
+     "eyes": "round",
+     "outfit": "tshirt",
+     "pattern": "dots",
+     "items": [],
+     "desc": "ずっと見ているかえる"
+    },
+    {
+     "id": "chichi",
+     "name": "父（中の人）",
+     "role": "着ぐるみを脱いだ父",
+     "species": "human",
+     "age": "adult",
+     "body": "round",
+     "hair": "short",
+     "hairColor": "black",
+     "eyes": "dot",
+     "outfit": "shirt",
+     "pattern": "white",
+     "items": [],
+     "desc": "後ろ姿だけの父"
+    }
+   ],
+   "cover": {
+    "bg": "desert",
+    "time": "day",
+    "weather": "clear",
+    "cast": [
+     {
+      "id": "kuma",
+      "expr": "blank",
+      "pose": "stand"
+     },
+     {
+      "id": "mimi",
+      "expr": "determined",
+      "pose": "hold",
+      "hold": "food"
+     },
+     {
+      "id": "kero",
+      "expr": "surprised",
+      "pose": "sit"
+     }
+    ],
+    "catch": "父の顔は、だれも知らない。"
+   },
+   "pages": [
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "normal",
+         "pose": "stand"
+        },
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "これはさばくです。\nきのうまで海でした。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "これは父です。\n父は着ぐるみです。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "smile",
+         "pose": "hold",
+         "hold": "food"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "お父さん、\nお弁当"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "sit",
+         "hold": "food"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "うむ"
+        }
+       ],
+       "narr": "父の顔は\nだれも知りません。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "think",
+         "pose": "hold",
+         "hold": "book"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "月曜は海、\n火曜は町"
+        },
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "今日は何が\n消えるかな"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "worried",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "speech",
+         "text": "それ、\n何の鍵？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "armscross"
+        },
+        {
+         "id": "kero",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "仕事の鍵だ"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "ケロ",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "walk"
+        },
+        {
+         "id": "mimi",
+         "expr": "nervous",
+         "pose": "hide"
+        }
+       ],
+       "say": [],
+       "narr": "父は毎日夕方に\nひみつの場所へ行きます。",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bg",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [],
+       "say": [],
+       "narr": "これは電話ボックスです。\nさばくのまん中にあります。",
+       "sfx": [
+        {
+         "text": "リリリン",
+         "size": "m"
+        }
+       ],
+       "fx": []
+      },
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "はい、\n消し屋です"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        },
+        {
+         "id": "mimi",
+         "expr": "shock",
+         "pose": "surprise"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "明日は\n何を消しますか"
+        }
+       ],
+       "narr": "父は世界を\n片付ける職人でした。",
+       "sfx": [],
+       "fx": [
+        "focus"
+       ]
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "rage",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "shout",
+         "text": "海を消したの、\nお父さん！？"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "evening",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "shrug"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "注文だから"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      2,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "hold",
+         "hold": "phone"
+        }
+       ],
+       "say": [
+        {
+         "who": "off",
+         "type": "electric",
+         "text": "明日は\n『父』を\nお願いします"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "cry",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        },
+        {
+         "id": "kero",
+         "expr": "normal",
+         "pose": "sit"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "かしこまりました"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "gloom"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      2
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "angry",
+         "pose": "point"
+        },
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "stand"
+        }
+       ],
+       "say": [
+        {
+         "who": "mimi",
+         "type": "shout",
+         "text": "断ってよ！"
+        },
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "職人は\n断らない"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "bust",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "point"
+        }
+       ],
+       "say": [
+        {
+         "who": "kuma",
+         "type": "speech",
+         "text": "ただし、\n読み方は\n職人が決める"
+        }
+       ],
+       "narr": "",
+       "sfx": [],
+       "fx": []
+      },
+      {
+       "shot": "up",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "mimi",
+         "expr": "surprised",
+         "pose": "stand"
+        }
+       ],
+       "say": [],
+       "narr": "",
+       "sfx": [],
+       "fx": [
+        "question"
+       ]
+      }
+     ]
+    },
+    {
+     "rows": [
+      1,
+      1
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "night",
+       "weather": "fog",
+       "cast": [
+        {
+         "id": "kuma",
+         "expr": "blank",
+         "pose": "reach"
+        }
+       ],
+       "say": [],
+       "narr": "父は着ぐるみです。",
+       "sfx": [
+        {
+         "text": "カチャリ",
+         "size": "l"
+        }
+       ],
+       "fx": [
+        "magic",
+        "focus"
+       ],
+       "art": {
+        "headRatio": 7.5,
+        "deform": 0,
+        "hatching": 0.75,
+        "crossHatch": 0.5,
+        "black": 0.8,
+        "detail": 0.85,
+        "dynamism": 0.8,
+        "line": {
+         "weight": 0.7,
+         "taper": 0.9
+        },
+        "eyeStyle": "realistic",
+        "note": "職人の一瞬だけ劇画"
+       }
+      },
+      {
+       "shot": "long",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "chichi",
+         "expr": "normal",
+         "pose": "walk",
+         "face": "back"
+        },
+        {
+         "id": "mimi",
+         "expr": "happy",
+         "pose": "walk",
+         "face": "back"
+        },
+        {
+         "id": "kero",
+         "expr": "shock",
+         "pose": "surprise",
+         "face": "front"
+        }
+       ],
+       "say": [
+        {
+         "who": "kero",
+         "type": "shout",
+         "text": "ケロ！？"
+        }
+       ],
+       "narr": "",
+       "sfx": [
+        {
+         "text": "ザッザッ",
+         "size": "s"
+        }
+       ],
+       "fx": []
+      }
+     ]
+    },
+    {
+     "rows": [
+      1
+     ],
+     "panels": [
+      {
+       "shot": "full",
+       "bg": "desert",
+       "time": "day",
+       "weather": "clear",
+       "cast": [
+        {
+         "id": "kero",
+         "expr": "smug",
+         "pose": "hips"
+        }
+       ],
+       "say": [],
+       "narr": "これはかえるです。\nかえるは父の顔を知っています。",
+       "sfx": [],
+       "fx": []
+      }
+     ]
+    }
+   ],
+   "art": {
+    "line": {
+     "weight": 0.3,
+     "taper": 0.1,
+     "jitter": 0,
+     "roughness": 0
+    },
+    "headRatio": 4,
+    "deform": 0.35,
+    "eyeSize": 0.3,
+    "hatching": 0,
+    "crossHatch": 0,
+    "black": 0.1,
+    "tone": 0.05,
+    "detail": 0.3,
+    "perspective": 0.1,
+    "dynamism": 0.05,
+    "sparkle": 0,
+    "softness": 0.3,
+    "grain": 0,
+    "eyeStyle": "dot",
+    "toneKind": "none",
+    "panelFrame": "borderless",
+    "direction": "理科の教科書の図のように、均一な細い線、影なし、トーンなし、枠なし。人物は4頭身で正面か真横。例文のナレーションとさし絵がそのまま並んでいるように描く。父が鍵を回すコマだけ、7.5頭身の劇画で描く。",
+    "aim": "教科書のさし絵のまま、父の一瞬だけ劇画",
+    "reason": "語りが教科書の例文なので、絵もさし絵の無表情さに合わせると、とんでもない出来事が淡々と進むおかしさが立つ。職人として仕事をする一瞬だけ劇画にして、無表情な父の本気を絵で見せる。"
+   }
+  },
+  "meta": {
+   "mode": "sample",
+   "bundled": true,
+   "seedNote": "ジャンル: 不条理ギャグ × 職人もの／語り口: 教科書の例文の調子／舞台: 砂漠の真ん中の電話ボックス／主人公: 四十代の着ぐるみの中の人（感情が顔に出ない）／関係性: 親子（子のほうがしっかり者）／葛藤: 何かが毎日ひとつずつ消える／目的: 秘密の場所に行く／仕掛け: 劇中劇／結末: 動物だけが真実を知っている／小物: 手作りの弁当・霧・合鍵／制約: 一段一コマの大ゴマを三回以上使う",
+   "memo": {
+    "core": "顔に感情が出ない着ぐるみの父は、じつは世界を毎日ひとつずつ片付ける『消し職人』。明日消す注文が『父』だと知り、教科書の例文の理屈で切り抜ける話",
+    "hook": "『これは　さばくです。きのうまで　海でした。』という教科書の例文と、砂漠に立つ着ぐるみの父",
+    "turn": "4ページ目：娘があとをつけると、霧の電話ボックスで父が『明日は何を消しますか』と注文を受けている",
+    "climax": "6ページ目：注文は『父』。父は合鍵を回し、例文『父は着ぐるみです』を盾に、着ぐるみのほうを消す",
+    "punch": "着ぐるみが消えた父は後ろ姿だけ。正面から顔を見たかえるだけが『ケロ！？』と驚く。父の顔は、かえるだけが知っている",
+    "foreshadow": [
+     {
+      "setup": "2ページ2コマ目：例文『父は　着ぐるみです。』",
+      "payoff": "7ページ2コマ目：その例文を理屈にして、着ぐるみを消す"
+     },
+     {
+      "setup": "3ページ3コマ目：父がいつも持っている合鍵（娘が『それ何の鍵？』）",
+      "payoff": "7ページ1コマ目：合鍵で消す"
+     },
+     {
+      "setup": "2ページ1コマ目：きのうまで海",
+      "payoff": "4ページ：父が消していた"
+     }
+    ],
+    "change": "何を消すときも無表情だった父が、娘のために初めて注文に逆らう（顔は最後まで無表情のまま）",
+    "motifPlan": "弁当は娘が持つ food。霧は weather の fog。合鍵は父の items の key。電話ボックスは描けないので砂漠に電話を持つ父とナレーションで",
+    "dropped": "劇中劇：例文の語りと消し職人の理屈で手いっぱいになり、劇中劇を入れると何の話か分からなくなるため"
+   },
+   "editor": [
+    {
+     "stage": "name",
+     "verdict": "ok",
+     "notes": [
+      "父の『うむ』は無表情の顔だけでも伝わるが、弁当を受け取る手の動きで残した",
+      "最後のページは、かえるの得意顔を大きく。引きの小さいかえるでは弱い"
+     ],
+     "originality": "問題なし",
+     "feeling": "ぽかんとして、あとからじわっと温かい",
+     "approach": "裏切り",
+     "panelArt": [
+      {
+       "page": 8,
+       "panel": 1,
+       "art": {
+        "headRatio": 7.5,
+        "deform": 0,
+        "hatching": 0.75,
+        "crossHatch": 0.5,
+        "black": 0.8,
+        "detail": 0.85,
+        "dynamism": 0.8,
+        "line": {
+         "weight": 0.7,
+         "taper": 0.9
+        },
+        "eyeStyle": "realistic",
+        "note": "職人の一瞬だけ劇画"
+       },
+       "note": "職人の一瞬だけ劇画"
+      }
+     ]
+    }
+   ],
+   "note": "prompts.js の指示文に従って企画・脚本担当が書いた見本。nameScript は最初のネーム"
+  }
  }
 ];

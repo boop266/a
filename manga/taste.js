@@ -294,7 +294,7 @@
       const age = n - 1 - i; const d = halfLife > 0 && isFinite(halfLife) ? Math.max(0.05, Math.pow(0.5, age / halfLife)) : 1;
       const u = R * m / (1 + R); // 事前 N(0,1) と合わせた好き度（表示用）
       rows.push({ id: aw.id, aw, fb, y: m, tau: 1 / R, info: R, d, u, conf: R / (1 + R), sig, order: i,
-        parts: sig.map(s => `${s.label} ${s.v * s.rho / (1 + R) >= 0 ? '+' : '−'}${Math.abs(s.v * s.rho / (1 + R)).toFixed(1)}`) });
+        parts: sig.map(s => { const c = s.v * s.rho / (1 + R); return Math.abs(c) < 0.05 ? s.label : `${s.label} ${c >= 0 ? '+' : '−'}${Math.abs(c).toFixed(1)}`; }) });
     });
     return { rows, reader: { likeRate, dwell: dwellInfo, n: rows.length, halfLife } };
   }
@@ -366,6 +366,11 @@
     const grp = new Array(p); for (let j = 0; j < p; j++) grp[j] = groupOf(j);
     const s = new Float64Array(p); for (let j = 0; j < p; j++) s[j] = gs[grp[j]];
     let sigma2 = opts.sigma2 != null ? opts.sigma2 : 0.35;
+    if (opts.warm) { // 前の学習の分散を引き継ぐ（同じ特徴は同じ値、新しいタグは群の値）
+      const W = opts.warm; for (const g of GROUPS) if (W.gs[g] != null) gs[g] = W.gs[g];
+      for (let j = 0; j < p; j++) { const g = grp[j]; s[j] = gs[g]; if (j < OFF.tag && j < W.s.length) s[j] = W.s[j]; else if (g === 'tag' && W.tagIndex.has(tagNames[j - OFF.tag])) s[j] = W.s[OFF.tag + W.tagIndex.get(tagNames[j - OFF.tag])]; }
+      sigma2 = W.sigma2;
+    }
     const iters = n ? (opts.iters != null ? opts.iters : 10) : 0;
     let L = null, alpha = null, mu = new Float64Array(p), B = null, diagS = Float64Array.from(s);
     const noise = () => rows.map((r, i) => Math.min(80, (sigma2 + tau[i]) / dd[i]));
@@ -479,7 +484,7 @@
     opts = opts || {};
     // 好みの変化：古い反応の重みを下げる半減期を、最近の作品での予測の当たり具合で自動選択（∞ / 40作 / 15作）。
     // 30作未満では変化を見分けられないので ∞（ただし opts.halfLife の指定があればそれを使う）
-    const fitWith = hl => { const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl })); let rows = F1.rows; if (rows.length > (opts.maxRows || 400)) rows = rows.slice(-(opts.maxRows || 400)); const M1 = fitRows(rows, opts); M1.halfLife = hl; return { M: M1, F: F1 }; };
+    const fitWith = (hl, warm) => { const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl })); let rows = F1.rows; if (rows.length > (opts.maxRows || 400)) rows = rows.slice(-(opts.maxRows || 400)); const M1 = fitRows(rows, warm ? Object.assign({}, opts, { warm, iters: opts.iters != null ? opts.iters : 8 }) : opts); M1.halfLife = hl; return { M: M1, F: F1 }; };
     let best;
     if (opts.halfLife != null) best = fitWith(opts.halfLife);
     else {
@@ -492,12 +497,12 @@
           // 古い順に並んだ反応のうち、最後の m 作を隠して学習し、その m 作の好き度を当てられるか（対数予測密度）
           const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl }));
           const rows = F1.rows; const train = rows.slice(0, rows.length - m).map(r => Object.assign({}, r, { d: Math.max(0.05, Math.pow(0.5, (rows.length - m - 1 - r.order) / hl)) }));
-          const M1 = fitRows(train, Object.assign({}, opts, { iters: 4 }));
+          const M1 = fitRows(train, Object.assign({}, opts, { iters: 5 }));
           let sc = 0; for (const r of rows.slice(-m)) { const pr = predictPhi(M1, featurize(r.aw, M1.tagIndex, M1.p)); const v = pr.var + M1.sigma2 + r.tau; sc += -0.5 * Math.log(2 * Math.PI * v) - 0.5 * (r.y - pr.mean) ** 2 / v; }
           scores[hl] = sc;
         }
         let hl = 1e9; for (const h of HALF_LIVES) if (scores[h] > scores[hl] + HL_MARGIN) hl = h; // 変化ありと判断する余裕（検証で決めた値）
-        best = fitWith(hl); best.M.halfLifeScores = scores;
+        best = fitWith(hl); best.M.halfLifeScores = scores; // 最終の学習は全件で最初から（少ない件数で学んだ分散を引き継ぐと組み合わせを取りこぼす）
       }
     }
     const M = best.M, F = best.F;
@@ -621,6 +626,10 @@
       const ls = liftS.map(l => l[ri]); const pos = ls.filter(x => x - popLift[ri] > 0).length / ls.length;
       const d = liftM[ri] - popLift[ri]; const conf = Math.abs(2 * pos - 1);
       if (Math.abs(d) < 0.25 || conf < 0.6 || liftM[ri] < 0.15) return; // 好き側にずれていて、一般の目安とも違うものだけ
+      if (rg.kind === 'combo') { // 片方の軸だけで説明できるずれは除く（組み合わせならではの分だけ）
+        const ia = regions.findIndex(x => x.kind === 'axis' && x.k === rg.a && x.side === 'high'), ib = regions.findIndex(x => x.kind === 'axis' && x.k === rg.b && x.side === 'high');
+        if (liftM[ri] - Math.max(liftM[ia], liftM[ib], 0) < 0.2) return;
+      }
       items.push({ ...rg, test: undefined, lift: r2(liftM[ri]), popLift: r2(popLift[ri]), d: r2(d), conf: r2(conf), base: r2(IND[ri].base), score: Math.abs(d) * conf * (1.2 - IND[ri].base) });
     });
     // タグ：一般には分かれる／人気でないものが好き、または一般に人気のものが苦手
@@ -640,9 +649,10 @@
   const tagLabel = t => { const i = t.indexOf(':'); const c = t.slice(0, i), v = t.slice(i + 1); return `${S.TAG_CATS[c] || c}：${v}`; };
 
   /* 精度の目安：検証（tests/taste-sim.js）で測った学習曲線と、いまの信頼度 R から */
-  // 検証で測った「ランダムな2作のどちらが好きかを当てる率」（6種類の架空の読者の中央値）。taste-sim.js の結果で更新する
-  const CURVE = [{ n: 0, pair: 0.50 }, { n: 5, pair: 0.58 }, { n: 10, pair: 0.63 }, { n: 20, pair: 0.69 }, { n: 40, pair: 0.74 }, { n: 80, pair: 0.78 }, { n: 160, pair: 0.81 }];
-  const C_PROJ = 6; // 事後分散 ∝ 1/(n + c) の c（検証で合わせた値）
+  // 検証（tests/taste-sim.js、6種類×8人の架空の読者の中央値）で測った「ランダムな2作のどちらが好きかを当てる率」
+  const CURVE = [{ n: 0, pair: 0.50 }, { n: 5, pair: 0.55 }, { n: 10, pair: 0.57 }, { n: 20, pair: 0.60 }, { n: 40, pair: 0.70 }, { n: 80, pair: 0.74 }];
+  const C_PROJ = 6; // 事後分散 ∝ 1/(n + c) の c
+  function curveAt(n) { if (n <= 0) return 0.5; for (let i = 1; i < CURVE.length; i++) if (n <= CURVE[i].n) { const a = CURVE[i - 1], b = CURVE[i]; return a.pair + (b.pair - a.pair) * (n - a.n) / (b.n - a.n); } const L = CURVE[CURVE.length - 1]; return Math.min(0.85, L.pair + 0.04 * Math.log2(n / L.n)); }
   function accuracyOf(M) {
     const R = M.reliability ? M.reliability.R : 0; const rho = Math.sqrt(Math.max(0, R));
     const pair = 0.5 + Math.asin(clamp(rho, 0, 1)) / Math.PI; // 二変量正規での「2作の順番を当てる率」
@@ -651,7 +661,12 @@
       if (R >= target) return 0; const ev = 1 - R; const need = (nEff + C_PROJ) * ev / (1 - target) - C_PROJ; return Math.max(1, Math.ceil(need - nEff));
     };
     const ahead = [5, 10, 20, 40].map(add => { const ev = (1 - R) * (nEff + C_PROJ) / (nEff + add + C_PROJ); const rr = Math.sqrt(1 - ev); return { more: add, pair: r2(0.5 + Math.asin(clamp(rr, 0, 1)) / Math.PI), R: r2(1 - ev) }; });
-    return { R: r2(R), expectedCorr: r2(rho), pairwise: r2(pair), nEff: r2(nEff), moreFor80: proj(0.8), moreFor60: proj(0.6), ahead, curve: CURVE };
+    // pairwise は自己申告（控えめ：検証では n が大きいほど実際より低めに出る）、byValidation は検証の学習曲線から
+    // 画面用の「精度」：2作当て率 50%→0、80%→1 に直した値（自己申告と検証曲線の平均）。「あと何作で 0.8（＝2作当て74%）か」も同じ物差しで
+    const toScore = pr => clamp((pr - 0.5) / 0.3, 0, 1);
+    const blend = (pair + curveAt(nEff)) / 2, score = toScore(blend);
+    let more = 0; if (score < 0.8) { more = null; for (let add = 1; add <= 400; add++) { const ev = (1 - R) * (nEff + C_PROJ) / (nEff + add + C_PROJ); const pr = (0.5 + Math.asin(Math.sqrt(Math.max(0, 1 - ev))) / Math.PI + curveAt(nEff + add)) / 2; if (toScore(pr) >= 0.8) { more = add; break; } } }
+    return { score: r2(score), moreFor80score: more, R: r2(R), expectedCorr: r2(rho), pairwise: r2(pair), byValidation: r2(curveAt(nEff)), nEff: r2(nEff), moreFor80: proj(0.8), moreFor60: proj(0.6), ahead, curve: CURVE };
   }
 
   /* 「あなたの好みを一言で」：ルールで作る短い日本語 */
@@ -814,8 +829,20 @@
   /* ---------------------------------------------------------------------------
      12. studio.html との約束（ANALYSIS の形）
      --------------------------------------------------------------------------- */
+  let MEMO = null;
+  function signature(works, fbs, history, opts) { // 入力が同じなら前回の結果を返す（studio は同じ状態で何度も呼ぶ）
+    try { const ws = Array.isArray(works) ? works : Object.values(works || {}); const hist = Array.isArray(history) ? history : (history && history.items) || [];
+      return JSON.stringify([ws.map(w => [w && w.id, w && w.profile && w.profile.axes && Object.values(w.profile.axes).join(), w && w.script && w.script.art && JSON.stringify(w.script.art).length]), fbs, hist.length, hist.length ? hist[hist.length - 1] : 0, opts, Math.floor((opts.now != null ? opts.now : Date.now()) / 600000)]); } catch (e) { return null; }
+  }
   function analyze(works, fbs, history, opts) {
     opts = opts || {};
+    const sig = opts.noCache ? null : signature(works, fbs, history, opts);
+    if (sig && MEMO && MEMO.sig === sig) return MEMO.A;
+    const A = analyzeNow(works, fbs, history, opts);
+    if (sig) MEMO = { sig, A };
+    return A;
+  }
+  function analyzeNow(works, fbs, history, opts) {
     const M = fit(works, fbs, history, opts);
     const sm = summarize(M, opts);
     const rows = M.rows;
@@ -839,7 +866,7 @@
     const acc = sm.accuracy;
     const nPos = rows.filter(r => r.u > 0.3).length, nNeg = rows.filter(r => r.u < -0.3).length;
     return {
-      version: VERSION, n: rows.length, nPos, nNeg, avgConf: acc.R, more: acc.moreFor80 || null,
+      version: VERSION, n: rows.length, nPos, nNeg, avgConf: acc.score, more: acc.moreFor80score || null,
       axes: axesC, feats: featsC, art: artC, tags: sm.tags, combos, unique: unique.slice(0, 4),
       rows: rows.map(r => ({ w: r.aw.src, r: r2(2 * r.u), u: r2(r.u), conf: r2(r.conf), weight: r2(r.d), parts: r.parts })),
       summary: sm, oneLiner: sm.oneLiner, accuracy: acc, model: M,

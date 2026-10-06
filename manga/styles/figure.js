@@ -265,54 +265,51 @@
     if (items.has('cape')) parts.push({ z: -1e3, f: () => drawCape(C) });
     if (items.has('wings')) parts.push({ z: -1e3 + 1, f: () => drawWings(C) });
     if (ANIMAL_EARS[spec.species] || spec.species === 'monster') parts.push({ z: -900, f: () => drawTail(C) });
+    if (spec.species === 'lion') parts.push({ z: -850, f: () => drawMane(C) });
     parts.push({ z: -800, f: () => drawHead(C, 'back') });
     // ----- 腕・脚
     const sleeve = outfit.sleeve, pants = outfit.bottom;
     for (const k of ['f', 'n']) {
       const sh = P2(J['sh' + k]), el = P2(J['el' + k]), wr = P2(J['wr' + k]);
       const hp = P2(J['hip' + k]), kn = P2(J['kn' + k]), an = P2(J['an' + k]), toe = P2(J['toe' + k]);
-      const mus = m.muscle;
-      const armMat1 = sleeve === 'none' ? (C.mat.fur ?? skinMat) : topMat, armMat2 = sleeve === 'long' || sleeve === 'wide' ? topMat : (C.mat.fur ?? skinMat);
-      const sk = sleeve === 'none' ? 1 : 1.15, wide = sleeve === 'wide';
-      const zA = (sh.z + el.z) / 2, zF = (el.z + wr.z) / 2;
-      parts.push({ z: zA, f: () => {
-        const prof = [[0, 0.95, 0.95], [0.18, 1.05 + mus * 0.3, 1.0 + mus * 0.05], [0.55, 1.0 + mus * 0.12, 0.98 + mus * 0.15], [1, 0.82, 0.82]];
-        const L = limb2([sh.x, sh.y], [el.x, el.y], m.armR * sh.k * sk, m.armR * el.k * 0.85 * sk, prof);
-        part(ly, L.poly, armMat1, { edges: [L.L, L.R], w: 1.5, off: m.armR * 0.7, lines: mus > 0.5 && sleeve === 'none' ? [{ p: [V.lerp(L.C[2], L.L[2], 0.3), V.lerp(L.C[5], L.L[5], 0.5), V.lerp(L.C[7], L.L[7], 0.85)], w: 0.8 }] : (sleeve === 'short' && art.detail > 0.4 ? [{ p: [V.lerp(L.C[6], L.L[6], 0.9), V.lerp(L.C[9], L.L[9], 0.3)], w: 0.6 }] : []) });
-      } });
-      parts.push({ z: zF + 0.01, f: () => {
-        const sk2 = (sleeve === 'long' ? 1.12 : 1) * (wide ? 1.7 : 1);
-        const prof = wide ? [[0, 1, 1], [1, 1.25, 1.25]] : [[0, 1, 1], [0.25, 1.1 + mus * 0.25, 1.05], [0.7, 0.9, 0.88], [1, 0.75, 0.75]];
-        const L = limb2([el.x, el.y], [wr.x, wr.y], m.armR * el.k * 0.85 * sk2, m.armR * wr.k * 0.62 * sk2, prof);
-        part(ly, L.poly, armMat2, { edges: wide ? null : [L.L, L.R], w: 1.4, off: m.armR * 0.6,
-          lines: (sleeve === 'long' && art.detail > 0.3) ? [{ p: [L.L[10], V.lerp(L.C[10], L.C[11], 0.5), L.R[11]], w: 0.7 }, { p: [V.lerp(L.C[1], L.R[1], 0.8), V.lerp(L.C[3], L.R[3], 0.2)], w: 0.6 }] : [] });
-        // 手（持ち物の後ろ／前）
+      const mus = m.muscle, skin = C.mat.fur ?? C.mat.skin;
+      const wide = sleeve === 'wide';
+      // 腕：肩→ひじ→手首を1本の線で（関節で途切れない）
+      const zArm = (sh.z + el.z * 2 + wr.z) / 4;
+      parts.push({ z: zArm, f: () => {
+        const ch = limbChain([sh, el, wr], m.armR, 'arm', mus, robot);
+        if (!(sleeve === 'long' || wide) || robot) part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.5, off: m.armR * 0.7, lines: ch.lines });
+        if (sleeve !== 'none' && !robot) { const end = sleeve === 'short' ? 0.42 : 0.96; const cl = clothOver(ch, 0, end, wide ? 1.55 : 1.16, sleeve === 'long' || wide ? 'cuff' : 'hem', art, wide); part(ly, cl.poly, topMat, { edges: cl.edges, w: 1.5, off: m.armR * 0.8, lines: cl.lines }); }
         const dir = V.norm([wr.x - el.x, wr.y - el.y]);
         if (C.hold && k === 'n') drawHeld(C, [wr.x, wr.y], dir, wr.k);
-        drawHand(C, [wr.x, wr.y], dir, m.hand * wr.k, (C.hold && k === 'n') ? 'grip' : J['hand' + k], k, armMat2 === topMat && !wide ? (C.mat.fur ?? skinMat) : (C.mat.fur ?? skinMat));
+        drawHand(C, [wr.x, wr.y], dir, m.hand * wr.k, (C.hold && k === 'n') ? 'grip' : J['hand' + k], k, skin);
       } });
       if (robot) { // 機械の関節（玉）
         const ball = (p, r, z) => parts.push({ z, f: () => { const E = ellipsePts(p.x, p.y, r, r, 0, 18); part(ly, E, Math.min(0.9, skinMat + 0.4), { off: r * 0.5, w: 1.2, lines: [{ p: ellipsePts(p.x, p.y, r * 0.45, r * 0.45, 0, 10), w: 0.5, o: { closed: true } }] }); } });
-        ball(sh, m.armR * 1.25 * sh.k, zA + 0.02); ball(el, m.armR * 0.95 * el.k, Math.max(zA, zF) + 0.03);
-        ball(kn, m.legR * 0.95 * kn.k, Math.max((hp.z + kn.z) / 2 - 0.5, (kn.z + an.z) / 2 - 0.4) + 0.03);
+        ball(sh, m.armR * 1.25 * sh.k, zArm + 0.02); ball(el, m.armR * 0.95 * el.k, zArm + 0.03);
+        ball(kn, m.legR * 0.95 * kn.k, (hp.z + kn.z * 2 + an.z) / 4 - 0.4);
       }
-      const zT = (hp.z + kn.z) / 2 - 0.5, zS = (kn.z + an.z) / 2 - 0.4;
-      const legMat1 = pants === 'pants' || pants === 'shorts' ? bottomMat : (C.mat.fur ?? skinMat), legMat2 = pants === 'pants' ? bottomMat : (C.mat.fur ?? skinMat);
-      const pk = pants === 'pants' ? 1.12 : 1;
-      parts.push({ z: zT, f: () => {
-        const prof = [[0, 1.1 + mus * 0.15, 1.0], [0.35, 1.08 + mus * 0.12, 0.95], [1, 0.75, 0.72]];
-        const L = limb2([hp.x, hp.y], [kn.x, kn.y], m.legR * hp.k * pk * 1.15, m.legR * kn.k * pk * 0.85, prof);
-        const lines = [];
-        if ((pants === 'pants') && art.detail > 0.25) for (let i = 0; i < 1 + Math.round(art.detail * 3); i++) { const t = rr(0.45, 0.95), i0 = Math.round(t * 12), sd = rand() < 0.5 ? L.L : L.R; lines.push({ p: [V.lerp(L.C[i0], sd[i0], 0.95), V.lerp(L.C[Math.max(0, i0 - 3)], sd[Math.max(0, i0 - 3)], rr(0.15, 0.5))], w: 0.65 }); }
-        part(ly, L.poly, legMat1, { edges: [L.L, L.R], w: 1.6, off: m.legR * 0.8, lines });
-      } });
-      parts.push({ z: zS, f: () => {
-        const prof = [[0, 1, 1], [0.3, 1.08 + mus * 0.15, 1.05], [1, 0.72, 0.72]];
-        const L = limb2([kn.x, kn.y], [an.x, an.y], m.legR * kn.k * pk * 0.85, m.legR * an.k * pk * 0.62, prof);
-        part(ly, L.poly, legMat2, { edges: [L.L, L.R], w: 1.6, off: m.legR * 0.7 });
+      // 脚：股関節→ひざ→足首
+      const zLeg = (hp.z + kn.z * 2 + an.z) / 4 - 0.5;
+      parts.push({ z: zLeg, f: () => {
+        const ch = limbChain([hp, kn, an], m.legR, 'leg', mus, robot);
+        const cover = pants === 'pants' ? 0.97 : pants === 'shorts' ? 0.4 : 0;
+        if (cover < 0.9 || robot) part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.6, off: m.legR * 0.8, lines: ch.lines });
+        if (cover > 0 && !robot) { const cl = clothOver(ch, 0, cover, cover > 0.9 ? 1.14 : 1.2, cover > 0.9 ? 'bunch' : 'hem', art, false); part(ly, cl.poly, bottomMat, { edges: cl.edges, w: 1.6, off: m.legR * 0.9, lines: cl.lines }); }
         drawShoe(C, an, toe, k);
       } });
     }
+    // ----- 腰（股）：左右の脚をつなぐ
+    parts.push({ z: -0.3, f: () => {
+      const T0 = rig.add3(J.pelvis, J.sp, m.torso * 0.08), dn = [0, 1, 0];
+      const Q = (x, y) => { const p = proj(rig.add3(T0, rig.rotY([x, y, 0], 0))); return [p.x, p.y]; };
+      const hw = m.hipHalf * 1.22, cr = m.legR * 1.5;
+      const P = catmull([Q(-hw, 0), Q(hw, 0), Q(hw * 1.02, cr * 0.9), Q(hw * 0.35, cr * 1.5), Q(0, cr * 1.7), Q(-hw * 0.35, cr * 1.5), Q(-hw * 1.02, cr * 0.9)], 4, true);
+      const mat = pants === 'pants' || pants === 'shorts' ? bottomMat : outfit.bottom === 'skirt' ? bottomMat : (C.mat.fur ?? C.mat.skin);
+      part(ly, P, mat, { outline: false, off: m.hipHalf * 0.6 });
+      if (pants === 'pants' && art.detail > 0.3) ink(ly.l, [Q(0, 0), Q(0, cr * 1.5)], 0.6);
+    } });
+    ly.sil = 1;
     // ----- 胴体
     parts.push({ z: 0, f: () => drawTorso(C, outfit) });
     if (outfit.bottom === 'skirt') parts.push({ z: 0.5, f: () => drawSkirt(C, outfit) });
@@ -328,6 +325,78 @@
     const xs = [], ys = []; for (const k of ['shn', 'shf', 'ann', 'anf', 'wrn', 'wrf', 'head']) { const p = proj(J[k]); xs.push(p.x); ys.push(p.y); }
     const top = hc.y - m.R * 1.2, bot = Math.max(...ys) + m.footH;
     return { head: { x: hc.x, y: hc.y, r: m.R * hc.k }, body: { x: Math.min(...xs) - m.R * 0.3, y: top, w: Math.max(...xs) - Math.min(...xs) + m.R * 0.6, h: bot - top } };
+  }
+
+  /* ---------- 手足：関節をまたいで1本につながった肉付け ----------
+     P: [付け根, 関節, 先]（投影済み {x,y,k}）。曲げの内側（くぼむ側）＝屈筋側として、筋肉のふくらみを左右で変える */
+  function limbChain(P, r, kind, mus, robot) {
+    const A = [P[0].x, P[0].y], B = [P[1].x, P[1].y], Cc = [P[2].x, P[2].y];
+    const l1 = V.dist(A, B), l2 = V.dist(B, Cc), tj = l1 / Math.max(1e-3, l1 + l2);
+    const cr = (B[0] - A[0]) * (Cc[1] - B[1]) - (B[1] - A[1]) * (Cc[0] - B[0]);
+    const bend = Math.abs(cr) / Math.max(1e-3, l1 * l2); // 0..1（曲がり具合）
+    const cs = cr >= 0 ? 1 : -1; // 内側の向き
+    // 関節は少し丸めて、パスを作る
+    const mid1 = V.lerp(A, B, 0.5), mid2 = V.lerp(B, Cc, 0.5);
+    const path = catmull([A, mid1, V.lerp(B, V.lerp(mid1, mid2, 0.5), 0.12), mid2, Cc], 6);
+    const L = [0]; for (let i = 1; i < path.length; i++) L.push(L[i - 1] + V.dist(path[i - 1], path[i]));
+    const tot = L[L.length - 1];
+    const ks = [P[0].k, P[1].k, P[2].k];
+    const m2 = robot ? 0 : mus;
+    // 太さの曲線（t: 0..1、tj が関節）。in=内側（屈筋）, out=外側
+    const bump = (t, c, w, h) => h * Math.exp(-(((t - c) / w) ** 2));
+    const prof = kind === 'arm'
+      ? (t, side) => { if (robot) return t < tj ? 1.0 : 0.85; const u = t / tj, v = (t - tj) / (1 - tj);
+          const base = t < tj ? lerp(1.1, 0.78, u) : lerp(0.8, 0.58, v);
+          return base + (side > 0 ? bump(t, tj * 0.55, tj * 0.25, 0.22 * m2 + 0.05) + bump(t, tj + (1 - tj) * 0.22, 0.1, 0.18 * m2 + 0.06) - bump(t, tj, 0.04, 0.08 * bend)
+                                : bump(t, tj * 0.12, tj * 0.18, 0.18 + 0.15 * m2) + bump(t, tj * 0.45, tj * 0.22, 0.14 * m2) + bump(t, tj, 0.04, 0.1 * bend)); }
+      : (t, side) => { if (robot) return t < tj ? 1.0 : 0.85; const u = t / tj, v = (t - tj) / (1 - tj);
+          const base = t < tj ? lerp(1.42, 0.78, Math.pow(u, 0.8)) : lerp(0.76, 0.52, v);
+          return base + (side > 0 ? bump(t, tj * 0.45, tj * 0.3, 0.1 + 0.1 * m2) + bump(t, tj + (1 - tj) * 0.28, 0.12, 0.2 + 0.12 * m2) - bump(t, tj, 0.04, 0.06 * bend)
+                                : bump(t, tj * 0.4, tj * 0.3, 0.12 + 0.15 * m2) + bump(t, tj, 0.05, 0.1)); };
+    const Lp = [], Rp = [];
+    for (let i = 0; i < path.length; i++) {
+      const t = L[i] / tot, a = path[Math.max(0, i - 1)], b = path[Math.min(path.length - 1, i + 1)];
+      const d = V.norm(V.sub(b, a)), n = [-d[1], d[0]];
+      const kk = t < tj ? lerp(ks[0], ks[1], t / tj) : lerp(ks[1], ks[2], (t - tj) / (1 - tj));
+      // 左右のどちらが内側（cs）か
+      const wl = r * kk * prof(t, cs > 0 ? 1 : -1), wr2 = r * kk * prof(t, cs > 0 ? -1 : 1);
+      Lp.push([path[i][0] + n[0] * wl, path[i][1] + n[1] * wl]); Rp.push([path[i][0] - n[0] * wr2, path[i][1] - n[1] * wr2]);
+    }
+    // 端は丸く
+    const cap = (c, d, w, rev) => { const o = []; for (let i = 1; i < 8; i++) { const a = Math.PI * i / 8; o.push(V.add(c, V.add(V.mul(V.perp(d), (rev ? -1 : 1) * Math.cos(a) * w), V.mul(d, (rev ? -1 : 1) * Math.sin(a) * w * 0.8)))); } return o; };
+    const dE = V.norm(V.sub(path[path.length - 1], path[path.length - 2])), dS = V.norm(V.sub(path[1], path[0]));
+    const wE = V.dist(Lp[Lp.length - 1], Rp[Rp.length - 1]) / 2, wS = V.dist(Lp[0], Rp[0]) / 2;
+    const poly = Lp.concat(cap(path[path.length - 1], dE, wE, false), Rp.slice().reverse(), cap(path[0], dS, wS, true));
+    // 関節のしわ（内側）と、ひじ・ひざの骨の線
+    const lines = []; const ij = Math.round(tj * (path.length - 1));
+    const inner = cs > 0 ? Lp : Rp, outer = cs > 0 ? Rp : Lp;
+    if (bend > 0.25 && !robot) { const c = inner[ij], cc = path[ij]; lines.push({ p: [V.lerp(cc, c, 0.95), V.lerp(cc, c, 0.55), V.lerp(path[Math.min(path.length - 1, ij + 2)], inner[Math.min(path.length - 1, ij + 2)], 0.5)], w: 0.7, o: { tin: 1, tout: 3 } }); }
+    if (kind === 'leg' && !robot) { const o = outer[ij]; lines.push({ p: [V.lerp(path[ij - 1] || path[ij], outer[ij - 1] || o, 0.6), V.lerp(path[ij], o, 0.75), V.lerp(path[ij + 1] || path[ij], outer[ij + 1] || o, 0.6)], w: 0.6, o: { tin: 1, tout: 1 } }); }
+    if (kind === 'arm' && m2 > 0.4) { const i0 = Math.round(tj * 0.35 * (path.length - 1)), i1 = Math.round(tj * 0.75 * (path.length - 1)); lines.push({ p: [V.lerp(path[i0], inner[i0], 0.35), V.lerp(path[i1], inner[i1], 0.3)], w: 0.6, o: { tin: 2, tout: 4 } }); }
+    return { poly, L: Lp, R: Rp, C: path, tj, bend, cs, lines, inner, outer };
+  }
+  // 服を手足の上に重ねる：袖・ズボン。端は折り返しやすそ、曲げの内側にしわ
+  function clothOver(ch, t0, t1, k, end, art, wide) {
+    const n = ch.C.length - 1, i0 = Math.round(t0 * n), i1 = Math.max(i0 + 2, Math.round(t1 * n));
+    const Lp = [], Rp = [];
+    for (let i = i0; i <= i1; i++) { const c = ch.C[i], t = i / n; const fl = wide ? lerp(1, 1.6, t) : end === 'hem' ? lerp(1, 1.08, (i - i0) / (i1 - i0)) : 1; Lp.push(V.lerp(c, ch.L[i], k * fl)); Rp.push(V.lerp(c, ch.R[i], k * fl)); }
+    // すそ（少し波打つ）
+    const a = Lp[Lp.length - 1], b = Rp[Rp.length - 1], d = V.norm(V.sub(ch.C[i1], ch.C[Math.max(0, i1 - 1)]));
+    const hem = [V.add(V.lerp(a, b, 0.3), V.mul(d, V.dist(a, b) * 0.06)), V.add(V.lerp(a, b, 0.7), V.mul(d, -V.dist(a, b) * 0.03))];
+    const poly = Lp.concat(hem, Rp.slice().reverse());
+    const lines = [];
+    const det = art.detail;
+    // 関節の内側に寄るしわ（引っ張り・たるみ）
+    const ij = Math.round(ch.tj * n);
+    if (ij > i0 && ij < i1 && ch.bend > 0.15) { const inner = ch.cs > 0 ? Lp : Rp, outer = ch.cs > 0 ? Rp : Lp; const j = ij - i0; const nf = 1 + Math.round(det * 3);
+      for (let f = 0; f < nf; f++) { const jj = Math.min(inner.length - 1, j + f - 1); const p0 = inner[jj], p1 = V.lerp(ch.C[ij], outer[Math.min(outer.length - 1, j + (f - 1) * 2)], 0.75 - f * 0.1); lines.push({ p: [p0, V.lerp(V.lerp(p0, p1, 0.5), ch.C[ij], 0.25), p1], w: 0.7, o: { tin: 1, tout: 6 } }); } }
+    // 布の流れ（長い袖・ズボン）
+    for (let f = 0; f < Math.round(det * 2); f++) { const jj = Math.round(rr(0.15, 0.4) * (Lp.length - 1)); const side = rand() < 0.5 ? Lp : Rp; lines.push({ p: [V.lerp(ch.C[i0 + jj], side[jj], 0.9), V.lerp(ch.C[Math.min(i1, i0 + jj + 3)], side[Math.min(side.length - 1, jj + 3)], 0.35)], w: 0.55, o: { tin: 1, tout: 5 } }); }
+    // 折り返し・すそ口・裾のたまり
+    const ie = Lp.length - 1;
+    if (end === 'cuff') { const c0 = Math.max(0, ie - 2); lines.push({ p: [Lp[c0], V.lerp(ch.C[i0 + c0], ch.C[i0 + c0], 1), Rp[c0]], w: 0.8 }); }
+    if (end === 'bunch') for (let f = 1; f <= 2; f++) { const c0 = Math.max(0, ie - f * 2); lines.push({ p: [Lp[c0], V.add(ch.C[i0 + c0], V.mul(d, V.dist(Lp[c0], Rp[c0]) * 0.15)), Rp[c0]], w: 0.6, o: { tin: 2, tout: 2 } }); }
+    return { poly, edges: [Lp, Rp], lines };
   }
 
   /* ---------- ネーム用：アタリ（丸と棒）の人物 ---------- */
@@ -383,8 +452,8 @@
   function drawTorso(C, outfit) {
     const { ly, m, rig, art, spec } = C, { J, proj } = rig;
     const secs = [ // t: 骨盤0→首1, a: 横幅の半分, b: 厚みの半分, z: 前への張り出し
-      [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist, m.depth * 0.85, 0.02],
-      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.84, m.shHalf * 0.92, m.depth * 0.95, m.depth * 0.08], [0.95, m.shHalf * 0.96, m.depth * 0.8, 0], [1.0, m.shHalf * 0.72, m.depth * 0.6, 0], [1.05, m.shHalf * 0.32, m.depth * 0.45, 0],
+      [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist * (m.fem ? 1 : 1.06), m.depth * 0.85, 0.02],
+      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.8, m.shHalf * 0.9, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.9, m.depth * 0.85, 0.02], [0.96, m.shHalf * 0.76, m.depth * 0.7, 0], [1.01, m.shHalf * 0.6, m.depth * 0.55, 0], [1.06, m.shHalf * 0.36, m.depth * 0.45, 0],
     ];
     const Lf = [], Rt = [];
     for (const [t, a, b, zc] of secs) {
@@ -558,7 +627,8 @@
     const nw = m.R * lerp(0.28, 0.32, q) * nb.k;
     if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 }); }
     // 頭の形：頭蓋（球）＋あご
-    const chinY = lerp(0.82, 1.18, q), jawW = lerp(0.8, 0.66, q), jawY = lerp(0.55, 0.72, q), chinZ = lerp(0.35, 0.55, q), chinW = lerp(0.42, 0.18, q);
+    const frog = spec.species === 'frog';
+    const chinY = frog ? 0.72 : lerp(0.82, 1.18, q), jawW = frog ? 1.08 : lerp(0.8, 0.66, q), jawY = frog ? 0.45 : lerp(0.55, 0.72, q), chinZ = lerp(0.35, 0.55, q), chinW = frog ? 0.7 : lerp(0.42, 0.18, q);
     const pts = [];
     // 頭蓋は球なので、どの向きでも画面上では円
     for (let i = 0; i < 36; i++) { const a = i / 36 * TAU; pts.push([F.c.x + Math.cos(a) * R * 0.98, F.c.y + Math.sin(a) * R * 0.98]); }
@@ -566,7 +636,9 @@
     const ch = pt(0, chinY, chinZ); pts.push([ch.x, ch.y]);
     // 動物の鼻先
     const sp = spec.species, animal = ANIMAL_EARS[sp];
-    if (animal && sp !== 'frog' && sp !== 'penguin') { const mz = pt(0, 0.38, 1.15 - 0.1 * (1 - q)); pts.push([mz.x, mz.y]); const mz2 = pt(0, 0.55, 1.0); pts.push([mz2.x, mz2.y]); }
+    // 鼻づらの長さ（横顔・3/4で輪郭から突き出る）
+    const SNOUT = { dog: 1.4, fox: 1.55, bear: 1.3, mouse: 1.45, lion: 1.25, tanuki: 1.3, cat: 1.12, rabbit: 1.12, panda: 1.25 };
+    if (SNOUT[sp]) { const L = lerp(SNOUT[sp], 1 + (SNOUT[sp] - 1) * 0.6, art.deform); for (const [v, k] of [[0.3, 1], [0.48, 0.97], [0.62, 0.85]]) { const mz = pt(0, v, L * k); pts.push([mz.x, mz.y]); } for (const sx of [-0.25, 0.25]) { const mz = pt(sx, 0.45, L * 0.88); pts.push([mz.x, mz.y]); } C.snout = L; }
     let hull = convexHull(pts);
     hull = catmull(hull, 3, true);
     const skin = C.mat.fur ?? C.mat.skin;
@@ -650,7 +722,8 @@
     const look = C.box.look;
     const sz = art.eyeSize, st = art.eyeStyle === 'round' ? 'simple' : art.eyeStyle;
     const gag = art.deform > 0.7;
-    const eyeV = lerp(0.3, 0.06, q) * (st === 'sparkle' ? 1.05 : 1) + (spec.species === 'frog' ? -0.5 : 0), eyeU = lerp(0.45, 0.4, q) * lerp(1, 1.12, sz * (1 - q * 0.5));
+    if (spec.species === 'frog') frogEyes(C, F);
+    const eyeV = spec.species === 'frog' ? -0.72 : lerp(0.3, 0.06, q) * (st === 'sparkle' ? 1.05 : 1) + (['bird', 'penguin'].includes(spec.species) ? -0.05 : 0), eyeU = (spec.species === 'frog' ? 0.62 : ['bird', 'penguin'].includes(spec.species) ? 0.6 : lerp(0.45, 0.4, q)) * lerp(1, 1.12, sz * (1 - q * 0.5));
     // 目の大きさ（頭の半径に対して）
     const base = { dot: [0.13, 0.13], simple: [0.24, 0.3], sparkle: [0.32, 0.42], sharp: [0.36, 0.17], realistic: [0.3, 0.15] }[st] || [0.24, 0.3];
     const es = lerp(0.55, 1.45, sz) * lerp(1, 0.75, q * (st === 'sparkle' ? 0.3 : 0.6));
@@ -689,6 +762,7 @@
     // 動物の鼻・ひげ
     const sp = spec.species, animal = ANIMAL_EARS[sp];
     if (animal) drawMuzzle(C, F, sp);
+    if (animal && ANIMAL_MOUTH[sp]) { ANIMAL_MOUTH[sp](C, F, e.m, gag); for (const x of e.x || []) drawExtra(C, F, x, eyes); return; }
     // 口
     if ((spec.items || []).includes('beard')) drawBeard(C, F);
     const mp = F.sp(0, lerp(0.72, 0.78, q)); if (mp.z > 0) drawMouth(C, F, [mp.x + F.side * R * 0.05, mp.y], e.m, gag);
@@ -841,7 +915,11 @@
     const wind = dyn * moving;
     const back = -Math.sign(F.side || 0.0001); // 画面上で「頭の後ろ」の向き
     const l = ly.l;
-    const shine = (P) => { if (mat < 0.5) return; const b = K.bbox(P); const g = ly.hi; g.save(); g.beginPath(); pathPoly(g, P); g.clip(); g.lineWidth = Math.max(0.6, R * 0.05) * lerp(0.6, 1.2, q); g.strokeStyle = '#fff'; g.lineCap = 'round'; for (let i = 0; i < 6; i++) { const a = -2.5 + i * 0.28; g.beginPath(); g.arc(c.x - F.side * R * 0.2, c.y + R * 0.15, R * 0.78, a, a + 0.12 + 0.05 * (i % 2)); g.stroke(); } g.restore(); };
+    const shine = (P) => { // 艶：頭の丸みに沿った帯の中に、毛の向きの短い白線を並べる（天使の輪）
+      if (mat < 0.45) return; const g = ly.hi; g.save(); g.beginPath(); pathPoly(g, P); g.clip(); g.fillStyle = '#fff';
+      const cx = c.x - F.side * R * 0.15, cy = c.y + R * 0.1, rad = R * 0.8; const n = Math.round(lerp(5, 11, art.detail));
+      for (let i = 0; i < n; i++) { const a = -2.75 + i / (n - 1) * 1.5 + rr(-0.04, 0.04); const len = R * rr(0.12, 0.3) * (i % 3 === 1 ? 0.6 : 1); const d = [Math.cos(a), Math.sin(a)]; const p0 = [cx + d[0] * (rad + len * 0.4), cy + d[1] * (rad + len * 0.4)], p1 = [cx + d[0] * (rad - len * 0.6), cy + d[1] * (rad - len * 0.6)]; penPath(g, [p0, V.lerp(p0, p1, 0.5), p1], Math.max(0.7, R * 0.055) * lerp(0.7, 1.1, q), { tin: len * 0.4, tout: len * 0.5, taper: 1, jit: 0 }); }
+      g.restore(); };
     const flowLines = (P, n) => { const b = K.bbox(P); for (let i = 0; i < n; i++) { const x = b.x + rr(0.15, 0.85) * b.w; ink(mat > 0.6 ? ly.hi : l, [[x, b.y + b.h * rr(0.2, 0.4)], [x + rr(-3, 3), b.y + b.h * rr(0.7, 0.95)]], 0.6, { tin: 4, tout: 8 }); } };
     if (hair === 'bald' || !H) { if (phase === 'front' && art.detail > 0.3 && mat === undefined) {} return; }
     const tailRootZ = pt(0, -0.45, -0.85).z;
@@ -930,10 +1008,9 @@
     ly.fill(P, mat, { shade: 0.8, off: R * 0.25, blur: R * 0.03 });
     contour(l, P, 1.5);
     shine(P);
-    // 毛の流れ
-    const ln = Math.round(lerp(1, 7, art.detail) * lerp(0.4, 1, 1 - art.deform));
-    const crown = F.sp(0.0, -0.95, vol);
-    for (let i = 0; i < ln; i++) { const k = Math.floor(rand() * P.length); const tip = P[k]; if (tip[1] < c.y - R * 0.6) continue; ink(mat > 0.6 ? ly.hi : l, [[crown.x, crown.y], V.lerp([crown.x, crown.y], tip, 0.6), V.lerp([crown.x, crown.y], tip, 0.9)], 0.6, { tin: 3, tout: 10 }); }
+    // 毛束の切れ目：外形の所々から、内側へ短い線（髪の流れに沿って）
+    const ln = Math.round(lerp(2, 10, art.detail) * lerp(0.5, 1, 1 - art.deform));
+    for (let i = 0; i < ln; i++) { const k = Math.floor(rr(0.05, 0.95) * P.length); const p0 = P[k]; const toC = V.norm(V.sub([c.x, c.y - R * 0.6], p0)); const len = R * rr(0.2, 0.45); const bendv = V.mul(V.perp(toC), len * rr(-0.2, 0.2)); const p1 = V.add(V.add(p0, V.mul(toC, len)), bendv); ink(mat > 0.6 ? ly.hi : l, [V.add(p0, V.mul(toC, R * 0.03)), V.add(V.lerp(p0, p1, 0.5), V.mul(bendv, 0.5)), p1], 0.6, { tin: 1, tout: len * 0.6 }); }
     if (tailRootZ >= 0.1) tails();
   }
   function drawAnimalEars(C, F, kind, phase) {
@@ -951,17 +1028,42 @@
       if (kind === 'point' || kind === 'bigpoint' || kind === 'long') { const c = K.bbox(P); ink(ly.l, [[c.x + c.w * 0.5, c.y + c.h * 0.85], [c.x + c.w * 0.5, c.y + c.h * 0.3]], 0.6); }
     }
   }
+  // カエルの目：頭の上に飛び出した丸い目玉（目の描き方はこの中に入る）
+  function frogEyes(C, F) {
+    const { ly } = C; const R = F.R;
+    for (const sx of [-1, 1]) { const p = F.sp(sx * 0.62, -0.72, 1.05); if (p.z < -0.35) continue; const r = R * 0.36; const E = ellipsePts(p.x, p.y - r * 0.35, r * clamp(p.z + 0.5, 0.6, 1.05), r * 0.95, 0, 22); part(ly, E, C.mat.fur ?? C.mat.skin, { w: 1.4, off: r * 0.3 }); const W = ellipsePts(p.x, p.y - r * 0.3, r * 0.72 * clamp(p.z + 0.5, 0.6, 1.05), r * 0.68, 0, 18); ly.fill(W, 0, { shade: 0, knock: false }); }
+  }
+  // 動物の口：口元の形で種族が分かるように
+  const omega = (C, F, x, y, w) => ink(C.ly.l, [[x - w, y], [x - w * 0.5, y + w * 0.45], [x, y + w * 0.05], [x + w * 0.5, y + w * 0.45], [x + w, y]], 1.0);
+  const openBelow = (C, F, x, y, w, kind) => { if (['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind)) { const k = kind === 'o' ? 0.6 : kind === 'laugh' || kind === 'shout' ? 1.3 : 1; const P = catmull([[x - w * 0.8 * k, y], [x + w * 0.8 * k, y], [x + w * 0.4 * k, y + w * 1.1 * k], [x - w * 0.4 * k, y + w * 1.1 * k]], 4, true); C.ly.fill(P, 0.97, { shade: 0, knock: false }); contour(C.ly.l, P, 1.1); C.ly.matIn(P, ellipsePts(x, y + w * 0.9 * k, w * 0.45 * k, w * 0.3 * k, 0, 12), 0.4); return true; } return false; };
+  const ANIMAL_MOUTH = {
+    // ネコ：ω の口、三角の鼻、ひげ
+    cat: (C, F, kind) => { const n = F.sp(0, 0.47, C.snout || 1.1), w = F.R * 0.16; ink(C.ly.l, [[n.x, n.y + w * 0.4], [n.x, n.y + w * 0.9]], 0.8); if (!openBelow(C, F, n.x, n.y + w * 1.0, w, kind)) omega(C, F, n.x, n.y + w * 0.9, w); },
+    mouse: (C, F, kind) => ANIMAL_MOUTH.cat(C, F, kind),
+    // ウサギ：Y の字の口と前歯
+    rabbit: (C, F, kind) => { const n = F.sp(0, 0.47, C.snout || 1.1), w = F.R * 0.14; const l = C.ly.l; ink(l, [[n.x, n.y + w * 0.3], [n.x, n.y + w * 1.0]], 0.8); ink(l, [[n.x - w, n.y + w * 1.5], [n.x, n.y + w * 1.0], [n.x + w, n.y + w * 1.5]], 0.9); const T = [[n.x - w * 0.35, n.y + w * 1.15], [n.x + w * 0.35, n.y + w * 1.15], [n.x + w * 0.35, n.y + w * 1.9], [n.x - w * 0.35, n.y + w * 1.9]]; C.ly.fill(T, 0, { shade: 0, knock: false }); contour(l, T, 0.8, { seg: 1 }); ink(l, [[n.x, n.y + w * 1.15], [n.x, n.y + w * 1.9]], 0.5); },
+    // イヌ・クマ・パンダ・たぬき・ライオン・キツネ：鼻づらの下に口、うれしいと舌
+    dog: (C, F, kind) => { const n = F.sp(0, 0.45, C.snout || 1.3), w = F.R * 0.2; const l = C.ly.l; ink(l, [[n.x, n.y + w * 0.3], [n.x, n.y + w * 0.75]], 0.9); if (!openBelow(C, F, n.x, n.y + w * 0.8, w, kind)) { const sm = ['smile', 'happy', 'laugh', 'grin'].includes(kind) ? 0.4 : kind === 'frown' || kind === 'wavy' ? -0.2 : 0.15; ink(l, [[n.x - w, n.y + w * (0.75 - sm)], [n.x, n.y + w * 0.75], [n.x + w, n.y + w * (0.75 - sm)]], 1.0); } else if (['grin', 'laugh'].includes(kind)) { const tg = ellipsePts(n.x, n.y + w * 1.6, w * 0.35, w * 0.5, 0, 12); C.ly.fill(tg, 0.2, { shade: 0 }); contour(l, tg, 0.8); } },
+    bear: (C, F, kind) => ANIMAL_MOUTH.dog(C, F, kind), panda: (C, F, kind) => ANIMAL_MOUTH.dog(C, F, kind), tanuki: (C, F, kind) => ANIMAL_MOUTH.dog(C, F, kind), lion: (C, F, kind) => ANIMAL_MOUTH.dog(C, F, kind), fox: (C, F, kind) => ANIMAL_MOUTH.dog(C, F, kind),
+    // カエル：顔の幅いっぱいの横長の口、点の鼻の穴
+    frog: (C, F, kind) => { const l = C.ly.l, R = F.R; for (const sx of [-0.12, 0.12]) { const p = F.sp(sx, 0.18, 1.02); if (p.z > 0) { l.beginPath(); l.arc(p.x, p.y, Math.max(0.6, R * 0.03), 0, TAU); l.fill(); } }
+      const sm = ['smile', 'happy', 'laugh', 'grin', 'cat', 'smirk'].includes(kind) ? 0.12 : ['frown', 'wavy', 'wail'].includes(kind) ? -0.1 : 0.02; const pts = []; for (let i = 0; i <= 10; i++) { const u = -1.15 + i / 10 * 2.3; const p = F.sp(u, 0.42 - sm * Math.cos(u * 1.3), 1.0); if (p.z > 0) pts.push([p.x, p.y]); }
+      if (['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind) && pts.length > 2) { const low = pts.map(([x, y], i) => [x, y + R * 0.28 * Math.sin(i / (pts.length - 1) * Math.PI)]).reverse(); const P = pts.concat(low); C.ly.fill(P, 0.97, { shade: 0, knock: false }); contour(l, P, 1.1); } else if (pts.length > 1) ink(l, pts, 1.3, { dense: true }); },
+    // 鳥・ペンギン：くちばしが口（開く）
+    bird: (C, F, kind) => { const n = F.sp(0, 0.38, 1.05), R = F.R, sd = F.side >= 0 ? 1 : -1, op = ['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind) ? 0.22 : 0; const tip = [n.x + F.side * R * 0.55 + sd * R * 0.06, n.y + R * 0.1]; const up = [[n.x - R * 0.18, n.y - R * 0.1], tip, [n.x - R * 0.12, n.y + R * 0.12]]; C.ly.fill(up, 0.35, { shade: 0.5 }); contour(C.ly.l, up, 1.1, { seg: 1 }); if (op) { const lo = [[n.x - R * 0.12, n.y + R * 0.14], [tip[0] - sd * R * 0.1, tip[1] + R * op], [n.x - R * 0.1, n.y + R * 0.3]]; C.ly.fill(lo, 0.35, { shade: 0.5 }); contour(C.ly.l, lo, 1.0, { seg: 1 }); } },
+    penguin: (C, F, kind) => ANIMAL_MOUTH.bird(C, F, kind),
+  };
+  function drawMane(C) { const { ly, m, rig } = C; const c = rig.proj(rig.J.head); const R = m.R * c.k; const P = []; const n = 22; for (let i = 0; i < n; i++) { const a = i / n * TAU; const r = R * (i % 2 ? 1.25 : 1.6); P.push([c.x + Math.cos(a) * r, c.y + R * 0.15 + Math.sin(a) * r]); } const PP = catmull(P, 3, true); part(ly, PP, Math.min(0.75, (C.mat.fur ?? 0.35) + 0.25), { w: 1.4, off: R * 0.3 }); }
   function drawMuzzle(C, F, sp) {
     const { ly, art } = C; const { R } = F; const l = ly.l;
-    const n = F.sp(0, 0.42, 1.12);
-    if (n.z < 0) return;
-    if (sp === 'bird' || sp === 'penguin') { const P = [[n.x - R * 0.15, n.y - R * 0.05], [n.x + F.side * R * 0.45 + R * 0.05, n.y + R * 0.08], [n.x - R * 0.12, n.y + R * 0.22]]; ly.fill(P, 0.3, { shade: 0.5 }); contour(l, P, 1.2); return; }
+    const n = F.sp(0, 0.4, (C.snout || 1.12) * 0.98);
+    if (n.z < -0.2) return;
+    if (sp === 'bird' || sp === 'penguin') return;
     if (sp === 'frog') return;
     // 鼻づら（白い楕円）・パンダとたぬきの目のまわり
-    if (['dog', 'fox', 'bear', 'lion', 'tanuki', 'panda', 'mouse', 'cat'].includes(sp)) { const mz = F.sp(0, 0.5, 1.05); const big = ['bear', 'panda', 'dog'].includes(sp) ? 1.25 : 1; const P2 = ellipsePts(mz.x + F.side * R * 0.04, mz.y, R * 0.3 * big * clamp(F.faceOn + 0.3, 0.55, 1.1), R * 0.22 * big, 0, 18); ly.fill(P2, 0, { shade: 0.3, knock: false }); ink(l, P2.slice(2, 16), 0.8, { dense: true }); }
+    if (['dog', 'fox', 'bear', 'lion', 'tanuki', 'panda', 'mouse', 'cat'].includes(sp)) { const mz = F.sp(0, 0.5, 1.05); const big = ['bear', 'panda', 'dog'].includes(sp) ? 1.25 : 1; const mz2 = F.sp(0, 0.5, (C.snout || 1.05) * 0.92); const P2 = ellipsePts(mz2.x + F.side * R * 0.04, mz2.y, R * 0.3 * big * clamp(F.faceOn + 0.3, 0.55, 1.1), R * 0.22 * big, 0, 18); ly.fill(P2, 0, { shade: 0.3, knock: false }); ink(l, P2.slice(2, 16), 0.8, { dense: true }); }
     if (sp === 'panda' || sp === 'tanuki') for (const sx of [-1, 1]) { const e = F.sp(sx * 0.42, 0.1); if (e.z < 0.1) continue; ly.matIn(C.headHull, ellipsePts(e.x, e.y + R * 0.03, R * 0.22 * clamp(e.z, 0.3, 1), R * 0.18, sx * 0.5, 14), 0.97); }
-    const P = ellipsePts(n.x, n.y, R * 0.11, R * 0.08, 0, 12); l.fillStyle = '#000'; fillPoly(l, P);
-    ink(l, [[n.x, n.y + R * 0.08], [n.x, n.y + R * 0.2]], 0.8);
+    const nsz = ['dog', 'bear', 'panda'].includes(sp) ? 1.5 : sp === 'cat' || sp === 'rabbit' ? 0.8 : 1; const P = sp === 'cat' ? [[n.x - R * 0.09, n.y - R * 0.05], [n.x + R * 0.09, n.y - R * 0.05], [n.x, n.y + R * 0.06]] : ellipsePts(n.x, n.y, R * 0.11 * nsz, R * 0.08 * nsz, 0, 12); l.fillStyle = '#000'; fillPoly(l, P);
     if (['cat', 'mouse', 'fox', 'tanuki', 'lion'].includes(sp)) for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) ink(l, [[n.x + sx * R * 0.2, n.y + R * 0.1 + i * R * 0.06], [n.x + sx * R * 0.65, n.y + R * (0.02 + i * 0.12)]], 0.6, { tin: 1, tout: 6 });
     if (sp === 'panda' || sp === 'tanuki') { /* 目のまわりの黒い模様は fill で */ }
   }

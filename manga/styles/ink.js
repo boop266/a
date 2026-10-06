@@ -149,6 +149,7 @@
       this.l.fillStyle = '#000'; this.hi.fillStyle = '#fff';
       this.a = this.ac.getContext('2d'); this.a.setTransform(S, 0, 0, S, -x * S, -y * S);
       this.ha = 0; // いまの既定の斜線の向き（0..3）
+      this.sil = 0; // >0 なら、全体のシルエットを太い線で1本に囲む
     }
     g(v) { const q = Math.round(255 * (1 - clamp(v))); return `rgb(${q},${q},${q})`; }
     knock(P) { for (const c of [this.l, this.hi]) { c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; fillPoly(c, P); c.restore(); } }
@@ -292,6 +293,16 @@
     const bi = new ImageData(W, H), bo = bi.data; for (let i = 0; i < n; i++) if (BV[i] > 0) bo[i * 4 + 3] = Math.round(BV[i] * 255 * (A[i] / 255)); putImg(bi);
     // 艶（白）→ 線
     c.globalCompositeOperation = 'source-over';
+    if (ly.sil > 0) { // シルエットの外側に、影側が太い1本の輪郭（手描きの外線）
+      const mk = mkCanvas(W, H), g = mk.getContext('2d'); g.drawImage(ly.mc, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      const ring = mkCanvas(W, H), rg2 = ring.getContext('2d'); const base = (R.silW ?? 0.9) * ly.sil * S * (getLine().w || 1);
+      const L = LIGHT;
+      for (let i = 0; i < 20; i++) { const a = i / 20 * TAU, d = [Math.cos(a), Math.sin(a)]; const wv = base * (0.45 + 1.1 * Math.max(0, -(d[0] * L[0] + d[1] * L[1]))); rg2.drawImage(mk, d[0] * wv, d[1] * wv); }
+      rg2.globalCompositeOperation = 'destination-out'; rg2.drawImage(mk, 0, 0);
+      erode(ring, R.grain * 0.9 + R.rough * 0.25, box.x * 7 + box.y);
+      if (R.pencil) { rg2.globalCompositeOperation = 'source-in'; rg2.fillStyle = '#3c3c3c'; rg2.fillRect(0, 0, W, H); }
+      c.drawImage(ring, 0, 0);
+    }
     c.drawImage(ly.hc, 0, 0);
     erode(ly.lc, R.grain * 0.9 + R.rough * 0.25, box.x * 3 + box.y);
     if (R.pencil) { const g = ly.lc.getContext('2d'); g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#3c3c3c'; g.fillRect(0, 0, W, H); g.restore(); }
