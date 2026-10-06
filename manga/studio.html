@@ -377,6 +377,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
 .dbar .track{position:relative;height:14px;background:var(--desk);border-radius:4px}
 .dbar .track::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1.5px;background:var(--rule-strong)}
 .dbar .fill{position:absolute;top:2px;bottom:2px;border-radius:3px}
+.dbar .mark{position:absolute;top:1px;width:12px;height:12px;border-radius:50%}
+.dbar .mark.p{background:var(--accent)} .dbar .mark.n{background:var(--neg)}
+.dbar .shape{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--sub);pointer-events:none}
+.oneliner{margin:0;font-size:15px;font-weight:700;border-left:4px solid var(--accent);padding:6px 12px;background:var(--card)}
 .dbar .fill.p{background:var(--accent)} .dbar .fill.n{background:var(--neg)}
 .dbar .c{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--sub);text-align:right}
 .tags2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -629,6 +633,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       this.l.fillStyle = '#000'; this.hi.fillStyle = '#fff';
       this.a = this.ac.getContext('2d'); this.a.setTransform(S, 0, 0, S, -x * S, -y * S);
       this.ha = 0; // いまの既定の斜線の向き（0..3）
+      this.sil = 0; // >0 なら、全体のシルエットを太い線で1本に囲む
     }
     g(v) { const q = Math.round(255 * (1 - clamp(v))); return `rgb(${q},${q},${q})`; }
     knock(P) { for (const c of [this.l, this.hi]) { c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; fillPoly(c, P); c.restore(); } }
@@ -772,6 +777,16 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const bi = new ImageData(W, H), bo = bi.data; for (let i = 0; i < n; i++) if (BV[i] > 0) bo[i * 4 + 3] = Math.round(BV[i] * 255 * (A[i] / 255)); putImg(bi);
     // 艶（白）→ 線
     c.globalCompositeOperation = 'source-over';
+    if (ly.sil > 0) { // シルエットの外側に、影側が太い1本の輪郭（手描きの外線）
+      const mk = mkCanvas(W, H), g = mk.getContext('2d'); g.drawImage(ly.mc, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      const ring = mkCanvas(W, H), rg2 = ring.getContext('2d'); const base = (R.silW ?? 0.9) * ly.sil * S * (getLine().w || 1);
+      const L = LIGHT;
+      for (let i = 0; i < 20; i++) { const a = i / 20 * TAU, d = [Math.cos(a), Math.sin(a)]; const wv = base * (0.45 + 1.1 * Math.max(0, -(d[0] * L[0] + d[1] * L[1]))); rg2.drawImage(mk, d[0] * wv, d[1] * wv); }
+      rg2.globalCompositeOperation = 'destination-out'; rg2.drawImage(mk, 0, 0);
+      erode(ring, R.grain * 0.9 + R.rough * 0.25, box.x * 7 + box.y);
+      if (R.pencil) { rg2.globalCompositeOperation = 'source-in'; rg2.fillStyle = '#3c3c3c'; rg2.fillRect(0, 0, W, H); }
+      c.drawImage(ring, 0, 0);
+    }
     c.drawImage(ly.hc, 0, 0);
     erode(ly.lc, R.grain * 0.9 + R.rough * 0.25, box.x * 3 + box.y);
     if (R.pencil) { const g = ly.lc.getContext('2d'); g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#3c3c3c'; g.fillRect(0, 0, W, H); g.restore(); }
@@ -928,7 +943,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   /* ---------- 表情 ---------- */
   // e: 目の状態, b: 眉, m: 口, x: 追加（blush, sweat, vein, tears, gloom, sparkle, shine）
   const EXPRS = {
-    normal: { e: 'open', b: 'flat', m: 'line' }, smile: { e: 'open', b: 'soft', m: 'smile' }, happy: { e: 'happy', b: 'soft', m: 'grin' },
+    normal: { e: 'open', b: 'flat', m: 'line' }, smile: { e: 'smile', b: 'soft', m: 'smile' }, happy: { e: 'happy', b: 'soft', m: 'grin' },
     laugh: { e: 'happy', b: 'up', m: 'laugh' }, surprised: { e: 'wide', b: 'up', m: 'o' }, shock: { e: 'shock', b: 'up', m: 'shout', x: ['sweat', 'gloom'] },
     angry: { e: 'glare', b: 'angry', m: 'teeth', x: ['vein'] }, rage: { e: 'shock', b: 'angry', m: 'shout', x: ['vein'] },
     sad: { e: 'half', b: 'sad', m: 'frown' }, cry: { e: 'tearful', b: 'sad', m: 'wail', x: ['tears'] }, worried: { e: 'open', b: 'sad', m: 'wavy', x: ['sweat'] },
@@ -1033,7 +1048,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       J['toe' + k] = add3(an, [s * 0.15, 0.25, 1], m.foot * 0.85);
     }
     // 手を顔へ（考える・泣く）
-    if (P.handAt) for (const k in P.handAt) { const tgt = add3(J.neckB, [sides[k] * m.R * (P.handAt[k] === 'eye' ? 0.35 : 0.1), -m.neck - m.R * (P.handAt[k] === 'eye' ? 0.85 : 0.45), m.R * 0.9]); const sh = J['sh' + k]; const mid = add3(sh, [sides[k] * m.upper * 0.35, m.upper * 0.75, m.upper * 0.45]); J['el' + k] = mid; J['wr' + k] = tgt; }
+    if (P.handAt) for (const k in P.handAt) { const tgt = add3(J.neckB, [sides[k] * m.R * (P.handAt[k] === 'eye' ? 0.62 : 0.1), -m.neck - m.R * (P.handAt[k] === 'eye' ? 0.55 : 0.45), m.R * 1.0]); const sh = J['sh' + k]; const mid = add3(sh, [sides[k] * m.upper * 0.35, m.upper * 0.75, m.upper * 0.45]); J['el' + k] = mid; J['wr' + k] = tgt; }
     // 首と頭
     const hd = P.head || [0, 0, 0];
     J.headNod = (hd[0] || 0) + (box.look === 'down' ? 14 : box.look === 'up' ? -16 : 0); J.headTurn = (hd[1] || 0) + (box.look === 'side' ? 25 : 0); J.headTilt = (hd[2] || 0) * amp;
@@ -1177,6 +1192,17 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
         drawShoe(C, an, toe, k);
       } });
     }
+    // ----- 腰（股）：左右の脚をつなぐ
+    parts.push({ z: -0.3, f: () => {
+      const T0 = rig.add3(J.pelvis, J.sp, m.torso * 0.08), dn = [0, 1, 0];
+      const Q = (x, y) => { const p = proj(rig.add3(T0, rig.rotY([x, y, 0], 0))); return [p.x, p.y]; };
+      const hw = m.hipHalf * 1.22, cr = m.legR * 1.5;
+      const P = catmull([Q(-hw, 0), Q(hw, 0), Q(hw * 1.02, cr * 0.9), Q(hw * 0.35, cr * 1.5), Q(0, cr * 1.7), Q(-hw * 0.35, cr * 1.5), Q(-hw * 1.02, cr * 0.9)], 4, true);
+      const mat = pants === 'pants' || pants === 'shorts' ? bottomMat : outfit.bottom === 'skirt' ? bottomMat : (C.mat.fur ?? C.mat.skin);
+      part(ly, P, mat, { outline: false, off: m.hipHalf * 0.6 });
+      if (pants === 'pants' && art.detail > 0.3) ink(ly.l, [Q(0, 0), Q(0, cr * 1.5)], 0.6);
+    } });
+    ly.sil = 1;
     // ----- 胴体
     parts.push({ z: 0, f: () => drawTorso(C, outfit) });
     if (outfit.bottom === 'skirt') parts.push({ z: 0.5, f: () => drawSkirt(C, outfit) });
@@ -1217,7 +1243,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
           return base + (side > 0 ? bump(t, tj * 0.55, tj * 0.25, 0.22 * m2 + 0.05) + bump(t, tj + (1 - tj) * 0.22, 0.1, 0.18 * m2 + 0.06) - bump(t, tj, 0.04, 0.08 * bend)
                                 : bump(t, tj * 0.12, tj * 0.18, 0.18 + 0.15 * m2) + bump(t, tj * 0.45, tj * 0.22, 0.14 * m2) + bump(t, tj, 0.04, 0.1 * bend)); }
       : (t, side) => { if (robot) return t < tj ? 1.0 : 0.85; const u = t / tj, v = (t - tj) / (1 - tj);
-          const base = t < tj ? lerp(1.18, 0.78, Math.pow(u, 1.2)) : lerp(0.76, 0.52, v);
+          const base = t < tj ? lerp(1.42, 0.78, Math.pow(u, 0.8)) : lerp(0.76, 0.52, v);
           return base + (side > 0 ? bump(t, tj * 0.45, tj * 0.3, 0.1 + 0.1 * m2) + bump(t, tj + (1 - tj) * 0.28, 0.12, 0.2 + 0.12 * m2) - bump(t, tj, 0.04, 0.06 * bend)
                                 : bump(t, tj * 0.4, tj * 0.3, 0.12 + 0.15 * m2) + bump(t, tj, 0.05, 0.1)); };
     const Lp = [], Rp = [];
@@ -1319,8 +1345,8 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   function drawTorso(C, outfit) {
     const { ly, m, rig, art, spec } = C, { J, proj } = rig;
     const secs = [ // t: 骨盤0→首1, a: 横幅の半分, b: 厚みの半分, z: 前への張り出し
-      [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist, m.depth * 0.85, 0.02],
-      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.84, m.shHalf * 0.92, m.depth * 0.95, m.depth * 0.08], [0.95, m.shHalf * 0.96, m.depth * 0.8, 0], [1.0, m.shHalf * 0.72, m.depth * 0.6, 0], [1.05, m.shHalf * 0.32, m.depth * 0.45, 0],
+      [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist * (m.fem ? 1 : 1.06), m.depth * 0.85, 0.02],
+      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.8, m.shHalf * 0.9, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.9, m.depth * 0.85, 0.02], [0.96, m.shHalf * 0.76, m.depth * 0.7, 0], [1.01, m.shHalf * 0.6, m.depth * 0.55, 0], [1.06, m.shHalf * 0.36, m.depth * 0.45, 0],
     ];
     const Lf = [], Rt = [];
     for (const [t, a, b, zc] of secs) {
@@ -1423,22 +1449,39 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       if (kind === 'open' || kind === 'point') { const th = catmull([L(0.2, 0.35), L(0.45, 0.75), L(0.7, 0.5)], 4); ink(ly.l, th, 1.0); }
       return;
     }
+    // 指：付け根→第2関節→指先（曲げ角 curl）。太さは指先へ細く、先は丸い
+    const finger = (base, ang, len, wid, curl) => { const d1 = V.rot(dir, ang * sgn); const j1 = V.add(base, V.mul(d1, len * 0.55)); const d2 = V.rot(d1, curl * sgn); const tip = V.add(j1, V.mul(d2, len * 0.45));
+      const C3 = catmull([base, j1, tip], 5); const sw = sweep(C3, t => wid * lerp(1, 0.78, t)); const e = V.norm(V.sub(tip, j1)); const cap = []; const wl = wid * 0.78; for (let i = 1; i < 7; i++) { const a = Math.PI * i / 7; cap.push(V.add(tip, V.add(V.mul(V.perp(e), Math.cos(a) * wl), V.mul(e, Math.sin(a) * wl)))); }
+      return { poly: sw.L.concat(cap, sw.R.slice().reverse()), j1, tip, L: sw.L, R: sw.R }; };
+    const fp = (f, lw2 = 1.0) => part(ly, f.poly, mat, { w: lw2, off: hs * 0.04, outline: false, edges: [f.L, f.R], lines: [{ p: [V.lerp(f.L[5] || f.j1, f.j1, 0.3), V.lerp(f.R[5] || f.j1, f.j1, 0.3)], w: 0.45, o: { tin: 1, tout: 1 } }] });
     if (kind === 'open' || kind === 'relax') {
-      const palm = catmull([L(0, -0.3), L(0.55, -0.38), L(0.6, 0.35), L(0.05, 0.32)], 4, true);
-      const fingers = [];
-      const spread = kind === 'open' ? 0.22 : 0.06;
-      for (let i = 0; i < 4; i++) { const a = (i - 1.5) * spread, d2 = V.rot(dir, a * sgn), b0 = L(0.55, -0.28 + i * 0.19); const len = hs * [0.48, 0.55, 0.52, 0.42][i] * (kind === 'relax' ? 0.85 : 1); const tip = V.add(b0, V.mul(d2, len)); fingers.push(limb2(b0, tip, hs * 0.085, hs * 0.07, [[0, 1, 1], [1, 1, 1]]).poly); }
-      const tb = L(0.12, 0.32), tt = V.add(tb, V.mul(V.rot(dir, 0.9 * sgn), hs * 0.45));
-      fingers.push(limb2(tb, tt, hs * 0.11, hs * 0.08, [[0, 1, 1], [1, 1, 1]]).poly);
-      for (const f of fingers) part(ly, f, mat, { w: 1.0, off: hs * 0.05 });
-      part(ly, palm, mat, { w: 1.2, off: hs * 0.1 });
+      const open = kind === 'open';
+      // 手のひら：手首から指の付け根へ広がる台形
+      const palm = catmull([L(-0.02, -0.19), L(0.4, -0.24), L(0.46, 0.0), L(0.42, 0.24), L(0.15, 0.26), L(-0.02, 0.19)], 4, true);
+      const spread = open ? 0.3 : 0.06, curl = open ? 0.1 : 0.6;
+      const lens = [0.36, 0.41, 0.38, 0.29], ys = [-0.17, -0.055, 0.06, 0.17];
+      // 奥の指から
+      for (let i = 3; i >= 0; i--) fp(finger(L(0.4, ys[i]), (i - 1.5) * -spread, hs * lens[i], hs * 0.07, curl * (1 + i * 0.12)), 0.75);
+      part(ly, palm, mat, { w: 1.2, off: hs * 0.1, lines: [{ p: [L(0.1, 0.16), L(0.25, 0.05), L(0.36, -0.15)], w: 0.4 }] });
+      // 親指：手首側から外へ
+      fp(finger(L(0.1, 0.2), open ? 0.95 : 0.55, hs * 0.32, hs * 0.08, open ? 0.15 : 0.35), 0.85);
     } else { // 拳・握る・指さし
-      const fist = catmull([L(-0.05, -0.32), L(0.35, -0.38), L(0.62, -0.25), L(0.66, 0.1), L(0.55, 0.36), L(0.05, 0.36)], 4, true);
+      const grip = kind === 'grip';
+      // 握りこぶし：手の甲の面＋折りたたんだ指の段（4つのふくらみ）＋上にかぶさる親指
+      const top = [L(-0.04, -0.21), L(0.25, -0.25), L(0.44, -0.22)];
+      const rolls = []; for (let i = 0; i < 4; i++) { const y0 = -0.22 + i * 0.11; const bulge = i === 1 || i === 2 ? 0.025 : 0; rolls.push(L(0.5 + bulge, y0 + 0.015), L(0.53 + bulge, y0 + 0.06)); }
+      const fist = catmull(top.concat(rolls, [L(0.42, 0.26), L(0.18, 0.28), L(-0.04, 0.21)]), 4, true);
       const lines = [];
-      for (let i = 0; i < 3; i++) { const y = -0.22 + i * 0.17; lines.push({ p: [L(0.38, y + 0.08), L(0.58, y + 0.1)], w: 0.6 }); }
-      lines.push({ p: [L(0.05, 0.25), L(0.35, 0.12), L(0.5, 0.05)], w: 0.9 });
-      part(ly, fist, mat, { w: 1.3, off: hs * 0.12, lines });
-      if (kind === 'point') { const b0 = L(0.55, -0.25), tip = V.add(b0, V.mul(dir, hs * 0.6)); part(ly, limb2(b0, tip, hs * 0.09, hs * 0.075, [[0, 1, 1], [1, 1, 1]]).poly, mat, { w: 1.0 }); }
+      // 折った指の区切り（指先の面）と、第2関節の線
+      for (let i = 1; i < 4; i++) { const y0 = -0.22 + i * 0.11; lines.push({ p: [L(0.53, y0), L(0.4, y0 + 0.005)], w: 0.5, o: { tin: 1, tout: 3 } }); }
+      lines.push({ p: [L(0.4, -0.22), L(0.38, 0.0), L(0.4, 0.2)], w: 0.45, o: { tin: 2, tout: 2 } });
+      // 指の付け根の骨の盛り上がり（1本の波線）
+      lines.push({ p: [L(0.29, -0.22), L(0.32, -0.12), L(0.3, -0.04), L(0.33, 0.05), L(0.3, 0.14)], w: 0.4, o: { tin: 2, tout: 4 } });
+      part(ly, fist, mat, { w: 1.3, off: hs * 0.1, lines });
+      // 親指：拳の下側から、人さし指の上へ斜めにかぶさる
+      const th = catmull([L(0.04, 0.21), L(0.24, 0.31), L(0.44, 0.15), L(0.47, 0.04), L(0.39, 0.02), L(0.26, 0.15), L(0.08, 0.13)], 4, true);
+      part(ly, th, mat, { w: 1.0, off: hs * 0.05, lines: [{ p: [L(0.4, 0.06), L(0.45, 0.12)], w: 0.4 }] });
+      if (kind === 'point') { fp(finger(L(0.44, -0.17), 0.02, hs * 0.42, hs * 0.072, 0.0), 0.85); }
     }
   }
   function drawShoe(C, an, toe, k) {
@@ -1459,7 +1502,8 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   function headFrame(C) {
     const { m, rig, art } = C, { J, proj } = rig;
     const c = proj(J.head); const R = m.R * c.k;
-    const yaw = (rig.yaw + rig.twist + J.headTurn) * D, nod = J.headNod * D, tilt = J.headTilt * D * rig.mir;
+    const by0 = rig.yaw + rig.twist, byaw = Math.abs(by0) < 75 ? by0 * 0.62 : by0; // 漫画の3/4は首から上を浅く（約30度）
+    const yaw = (byaw + J.headTurn) * D, nod = J.headNod * D, tilt = J.headTilt * D * rig.mir;
     const q = m.q;
     // 顔の上の点 (u: 横の角度, v: 縦 -1..1.2) → 画面
     const sp = (u, v, rad = 1, zOff = 0) => {
@@ -1495,12 +1539,13 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 }); }
     // 頭の形：頭蓋（球）＋あご
     const frog = spec.species === 'frog';
-    const chinY = frog ? 0.72 : lerp(0.82, 1.18, q), jawW = frog ? 1.08 : lerp(0.8, 0.66, q), jawY = frog ? 0.45 : lerp(0.55, 0.72, q), chinZ = lerp(0.35, 0.55, q), chinW = frog ? 0.7 : lerp(0.42, 0.18, q);
+    const chinY = frog ? 0.72 : lerp(0.82, 1.12, q), jawW = frog ? 1.08 : lerp(0.8, 0.68, q), jawY = frog ? 0.45 : lerp(0.55, 0.7, q), chinZ = lerp(0.35, 0.45, q), chinW = frog ? 0.7 : lerp(0.42, 0.24, q);
     const pts = [];
     // 頭蓋は球なので、どの向きでも画面上では円
     for (let i = 0; i < 36; i++) { const a = i / 36 * TAU; pts.push([F.c.x + Math.cos(a) * R * 0.98, F.c.y + Math.sin(a) * R * 0.98]); }
     for (const sx of [-1, 1]) { const j = pt(sx * jawW, jawY, lerp(0.1, 0.0, q)); pts.push([j.x, j.y]); const cw = pt(sx * chinW, chinY * 0.97, chinZ); pts.push([cw.x, cw.y]); }
     const ch = pt(0, chinY, chinZ); pts.push([ch.x, ch.y]);
+    if (!frog) for (const sx of [-1, 1]) { const cb = pt(sx * 0.84, 0.28, 0.42); pts.push([cb.x, cb.y]); const cj = pt(sx * lerp(0.62, 0.5, q), lerp(0.7, 0.92, q), lerp(0.4, 0.38, q)); pts.push([cj.x, cj.y]); }
     // 動物の鼻先
     const sp = spec.species, animal = ANIMAL_EARS[sp];
     // 鼻づらの長さ（横顔・3/4で輪郭から突き出る）
@@ -1517,6 +1562,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     part(ly, hull, skin, { w: 1.7, off: R * 0.25, blur: R * 0.04 });
     for (const { sx, e } of ears) { if (e.z <= -0.15) continue; const ex = e.x, ey = e.y, er = R * lerp(0.2, 0.17, q); const P = ellipsePts(ex + F.side * 0, ey, er * 0.62, er, F.tilt, 16); part(ly, P, skin, { w: 1.2, off: er * 0.3, lines: [{ p: [[ex - er * 0.1, ey - er * 0.5], [ex - er * 0.3 * Math.sign(sx * C.rig.mir), ey], [ex - er * 0.05, ey + er * 0.5]], w: 0.6 }] }); }
     C.headHull = hull;
+    if (sp === 'penguin') { ly.matIn(hull, hull, 0.9); if (F.faceOn > -0.25) { const fc = F.sp(0, 0.25, 0.6); ly.matIn(hull, ellipsePts(fc.x, fc.y, R * 0.7 * clamp(F.faceOn + 0.2, 0.4, 1), R * 0.62, 0, 24), 0.0, R * 0.05); } }
     if (F.faceOn > -0.25) drawFace(C, F);
     drawHair(C, F, 'front');
     if (animal && animal !== 'none') drawAnimalEars(C, F, animal, 'front');
@@ -1604,26 +1650,31 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     }
     const lk = look === 'up' ? [0, -0.3] : look === 'down' ? [0, 0.3] : [F.side * 0.35, 0];
     // 眉
-    const bv = { flat: [0, 0], soft: [0.05, -0.05], up: [-0.25, 0], angry: [0.2, 0.55], sad: [-0.1, -0.5], quirk: [-0.15, 0.2] }[e.b] || [0, 0];
+    const bv = { flat: [0, 0], soft: [0.0, -0.15], up: [-0.5, -0.05], angry: [0.3, 0.95], sad: [-0.15, -0.85], quirk: [-0.25, 0.35] }[e.b] || [0, 0];
     for (const E of eyes) {
       const by = E.y - E.h * (st === 'dot' ? 1.9 : 1.05) - R * 0.07 + bv[0] * R * 0.25 * (gag ? 1.5 : 1);
       const inner = E.scr * -1; // 鼻側
       const bw = Math.max(E.w * 1.15, R * 0.2 * E.fs);
       const tilt = bv[1] * (e.b === 'quirk' && E.sx > 0 ? -1 : 1);
       const p0 = [E.x + inner * bw * 0.6, by + tilt * R * 0.08], p1 = [E.x - inner * bw * 0.6, by - tilt * R * 0.08];
-      const thick = lerp(0.9, 2.2, q * (1 - art.softness * 0.5)) * (spec.age === 'elder' ? 1.3 : 1);
-      ink(l, [p0, [ (p0[0] + p1[0]) / 2, Math.min(p0[1], p1[1]) - R * 0.04 ], p1], thick, { tin: 1, tout: bw * 0.5 });
+      const thick = (ANIMAL_EARS[spec.species] ? 0.55 : 1) * lerp(1.0, 2.8, q * (1 - art.softness * 0.5)) * (spec.age === 'elder' ? 1.3 : 1) * (st === 'sharp' || st === 'realistic' ? 1.15 : 1);
+      const arch = e.b === 'sad' ? R * 0.01 : e.b === 'angry' ? R * 0.015 : R * 0.045;
+      // 眉頭が太く、眉尻へ細く
+      ink(l, [p0, [lerp(p0[0], p1[0], 0.45), lerp(p0[1], p1[1], 0.45) - arch], p1], thick, { tin: 0.5, tout: bw * 0.7 });
+      if (e.b === 'angry' && q > 0.3 && E === eyes[0] && eyes.length === 2) { const mx = (eyes[0].x + eyes[1].x) / 2; ink(l, [[mx - R * 0.03, by - R * 0.02], [mx - R * 0.01, by + R * 0.12]], 0.6); ink(l, [[mx + R * 0.04, by - R * 0.01], [mx + R * 0.03, by + R * 0.1]], 0.5); }
       if (st === 'realistic' && q > 0.4 && art.hatching > 0.3) ly.shadeIn(C.headHull, ellipsePts(E.x, E.y - E.h * 0.5, E.w * 1.2, E.h * 1.1, 0, 14), 0.55, R * 0.06);
     }
-    for (const E of eyes) drawEye(C, E, st, e.e, lk, gag);
+    const animalEye = ANIMAL_EARS[spec.species] && st !== 'dot';
+    for (const E of eyes) animalEye ? drawAnimalEye(C, E, e.e, lk, gag, spec.species) : drawEye(C, E, st, e.e, lk, gag);
     // 鼻
     const np = F.sp(0, lerp(0.55, 0.42, q)); const ns = R * lerp(0.05, 0.16, q);
     if (np.z > 0.1) {
       const sd = F.side;
       if (q < 0.25 || art.deform > 0.6) { if (st !== 'dot' || q > 0.1) { l.beginPath(); l.arc(np.x + sd * ns * 0.5, np.y, Math.max(0.6, ns * 0.25) * C.line.w, 0, TAU); l.fill(); } }
-      else {
-        ink(l, [[np.x + sd * ns * 0.6, np.y - ns * 1.6], [np.x + sd * ns * 1.0, np.y - ns * 0.2], [np.x + sd * ns * 0.3, np.y + ns * 0.35]], 0.8, { tin: ns, tout: 1 });
-        if (q > 0.55) { ink(l, [[np.x - sd * ns * 0.4, np.y + ns * 0.25], [np.x - sd * ns * 0.05, np.y + ns * 0.45]], 0.7); ly.shadeIn(C.headHull, ellipsePts(np.x - sd * ns * 0.3, np.y - ns * 0.3, ns * 0.5, ns * 1.2, 0, 10), 0.75, R * 0.04); }
+      else { // 写実：鼻先の影側の短い線と鼻の穴だけ（少なく、的確に）
+        if (Math.abs(sd) > 0.25) ink(l, [[np.x + sd * ns * 0.9, np.y - ns * 0.9], [np.x + sd * ns * 1.05, np.y - ns * 0.1], [np.x + sd * ns * 0.55, np.y + ns * 0.3]], 0.75, { tin: ns * 0.8, tout: 1 });
+        ink(l, [[np.x - ns * 0.35 + sd * ns * 0.2, np.y + ns * 0.32], [np.x + sd * ns * 0.2, np.y + ns * 0.42], [np.x + ns * 0.35 + sd * ns * 0.2, np.y + ns * 0.32]], 0.55, { tin: 1, tout: 1 });
+        if (q > 0.55) ly.shadeIn(C.headHull, ellipsePts(np.x - sd * ns * 0.5, np.y + ns * 0.1, ns * 0.45, ns * 0.9, 0, 10), 0.7, R * 0.05);
       }
     }
     // 動物の鼻・ひげ
@@ -1649,14 +1700,15 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (state === 'closed') return closedLine();
     if (state === 'squeeze') { ink(l, [[x - outer * w, y - h * 0.5], [x + outer * w * 0.6, y], [x - outer * w, y + h * 0.5]], 1.7, { tin: 1, tout: 2 }); return; }
     if (state === 'heart' && (gag || art.sparkle > 0.4 || art.deform > 0.4)) { const s = Math.max(w, h) * 0.9; const P = []; for (let i = 0; i < 30; i++) { const t = i / 30 * TAU; P.push([x + s * 0.06 * 16 * Math.pow(Math.sin(t), 3) * fs, y - s * 0.06 * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))]); } l.fillStyle = '#000'; fillPoly(l, P); return; }
-    const shock = state === 'shock', wide = state === 'wide' || shock, half = state === 'half' || state === 'away' || state === 'glare' || state === 'tearful';
+    const shock = state === 'shock', wide = state === 'wide' || shock, half = state === 'half' || state === 'away' || state === 'tearful', glare = state === 'glare', smile = state === 'smile';
     const blank = state === 'blank';
     // 崩し：白目に点
     if (gag && (shock || blank)) { const r = Math.max(w, h) * 1.05; const P = ellipsePts(x, y, r * fs, r * 1.1, 0, 22); ly.fill(P, 0, { shade: 0, knock: false }); contour(l, P, 1.3); if (!blank) { l.beginPath(); l.arc(x, y, r * 0.12, 0, TAU); l.fill(); } return; }
     const look = [lk[0] * w * 0.4, lk[1] * h * 0.4];
     if (st === 'dot') {
       const r = Math.max(1, w * (wide ? 0.75 : 0.62));
-      if (half) { ink(l, [[x - r * 1.5, y - r * 0.2], [x + r * 1.5, y - r * 0.2]], 1.2); l.beginPath(); l.ellipse(x + look[0], y + r * 0.25, r * 0.8 * fs, r * 0.6, 0, 0, TAU); l.fill(); return; }
+      if (half || glare) { const tl = glare ? -outer * r * 0.5 : outer * r * 0.5; ink(l, [[x - r * 1.5, y - r * 0.2 - tl], [x + r * 1.5, y - r * 0.2 + tl]], 1.2); l.beginPath(); l.ellipse(x + look[0], y + r * 0.25, r * 0.8 * fs, r * 0.6, 0, 0, TAU); l.fill(); return; }
+      if (smile) { l.beginPath(); l.ellipse(x + look[0], y, r * fs, r * 1.1, 0, Math.PI, TAU); l.fill(); return; }
       if (wide) { l.lineWidth = 1.1 * lw; l.strokeStyle = '#000'; l.beginPath(); l.ellipse(x, y, r * 1.6 * fs, r * 1.8, 0, 0, TAU); l.stroke(); l.beginPath(); l.arc(x + look[0], y + look[1], r * 0.45, 0, TAU); l.fill(); return; }
       l.beginPath(); l.ellipse(x + look[0], y + look[1], r * fs, r * 1.15, 0, 0, TAU); l.fill();
       if (sp > 0.3) { hi.beginPath(); hi.arc(x + look[0] - r * 0.3, y + look[1] - r * 0.4, r * 0.3, 0, TAU); hi.fill(); l.fillStyle = '#fff'; l.beginPath(); l.arc(x + look[0] - r * 0.3, y + look[1] - r * 0.4, r * 0.3, 0, TAU); l.fill(); l.fillStyle = '#000'; }
@@ -1664,17 +1716,22 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     }
     // 目の形（上まぶた・下まぶた）
     let up, lo, open = 1;
-    if (st === 'sharp') { up = [[x - outer * w, y + h * 0.15], [x - outer * w * 0.2, y - h * 0.65], [x + outer * w, y - h * 0.35]]; lo = [[x - outer * w * 0.9, y + h * 0.2], [x, y + h * 0.5], [x + outer * w * 0.95, y - h * 0.1]]; }
-    else if (st === 'realistic') { up = [[x - outer * w, y + h * 0.1], [x - outer * w * 0.15, y - h * 0.6], [x + outer * w, y + h * 0.05]]; lo = [[x - outer * w * 0.9, y + h * 0.15], [x, y + h * 0.5], [x + outer * w, y + h * 0.05]]; }
+    // outer = 目尻の向き。inner（目頭）は少し下、目尻はシャープに
+    if (st === 'sharp') { up = [[x - outer * w, y + h * 0.18], [x - outer * w * 0.35, y - h * 0.55], [x + outer * w * 0.45, y - h * 0.62], [x + outer * w * 1.05, y - h * 0.15]]; lo = [[x - outer * w * 0.9, y + h * 0.22], [x + outer * w * 0.1, y + h * 0.5], [x + outer * w * 0.95, y + h * 0.05]]; }
+    else if (st === 'realistic') { up = [[x - outer * w, y + h * 0.12], [x - outer * w * 0.4, y - h * 0.48], [x + outer * w * 0.3, y - h * 0.58], [x + outer * w, y - h * 0.02]]; lo = [[x - outer * w * 0.95, y + h * 0.15], [x + outer * w * 0.05, y + h * 0.48], [x + outer * w, y + h * 0.02]]; }
     else if (st === 'sparkle') { up = [[x - outer * w * 1.1, y - h * 0.05], [x - outer * w * 0.1, y - h * 0.62], [x + outer * w * 1.05, y - h * 0.38]]; lo = [[x - outer * w * 0.8, y + h * 0.35], [x, y + h * 0.55], [x + outer * w * 0.7, y + h * 0.42]]; }
     else { up = [[x - w, y - h * 0.15], [x, y - h * 0.55], [x + w, y - h * 0.15]]; lo = [[x - w * 0.9, y + h * 0.2], [x, y + h * 0.52], [x + w * 0.9, y + h * 0.2]]; }
-    if (half) { open = state === 'glare' ? 0.65 : 0.5; up = up.map(p => [p[0], lerp(p[1], y + h * 0.15, 1 - open + (state === 'glare' ? 0.1 : 0))]); }
+    // 表情でまぶたの形を変える
+    const fo = p => clamp(((p[0] - x) * outer / w + 1) / 2); // 0=目頭, 1=目尻
+    if (half) up = up.map(p => [p[0], lerp(p[1], y + h * 0.2, 0.35 + 0.35 * fo(p))]);           // 悲しみ：目尻側が垂れる
+    if (glare) up = up.map(p => [p[0], lerp(p[1], y + h * 0.05, 0.6 - 0.45 * fo(p))]);         // 怒り：目頭側が下がる
+    if (smile) { lo = lo.map(p => [p[0], p[1] - h * 0.42]); up = up.map(p => [p[0], p[1] + h * 0.08]); } // 笑み：下まぶたが上がる
     if (wide) { up = up.map(p => [p[0], p[1] - h * 0.12]); lo = lo.map(p => [p[0], p[1] + h * 0.1]); }
     const eyeP = catmull(up, 6).concat(catmull(lo, 6).reverse());
     // 白目
     ly.fill(eyeP, 0, { shade: 0, knock: false });
     // 黒目
-    const irR = st === 'sparkle' ? w * 0.72 : st === 'sharp' ? h * 0.65 : st === 'realistic' ? h * 0.62 : w * 0.6;
+    const irR = st === 'sparkle' ? w * 0.72 : st === 'sharp' ? h * 0.62 : st === 'realistic' ? h * 0.72 : w * 0.6;
     const irH = st === 'sparkle' ? h * 0.48 : irR;
     const pr = shock ? 0.35 : 1;
     const ix = x + look[0] + (st === 'sharp' ? -outer * w * 0.1 : 0), iy = y + look[1] + (st === 'sparkle' ? h * 0.05 : 0);
@@ -1686,7 +1743,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       l.lineWidth = 0.9 * lw; l.strokeStyle = '#000'; l.beginPath(); pathPoly(l, ir); l.stroke();
       l.beginPath(); l.ellipse(ix, iy + irH * 0.05, irR * 0.42 * fs * pr, irH * 0.42 * pr, 0, 0, TAU); l.fill();
     } else if (st === 'realistic') {
-      const ir = ellipsePts(ix, iy, irR * fs * pr, irR * pr, 0, 22); ly.matIn(eyeP, ir, 0.45);
+      const ir = ellipsePts(ix, iy, irR * fs * pr, irR * pr, 0, 22); ly.matIn(eyeP, ir, 0.6);
       l.lineWidth = 0.8 * lw; l.strokeStyle = '#000'; l.beginPath(); pathPoly(l, ir); l.stroke();
       l.beginPath(); l.arc(ix, iy, irR * 0.42 * pr, 0, TAU); l.fill();
       // 上まぶたの落ち影
@@ -1703,25 +1760,47 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       else hl(-irR * 0.3 * outer, -irR * 0.3, irR * 0.22);
     }
     // まぶたの線
-    const upW = st === 'sparkle' ? 2.6 : st === 'sharp' ? 2.0 : st === 'realistic' ? 1.4 : 1.3;
-    ink(l, catmull(up, 6), upW, { dense: true, tin: w * 0.3, tout: w * 0.2 });
+    const upW = st === 'sparkle' ? 2.6 : st === 'sharp' ? 2.3 : st === 'realistic' ? 1.7 : 1.3;
+    // 上まぶた：目頭は細く、目尻へ太く（目尻で少しはねる）
+    const upC = catmull(up, 6); const upD = outer > 0 ? upC : upC.slice().reverse();
+    ink(l, upC, upW, { dense: true, tin: w * 0.5, tout: w * 0.12, wfK: 1, wf: t => { const tt = outer > 0 ? t : 1 - t; return 0.35 + 0.9 * tt; } });
+    if (st === 'sharp' || st === 'realistic') { const e2 = up[up.length - 1], e1 = up[up.length - 2]; const tipD = V.norm(V.sub(e2, e1)); ink(l, [e2, V.add(e2, V.add(V.mul(tipD, w * 0.22), [0, h * 0.08]))], upW * 0.8, { tin: 0.5, tout: w * 0.2 }); }
     if (st === 'sparkle') { // まつげ
       const p = up[2]; for (let i = 0; i < 3; i++) { const a = [-0.9, -0.5, -0.1][i]; const d = [outer * Math.cos(a), Math.sin(a) - 0.3]; ink(l, [V.lerp(up[1], p, 0.6 + i * 0.2), V.add(V.lerp(up[1], p, 0.6 + i * 0.2), V.mul(V.norm(d), h * (0.35 - i * 0.05)))], 1.0, { tin: 0.5, tout: 3 }); }
       ink(l, [lo[0], lo[1], lo[2]].map((p, i) => p), 0.6, { tin: 2, tout: 2 });
     } else if (st === 'realistic') {
-      ink(l, catmull(lo, 5), 0.55, { dense: true, tin: 2, tout: 2 });
-      ink(l, catmull(up.map(p => [p[0], p[1] - h * 0.35]), 5).slice(3, -2), 0.6, { dense: true, tin: 2, tout: 3 }); // 二重
+      ink(l, catmull(lo, 5).slice(Math.floor(5 * (lo.length - 1) * 0.35)), 0.55, { dense: true, tin: 2, tout: 2 }); // 下まぶたは目尻側だけ
+      ink(l, catmull(up.map(p => [p[0], p[1] - h * 0.32]), 5).slice(4, -1), 0.55, { dense: true, tin: 2, tout: 3 }); // 二重
     } else if (st === 'sharp') { ink(l, catmull(lo, 4).slice(4), 0.6, { dense: true, tin: 1, tout: 2 }); }
     else { if (art.detail > 0.4) ink(l, catmull(lo, 4).slice(2, -2), 0.5, { dense: true }); }
+  }
+  // 動物の目：白目の少ない丸い黒目。ネコ・キツネは縦長の瞳孔、カエルは横長の瞳孔
+  function drawAnimalEye(C, E, state, lk, gag, sp) {
+    if (['happy', 'closed', 'squeeze', 'heart', 'smile'].includes(state)) return drawEye(C, E, 'simple', state === 'smile' ? 'happy' : state, lk, gag);
+    const { ly } = C; const l = ly.l; const { x, y, w, h, fs } = E; const r = Math.max(w, h) * 0.62;
+    const look = [lk[0] * r * 0.2, lk[1] * r * 0.2];
+    const slit = sp === 'cat' || sp === 'fox', frogE = sp === 'frog';
+    const shock = state === 'shock' || state === 'wide';
+    const half = ['half', 'away', 'tearful', 'glare'].includes(state);
+    const P = ellipsePts(x, y, r * fs * (slit ? 1.0 : 0.9), r * (slit ? 0.82 : 1), 0, 22);
+    if (slit || frogE || shock) { ly.fill(P, slit ? 0.35 : 0, { shade: 0, knock: false }); contour(l, P, 1.1); l.fillStyle = '#000';
+      if (shock) { l.beginPath(); l.arc(x + look[0], y + look[1], r * 0.18, 0, TAU); l.fill(); }
+      else if (slit) { l.beginPath(); l.ellipse(x + look[0], y + look[1], r * 0.14 * fs, r * 0.72, 0, 0, TAU); l.fill(); }
+      else { l.beginPath(); l.ellipse(x + look[0], y + look[1], r * 0.62 * fs, r * 0.28, 0, 0, TAU); l.fill(); } }
+    else { l.fillStyle = '#000'; fillPoly(l, P); }
+    l.fillStyle = '#fff'; if (!shock) { l.beginPath(); l.arc(x - r * 0.3 * fs + look[0], y - r * 0.35 + look[1], r * 0.24, 0, TAU); l.fill(); l.beginPath(); l.arc(x + r * 0.3 * fs + look[0], y + r * 0.3 + look[1], r * 0.1, 0, TAU); l.fill(); }
+    l.fillStyle = '#000';
+    if (half) { const dn = state === 'glare' ? -1 : 1; const lid = [[x - r * 1.15 * fs, y - r * 0.15 - dn * r * 0.15 * E.scr], [x + r * 1.15 * fs, y - r * 0.15 + dn * r * 0.15 * E.scr], [x + r * 1.15 * fs, y - r * 1.2], [x - r * 1.15 * fs, y - r * 1.2]]; ly.fill(lid, C.mat.fur ?? C.mat.skin, { shade: 0, knock: false }); l.save(); l.globalCompositeOperation = 'destination-out'; fillPoly(l, lid); l.restore(); ink(l, [lid[0], lid[1]], 1.3); }
   }
   function drawStar(c, x, y, r, col) { const P = []; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr2 = k % 2 ? r * 0.25 : r; P.push([x + Math.cos(a) * rr2, y + Math.sin(a) * rr2]); } c.fillStyle = col; fillPoly(c, catmull(P, 2, true)); c.fillStyle = '#000'; }
   function drawMouth(C, F, p, kind, gag) {
     const { ly, art } = C; const l = ly.l; const R = F.R, q = F.q; const [x, y] = p;
-    const w = R * lerp(0.2, 0.26, q) * (gag ? 1.4 : 1) * clamp(F.faceOn + 0.4, 0.5, 1.1);
-    const off = F.side * w * 0.2;
+    const w = R * lerp(0.2, 0.26, q) * (gag ? 1.4 : 1) * clamp(F.faceOn + 0.4, 0.5, 1.1) * (1 - Math.abs(F.side) * 0.38);
+    const off = F.side * w * 0.3;
     const blackFill = P => { ly.fill(P, 0.97, { shade: 0, knock: false }); };
     switch (kind) {
-      case 'smile': ink(l, [[x - w * 0.9 + off, y - w * 0.2], [x + off, y + w * 0.25], [x + w * 0.9 + off, y - w * 0.2]], 1.2); break;
+      case 'smile': ink(l, [[x - w * 1.0 + off, y - w * 0.32], [x - w * 0.45 + off, y + w * 0.12], [x + off, y + w * 0.2], [x + w * 0.45 + off, y + w * 0.12], [x + w * 1.0 + off, y - w * 0.32]], 1.2, { tin: 2, tout: 2 });
+        if (q > 0.4) { ink(l, [[x - w * 1.05 + off, y - w * 0.42], [x - w * 1.12 + off, y - w * 0.22]], 0.5); ink(l, [[x + w * 1.05 + off, y - w * 0.42], [x + w * 1.12 + off, y - w * 0.22]], 0.5); ink(l, [[x - w * 0.22 + off, y + w * 0.55], [x + w * 0.22 + off, y + w * 0.55]], 0.5); } break;
       case 'grin': case 'laugh': {
         const k = kind === 'laugh' ? 1.4 : 1;
         const P = catmull([[x - w * k + off, y - w * 0.25], [x + w * k + off, y - w * 0.25], [x + off + w * 0.3, y + w * 0.9 * k], [x + off - w * 0.3, y + w * 0.9 * k]], 4, true);
@@ -1745,7 +1824,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       case 'side': ink(l, [[x - w * 0.3 + off, y + w * 0.05], [x + w * 0.6 + off, y - w * 0.08]], 1.1); break;
       case 'smirk': ink(l, [[x - w * 0.6 + off, y + w * 0.05], [x + w * 0.2 + off, y + w * 0.08], [x + w * 0.75 + off, y - w * 0.25]], 1.2); break;
       case 'cat': ink(l, [[x - w * 0.8 + off, y - w * 0.15], [x - w * 0.4 + off, y + w * 0.2], [x + off, y - w * 0.05], [x + w * 0.4 + off, y + w * 0.2], [x + w * 0.8 + off, y - w * 0.15]], 1.2); break;
-      default: ink(l, [[x - w * 0.6 + off, y], [x + w * 0.6 + off, y]], 1.1, { tin: 2, tout: 2 });
+      default: ink(l, [[x - w * 0.62 + off, y], [x - w * 0.15 + off, y + w * 0.02], [x + off, y + w * 0.06], [x + w * 0.15 + off, y + w * 0.02], [x + w * 0.62 + off, y]], 1.1, { tin: 2, tout: 2 });
     }
     // 下唇の影（写実寄り）
     if (q > 0.6 && art.detail > 0.5 && ['line', 'firm', 'frown', 'smirk', 'side'].includes(kind)) ink(l, [[x - w * 0.25 + off, y + w * 0.45], [x + w * 0.25 + off, y + w * 0.45]], 0.6);
@@ -1782,7 +1861,11 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const wind = dyn * moving;
     const back = -Math.sign(F.side || 0.0001); // 画面上で「頭の後ろ」の向き
     const l = ly.l;
-    const shine = (P) => { if (mat < 0.5) return; const b = K.bbox(P); const g = ly.hi; g.save(); g.beginPath(); pathPoly(g, P); g.clip(); g.lineWidth = Math.max(0.6, R * 0.05) * lerp(0.6, 1.2, q); g.strokeStyle = '#fff'; g.lineCap = 'round'; for (let i = 0; i < 6; i++) { const a = -2.5 + i * 0.28; g.beginPath(); g.arc(c.x - F.side * R * 0.2, c.y + R * 0.15, R * 0.78, a, a + 0.12 + 0.05 * (i % 2)); g.stroke(); } g.restore(); };
+    const shine = (P) => { // 艶：頭の丸みに沿った帯の中に、毛の向きの短い白線を並べる（天使の輪）
+      if (mat < 0.45) return; const g = ly.hi; g.save(); g.beginPath(); pathPoly(g, P); g.clip(); g.fillStyle = '#fff';
+      const cx = c.x - F.side * R * 0.15, cy = c.y + R * 0.1, rad = R * 0.8; const n = Math.round(lerp(5, 11, art.detail));
+      for (let i = 0; i < n; i++) { const a = -2.75 + i / (n - 1) * 1.5 + rr(-0.04, 0.04); const len = R * rr(0.12, 0.3) * (i % 3 === 1 ? 0.6 : 1); const d = [Math.cos(a), Math.sin(a)]; const p0 = [cx + d[0] * (rad + len * 0.4), cy + d[1] * (rad + len * 0.4)], p1 = [cx + d[0] * (rad - len * 0.6), cy + d[1] * (rad - len * 0.6)]; penPath(g, [p0, V.lerp(p0, p1, 0.5), p1], Math.max(0.7, R * 0.055) * lerp(0.7, 1.1, q), { tin: len * 0.4, tout: len * 0.5, taper: 1, jit: 0 }); }
+      g.restore(); };
     const flowLines = (P, n) => { const b = K.bbox(P); for (let i = 0; i < n; i++) { const x = b.x + rr(0.15, 0.85) * b.w; ink(mat > 0.6 ? ly.hi : l, [[x, b.y + b.h * rr(0.2, 0.4)], [x + rr(-3, 3), b.y + b.h * rr(0.7, 0.95)]], 0.6, { tin: 4, tout: 8 }); } };
     if (hair === 'bald' || !H) { if (phase === 'front' && art.detail > 0.3 && mat === undefined) {} return; }
     const tailRootZ = pt(0, -0.45, -0.85).z;
@@ -1871,10 +1954,9 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     ly.fill(P, mat, { shade: 0.8, off: R * 0.25, blur: R * 0.03 });
     contour(l, P, 1.5);
     shine(P);
-    // 毛の流れ
-    const ln = Math.round(lerp(1, 7, art.detail) * lerp(0.4, 1, 1 - art.deform));
-    const crown = F.sp(0.0, -0.95, vol);
-    for (let i = 0; i < ln; i++) { const k = Math.floor(rand() * P.length); const tip = P[k]; if (tip[1] < c.y - R * 0.6) continue; ink(mat > 0.6 ? ly.hi : l, [[crown.x, crown.y], V.lerp([crown.x, crown.y], tip, 0.6), V.lerp([crown.x, crown.y], tip, 0.9)], 0.6, { tin: 3, tout: 10 }); }
+    // 毛束の切れ目：外形の所々から、内側へ短い線（髪の流れに沿って）
+    const ln = Math.round(lerp(2, 10, art.detail) * lerp(0.5, 1, 1 - art.deform));
+    for (let i = 0; i < ln; i++) { const k = Math.floor(rr(0.05, 0.95) * P.length); const p0 = P[k]; const toC = V.norm(V.sub([c.x, c.y - R * 0.6], p0)); const len = R * rr(0.2, 0.45); const bendv = V.mul(V.perp(toC), len * rr(-0.2, 0.2)); const p1 = V.add(V.add(p0, V.mul(toC, len)), bendv); ink(mat > 0.6 ? ly.hi : l, [V.add(p0, V.mul(toC, R * 0.03)), V.add(V.lerp(p0, p1, 0.5), V.mul(bendv, 0.5)), p1], 0.6, { tin: 1, tout: len * 0.6 }); }
     if (tailRootZ >= 0.1) tails();
   }
   function drawAnimalEars(C, F, kind, phase) {
@@ -1914,7 +1996,8 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       const sm = ['smile', 'happy', 'laugh', 'grin', 'cat', 'smirk'].includes(kind) ? 0.12 : ['frown', 'wavy', 'wail'].includes(kind) ? -0.1 : 0.02; const pts = []; for (let i = 0; i <= 10; i++) { const u = -1.15 + i / 10 * 2.3; const p = F.sp(u, 0.42 - sm * Math.cos(u * 1.3), 1.0); if (p.z > 0) pts.push([p.x, p.y]); }
       if (['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind) && pts.length > 2) { const low = pts.map(([x, y], i) => [x, y + R * 0.28 * Math.sin(i / (pts.length - 1) * Math.PI)]).reverse(); const P = pts.concat(low); C.ly.fill(P, 0.97, { shade: 0, knock: false }); contour(l, P, 1.1); } else if (pts.length > 1) ink(l, pts, 1.3, { dense: true }); },
     // 鳥・ペンギン：くちばしが口（開く）
-    bird: (C, F, kind) => { const n = F.sp(0, 0.38, 1.05), R = F.R, sd = F.side >= 0 ? 1 : -1, op = ['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind) ? 0.22 : 0; const tip = [n.x + F.side * R * 0.55 + sd * R * 0.06, n.y + R * 0.1]; const up = [[n.x - R * 0.18, n.y - R * 0.1], tip, [n.x - R * 0.12, n.y + R * 0.12]]; C.ly.fill(up, 0.35, { shade: 0.5 }); contour(C.ly.l, up, 1.1, { seg: 1 }); if (op) { const lo = [[n.x - R * 0.12, n.y + R * 0.14], [tip[0] - sd * R * 0.1, tip[1] + R * op], [n.x - R * 0.1, n.y + R * 0.3]]; C.ly.fill(lo, 0.35, { shade: 0.5 }); contour(C.ly.l, lo, 1.0, { seg: 1 }); } },
+    bird: (C, F, kind) => { const n = F.sp(0, 0.38, 1.05), R = F.R, sd = F.side >= 0 ? 1 : -1, op = ['grin', 'laugh', 'shout', 'wail', 'o', 'wavyopen'].includes(kind) ? 0.22 : 0; const tip = [n.x + F.side * R * 0.6 + sd * R * 0.04, n.y + R * (0.1 + 0.32 * (1 - Math.abs(F.side)))]; if (Math.abs(F.side) < 0.35) { const bw = R * 0.16, bx = n.x + F.side * R * 0.3; const upF = [[bx - bw, n.y], [bx + bw, n.y], [bx, n.y + R * 0.26]]; C.ly.fill(upF, 0.35, { shade: 0.4 }); contour(C.ly.l, upF, 1.1, { seg: 1 }); if (op) { const lo = [[bx - bw * 0.8, n.y + R * 0.12], [bx + bw * 0.8, n.y + R * 0.12], [bx, n.y + R * 0.4]]; C.ly.fill(lo, 0.6, { shade: 0 }); contour(C.ly.l, lo, 1.0, { seg: 1 }); } return; }
+      const up = [[n.x - R * 0.18, n.y - R * 0.1], tip, [n.x - R * 0.12, n.y + R * 0.12]]; C.ly.fill(up, 0.35, { shade: 0.5 }); contour(C.ly.l, up, 1.1, { seg: 1 }); if (op) { const lo = [[n.x - R * 0.12, n.y + R * 0.14], [tip[0] - sd * R * 0.1, tip[1] + R * op], [n.x - R * 0.1, n.y + R * 0.3]]; C.ly.fill(lo, 0.35, { shade: 0.5 }); contour(C.ly.l, lo, 1.0, { seg: 1 }); } },
     penguin: (C, F, kind) => ANIMAL_MOUTH.bird(C, F, kind),
   };
   function drawMane(C) { const { ly, m, rig } = C; const c = rig.proj(rig.J.head); const R = m.R * c.k; const P = []; const n = 22; for (let i = 0; i < n; i++) { const a = i / n * TAU; const r = R * (i % 2 ? 1.25 : 1.6); P.push([c.x + Math.cos(a) * r, c.y + R * 0.15 + Math.sin(a) * r]); } const PP = catmull(P, 3, true); part(ly, PP, Math.min(0.75, (C.mat.fur ?? 0.35) + 0.25), { w: 1.4, off: R * 0.3 }); }
@@ -1922,7 +2005,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const { ly, art } = C; const { R } = F; const l = ly.l;
     const n = F.sp(0, 0.4, (C.snout || 1.12) * 0.98);
     if (n.z < -0.2) return;
-    if (sp === 'bird' || sp === 'penguin') return;
+    if (sp === 'bird' || sp === 'penguin') {
+      if (sp === 'bird') for (let i = -1; i <= 1; i++) { const b = F.pt(i * 0.15, -0.95, 0.1); const t = [b.x + i * R * 0.15 - F.side * R * 0.2, b.y - R * (0.45 - Math.abs(i) * 0.12)]; const P3 = catmull([[b.x - R * 0.06, b.y], [ (b.x + t[0]) / 2, (b.y + t[1]) / 2 - R * 0.03], t, [b.x + R * 0.06, b.y]], 3, true); ly.fill(P3, C.mat.fur ?? 0.3, { shade: 0.5 }); contour(l, P3, 1.0); }
+      return;
+    }
     if (sp === 'frog') return;
     // 鼻づら（白い楕円）・パンダとたぬきの目のまわり
     if (['dog', 'fox', 'bear', 'lion', 'tanuki', 'panda', 'mouse', 'cat'].includes(sp)) { const mz = F.sp(0, 0.5, 1.05); const big = ['bear', 'panda', 'dog'].includes(sp) ? 1.25 : 1; const mz2 = F.sp(0, 0.5, (C.snout || 1.05) * 0.92); const P2 = ellipsePts(mz2.x + F.side * R * 0.04, mz2.y, R * 0.3 * big * clamp(F.faceOn + 0.3, 0.55, 1.1), R * 0.22 * big, 0, 18); ly.fill(P2, 0, { shade: 0.3, knock: false }); ink(l, P2.slice(2, 16), 0.8, { dense: true }); }
@@ -1982,7 +2068,12 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const pts = P3.concat(outer).filter(p => p.z > -0.15).map(p => [p.x, p.y]);
     if (pts.length < 4) return;
     const P = catmull(pts, 2, true);
-    ly.fill(P, C.mat.hair, { shade: 0.7, off: R * 0.12 }); contour(l, P, 1.2);
+    ly.fill(P, C.mat.hair, { shade: 0.7, off: R * 0.12 });
+    // 外側（あごの下のギザギザ）だけを線で、内側（頬）は毛先の短い線でぼかす
+    const nIn = P3.filter(p => p.z > -0.15).length * 2;
+    ink(l, P.slice(nIn - 2), 1.2, { dense: true, tin: 3, tout: 3 });
+    const innerPts = P.slice(0, nIn);
+    for (let i = 1; i < innerPts.length - 1; i += 2) { const p0 = innerPts[i]; ink(C.mat.hair > 0.6 ? ly.hi : l, [p0, [p0[0] + rr(-1, 1) * R * 0.03, p0[1] + R * rr(0.08, 0.16)]], 0.6, { tin: 1, tout: 4 }); }
     const mp = F.sp(0, lerp(0.72, 0.78, q)); const mo = ellipsePts(mp.x + F.side * R * 0.04, mp.y + R * 0.03, R * 0.2 * clamp(F.faceOn + 0.4, 0.5, 1.1), R * 0.1, 0, 16);
     ly.fill(mo, C.mat.skin, { shade: 0.2 });
     for (let i = 0; i < 3 + art.detail * 6; i++) { const a = V.lerp(pts[Math.floor(rand() * 9) % pts.length], pts[9 + Math.floor(rand() * (pts.length - 9))] || pts[0], rr(0.25, 0.6)); ink(C.mat.hair > 0.6 ? ly.hi : l, [a, [a[0] + rr(-1, 1), a[1] + R * 0.15]], 0.5, { tin: 1, tout: 4 }); }
@@ -2106,7 +2197,14 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const ears = { long: 1.6, bigpoint: 0.75, point: 0.5 }[ANIMAL_EARS[(spec || {}).species]] || 0;
     return { top: Ht + m.R * (0.15 + ears), hc: -(Ht - m.R), R: m.R, widthRatio: clamp(0.3 + 0.35 / (m.H / 2), 0.32, 0.6), size: sz };
   }
-  Object.assign(K, { drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
+  function _handTest(ctx, box, opts) {
+    const art = K.normalizeArt(opts); const S = K.ctxScale(ctx); const ly = new Layer(box, S); const { line, R } = derive(art, 2); setLine(line);
+    const C = { ly, art, m: { hand: 60 }, rig: { mir: 1 }, line };
+    const kinds = ['open', 'relax', 'fist', 'grip', 'point']; const dirs = [[0, 1], [1, 0.2], [-0.6, -0.8]];
+    kinds.forEach((k, i) => dirs.forEach((d, j) => drawHand(C, [box.x + 80 + i * 150, box.y + 50 + j * 140], V.norm(d), 70, k, j === 2 ? 'f' : 'n', 0)));
+    compose(ctx, ly, R);
+  }
+  Object.assign(K, { _handTest, drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
 })();
 
 </script>
@@ -3009,7 +3107,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       const age = n - 1 - i; const d = halfLife > 0 && isFinite(halfLife) ? Math.max(0.05, Math.pow(0.5, age / halfLife)) : 1;
       const u = R * m / (1 + R); // 事前 N(0,1) と合わせた好き度（表示用）
       rows.push({ id: aw.id, aw, fb, y: m, tau: 1 / R, info: R, d, u, conf: R / (1 + R), sig, order: i,
-        parts: sig.map(s => `${s.label} ${s.v * s.rho / (1 + R) >= 0 ? '+' : '−'}${Math.abs(s.v * s.rho / (1 + R)).toFixed(1)}`) });
+        parts: sig.map(s => { const c = s.v * s.rho / (1 + R); return Math.abs(c) < 0.05 ? s.label : `${s.label} ${c >= 0 ? '+' : '−'}${Math.abs(c).toFixed(1)}`; }) });
     });
     return { rows, reader: { likeRate, dwell: dwellInfo, n: rows.length, halfLife } };
   }
@@ -3207,12 +3305,12 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       const nAll = base.rows.length;
       if (nAll < 30) best = fitWith(1e9);
       else {
-        const m = Math.max(8, Math.round(nAll / 5)); const scores = {}, fits = {};
+        const m = Math.max(8, Math.round(nAll / 5)); const scores = {};
         for (const hl of HALF_LIVES) {
           // 古い順に並んだ反応のうち、最後の m 作を隠して学習し、その m 作の好き度を当てられるか（対数予測密度）
           const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl }));
           const rows = F1.rows; const train = rows.slice(0, rows.length - m).map(r => Object.assign({}, r, { d: Math.max(0.05, Math.pow(0.5, (rows.length - m - 1 - r.order) / hl)) }));
-          const M1 = fitRows(train, Object.assign({}, opts, { iters: 5 })); fits[hl] = M1;
+          const M1 = fitRows(train, Object.assign({}, opts, { iters: 5 }));
           let sc = 0; for (const r of rows.slice(-m)) { const pr = predictPhi(M1, featurize(r.aw, M1.tagIndex, M1.p)); const v = pr.var + M1.sigma2 + r.tau; sc += -0.5 * Math.log(2 * Math.PI * v) - 0.5 * (r.y - pr.mean) ** 2 / v; }
           scores[hl] = sc;
         }
@@ -3341,6 +3439,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       const ls = liftS.map(l => l[ri]); const pos = ls.filter(x => x - popLift[ri] > 0).length / ls.length;
       const d = liftM[ri] - popLift[ri]; const conf = Math.abs(2 * pos - 1);
       if (Math.abs(d) < 0.25 || conf < 0.6 || liftM[ri] < 0.15) return; // 好き側にずれていて、一般の目安とも違うものだけ
+      if (rg.kind === 'combo') { // 片方の軸だけで説明できるずれは除く（組み合わせならではの分だけ）
+        const ia = regions.findIndex(x => x.kind === 'axis' && x.k === rg.a && x.side === 'high'), ib = regions.findIndex(x => x.kind === 'axis' && x.k === rg.b && x.side === 'high');
+        if (liftM[ri] - Math.max(liftM[ia], liftM[ib], 0) < 0.2) return;
+      }
       items.push({ ...rg, test: undefined, lift: r2(liftM[ri]), popLift: r2(popLift[ri]), d: r2(d), conf: r2(conf), base: r2(IND[ri].base), score: Math.abs(d) * conf * (1.2 - IND[ri].base) });
     });
     // タグ：一般には分かれる／人気でないものが好き、または一般に人気のものが苦手
@@ -3360,9 +3462,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   const tagLabel = t => { const i = t.indexOf(':'); const c = t.slice(0, i), v = t.slice(i + 1); return `${S.TAG_CATS[c] || c}：${v}`; };
 
   /* 精度の目安：検証（tests/taste-sim.js）で測った学習曲線と、いまの信頼度 R から */
-  // 検証で測った「ランダムな2作のどちらが好きかを当てる率」（6種類の架空の読者の中央値）。taste-sim.js の結果で更新する
-  const CURVE = [{ n: 0, pair: 0.50 }, { n: 5, pair: 0.58 }, { n: 10, pair: 0.63 }, { n: 20, pair: 0.69 }, { n: 40, pair: 0.74 }, { n: 80, pair: 0.78 }, { n: 160, pair: 0.81 }];
-  const C_PROJ = 6; // 事後分散 ∝ 1/(n + c) の c（検証で合わせた値）
+  // 検証（tests/taste-sim.js、6種類×8人の架空の読者の中央値）で測った「ランダムな2作のどちらが好きかを当てる率」
+  const CURVE = [{ n: 0, pair: 0.50 }, { n: 5, pair: 0.55 }, { n: 10, pair: 0.57 }, { n: 20, pair: 0.60 }, { n: 40, pair: 0.70 }, { n: 80, pair: 0.74 }];
+  const C_PROJ = 6; // 事後分散 ∝ 1/(n + c) の c
+  function curveAt(n) { if (n <= 0) return 0.5; for (let i = 1; i < CURVE.length; i++) if (n <= CURVE[i].n) { const a = CURVE[i - 1], b = CURVE[i]; return a.pair + (b.pair - a.pair) * (n - a.n) / (b.n - a.n); } const L = CURVE[CURVE.length - 1]; return Math.min(0.85, L.pair + 0.04 * Math.log2(n / L.n)); }
   function accuracyOf(M) {
     const R = M.reliability ? M.reliability.R : 0; const rho = Math.sqrt(Math.max(0, R));
     const pair = 0.5 + Math.asin(clamp(rho, 0, 1)) / Math.PI; // 二変量正規での「2作の順番を当てる率」
@@ -3371,7 +3474,12 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       if (R >= target) return 0; const ev = 1 - R; const need = (nEff + C_PROJ) * ev / (1 - target) - C_PROJ; return Math.max(1, Math.ceil(need - nEff));
     };
     const ahead = [5, 10, 20, 40].map(add => { const ev = (1 - R) * (nEff + C_PROJ) / (nEff + add + C_PROJ); const rr = Math.sqrt(1 - ev); return { more: add, pair: r2(0.5 + Math.asin(clamp(rr, 0, 1)) / Math.PI), R: r2(1 - ev) }; });
-    return { R: r2(R), expectedCorr: r2(rho), pairwise: r2(pair), nEff: r2(nEff), moreFor80: proj(0.8), moreFor60: proj(0.6), ahead, curve: CURVE };
+    // pairwise は自己申告（控えめ：検証では n が大きいほど実際より低めに出る）、byValidation は検証の学習曲線から
+    // 画面用の「精度」：2作当て率 50%→0、80%→1 に直した値（自己申告と検証曲線の平均）。「あと何作で 0.8（＝2作当て74%）か」も同じ物差しで
+    const toScore = pr => clamp((pr - 0.5) / 0.3, 0, 1);
+    const blend = (pair + curveAt(nEff)) / 2, score = toScore(blend);
+    let more = 0; if (score < 0.8) { more = null; for (let add = 1; add <= 400; add++) { const ev = (1 - R) * (nEff + C_PROJ) / (nEff + add + C_PROJ); const pr = (0.5 + Math.asin(Math.sqrt(Math.max(0, 1 - ev))) / Math.PI + curveAt(nEff + add)) / 2; if (toScore(pr) >= 0.8) { more = add; break; } } }
+    return { score: r2(score), moreFor80score: more, R: r2(R), expectedCorr: r2(rho), pairwise: r2(pair), byValidation: r2(curveAt(nEff)), nEff: r2(nEff), moreFor80: proj(0.8), moreFor60: proj(0.6), ahead, curve: CURVE };
   }
 
   /* 「あなたの好みを一言で」：ルールで作る短い日本語 */
@@ -3571,7 +3679,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const acc = sm.accuracy;
     const nPos = rows.filter(r => r.u > 0.3).length, nNeg = rows.filter(r => r.u < -0.3).length;
     return {
-      version: VERSION, n: rows.length, nPos, nNeg, avgConf: acc.R, more: acc.moreFor80 || null,
+      version: VERSION, n: rows.length, nPos, nNeg, avgConf: acc.score, more: acc.moreFor80score || null,
       axes: axesC, feats: featsC, art: artC, tags: sm.tags, combos, unique: unique.slice(0, 4),
       rows: rows.map(r => ({ w: r.aw.src, r: r2(2 * r.u), u: r2(r.u), conf: r2(r.conf), weight: r2(r.d), parts: r.parts })),
       summary: sm, oneLiner: sm.oneLiner, accuracy: acc, model: M,
@@ -6715,7 +6823,7 @@ window.MangaSamples = [
         {
          "id": "mom",
          "x": 0.5,
-         "expr": "funny",
+         "expr": "laugh",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -6736,6 +6844,7 @@ window.MangaSamples = [
        ],
        "fx": [
         "focus",
+        "shake",
         "impact"
        ],
        "art": {
@@ -6803,7 +6912,7 @@ window.MangaSamples = [
      ],
      "panels": [
       {
-       "shot": "full",
+       "shot": "long",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -6824,7 +6933,7 @@ window.MangaSamples = [
        ]
       },
       {
-       "shot": "up",
+       "shot": "full",
        "bg": "plain",
        "time": "day",
        "weather": "clear",
@@ -9465,7 +9574,134 @@ window.MangaSamples = [
    },
    "source": "editor"
   },
-  "extras": null,
+  "extras": {
+   "characters": [
+    {
+     "id": "haru",
+     "name": "ハル",
+     "profile": "小学2年生、7さい。お母さんと二人で、物干しのある庭つきの家に住んでいる。口ぐせは「そうだ！」で、思いついたら考えるより先に口に出る。好きなものはにらめっことボタン集め（髪どめのボタンがいちばんのお気に入り）。苦手なものはかみなりの音。",
+     "past": "去年、自分も遊園地で迷子になったことがある。",
+     "secret": "迷子のこわさを知っているので、灰色で泣いているモクをほうっておけなかった。「まいごなんだ…」（p5）は、そのときを思い出した顔のつもりで描いている。",
+     "designNote": "白黒の画面で遠くからでも一目で分かるよう、黒いおかっぱ・顔の付いたボタンの髪どめ・水玉のシャツを目印にした。第1稿ではしましまのシャツだったが、第1回の編集チェックで「有名な作品の少女キャラと雰囲気が少し近い」と言われ（直すかは任意）、念のため水玉に変えた。",
+     "trivia": [
+      "口ぐせは「そうだ！」（p11）",
+      "髪どめを星形にする案もあったが、ありふれた形なのでボタンにした",
+      "かみなりが苦手なので、モクが大きな雨雲にならなくてほっとしている"
+     ]
+    },
+    {
+     "id": "mom",
+     "name": "お母さん",
+     "profile": "30代なかば。家のことを一人で切り盛りしている。晴れた日曜に洗濯物を全部干すのが何よりの楽しみ。口ぐせは「〜わよ」「〜わねぇ」で、「あんた、便利ねぇ」（p8）のように思ったことがそのまま口に出る。好きなものは快晴、布団たたきの音、取り込んだ洗濯物のにおい。苦手なものは急な雨。",
+     "past": "子どものころ、近所のにらめっこ大会で負けたことのない「変顔の名人」だった。大人になってからは封印していた。",
+     "secret": "p13 の「お母さんの本気」は、何十年ぶりかの封印解除。ハルが驚いているのは、変顔そのものより「お母さんがこんな顔をできたなんて」の方が大きい。",
+     "designNote": "髪をトーン（網点）にしたのは、ハルの黒髪と並んだとき髪の色だけで見分けられるようにするため。おだんご頭・白いエプロン・黒い長いスカートで、全身のシルエットもハルと変えた。目は第1回の編集チェックで、まつげのない目にそろえた。持ち物は第1稿ではほうきのつもりだったが、何を振り回しているか分からないと言われ、うずまき形の布団たたきにした。",
+     "trivia": [
+      "物語の最初の日に、苦手な「急な雨」がちょうど起きる",
+      "最初は布団たたきで雲を追い払い、最後は同じ雲のために本気を出す"
+     ]
+    },
+    {
+     "id": "moku",
+     "name": "モク",
+     "profile": "ちいさな雨雲の子ども。生まれてまだ一年たっていない（雲として）。口ぐせは「えへへ」で、照れるとすぐこれ。好きなものは笑うこと、くすぐられること（p7）、花に水をあげること（p8）。苦手なものはひとりぼっちと強い風。",
+     "past": "家族の中でいちばん小さく、まだ自分の力で高い空まで昇れない。ふだんはお父さん雲の後ろにくっついて旅をしているが、あの日は強い風で手を離してしまった。",
+     "secret": "物干しに降りたのは、白いシャツが雲の仲間に見えたから。",
+     "designNote": "色で気持ちを表すキャラクター。悲しいとトーンの灰色になって雨を降らせ、笑うと白くなってふくらむ。文字を読まなくても雲の色だけで気持ちが分かる。手足はなく、表情は目・眉・口だけ。",
+     "trivia": [
+      "口ぐせは「えへへ」",
+      "編集チェックでは第1回から「残すべき良い点」に挙げられた"
+     ]
+    },
+    {
+     "id": "papa",
+     "name": "雲のパパ",
+     "profile": "モクのお父さん。旅する大きな白い雲。口ぐせは「うむ」（本編では「モクー」「どこー？」くらいしか言わない）。好きなものは夕焼けの空。苦手なものは子どもとはぐれること。",
+     "past": "若いころは夕立を降らせる大きな雨雲だった。いまは落ち着いて、日陰を作る役目が気に入っている。",
+     "designNote": "モクと同じ雲の形のまま、太い眉とひげで見分けがつくようにした。第1稿の p9 では顔のない灰色の雲だったが、第1回の編集チェックで「モクの家族だと分からない」と言われ、p11 と同じ顔にそろえた。",
+     "trivia": []
+    },
+    {
+     "id": "mama",
+     "name": "雲のママ",
+     "profile": "モクのお母さん。口ぐせは「あらあら」。好きなものは虹。苦手なものは子どもとはぐれること。",
+     "past": "パパよりよく笑う。だからいつもふわふわで、パパより少し高いところを飛んでいる。",
+     "designNote": "モクと同じ雲の形のまま、まつげで見分けがつくようにした。",
+     "trivia": []
+    }
+   ],
+   "world": [
+    {
+     "title": "雲の家族の旅",
+     "body": "季節ごとに、雨の足りない土地を回っている。春は田んぼ、夏は花だん、秋は果樹園。モクの家族は「町の花だん係」で、エピローグ（p16）で花だんにだけ雨を降らせているのはその仕事。（作者が本編のあとで考えた裏設定）"
+    },
+    {
+     "title": "泣くと雨、笑うとふくらむ",
+     "body": "雲の体は水のつぶでできている。悲しいとつぶが重く集まって落ちてくる。灰色に見えるのは、つぶがぎゅっと詰まっているから。笑うと体の中に空気がたくさん入り、つぶの間が広がって白く軽くなり、上へ昇っていく。「ぷくっ」（p7）と「ぷくーっ」（p14）は、この仕組みを絵にしたもの。"
+    },
+    {
+     "title": "うれし泣きと虹",
+     "body": "うれしくて泣いた雨にだけ、日の光がよく通る。だから、うれし泣きのあとには虹が出る（p15）。"
+    },
+    {
+     "title": "それからのモク",
+     "body": "ときどき家族と町の上を通りかかり、ハルの家の花だんに水をやっていく。お母さんとの約束で、洗濯物には降らない。"
+    }
+   ],
+   "authorNote": "洗濯物を干すと雨が降る。誰にでもある、ちょっと腹の立つ出来事を「犯人がいたら？」とひっくり返したのが始まりです。犯人が迷子で泣いている小さな雲の子どもだったら、怒っていたお母さんはどうするだろう。白黒なので、色の代わりに網点で「悲しいと灰色、うれしいと白」を絵で伝えると最初に決めました。\n苦労したのは p13 の変顔です。第1稿では腕が丸太のように巨大になり、「山場が絵の崩れに見える」と言われました。第2稿でひじを顔の横で曲げる形にし、顔も寄り目・鼻の穴・舌出しにしました。p4 では布団たたきの頭がハルの足の後ろに重なり、フラフープの中に立っているように見えたので、そのコマだけ布団たたきを描かないことにしました。クライマックスも、第1回の指摘を受けて、p7 の「ぷくっ」、p11 の空高い家族、p14 の「ぷく→ぷくぷく→ぷくーっ」を足し、15ページから16ページになりました。\nお気に入りは p13 上の段の「笑いが足りないのよ」から「お母さんの本気、見せてあげる」へ続くところと、読む向きに合わせてモクが大きくなる p14 上の段です。",
+   "editorNote": "第1稿（15ページ）の第一印象は「骨組みがいい」。雲の色が気持ちを表すルールが絵だけで伝わり、お母さんの変わり方にも筋が通っていました。一方で、クライマックスの理屈、p13 の絵、文字のつぶれで読者が止まるため、第1回は必須9件・推奨14件・任意5件を返しました。\nいちばん大きかった直しは「笑うとふくらむ」の前振り（p7）と、ふくらむ瞬間を描く p14 の追加です。家族との距離も、p11 を縦長のコマにし、点線の矢印と鳥で「届かない」が絵だけで分かるようにしました。第2回で必須は1件（p4 の布団たたきの輪）まで減り、第3回で必須ゼロになりました。\n「完成」の決め手は、前振り（p7）・距離（p11）・ふくらむ瞬間（p14）・届いた（p15）が一本の線でつながり、山場が「理屈で納得できて、絵で笑える」形になったこと。そして、最初に残すべきと挙げた所が全部残っていたことです。",
+   "foreshadowing": [
+    {
+     "setup": "p2「日曜日。朝からいい天気。」「洗濯日和ね！」",
+     "payoff": "p16「今日もいい天気！」：1ページ目と最後が重なる"
+    },
+    {
+     "setup": "p3「うちの洗濯物だけ…」「ピンポイントだね」",
+     "payoff": "p16「洗濯物には降らないでよー！」「はーい」"
+    },
+    {
+     "setup": "p4「ぽろぽろ」：泣くと雨になる",
+     "payoff": "p15 の虹「うれし泣きかしらね」：悲しい雨がうれしい雨に"
+    },
+    {
+     "setup": "p5「風がはやくて／みんなにおいてかれた」",
+     "payoff": "p9 頭の上を流れる家族の雲 → p11 の再会"
+    },
+    {
+     "setup": "p7「ぷくっ」「ふくらんだ？」",
+     "payoff": "p11「うんと笑えばふくらむよ！」→ p14「ぷく→ぷくぷく→ぷくーっ」"
+    },
+    {
+     "setup": "p7 お母さん「その子を笑わせ続けて！」",
+     "payoff": "p13 お母さん自身の変顔：人に頼んだことを最後は自分でやる"
+    },
+    {
+     "setup": "p10「高くとべないの」、お母さんの「高く、ねぇ…」",
+     "payoff": "p13「笑いが足りないのよ」→「お母さんの本気、見せてあげる」"
+    },
+    {
+     "setup": "p11 点線の矢印（地面から家族まで。届かない）",
+     "payoff": "p15 点線の矢印（届いた）：同じ記号で対になる"
+    }
+   ],
+   "scrapped": [
+    {
+     "idea": "第1稿 p7 下の段の、ハルの「くねくね」おどりで晴れにするミニコマ",
+     "why": "小さいコマの効果音が黒いシミに見えると言われ、下の段を組み直したとき、モクが「ぷくっ」とふくらむ前振りのコマに差し替えた。おどりは p12 の空回りする場面に役目を移した。"
+    },
+    {
+     "idea": "お風呂の湯気でモクを持ち上げる案（ネームの段階）",
+     "why": "「温かい空気は上に昇る」では理科の実験になってしまい、「笑うと晴れる」というこの話のルールともつながらないため、「お母さんの変顔で笑わせる」に決めた。"
+    }
+   ],
+   "sequelHints": [
+    "モクの一家が遊びに来る。お父さん雲は大きいから、降らせる雨の量もけた違い（編集者の思いつき）",
+    "お母さんとの約束「洗濯物には降らないで」を守れるかどうか（編集者の思いつき）",
+    "「怒ると？」「くしゃみをすると？」など、新しい気持ちと新しい天気を一つずつ足していく（編集者の思いつき）",
+    "ハルの顔の付いたボタンの髪どめは、本編では何の意味も持たせていない。続編で使うかは作者しだい"
+   ],
+   "visual": null
+  },
   "meeting": null
  },
  {
@@ -15355,6 +15591,8 @@ function viaP(names, call, builtin, check) {
 }
 const targetOf = seed => seed && seed.mode === 'pref' ? { axes: seed.axes, likes: seed.likes, avoid: seed.avoid, tags: [...(seed.motifs || []), seed.genre].filter(Boolean), craft: seed.craft ? Object.entries(seed.craft).map(([k, v]) => CRAFT_HINT[k] ? CRAFT_HINT[k](v) : '').filter(Boolean) : [] } : null;
 const seriesOf = (prev, seed) => prev ? { script: prev.script, extras: prev.extras || null, episode: seed.episode, history: [] } : null;
+const withNote = (prompt, note, head) => { const t = txt(note, 600); return t ? `${prompt}\n${head}${t}` : prompt; };
+const Mod_writer = (...a) => Mod._writer(...a), Mod_editorName = (...a) => Mod._editorName(...a);
 /* prompts.js の検証結果を、この本体の形に寄せる */
 function fromPMeeting(m) {
   if (!m || !(m.minutes || m.characters)) return m;
@@ -15368,13 +15606,16 @@ function fromPPlan(o) { if (!o || !('feeling' in o || 'approach' in o || 'script
 function fromPReview(o) { if (!o || !('mustFix' in o)) return o; return { verdict: o.verdict, notes: [...arr(o.notesForAuthor), ...arr(o.notes)], originality: o.originality, script: o.script, artFix: o.artFix, profile: o.profile }; }
 const Mod = {
   analyze: viaModule('Taste', 'analyze', (works, fb, hist) => analyze(works, fb, hist), v => v && v.axes && v.tags && typeof v.n === 'number'),
+  forClaude: viaModule('Taste', 'forClaude', A => null, v => v && typeof v === 'object'),
   prefSeed: viaModule('Taste', 'prefSeed', (A, r) => prefSeed(A, r), v => v && v.axes && v.genre),
   predictFit: viaModule('Taste', 'predictFit', (A, prof, art) => predictFit(A, prof, art), v => v == null || typeof v === 'number'),
   randomSeed: viaP(['randomSeed', 'drawSeed'], (f, r) => f(r), r => randomSeed(r), v => v && v.axes && v.genre),
   sparks: viaP(['sparks', 'artSparks'], (f, r) => f(r), r => artSparks(r), v => Array.isArray(v) && v.every(x => x && x.parts)),
   meeting: viaP(['meetingPrompt'], (f, a) => f({ seeds: a.sparks, target: targetOf(a.seed), series: seriesOf(a.prev, a.seed), tasteHint: a.seed.artHints, seed: a.seed }), a => meetingPromptBuiltin(a), isStr),
-  writer: viaP(['writer', 'authorPrompt'], (f, seed, prev) => f.name === 'writer' ? f(seed, prev) : f({ seed, target: targetOf(seed), series: seriesOf(prev, seed), plan: seed.meeting ? (seed.meeting.raw || null) : null }), (seed, prev) => writerPrompt(seed, prev), isStr),
-  editorName: viaP(['editorName', 'editorPlanPrompt'], (f, S, seed, issues, sparks) => f.name === 'editorName' ? f(S, seed, issues, sparks) : f({ script: S, inspiration: { seed, sparks }, tasteHint: seed.artHints }), (S, seed, issues, sparks) => editorNamePrompt(S, seed, issues, sparks), isStr),
+  writer: (seed, prev) => withNote(Mod_writer(seed, prev), seed && seed.tasteNote, '【分析担当から作者へのメモ（参考）】'),
+  editorName: (S, seed, issues, sparks) => withNote(Mod_editorName(S, seed, issues, sparks), seed && seed.editorNote, '【分析担当から編集者へのメモ（参考。絵柄の最終判断はあなたのセンスで）】'),
+  _writer: viaP(['writer', 'authorPrompt'], (f, seed, prev) => f.name === 'writer' ? f(seed, prev) : f({ seed, target: targetOf(seed), series: seriesOf(prev, seed), plan: seed.meeting ? (seed.meeting.raw || null) : null }), (seed, prev) => writerPrompt(seed, prev), isStr),
+  _editorName: viaP(['editorName', 'editorPlanPrompt'], (f, S, seed, issues, sparks) => f.name === 'editorName' ? f(S, seed, issues, sparks) : f({ script: S, inspiration: { seed, sparks }, tasteHint: seed.artHints }), (S, seed, issues, sparks) => editorNamePrompt(S, seed, issues, sparks), isStr),
   editorCheck: viaP(['editorCheck', 'editorReviewPrompt'], (f, S, seed, issues, warnings, img, fin) => f.name === 'editorCheck' ? f(S, seed, issues, warnings, img, fin) : f({ script: S, warnings: [...issues, ...warnings], hasImages: img, seed, finalRound: fin }), (S, seed, issues, warnings, img, fin) => editorCheckPrompt(S, seed, issues, warnings, img, fin), isStr),
   revise: viaP(['revise', 'authorRevisePrompt'], (f, S, seed, notes) => f.name === 'revise' ? f(S, seed, notes) : f({ script: S, notes, seed }), (S, seed, notes) => revisePrompt(S, seed, notes), isStr),
   tasteWords: viaP(['tasteWords', 'tasteNarrativePrompt'], (f, d) => f(d), data => tasteWordsPrompt(data), isStr),
@@ -15395,36 +15636,63 @@ const Mod = {
 };
 
 /* ---------- 保存：db（閲覧者ごとの非公開領域）→ だめなら localStorage → だめならメモリ ---------- */
+/* 保存の決まり（作品が消えたり二重になったりしないこと最優先）
+   ・起動の読み込みが終わるまで（ready）、書き込みは待たせる。先に書くと、読み込み前の空の状態で上書きしてしまうため
+   ・db への書き込みが失敗しても、保存先は切り替えない。その文書を「未送信」としてこの端末に控え、次の起動で db に送り直す
+   ・読み込んだ文書は凍結されているので、必ず複製してから使う
+   ・作品は work.id で一意にまとめる（同じ id が二つあれば、新しく保存されたほうを残す） */
 const Store = {
-  kind: 'memory', db: null, uid: null, mem: {}, chains: {}, prefix: 'mangakobo:',
-  async init() {
-    const c = window.claude;
-    if (c && typeof c.use === 'function') {
-      try {
-        const [db, user] = await Promise.all([c.use('db').catch(() => null), c.use('user').catch(() => null)]);
-        if (db && user) { const uid = await user.id(); if (uid) { this.db = db; this.uid = uid; this.kind = 'db'; return; } }
-      } catch (e) {}
-    }
-    this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory';
+  kind: 'memory', db: null, uid: null, mem: {}, chains: {}, prefix: 'mangakobo:', pendingPrefix: 'mangakobo-pending:',
+  ready: null, _resolveReady: null, loadOK: false,
+  init() {
+    if (this.ready) return this.ready;
+    this.ready = (async () => {
+      const c = window.claude;
+      if (c && typeof c.use === 'function') {
+        try {
+          const [db, user] = await Promise.all([c.use('db').catch(() => null), c.use('user').catch(() => null)]);
+          if (db && user) { const uid = await user.id(); if (uid) { this.db = db; this.uid = uid; this.kind = 'db'; return; } }
+        } catch (e) {}
+      }
+      this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory';
+    })();
+    return this.ready;
   },
   path() { return 'data/users/' + this.uid; },
+  clone(v) { try { return JSON.parse(JSON.stringify(v)); } catch (e) { return null; } },
   async loadAll() {
+    await this.init();
     const out = {};
     if (this.kind === 'db') {
-      try { const snap = await this.db.collection(this.path()).limit(1000).get(); snap.docs.forEach(d => { if (d.exists) out[d.id] = d.data(); }); return out; }
-      catch (e) { this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory'; toast('保存先に届かないため、この端末に保存します'); }
+      let snap = null;
+      for (let tries = 0; tries < 3 && !snap; tries++) {
+        try { snap = await this.db.collection(this.path()).limit(1000).get(); }
+        catch (e) { if (e && (e.code === 'revoked' || e.code === 'not_granted')) break; await new Promise(r => setTimeout(r, 500 + tries * 800)); }
+      }
+      if (snap) { snap.docs.forEach(d => { if (d.exists) { const v = this.clone(d.data()); if (v) out[d.id] = v; } }); this.loadOK = true; }
+      else toast('保存先から読み込めませんでした。この画面では新しい保存だけを行います', 4000);
+      // 送れていなかった書き込みを合わせ、db に送り直す
+      for (const [k, v] of Object.entries(this.pending())) { const cur = out[k]; if (!cur || (v.savedAt || 0) >= (cur.savedAt || 0)) { out[k] = v; this.put(k, v, true); } }
+      return out;
     }
-    if (this.kind === 'local') { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(this.prefix) && k !== this.prefix + 'probe' && k !== this.prefix + 'ui') { try { out[k.slice(this.prefix.length)] = JSON.parse(localStorage.getItem(k)); } catch (e) {} } } } catch (e) {} }
-    if (this.kind === 'memory') Object.assign(out, this.mem);
+    if (this.kind === 'local') { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(this.prefix) && k !== this.prefix + 'probe' && k !== this.prefix + 'ui') { try { out[k.slice(this.prefix.length)] = JSON.parse(localStorage.getItem(k)); } catch (e) {} } } this.loadOK = true; } catch (e) {} }
+    if (this.kind === 'memory') { Object.assign(out, this.clone(this.mem)); this.loadOK = true; }
     return out;
   },
-  put(key, obj) { // 同じ文書への書き込みは1つずつ
+  pending() { const o = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(this.pendingPrefix)) { try { o[k.slice(this.pendingPrefix.length)] = JSON.parse(localStorage.getItem(k)); } catch (e) {} } } } catch (e) {} return o; },
+  put(key, obj, resend) { // 同じ文書への書き込みは1つずつ、読み込みが終わってから
+    const data = this.clone(obj); if (!data) return Promise.resolve();
+    if (!resend && data && typeof data === 'object') data.savedAt = Date.now();
     const run = async () => {
-      const data = JSON.parse(JSON.stringify(obj));
+      await this.init();
       if (this.kind === 'db') {
-        try { await this.db.doc(this.path() + '/' + key).set(data); return; }
-        catch (e) { if (e && e.code === 'unavailable') { await new Promise(r => setTimeout(r, 600 + Math.random() * 600)); try { await this.db.doc(this.path() + '/' + key).set(data); return; } catch (e2) {} }
-          if (e && e.code === 'quota_exceeded') toast('保存の容量がいっぱいです'); else { this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory'; toast('この画面では保存できないため、この端末に保存します'); } }
+        for (let tries = 0; tries < 2; tries++) {
+          try { await this.db.doc(this.path() + '/' + key).set(data); try { localStorage.removeItem(this.pendingPrefix + key); } catch (e) {} return; }
+          catch (e) { if (e && e.code === 'unavailable' && tries === 0) { await new Promise(r => setTimeout(r, 600 + Math.random() * 600)); continue; } if (e && e.code === 'quota_exceeded') toast('保存の容量がいっぱいです'); break; }
+        }
+        // 失敗：保存先は db のまま。この端末に「未送信」として控える（次の起動で送り直す）
+        if (!lsSet(this.pendingPrefix + key, JSON.stringify(data))) this.mem[key] = data;
+        return;
       }
       if (this.kind === 'local' && lsSet(this.prefix + key, JSON.stringify(data))) return;
       this.mem[key] = data;
@@ -15438,16 +15706,19 @@ const Store = {
 /* ---------- 状態 ---------- */
 const S0 = {"script": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "あの\n一日十個の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "冷蔵庫\nみたいだ…"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "探偵は\nこわがらない。"}], "fx": ["sweat"], "art": {"headRatio": 7.8, "deform": 0.1, "black": 0.9, "hatching": 0.85, "crossHatch": 0.6, "line": {"weight": 0.95, "roughness": 0.5}, "eyeStyle": "realistic", "panelFrame": "rough", "note": "劇画オチ"}}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "それなら、\nおばけ用の席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2, 1], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "happy"}], "say": [{"who": "tencho", "text": "プリンは\n毎日十一個\n作ることに\nしました。"}]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}], "art": {"headRatio": 3.0, "deform": 0.55, "eyeSize": 0.62, "eyeStyle": "simple", "line": {"weight": 0.45, "taper": 0.5, "jitter": 0.15, "roughness": 0.1}, "hatching": 0.1, "crossHatch": 0.0, "black": 0.35, "tone": 0.6, "toneKind": "dot", "detail": 0.42, "perspective": 0.35, "dynamism": 0.35, "sparkle": 0.3, "softness": 0.75, "grain": 0.05, "panelFrame": "rounded", "direction": "ぬいぐるみのように丸い頭身で、こわい場面もやわらかい線のまま描く。夜のカフェだけはトーンを重ねて静けさを出す。", "aim": "謎解きを、ぬいぐるみの丸さで「小さな事件」に", "reason": "おばけの正体は寂しさなので、こわさより愛嬌が先に伝わる絵にした。探偵が強がる1コマだけ劇画にして、笑いに変える。"}}, "profile": {"axes": {"humor": 0.62, "warmth": 0.85, "tension": 0.35, "tempo": 0.6, "dark": 0.2, "fantasy": 0.55, "romance": 0.0, "action": 0.25, "mystery": 0.6, "tearjerk": 0.45, "absurd": 0.3, "charDriven": 0.65, "talky": 0.55, "growth": 0.3, "everyday": 0.6, "scale": 0.1, "twist": 0.55, "afterglow": 0.35, "cute": 0.8, "smart": 0.45}, "tags": {"genre": ["ミステリー", "ほのぼの"], "setting": ["カフェ", "商店街"], "protagonist": ["猫"], "age": ["大人"], "relation": ["師弟", "友情"], "ending": ["ハッピーエンド"], "humor": ["ほっこり"], "motif": ["食べ物", "おばけ"]}}, "extras": {"characters": [{"id": "mike", "name": "ミケ", "profile": "商店街の二階に事務所をかまえる猫の探偵。三十代くらい（猫なので本人も覚えていない）。帽子とマントは、先代の探偵からゆずられたもの。こわいものは無いと言いはるが、夜の台所と掃除機だけは苦手。", "trivia": ["好物はプリンの「カラメルだけ」", "事件のメモは肉球のスタンプで書く", "チェックの服は三着同じものを持っている"]}, {"id": "kota", "name": "コウタ", "profile": "ほしの木の向かいの文房具屋の息子で、小学三年生。ミケの「助手」を自称しているが、ミケからはまだ「見習い」と呼ばれている。こわがりだけど、気づくのは誰より早い。", "trivia": ["かばんの中身は虫めがねと、のりと、あめ玉", "おばけの手形に最初に気づいたのは、実はコウタ"]}, {"id": "tencho", "name": "店長", "profile": "カフェ「ほしの木」の二代目。プリンのレシピは先代の店長だった母親ゆずり。口数は少ないが、店に来る誰のことも覚えている。", "trivia": ["ひげは毎朝ていねいにそろえる", "「十一個目」のプリンは、毎日いちばん形のいいものを選んで出している"]}, {"id": "shiro", "name": "シロ", "profile": "百年前、この場所が小さな菓子屋だったころからいるおばけ。人をおどかしたことは一度もない。冷たい手でさわったものは、少しだけ冷える。", "trivia": ["頭の花は、最初のお客さんがくれたもの", "好きな席は窓ぎわの二番テーブル"]}], "world": [{"title": "カフェ「ほしの木」", "body": "商店街のいちばん奥にある、木の看板のカフェ。建物は百年前の菓子屋をそのまま使っていて、台所の床の一部は当時の石だたみのまま。シロが冷蔵庫の近くにいるのは、そこがいちばん古い場所だから。"}, {"title": "商店街のおばけたち", "body": "この商店街には、ほかにも古い店に住むおばけが何人かいるらしい。みんな人の暮らしを見るのが好きで、悪さはしない。ミケはそのことに、うすうす気づいている。"}], "authorNote": "最初のネームでは、犯人は「プリンが大好きな近所の子ども」でした。でも、それだと謎がすぐ解けてしまうので、手形が「冷たい」ことを入れて、おばけに変えました。いちばん迷ったのは、ミケが犯人をしかるかどうかです。しからずに「わけを聞こう」と言わせたところで、この話の形が決まった気がします。", "editorNote": "絵柄は、あえて丸くてやわらかい頭身にしました。夜のカフェの場面は本当はこわく描けるのですが、この話でいちばん伝えたいのは「さみしさ」なので、おばけが出てくる前から読者が少し安心していられる絵にしたかったのです。そのかわり、探偵が強がる1コマだけを劇画にして、笑いに変えています。", "foreshadowing": [{"setup": "3ページ：皿に残った「小さな手形」", "payoff": "5ページ：手形はシロの手だった"}, {"setup": "3ページ：冷蔵庫のような「冷たさ」", "payoff": "6ページ：シロがさわったものは冷える"}, {"setup": "2ページ：「一日十個」の限定プリン", "payoff": "8ページ：十一個目はシロのぶん"}], "scrapped": [{"idea": "ミケが変装してカフェの店員になる", "why": "ページが足りず、謎解きの時間がなくなるため"}, {"idea": "シロが実は先代の店長だった", "why": "話が重くなりすぎるので、裏設定に回した"}], "sequelHints": ["商店街のほかのおばけたち", "先代の探偵から受けついだマントの秘密", "コウタが「見習い」を卒業する日"]}, "meeting": {"transcript": [{"who": "作者", "text": "案は3つです。1つ目は、商店街のカフェから限定プリンが消える話。探偵は猫です。"}, {"who": "作者", "text": "2つ目は、雨の日だけ開く郵便局。3つ目は、口の悪い招き猫が店番をする話です。"}, {"who": "編集者", "text": "プリンの話がいいですね。でも犯人が人間だと、ちょっと意地悪な話になりませんか。"}, {"who": "作者", "text": "たしかに。犯人を、昔からその店にいるおばけにするのはどうでしょう。"}, {"who": "編集者", "text": "いい。こわいけど、さみしい、くらいの温度にしましょう。手がかりは何にします？"}, {"who": "作者", "text": "皿に残った小さな手形と、冷蔵庫みたいな冷たさ。この2つで正体に気づく流れです。"}, {"who": "編集者", "text": "探偵が犯人をしからない結末にできますか。わけを聞いて、席を作ってあげる。"}, {"who": "作者", "text": "できます。十一個目のプリンをおばけのぶんにして終わりたいです。"}, {"who": "編集者", "text": "絵は丸くてやわらかくいきましょう。夜のカフェでも、読者が安心していられるように。"}, {"who": "作者", "text": "探偵が強がるところだけ、劇画にして笑わせたいです。"}, {"who": "編集者", "text": "それ、採用です。"}], "pitches": [{"title": "消えたプリン", "logline": "商店街のカフェから限定プリンが消え、猫の探偵が夜のカフェを見張る。", "hook": "犯人の正体と、十一個目のプリン"}, {"title": "雨の日郵便局", "logline": "雨の日だけ開く郵便局に、届け先のない手紙が集まる。", "hook": "最後の一通のあて先"}, {"title": "招き猫の店番", "logline": "口の悪い招き猫が、留守番中の店で客をさばく。", "hook": "招き猫が一度だけ手をおろす"}], "chosen": 0, "decision": "謎解きと温かさが両方ある。犯人をしからない結末で、読後がやさしくなる。", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "designs": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "labcoat", "pattern": "white", "eyes": "sharp", "items": ["glasses", "bowtie"]}, {"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "black", "outfit": "hoodie", "pattern": "tone", "eyes": "sharp", "items": ["cap"]}], "comments": ["帽子とマントで一目で探偵", "科学者っぽくなりすぎる", "若すぎて頼りない"], "chosen": 0}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "designs": [{"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "messy", "hairColor": "black", "outfit": "hoodie", "pattern": "dots", "eyes": "round", "items": ["cap", "bag"]}], "comments": ["しましまで元気に", "帽子がミケとかぶる"], "chosen": 0}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "designs": [{"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "gray", "eyes": "round", "items": ["lantern"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "sleepy", "items": ["ribbon"]}], "comments": ["花一輪で、昔からいる感じ", "灰色だとこわすぎる", "眠そうな目は別の話向き"], "chosen": 0}], "art": {"headRatio": 3.2, "softness": 0.7, "aim": "丸くやわらかい絵で、こわさより愛嬌を"}}, "nameScript": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "え、あの\n大人気の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "なんか\n寒くない？"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "こわくなんか\nないぞ。"}], "fx": ["sweat"]}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "じゃあ、\nあなたの席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}]}};
 const SAMPLE_ID = 'sample-mike';
-const state = { works: {}, fb: {}, history: [], cur: null, page: 0, tab: 'make', filter: 'all', sample: null, sampleWhy: 'checking', imgOK: false, busy: false, ctl: null, A: null };
+const state = { loaded: false, works: {}, fb: {}, history: [], cur: null, page: 0, tab: 'make', filter: 'all', sample: null, sampleWhy: 'checking', imgOK: false, busy: false, ctl: null, A: null };
 function sampleWork() {
   const n = normalizeScript(S0.script);
   return { id: SAMPLE_ID, script: n.script, nameScript: S0.nameScript || null, meeting: normalizeMeeting(S0.meeting), profile: normalizeProfile(S0.profile), extras: normalizeExtras(S0.extras, n.script), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse('2026-10-01T09:00:00Z'), mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } };
 }
 const fbOf = id => (state.fb[id] = state.fb[id] || { liked: false, disliked: false, opens: 0, finished: false, maxPage: 0, dwell: [], rereads: 0, sequel: false, lastRead: 0 });
-const fbTimers = {};
-function saveFb(id, now = false) { clearTimeout(fbTimers[id]); const go = () => Store.put('fb_' + id, state.fb[id]); if (now) go(); else fbTimers[id] = setTimeout(go, 1500); }
-function saveHistory() { clearTimeout(fbTimers.__h); fbTimers.__h = setTimeout(() => Store.put('history', { items: state.history.slice(-300) }), 1500); }
-function analysisNow() { state.A = Mod.analyze(state.works, state.fb, state.history); return state.A; }
+const fbTimers = {}, fbPending = new Set();
+function saveFb(id, now = false) { clearTimeout(fbTimers[id]); fbPending.add(id); const go = () => { fbPending.delete(id); Store.put('fb_' + id, state.fb[id]); }; if (now) go(); else fbTimers[id] = setTimeout(go, 1500); }
+function saveHistory(now = false) { if (!state.loaded) return; clearTimeout(fbTimers.__h); state.histDirty = true; const go = () => { state.histDirty = false; Store.put('history', { items: state.history.slice(-300) }); }; if (now) go(); else fbTimers.__h = setTimeout(go, 1500); } // 読み込み前は書かない（空の履歴で上書きしないため）
+function flushSaves() { for (const id of [...fbPending]) saveFb(id, true); if (state.histDirty) saveHistory(true); }
+/* 分析の「いま」：分単位に丸める（同じ入力なら taste.js の前回の結果を使えるように）。テストでは window.__mkNow で固定できる */
+const nowForTaste = () => window.__mkNow || Math.floor(Date.now() / 60000) * 60000;
+function analysisNow() { state.A = Mod.analyze(state.works, state.fb, state.history, { now: nowForTaste() }); return state.A; }
 
 /* ---------- 描画キャッシュ ---------- */
 const cache = new Map();
@@ -15861,6 +16132,7 @@ function renderExtras() {
   // キャラクター設定資料（立ち絵は描画エンジンで描く）
   const cards = S.characters.map(ch => { const info = ex && ex.characters.find(c => c.id === ch.id); return el('article', { class: 'chcard' }, charSheet(S, ch), el('div', { class: 'chtext' }, el('h4', {}, ch.name, el('span', { class: 'sub', text: '　' + (ch.role || '') })), info && info.profile ? el('p', { text: info.profile }) : el('p', { class: 'sub', text: ch.desc || '' }), info && info.past ? el('p', { class: 'sub', text: '過去：' + info.past }) : '', info && info.secret ? el('p', { class: 'sub', text: 'ひみつ：' + info.secret }) : '', info && info.trivia.length ? el('ul', {}, ...info.trivia.map(t => el('li', { text: t }))) : '', el('p', { class: 'sub spec', text: `${ch.species}・${ch.age}・${ch.hair}/${ch.hairColor}・${ch.outfit}${ch.items.length ? '・' + ch.items.join('/') : ''}` }))); });
   const M = w.meeting;
+  if (!M || !M.transcript.length) body.append(el('p', { class: 'sub', text: 'この作品は企画会議の工程なしで作られたため、議事録とデザイン案はありません。' }));
   if (M && M.transcript.length) body.append(sec('企画会議の議事録',
     M.pitches.length ? el('div', { class: 'pitches' }, ...M.pitches.map((p, i) => el('div', { class: 'pitch' + (i === M.chosen ? ' on' : '') }, el('b', { text: `${i === M.chosen ? '採用：' : `案${i + 1}：`}${p.title}` }), el('div', { text: p.logline }), p.hook ? el('div', { class: 'sub', text: '見せ場：' + p.hook }) : ''))) : '',
     el('div', { class: 'chat' }, ...M.transcript.map(l => el('div', { class: 'msg ' + (l.who === '編集者' ? 'ed' : l.who === '作画' ? 'ar' : 'au') }, el('b', { text: l.who }), el('span', { text: l.text })))),
@@ -15959,6 +16231,11 @@ function renderShelf() {
 
 /* ---------- 好み分析 ---------- */
 function dbar(label, st, kind) {
+  if (st && (st.shape === 'peak' || st.shape === 'valley')) { // 山型・谷型：ほどほどが好き／両端が好き
+    const ideal = clamp(Number(st.ideal ?? st.likedMean ?? 0.5), 0, 1), conf = st.conf || 0, peak = st.shape === 'peak';
+    return el('div', { class: 'dbar', role: 'img', 'aria-label': `${label.l}↔${label.r}：${peak ? `ほどほど（${ideal.toFixed(2)}）が好き` : `中ほど（${ideal.toFixed(2)}）は苦手で、どちらかに振り切ったほうが好き`}、確信度${Math.round(conf * 100)}%` },
+      el('span', { class: 'l', text: label.l }), el('span', { class: 'track' }, el('span', { class: 'mark ' + (peak ? 'p' : 'n'), style: `left:calc(${ideal * 100}% - 6px);opacity:${0.35 + 0.65 * conf}` }), el('span', { class: 'shape', text: peak ? `ほどほど（${ideal.toFixed(2)}）が好き` : `中ほど（${ideal.toFixed(2)}）は苦手` })), el('span', { class: 'r', text: label.r }), el('span', { class: 'c', text: `${Math.round(conf * 100)}%` }));
+  }
   const v = clamp(st.pref / 0.35, -1, 1), w = Math.abs(v) * 50, conf = st.conf;
   const fill = el('span', { class: 'fill ' + (v >= 0 ? 'p' : 'n'), style: `left:${v >= 0 ? 50 : 50 - w}%;width:${w}%;opacity:${0.3 + 0.7 * conf}` });
   return el('div', { class: 'dbar', role: 'img', 'aria-label': `${label.l}↔${label.r}：${v >= 0 ? label.r : label.l}寄り、強さ${Math.round(Math.abs(v) * 100)}、確信度${Math.round(conf * 100)}%` },
@@ -15972,6 +16249,7 @@ function renderTaste() {
     el('div', { class: 'stat' }, el('b', { text: `${A.nPos} / ${A.nNeg}` }), el('span', { text: 'プラス / マイナス' })),
     el('div', { class: 'stat' }, el('b', { text: pct + '%' }), el('span', { text: '分析の精度（平均確信度）' })),
     el('div', { class: 'stat' }, el('b', { text: A.more ? `あと${A.more}作` : '十分' }), el('span', { text: A.more ? `反応すると精度80%の目安` : '精度80%に届いています' }))));
+  if (A.oneLiner && A.n > 0) body.append(el('p', { class: 'oneliner', text: A.oneLiner }));
   if (A.n === 0) body.append(el('p', { class: 'notice' }, el('b', { text: 'まだ反応がありません' }), '作品を読んで、♥ いいね・いまいち を押してください。最後まで読んだか、どのページに長くいたか、読み返したか、続編を作ったかも自動で記録して、好みを20の軸とタグで分析します。'));
   // 軸
   const axP = el('div', { class: 'panel' }, el('h3', { text: '作品の味の好み（20軸）' }), el('p', { class: 'sub', text: '中央から右に伸びると右の味が好き、左なら左の味が好き。薄い棒は確信が弱いもの。右端の数字は確信度。' }));
@@ -15984,10 +16262,11 @@ function renderTaste() {
   body.append(el('div', { class: 'tags2' }, el('div', { class: 'panel' }, el('h3', { text: '好きなタグ' }), el('p', { class: 'sub', text: '棒の長さは確信度（対数オッズ÷標準誤差）' }), tl(liked, '--accent')), el('div', { class: 'panel' }, el('h3', { text: '苦手なタグ' }), el('p', { class: 'sub', text: '　' }), tl(disl, '--neg'))));
   // 組み合わせ・あなただけ
   const combo = el('div', { class: 'panel' }, el('h3', { text: '組み合わせの好み' }));
-  if (A.combos.length) combo.append(el('ul', { class: 'combos' }, ...A.combos.map(c => el('li', { text: c.syn > 0 ? `「${AXIS_LABEL[c.a].r}」と「${AXIS_LABEL[c.b].r}」が両方高いときだけ、とくに好き（${c.nBoth}作・確信度${Math.round(c.conf * 100)}%）` : `「${AXIS_LABEL[c.a].r}」と「${AXIS_LABEL[c.b].r}」が重なると、むしろ苦手（${c.nBoth}作）` }))));
+  if (A.combos.length) combo.append(el('ul', { class: 'combos' }, ...A.combos.map(c => el('li', { text: c.text ? `${c.text}（${c.nBoth}作・確信度${Math.round(c.conf * 100)}%）` : c.syn > 0 ? `「${AXIS_LABEL[c.a].r}」と「${AXIS_LABEL[c.b].r}」が両方高いときだけ、とくに好き（${c.nBoth}作・確信度${Math.round(c.conf * 100)}%）` : `「${AXIS_LABEL[c.a].r}」と「${AXIS_LABEL[c.b].r}」が重なると、むしろ苦手（${c.nBoth}作）` }))));
   else combo.append(el('p', { class: 'sub', text: A.n < 5 ? `5作以上に反応すると、2つの軸の組み合わせ（例：笑い×温かさ）の好みも探します。` : '目立つ組み合わせはまだ見つかっていません。' }));
   const uq = el('div', { class: 'panel' }, el('h3', { text: 'ほかの人と違う、あなただけの好み' }), el('p', { class: 'sub', text: '一般的な読者の傾向（このアプリに内蔵した目安）と比べて、意外な好みを挙げます。' }));
   if (A.unique.length) uq.append(el('ul', { class: 'uniq' }, ...A.unique.map(u => {
+    if (u.text) return el('li', { class: (u.kind === 'axis' ? (u.s && u.s.pref > 0) : (u.tg && u.tg.lo > 0)) ? '' : 'n', text: u.text });
     if (u.kind === 'axis') { const L = AXIS_LABEL[u.k], side = u.s.pref > 0 ? L.r : L.l, popSide = POP_AXES[u.k] > 0 ? L.r : L.l; return el('li', { class: u.s.pref > 0 ? '' : 'n', text: POP_AXES[u.k] && Math.sign(POP_AXES[u.k]) !== Math.sign(u.s.pref) ? `多くの人は「${popSide}」を好みがちですが、あなたは「${side}」寄り（確信度${Math.round(u.s.conf * 100)}%）` : `「${side}」への好みが、一般的な目安よりずっと強い（確信度${Math.round(u.s.conf * 100)}%）` }); }
     return el('li', { class: u.tg.lo > 0 ? '' : 'n', text: u.tg.lo > 0 ? `一般には好みが分かれる「${tagLabel(u.tg.t)}」が、あなたは好き` : `一般には人気の「${tagLabel(u.tg.t)}」が、あなたは苦手` });
   })));
@@ -16009,7 +16288,11 @@ function renderTaste() {
   const words = el('div', { class: 'words', id: 'tasteWords', 'aria-live': 'polite' });
   const btn = el('button', { id: 'btnWords', disabled: !canMake() || A.n === 0, onclick: () => explainTaste(btn, words) }, 'Claude に言葉で分析してもらう');
   body.append(el('div', { class: 'panel' }, el('h3', { text: '言葉での分析' }), el('div', { class: 'row', style: 'margin-bottom:8px' }, btn, el('span', { class: 'sub', text: !canMake() ? 'Claude.ai で開くと使えます' : A.n === 0 ? '反応した作品が1つ以上いります' : '統計データだけを送ります' })), words));
+  const tj = window.Taste && A.summary;
   body.append(el('details', { class: 'memo' }, el('summary', { text: '分析のしくみ' }), el('ul', {},
+    tj ? el('li', { text: `いまの分析：${A.oneLiner || ''}` }) : '',
+    tj ? el('li', { text: `分析モデル（taste.js ${window.Taste.VERSION || ''}）：反応を作品ごとの「好き度」にまとめ、物語の20軸（一次と山型）・2軸の組み合わせ・物語と絵柄のズレ・絵柄・作り・タグを特徴にしたベイズ回帰で推定しています。山型の軸は「ほどほど（いちばん好きな値）」で表示します。` }) : '',
+    tj ? el('li', { text: '精度の物差し：反応した作品が10作で約23%、30作で約64%、80作で約91%。目標は80%です。' }) : '',
     el('li', { text: '作品ごとに、編集者が20軸（0〜1）とタグを採点。あわせて台本からセリフ量などを計算します。' }),
     el('li', { text: '反応を点数にします：いいね +2、いまいち −2、続編 +1.5、読了 +0.5、読み返し +0.3、途中でやめた −0.8、ページの滞在時間 ±0.4。' }),
     el('li', { text: 'プラスの作品の重み付き平均と、マイナス・ふつうの作品の平均の差を、軸ごとの好みとします。件数が少ないうちは、標準誤差から決めた割合で0に縮めます（縮小推定）。その割合が確信度です。' }),
@@ -16030,7 +16313,7 @@ async function explainTaste(btn, out) {
     combos: A.combos.map(c => ({ a: AXIS_LABEL[c.a].r, b: AXIS_LABEL[c.b].r, synergy: Math.round(c.syn * 100) / 100, works: c.nBoth })),
     works: A.rows.slice(0, 30).map(rw => ({ title: rw.w.script.title, genre: rw.w.script.genre, reward: Math.round(rw.r * 10) / 10 })),
   };
-  const prompt = Mod.tasteWords(data);
+  const fc = Mod.forClaude(A); const prompt = Mod.tasteWords(fc || data);
   try { const { text } = await state.sample(prompt, { cache: false, onText: ({ text }) => { out.textContent = text; } }); out.textContent = text; }
   catch (e) { out.textContent = e && e.text ? e.text : ''; if (HIDE_CODES.includes(e && e.code)) { state.sampleWhy = 'denied'; renderTaste(); return; } toast(ERR_TEXT[e && e.code] || ERR_TEXT.upstream_error); }
   finally { btn.disabled = !canMake(); }
@@ -16054,6 +16337,22 @@ function drawIcons() {
   artFor({ art: ART_DEFAULT }, null).drawCharacter(c2, normalizeCharacter({ id: 'ico', species: 'cat', age: 'child', hairColor: 'white', eyes: 'sparkle', outfit: 'none' }, 0, []), 'stand', 'love', { footX: 72, footY: 196, unit: 1.6, facing: 0, panel: { x: 0, y: 0, w: 144, h: 144 }, rand: rng(2) });
 }
 
+/* 読み込んだ文書を状態に合わせる。作品は work.id で一意に。見本の id は上書きしない。
+   読み込み中にできた反応・履歴（起動直後の操作）は消さずに足し合わせる */
+function mergeLoaded(all) {
+  const byId = {};
+  for (const [k, v] of Object.entries(all)) {
+    if (!k.startsWith('work_') || !v || !v.script) continue;
+    const id = v.id || k.slice(5); if (state.works[id] && state.works[id].meta && state.works[id].meta.bundled) continue;
+    if (byId[id] && (byId[id].savedAt || 0) > (v.savedAt || 0)) continue;
+    byId[id] = { ...v, id };
+  }
+  for (const v of Object.values(byId)) { try { const n = normalizeScript(v.script); state.works[v.id] = { ...v, script: { ...n.script, episode: v.script.episode || 1, seriesTitle: v.script.seriesTitle || '' }, profile: v.profile || heuristicProfile(n.script), meta: v.meta || { createdAt: v.savedAt || 0, mode: 'random', editor: [], warnings: [] } }; } catch (e) { console.warn('作品を読み込めませんでした', v.id, e); } }
+  for (const [k, v] of Object.entries(all)) if (k.startsWith('fb_') && v && typeof v === 'object') { const id = k.slice(3), cur = state.fb[id]; state.fb[id] = cur ? { ...v, liked: cur.liked || v.liked, disliked: cur.disliked || v.disliked, opens: (v.opens || 0) + (cur.opens || 0), finished: cur.finished || v.finished, maxPage: Math.max(cur.maxPage || 0, v.maxPage || 0), dwell: (v.dwell || []).map((x, i) => (x || 0) + ((cur.dwell || [])[i] || 0)), rereads: (v.rereads || 0) + (cur.rereads || 0), sequel: cur.sequel || v.sequel, lastRead: Math.max(cur.lastRead || 0, v.lastRead || 0) } : { dwell: [], ...v }; }
+  const h = all.history && Array.isArray(all.history.items) ? all.history.items : [];
+  const seen = new Set(); state.history = [...h, ...state.history].filter(x => x && x.id && !seen.has(x.id + ':' + x.t) && seen.add(x.id + ':' + x.t)).sort((a, b) => a.t - b.t).slice(-300);
+  state.loaded = true;
+}
 /* ---------- 起動 ---------- */
 async function boot() {
   for (const b of document.querySelectorAll('.tabs button')) b.addEventListener('click', () => setTab(b.dataset.tab));
@@ -16081,7 +16380,8 @@ async function boot() {
   document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (FS.on && e.key === 'Escape' && !FS.api) { exitFS(); return; } if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey && (state.tab === 'read' || FS.on)) { e.preventDefault(); if (state.tab !== 'read') setTab('read'); toggleFS(); } });
   document.addEventListener('keydown', e => { if (state.tab !== 'read' || e.target.tagName === 'INPUT') return; if (e.key === 'ArrowLeft') { showPage(state.page + 1, 1); e.preventDefault(); } if (e.key === 'ArrowRight') { showPage(state.page - 1, -1); e.preventDefault(); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) commitDwell(); else if (state.tab === 'read') markStart(); });
-  window.addEventListener('pagehide', commitDwell);
+  window.addEventListener('pagehide', () => { commitDwell(); flushSaves(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves(); });
 
   state.works[SAMPLE_ID] = sampleWork();
   if (Array.isArray(window.MangaSamples)) window.MangaSamples.forEach((x, i) => { try { const raw = x && x.script ? x.script : x; const n = normalizeScript(raw); const id = 'sample-' + (x.id || i); state.works[id] = { id, script: n.script, nameScript: x.nameScript || null, meeting: normalizeMeeting(x.meeting), profile: normalizeProfile(x.profile) || heuristicProfile(n.script), extras: normalizeExtras(x.extras, n.script), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse(x.createdAt || '2026-10-01T09:00:00Z') - i, mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } }; } catch (e) { console.warn('見本を読み込めませんでした', i, e); } });
@@ -16090,6 +16390,7 @@ async function boot() {
   const hashTab = (location.hash || '').slice(1);
   renderMake(); drawIcons();
   loadRendererModules();
+  Store.init();
   // Claude の機能（sample）を確かめる。届かない環境では null になる
   const c = window.claude;
   const samplePromise = (c && typeof c.use === 'function') ? c.use('sample').catch(() => null) : Promise.resolve(null);
@@ -16098,13 +16399,8 @@ async function boot() {
     if (s && s.limits) { const lim = await s.limits().catch(() => null); if (lim && lim.images) { state.imgOK = true; state.imgMax = Math.min(4, lim.images.maxCount || 4); } }
     if (state.tab === 'make') renderMake(); if (state.tab === 'taste') renderTaste(); if (state.cur) renderReadHead();
   });
-  await Store.init();
   const all = await Store.loadAll();
-  for (const [k, v] of Object.entries(all)) {
-    if (k.startsWith('work_') && v && v.script) { try { const n = normalizeScript(v.script); state.works[v.id] = { ...v, script: { ...n.script, episode: v.script.episode || 1, seriesTitle: v.script.seriesTitle || '' }, profile: v.profile || heuristicProfile(n.script) }; } catch (e) { console.warn('作品を読み込めませんでした', k, e); } }
-    else if (k.startsWith('fb_')) state.fb[k.slice(3)] = v;
-    else if (k === 'history' && v && Array.isArray(v.items)) state.history = v.items;
-  }
+  mergeLoaded(all);
   await fontsReady; cache.clear(); thumbCache.clear();
   const tab = ['make', 'read', 'shelf', 'taste'].includes(hashTab) ? hashTab : ui.tab || 'make';
   if (ui.cur && state.works[ui.cur]) { state.cur = ui.cur; state.page = ui.page || 0; renderReadHead(); showPage(state.page, 0); }

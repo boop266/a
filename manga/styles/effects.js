@@ -8,7 +8,7 @@
 
   // 効果ごとに「人物の下（under）」か「上（over）」か
   const PHASE = { focus: 'under', speed: 'under', speedv: 'under', dark: 'under', spotlight: 'under', flashback: 'under', tone: 'under', flowers: 'under', gloom: 'under', betaflash: 'under', wind: 'under', bubbles: 'under',
-    sparkle: 'over', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
+    sparkle: 'over', rainbow: 'under', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
 
   function drawEffect(ctx, spec, box, opts) {
     spec = typeof spec === 'string' ? { name: spec } : (spec || {});
@@ -79,6 +79,11 @@
       case 'bubbles': for (let i = 0; i < 14; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h, r = rr(3, 10) * sc; const P = ellipsePts(x, y, r, r, 0, 16); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 0.8, { dense: true }); } break;
       case 'smoke': case 'fire': case 'magic': { const n = name === 'magic' ? 10 : 7; for (let i = 0; i < n; i++) { const c = [f[0] + rr(-0.4, 0.4) * box.w, f[1] + rr(-0.1, 0.4) * box.h], r = rr(15, 40) * sc; if (name === 'fire') { const P = catmull([[c[0] - r * 0.6, c[1] + r], [c[0] - r * 0.4, c[1]], [c[0] + rr(-r, r) * 0.3, c[1] - r * 1.6], [c[0] + r * 0.45, c[1] - r * 0.2], [c[0] + r * 0.6, c[1] + r]], 5, true); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 1.2, { dense: true }); } else if (name === 'magic') star(ctx, c[0], c[1], r * 0.5, 1); else { const P = []; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; P.push([c[0] + Math.cos(a) * r * rr(0.8, 1.1), c[1] + Math.sin(a) * r * 0.75]); } const PP = catmull(P, 4, true); ctx.fillStyle = '#fff'; fillPoly(ctx, PP); ctx.fillStyle = '#000'; ink(ctx, PP.concat([PP[0]]), 0.9, { dense: true }); } } break; }
       case 'rain': { const n = Math.round(box.w * box.h / 900 * (spec.amount || 1)); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; const a = 1.72 + (dyn - 0.5) * 0.15; const d = [Math.cos(a), Math.sin(a)]; for (let i = 0; i < n; i++) { const p = [box.x + rr(-0.1, 1.05) * box.w, box.y + rr(-0.1, 1) * box.h], L = rr(8, 36) * sc, q = V.add(p, V.mul(d, L)); penPath(ctx, [p, q], rr(0.35, 1.0) * sc, { tin: L * 0.4, tout: L * 0.4, wob: 0, taper: 1, jit: 0 }); } break; }
+      case 'rainbow': { // 虹の効果：コマに重ねる虹（下地を少し白く抜いてから）
+        const ly = new K.Layer(box, K.ctxScale(ctx)); const cx = spec.x ?? box.x + box.w * 0.5, cy = spec.y ?? box.y + box.h * 0.95, r = spec.r ?? Math.min(box.w * 0.55, box.h * 0.85);
+        K.rainbowArc(ly, cx, cy, r, r * 0.22); const { R: RR } = derive(art, sc); K.compose(ctx, ly, RR);
+        if (spk > 0.2) for (let i = 0; i < 4 + spk * 8; i++) { const a = Math.PI * rr(1.05, 1.95); star(ctx, cx + Math.cos(a) * r * rr(0.7, 1.08), cy + Math.sin(a) * r * rr(0.7, 1.08), rr(4, 10) * sc, spk); }
+        break; }
       case 'grain': { const amt = spec.amount ?? art.grain; const c = ctx.getImageData ? null : null; for (let i = 0; i < box.w * box.h / 60 * amt; i++) { ctx.fillStyle = rand() < 0.5 ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.6)'; ctx.fillRect(box.x + rand() * box.w, box.y + rand() * box.h, rr(0.4, 1.2), rr(0.4, 1.2)); } break; }
       case 'sfx': K.sfxText(ctx, spec.text || 'ドン', spec.x ?? f[0], spec.y ?? f[1], spec.size ?? Math.min(box.w, box.h) * 0.22, art, spec); break;
       default: done = false;
