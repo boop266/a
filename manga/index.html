@@ -675,7 +675,7 @@ function drawBubble(ctx, B, b, heads) {
   let tip = null;
   if (target) {
     const dx = target.hx - cx, dy = target.hy - cy, D = Math.hypot(dx, dy), ux = dx / D, uy = dy / D, de = ellipseEdge(rx, ry, dx, dy);
-    const dist = clamp(D - target.hr * (target.cloud ? 0.7 : 1.15), de + fs * 0.7, de + fs * (target.cloud ? 3.2 : 2.6)); tip = [cx + ux * dist, cy + uy * dist];
+    const dist = clamp(D - target.hr * (target.cloud ? 0.85 : 1.15), de + fs * 0.7, de + fs * (target.cloud ? 3.2 : 2.6)); tip = [cx + ux * dist, cy + uy * dist];
     if (type === 'think') {
       shape(); ctx.fill(); ctx.stroke();
       for (let i = 0; i < 3; i++) { const t = de + fs * (0.5 + i * 0.75), rr = fs * (0.36 - i * 0.09); if (t > D - target.hr) break; ctx.beginPath(); ctx.arc(cx + ux * t, cy + uy * t, rr, 0, TAU); ctx.fill(); ctx.stroke(); }
@@ -1064,7 +1064,7 @@ const STORY = [
         { id: 'haru', x: 0.42, y: 0.995, s: 0.12, m: 'happy', f: 1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.56, y: 0.995, s: 0.16, m: 'laugh', f: -1, p: 'up', look: 'up' }],
       fx: [{ t: 'dots', x: 0.5, y1: 0.48, y2: 0.82 }, { t: 'lines', at: [[0.4, 0.46, 0.4, 0.56], [0.6, 0.46, 0.6, 0.56]] }],
       sfx: [{ t: 'ふわっ', x: 0.9, y: 0.45, s: 46, r: 0.1 }],
-      b: [{ t: 'とどいた！', x: 0.22, y: 0.5, w: 2 }, { t: 'いけーっ！', x: 0.25, y: 0.78, w: 3, type: 'shout', fs: 19 }] },
+      b: [{ t: 'とどいた！', x: 0.22, y: 0.5, w: 2 }, { t: 'いけーっ！', x: 0.3, y: 0.86, w: 3, type: 'shout', fs: 19 }] },
     { bg: 'sky', chars: [{ id: 'mama', x: 0.7, y: 0.4, s: 0.5, m: 'happy' }, { id: 'moku', x: 0.25, y: 0.7, s: 0.28, m: 'happy' }],
       b: [{ t: 'モク！', x: 0.28, y: 0.3, w: 0 }] },
     { bg: 'sky', chars: [{ id: 'moku', x: 0.55, y: 0.45, s: 0.42, m: 'laugh' }],
