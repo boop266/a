@@ -163,7 +163,7 @@ const SEEDS = {
     '羽根:wings', 'ヘッドホン:headphones', '耳あて:earmuffs', 'ヘルメット:helmet', 'はちまき:headband', '角:horns', '止まった時計', '片方だけの手袋', '雪だるま', '風鈴',
     '金魚', '自転車のベル', '古いラジオ', '割れた鏡', '紙飛行機', '折り鶴', '星座', '満月', '流れ星', '雷',
     '虹', '霧', '落ち葉', 'どんぐり', '桜の花びら', '入道雲', '線香花火', '打ち上げ花火', '盆踊り', '年越しそば',
-    'おみくじ', 'だるま', '指輪', '合鍵', '植木鉢', 'サボテン', '何かの種', '卵', '目覚まし時計', '砂時計',
+    'おみくじ', 'だるま', '指輪', '合鍵:key', '植木鉢', 'サボテン', '何かの種', '卵', '目覚まし時計', '砂時計',
     '方位磁石', '双眼鏡', '地球儀', '切手', '回覧板', '落とし物の財布', '外れたくじ', '揚げパン', 'プリン', 'おにぎり',
     'カレーのにおい', '焼きいも', 'ラーメン', 'かき氷', '誕生日ケーキ', '秘伝のタレ', '漬物石', '将棋の駒', 'けん玉', '竹とんぼ',
     'ビー玉', 'カプセルのおもちゃ', '古い写真', '卒業アルバム', '寄せ書き', '置き手紙', '駅の伝言板', '張り紙', '迷子のお知らせ放送', '子守歌',
@@ -199,7 +199,7 @@ function drawSeed(rngIn, opts = {}) {
   const g1 = pickR(SEEDS.genre, r); let g2 = r() < 0.4 ? pickR(SEEDS.genre, r) : null; if (g2 === g1) g2 = null;
   const voice = pickR(SEEDS.voice, r);
   const [settingLabel, settingBg] = pickR(SEEDS.setting, r);
-  const sp = r() < 0.5 ? SEEDS.heroSpecies[0] : pickR(SEEDS.heroSpecies.slice(1), r);
+  let sp = r() < 0.5 ? SEEDS.heroSpecies[0] : pickR(SEEDS.heroSpecies.slice(1), r);
   // 職業と年代：ふつうは合うものを選ぶ。15%だけ、わざと合わない組み合わせ（「九十歳の帰宅部の学生」）を残す
   const [job, jobTag] = pickR(SEEDS.heroJob, r).split('@');
   const okAge = a => jobTag === 'any' ? true : jobTag === 'y' ? ['child', 'teen'].includes(a[1]) : jobTag === 't' ? a[1] !== 'child' : ['adult', 'elder'].includes(a[1]);
@@ -210,12 +210,14 @@ function drawSeed(rngIn, opts = {}) {
   const motifs = pickN(SEEDS.motif, 3, r).map(m => { const [label, item] = m.split(':'); return { label, item: item || null }; });
   const axes = Object.fromEntries(AXIS_KEYS.map(k => [k, Math.round((r() * 0.7 + 0.15) * 100) / 100]));
   for (let i = 0; i < 4; i++) axes[pickR(AXIS_KEYS, r)] = r() < 0.5 ? Math.round(r() * 15) / 100 : Math.round((0.85 + r() * 0.15) * 100) / 100;
+  const constraint = opts.noConstraint ? null : pickR(SEEDS.constraint, r);
+  if (constraint && constraint.includes('人間が一人も出ない') && sp[1] === 'human') sp = pickR(SEEDS.heroSpecies.slice(1), r);
   const parts = {
     genre: g2 ? [g1, g2] : [g1], voice, setting: { label: settingLabel, bg: settingBg },
     hero: { species: sp[1], speciesLabel: sp[0], age: age[1], ageLabel: age[0], job, flaw, odd },
     relation: pickR(SEEDS.relation, r), conflict: pickR(SEEDS.conflict, r), goal: pickR(SEEDS.goal, r),
     structure: pickR(SEEDS.structure, r), ending: pickR(SEEDS.ending, r), motifs,
-    constraint: opts.noConstraint ? null : pickR(SEEDS.constraint, r),
+    constraint,
   };
   const heroText = `${age[0]}${sp[1] === 'human' ? '' : sp[0] + 'の'}${job}（${flaw}）`;
   return {
@@ -291,7 +293,7 @@ fx: ${V.fx.join(' / ')}（focus=集中線, speed=横のスピード線, speedv=�
 - 1ページ3〜6コマ。1段1コマの段は横長の大ゴマになる。
 - shot が up なら cast は1人。bg なら cast は空。1コマの cast は最大4人（見やすいのは3人まで）。
 - cast の並びは「右から順」。右にいる人の吹き出しが先に読まれるので、先にしゃべる人を cast の先頭に。
-- say.who は characters の id。そのコマの cast にいる人を指すと、しっぽがその人に向く。cast にいない id は「画面の外からの声」になる（意図してやるときだけ）。
+- say.who は characters の id。そのコマの cast にいる人を指すと、しっぽがその人に向く。cast にいない id は「画面の外からの声」になる（意図してやるときだけ）。登場人物でない声（町内放送・テレビ・群衆）は who:"off"。
 - 雲（cloud）は表情で色が変わる（悲しいと灰色、怒ると黒）。cast に "rain":0〜3 を付けると雨を降らせる。
 - 絵は白黒。色の名前は使わず、hairColor・pattern・color の値で表す。
 - セリフ・ナレーション・効果音は縦書き。英字・算用数字・空白は使わない（数は漢数字）。改行は \\n。
@@ -325,7 +327,7 @@ const CRAFT_AVOID = `【面白くするための禁じ手】
 - 最初に思いついた展開は、読者も思いつく。2つ目か3つ目の案を使う。
 - 驚きと笑いは「前振り→外し」。前振りのコマを必ず先に置く。
 - 障害や悪役にも、その人なりの理由がある。
-- 主人公がぼーっと流されない。主人公の選択で話が動く。
+- 主人公がぼーっと流されない。主人公の選択で話が動く。山場では主人公が「自分で選んだ行動」を1つ見せる（制約で口や体が縛られているときほど、その代わりの行動を考える。黙っている主人公なら、黙ったまま何をするか）。
 - 種のジャンル名・語り口の名前をセリフやナレーションにそのまま書かない（「これは寓話だ」など）。`;
 
 const CRAFT_PANEL = `【コマ割りと間】
@@ -341,7 +343,8 @@ const CRAFT_DIALOG = `【セリフ】
 - 吹き出し1つは${BUBBLE_MAX}字以内（句読点こみ、改行は数えない）。長いときは2つに分けるか削る。\\n で2〜3行に分ける。
 - 1コマの吹き出しは0〜2個。3個は短い掛け合いのときだけ。
 - 絵で分かることは言わせない（cry の顔に「泣いてるの？」は不要）。
-- 心の声（think）は1ページ1つまで。ナレーションは場所・時間の切り替えだけ、20字以内。
+- 心の声（think）は1ページ1つまで。
+- ナレーションはふつう場所・時間の切り替えだけ（20字以内）。ただし語り口や仕掛け（実況・日記・報告書・語り手・速報など）が語りを求めるときは、ナレーションを「もう一人の登場人物」として使ってよい。そのときも1コマ25字以内に短く刻み、絵と同じことを言わない（絵とズレたことを言うと面白い）。
 - 人物ごとに一人称・語尾・口ぐせを変え、セリフだけで誰か分かるようにする。
 - 効果音（sfx）はカタカナかひらがな4字以内。音で場面が分かるように。`;
 
@@ -992,7 +995,7 @@ function validateScript(raw, opts = {}) {
         let who = b.who || b.speaker || null;
         if (who === 'narr' || who === 'narration') { panel.narr = [panel.narr, text].filter(Boolean).join('\n'); continue; }
         const rid = resolve(who);
-        if (rid) who = rid; else { if (who) issues.push(`${w}: 話し手「${who}」がいないので画面外の声にしました`); who = 'off'; }
+        if (rid) who = rid; else if (who === 'off') who = 'off'; else { if (who) issues.push(`${w}: 話し手「${who}」がいないので画面外の声にしました`); who = 'off'; }
         if (who !== 'off' && !castIds.has(who) && panel.shot !== 'bg') issues.push(`${w}: 話し手 ${who} がコマにいません（画面外の声になります）`);
         if (/[A-Za-z]/.test(text)) issues.push(`${w}: セリフに英字があります「${text.slice(0, 10)}」`);
         const type = snap(b.type, VOCAB.sayType, SYN.sayType, 'speech');

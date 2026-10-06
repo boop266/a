@@ -313,6 +313,7 @@
      --------------------------------------------------------------------------- */
   const GROUPS = ['icpt', 'lin', 'quad', 'inter', 'gap', 'art', 'feat', 'tag'];
   // 事前分散（u の尺度で）と、経験ベイズの更新でどれくらい事前値に引っぱるか（擬似件数 nu）
+  let GMAX = 30, FMAX = 60, NU_FEAT = 1.0; const ARD_GROUPS = new Set(['lin', 'quad', 'inter']);
   const PRIOR = { icpt: { s: 1.0, nu: Infinity }, lin: { s: 0.12, nu: 4 }, quad: { s: 0.08, nu: 4 }, inter: { s: 0.02, nu: 12 }, gap: { s: 0.06, nu: 3 }, art: { s: 0.012, nu: 6 }, feat: { s: 0.02, nu: 6 }, tag: { s: 0.15, nu: 6 } };
   function featurize(aw, tagIndex, p) {
     const phi = new Float64Array(p);
@@ -353,6 +354,7 @@
   function fitRows(rows, opts) {
     opts = opts || {};
     const useQuad = opts.quad !== false, useInter = opts.inter !== false, useArd = opts.ard !== false;
+    if (opts.gmax) GMAX = opts.gmax; if (opts.fmax) FMAX = opts.fmax; if (opts.nuFeat) NU_FEAT = opts.nuFeat;
     const tagCount = new Map(); for (const r of rows) for (const t of r.aw.tags) tagCount.set(t, (tagCount.get(t) || 0) + 1);
     const tagNames = [...tagCount.keys()].sort(); const tagIndex = new Map(tagNames.map((t, i) => [t, i]));
     const p = OFF.tag + tagNames.length, n = rows.length;
@@ -392,18 +394,20 @@
       for (let j = 0; j < p; j++) { const a = acc[grp[j]]; a.m2 += mu[j] * mu[j]; a.gam += clamp(1 - diagS[j] / s[j], 0, 1); a.cnt++; }
       for (const g of GROUPS) {
         if (g === 'icpt' || (g === 'quad' && !useQuad) || (g === 'inter' && !useInter) || !acc[g].cnt) continue;
-        const nu = PRIOR[g].nu, s0 = PRIOR[g].s;
-        gs[g] = clamp((acc[g].m2 + nu * s0) / (acc[g].gam + nu), s0 / 40, s0 * 8);
+        const nu = PRIOR[g].nu, s0 = PRIOR[g].s * (opts.priorScale && opts.priorScale[g] != null ? opts.priorScale[g] : 1);
+        gs[g] = clamp((acc[g].m2 + nu * s0) / (acc[g].gam + nu), s0 / 40, s0 * GMAX);
       }
+      // 組み合わせは「効いている軸どうし」に起こりやすい（遺伝性の原則）：一次・二次の大きい軸ほど積の事前分散の中心を広げる
+      const h = new Float64Array(K).fill(1);
+      if (useInter && useArd) for (let k = 0; k < K; k++) h[k] = clamp(Math.sqrt((s[OFF.lin + k] + s[OFF.quad + k]) / (gs.lin + gs.quad)), 0.5, 2);
+      // 特徴ごとの分散（ARD）：群の値を中心に、特徴ごとの事後から更新（強く効く少数の軸・組み合わせを拾う）
       for (let j = 0; j < p; j++) {
-        const g = grp[j];
-        if (useArd && (g === 'lin' || g === 'quad') && !(g === 'quad' && !useQuad)) { const gam = clamp(1 - diagS[j] / s[j], 0, 1); s[j] = clamp((mu[j] * mu[j] + 1.5 * gs[g]) / (gam + 1.5), gs[g] / 20, gs[g] * 12); }
-        else s[j] = gs[g];
-      }
-      // 組み合わせは「効いている軸どうし」に起こりやすい（遺伝性の原則）：一次・二次の大きい軸ほど積の事前分散を少し広げる
-      if (useInter && useArd) {
-        const h = new Float64Array(K); for (let k = 0; k < K; k++) h[k] = clamp(Math.sqrt((s[OFF.lin + k] + s[OFF.quad + k]) / (gs.lin + gs.quad)), 0.4, 2.5);
-        for (let q = 0; q < NI; q++) { const [i, j] = PAIRS[q]; s[OFF.inter + q] = gs.inter * h[i] * h[j]; }
+        const g = grp[j]; let center = gs[g];
+        if (g === 'inter') { const [a, b] = PAIRS[j - OFF.inter]; center = gs.inter * h[a] * h[b]; }
+        if (useArd && ARD_GROUPS.has(g) && !(g === 'quad' && !useQuad) && !(g === 'inter' && !useInter)) {
+          const gam = clamp(1 - diagS[j] / s[j], 0, 1);
+          s[j] = clamp((mu[j] * mu[j] + NU_FEAT * center) / (gam + NU_FEAT), center / 30, center * FMAX);
+        } else s[j] = center;
       }
       // --- 気分のむら σ²（EM：E[(y-φθ)²] = 残差² + 事後分散） ---
       let num = 0, den = 0;

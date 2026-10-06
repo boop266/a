@@ -10,6 +10,8 @@ const QUICK = !!ARGS.quick;
 const SEED = Number(ARGS.seed || 1);
 const ONLY = ARGS.only ? new Set(String(ARGS.only).split(',')) : null;
 const want = k => !ONLY || ONLY.has(k);
+const MOPTS = ARGS.opts ? JSON.parse(ARGS.opts) : {}; // 実験用：analyze に渡す追加の設定
+const an = (W, F, H, o) => Taste.analyze(W, F, H, Object.assign({ now: 1e15 }, MOPTS, o || {}));
 const AX = Taste.schema.AXES.map(a => a[0]);
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const mean = a => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
@@ -115,7 +117,7 @@ function baselineMeanDiff(log, works, n) {
 const TYPES = ['linear', 'peak', 'combo', 'gap', 'moody', 'drift'];
 const TYPE_JA = { linear: '単純（高いほど好き）', peak: '山型（ほどほど）', combo: '組み合わせ', gap: '絵柄のズレ好き', moody: '気分にむら', drift: '途中で好みが変わる' };
 const PER_TYPE = QUICK ? 3 : 8;
-const NS = [5, 10, 20, 40, 80];
+const NS = ARGS.ns ? String(ARGS.ns).split(',').map(Number) : [5, 10, 20, 40, 80];
 const NMAX = 80;
 const t0 = Date.now();
 
@@ -142,7 +144,7 @@ if (want('main')) {
     const log = readAll(P.R, works, r);
     P.log = log; P.works = works;
     for (const n of NS) {
-      const s = subset(log, works, n); const A = Taste.analyze(s.W, s.F, s.H, { now: 1e15, samples: 40 });
+      const s = subset(log, works, n); const A = an(s.W, s.F, s.H, { samples: 40 });
       const e = evalModel(A, P.R, n - 1);
       (tab[P.R.type + ':' + n] = tab[P.R.type + ':' + n] || []).push(e);
       const b = baselineMeanDiff(log, works, n); const eb = evalModel(null, P.R, n - 1, b.score);
@@ -178,7 +180,7 @@ if (want('gen') && RESULTS.main) {
   const rows = {};
   for (const P of POP) {
     for (const n of GN) {
-      const s = subset(P.log, P.works, n); const A = Taste.analyze(s.W, s.F, s.H, { now: 1e15, samples: 30 });
+      const s = subset(P.log, P.works, n); const A = an(s.W, s.F, s.H, { samples: 30 });
       const r = Taste.rng(SEED * 77 + POP.indexOf(P) * 10 + n);
       const b = baselineMeanDiff(P.log, P.works, n);
       const acc = (key, U, rate) => { const k = key + ':' + n; (rows[k] = rows[k] || { U: [], like: [], top: [], rate: [] }); rows[k].U.push(U); rows[k].like.push(pLikeOf(P.R, U)); rows[k].top.push(U > 0.8416 ? 1 : 0); if (rate != null) rows[k].rate.push(rate); };
@@ -215,7 +217,7 @@ if (want('online')) {
     const W = {}, F = {}, H = []; let A = null; const got = [];
     for (let t = 0; t < 60; t++) {
       let w; const usePref = t >= 5 && r() < 0.7;
-      if (usePref) { if (!A || t % 3 === 0) A = Taste.analyze(W, F, H, { now: 1e15, samples: 20 }); w = realize(r, Taste.prefSeed(A, r).aim, P.id + 'o' + t); }
+      if (usePref) { if (!A || t % 3 === 0) A = an(W, F, H, { samples: 20 }); w = realize(r, Taste.prefSeed(A, r).aim, P.id + 'o' + t); }
       else w = makeWork(r, P.id + 'o' + t);
       const x = react(R, w, t, r); W[w.id] = w; F[w.id] = x.fb; H.push({ id: w.id, t: t * 600000 });
       got.push({ t, pref: usePref, U: x.U, like: x.fb.liked });
@@ -251,7 +253,7 @@ if (want('ablation') && RESULTS.main) {
   for (const [name, o] of vars) {
     const acc = {};
     for (const P of POP) for (const n of [20, 40]) {
-      const s = subset(P.log, P.works, n); const A = Taste.analyze(s.W, s.F, s.H, Object.assign({ now: 1e15, samples: 10 }, o));
+      const s = subset(P.log, P.works, n); const A = an(s.W, s.F, s.H, Object.assign({ samples: 10 }, o));
       const e = evalModel(A, P.R, n - 1); (acc['all:' + n] = acc['all:' + n] || []).push(e.pair); (acc[P.R.type + ':' + n] = acc[P.R.type + ':' + n] || []).push(e.pair);
     }
     console.log((name + '　　　　　　　　　　　　　　　　　　　　').slice(0, 22) + `  ${pct(med(acc['all:20']))} / ${pct(med(acc['all:40']))}   ` + typesShown.map(t => `${pct(med(acc[t + ':20']))}/${pct(med(acc[t + ':40']))}`.padStart(10)).join(''));
@@ -262,7 +264,7 @@ if (want('ablation') && RESULTS.main) {
 if (want('main') && RESULTS.main) {
   console.log('\n■ 5. 分析画面の「一言」と隠れた好み（各タイプ1人、80作読んだあと）');
   for (const type of TYPES) {
-    const P = POP.find(p => p.R.type === type); const s = subset(P.log, P.works, 80); const A = Taste.analyze(s.W, s.F, s.H, { now: 1e15 });
+    const P = POP.find(p => p.R.type === type); const s = subset(P.log, P.works, 80); const A = an(s.W, s.F, s.H);
     const top = A.summary.axes.slice().sort((a, b) => b.importance - a.importance).slice(0, 3).map(a => `${a.k}:${a.shape}${a.shape === 'peak' ? '@' + a.ideal : ''}`).join(' ');
     console.log(`${(TYPE_JA[type] + '　　　　　　　　').slice(0, 10)} 正解: ${P.R.desc}\n${'　'.repeat(5)}推定: ${top} | 組: ${A.combos.slice(0, 2).map(c => c.a + '×' + c.b + (c.syn > 0 ? '+' : '-')).join(' ')} | ズレ: ${A.summary.gap.effect} | 一言: ${A.oneLiner}`);
   }
