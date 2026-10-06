@@ -75,7 +75,7 @@ kbd{font-family:var(--body);font-size:11px;border:1px solid var(--rule);border-b
     <button class="sub" id="zoomBtn" aria-pressed="false">大きく見る</button>
     <button class="sub" id="randBtn">ランダムに1ページ開く</button>
   </div>
-  <p class="keys"><kbd>←</kbd> 次のページ　<kbd>→</kbd> 前のページ　／ ページの左側をタップ・左へスワイプでも進めます</p>
+  <p class="keys"><kbd>←</kbd> 次　<kbd>→</kbd> 前　（左側タップ・左スワイプでも次へ）</p>
 </div>
 
 <script>
@@ -467,7 +467,7 @@ function drawCloud(ctx, cx, cy, s, o, r, panelBottom) {
   if (!o.noface) cloudFace(ctx, cx, cy + s * 0.06, s, o.m || 'normal', lw, kind, o.look);
   if (o.sparkle) for (const [dx, dy, k] of [[-0.95, -0.4, 0.13], [0.98, -0.5, 0.11], [0.75, -0.85, 0.08], [-0.7, -0.85, 0.07]]) star4(ctx, cx + dx * s, cy + dy * s, s * k);
   ctx.restore();
-  return { hx: cx, hy: cy, hr: s * 0.62 };
+  return { hx: cx, hy: cy, hr: s * 0.62, cloud: true };
 }
 function cloudFace(ctx, cx, cy, s, m, lw, kind, look) {
   const ex = s * 0.21, ey = cy + (look === 'up' ? -s * 0.08 : 0), my = ey + s * 0.17, ew = s * 0.055, eh = s * 0.085;
@@ -676,7 +676,7 @@ function drawBubble(ctx, B, b, heads) {
   let tip = null;
   if (target) {
     const dx = target.hx - cx, dy = target.hy - cy, D = Math.hypot(dx, dy), ux = dx / D, uy = dy / D, de = ellipseEdge(rx, ry, dx, dy);
-    const dist = clamp(D - target.hr * 1.15, de + fs * 0.7, de + fs * 2.6); tip = [cx + ux * dist, cy + uy * dist];
+    const dist = clamp(D - target.hr * (target.cloud ? 0.7 : 1.15), de + fs * 0.7, de + fs * (target.cloud ? 3.2 : 2.6)); tip = [cx + ux * dist, cy + uy * dist];
     if (type === 'think') {
       shape(); ctx.fill(); ctx.stroke();
       for (let i = 0; i < 3; i++) { const t = de + fs * (0.5 + i * 0.75), rr = fs * (0.36 - i * 0.09); if (t > D - target.hr) break; ctx.beginPath(); ctx.arc(cx + ux * t, cy + uy * t, rr, 0, TAU); ctx.fill(); ctx.stroke(); }
@@ -854,7 +854,7 @@ function drawCover(ctx, r) {
   drawCloud(ctx, W * 0.5, H * 0.43, 150, { id: 'moku', m: 'sad', gray: true, rain: 2 }, r, H * 0.78);
   drawPerson(ctx, W * 0.24, H * 0.97, 300, 'haru', { m: 'surprised', f: 1, look: 'up', p: 'pointup' }, r);
   drawPerson(ctx, W * 0.75, H * 0.985, 420, 'mom', { m: 'shock', f: -1, look: 'up', p: 'hold', hold: 'basket' }, r);
-  drawSfx(ctx, { t: 'ザー', x: 0.33, y: 0.6, s: 56, r: -0.12 }, b);
+  drawSfx(ctx, { t: 'ザアッ', x: 0.3, y: 0.62, s: 50, r: -0.12 }, b);
   ctx.restore();
   // タイトル
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
@@ -903,15 +903,15 @@ const STORY = [
   ] },
   /* 4 ── こらーっ！ */
   { rows: [[0.95, [1.1, 1]], [1.15, [1]], [1.1, [1.25, 1, 1]]], panels: [
-    { bg: 'plain', conc: [0.55, 0.5, 0.25], chars: [{ id: 'mom', x: 0.55, y: 1.25, s: 1.1, m: 'angry', f: -1, p: 'broom', hold: 'broom' }],
-      b: [{ t: 'こらーっ！', x: 0.18, y: 0.36, w: 0, type: 'shout' }] },
+    { bg: 'plain', conc: [0.55, 0.5, 0.25], chars: [{ id: 'mom', x: 0.74, y: 1.3, s: 0.85, m: 'angry', f: -1, p: 'broom', hold: 'broom' }],
+      b: [{ t: 'こらーっ！', x: 0.14, y: 0.6, w: 0, type: 'shout' }] },
     { bg: 'tone', speed: 'h', chars: [{ id: 'moku', x: 0.58, y: 0.55, s: 0.5, m: 'shock', gray: true }],
       sfx: [{ t: 'ブンッ', x: 0.15, y: 0.68, s: 40 }], b: [{ t: 'ひゃっ', x: 0.2, y: 0.22, w: 0, type: 'small' }] },
     { ...YARD({ pole: [0.2, 0.8, 0.28], laundry: ['shirt', 'towel', 'shirt', 'towel'], wet: true, gy: 0.78 }),
-      chars: [{ id: 'moku', x: 0.2, y: 0.3, s: 0.24, m: 'cry', gray: true, rain: 3 }, { id: 'mom', x: 0.55, y: 0.98, s: 0.85, m: 'angry', f: -1, p: 'broom', hold: 'broom', legs: 'run' }, { id: 'haru', x: 0.9, y: 0.99, s: 0.58, m: 'shock', f: -1 }],
+      chars: [{ id: 'moku', x: 0.2, y: 0.3, s: 0.24, m: 'cry', gray: true, rain: 3 }, { id: 'mom', x: 0.57, y: 0.98, s: 0.74, m: 'angry', f: -1, p: 'broom', hold: 'broom', legs: 'run' }, { id: 'haru', x: 0.9, y: 0.99, s: 0.58, m: 'shock', f: -1 }],
       fx: [{ t: 'lines', at: [[0.7, 0.42, 0.82, 0.42], [0.7, 0.52, 0.85, 0.52], [0.72, 0.62, 0.84, 0.62]] }],
-      sfx: [{ t: 'ザザアッ', x: 0.07, y: 0.62, s: 40, r: 0.08 }], b: [{ t: 'どきなさーい！', x: 0.37, y: 0.34, w: 1, type: 'shout', fs: 20 }] },
-    { ...YARD({ gy: 0.8, noRoofs: true }), chars: [{ id: 'mom', x: 0.24, y: 1.02, s: 0.95, m: 'shock', f: 1, p: 'broomdown', hold: 'broom' }, { id: 'haru', x: 0.6, y: 1.0, s: 0.6, m: 'worried', f: -1, p: 'grab' }],
+      sfx: [{ t: 'ザザアッ', x: 0.07, y: 0.62, s: 40, r: 0.08 }], b: [{ t: 'どきなさーい！', x: 0.33, y: 0.72, w: 1, type: 'shout', fs: 19 }] },
+    { ...YARD({ gy: 0.8, noRoofs: true }), chars: [{ id: 'mom', x: 0.24, y: 1.02, s: 0.95, m: 'shock', f: 1, p: 'up' }, { id: 'haru', x: 0.6, y: 1.0, s: 0.6, m: 'worried', f: -1, p: 'grab' }],
       b: [{ t: '待って！', x: 0.9, y: 0.25, w: 1 }] },
     { bg: 'plain', fx: [{ t: 'gloom', x: 0.5, y: 0.02, w: 0.8, h: 0.18 }], chars: [{ id: 'moku', x: 0.5, y: 0.55, s: 0.6, m: 'cry', gray: true }],
       under: [{ t: 'drop', x: 0.2, y: 0.88, s: 10 }, { t: 'drop', x: 0.8, y: 0.9, s: 9 }], sfx: [{ t: 'ぽろぽろ', x: 0.5, y: 0.9, s: 26, h: true }] },
@@ -927,7 +927,7 @@ const STORY = [
       b: [{ t: '風が\nはやくて', x: 0.86, y: 0.27, w: 0, type: 'small' }, { t: 'みんなに\nおいてかれた', x: 0.83, y: 0.72, w: 0, type: 'small', fs: 18 }] },
     { bg: 'plain', chars: [{ id: 'haru', x: 0.56, hy: 0.6, hr: 0.22, m: 'sad', f: -1 }],
       b: [{ t: 'まいご\nなんだ…', x: 0.18, y: 0.32, w: 0 }] },
-    { ...YARD({ gy: 0.85, noRoofs: true }), chars: [{ id: 'mom', x: 0.5, y: 1.12, s: 1.05, m: 'sigh', f: -1, p: 'broomdown', hold: 'broom' }],
+    { ...YARD({ gy: 0.85, noRoofs: true }), chars: [{ id: 'mom', x: 0.55, y: 0.98, s: 0.86, m: 'sigh', f: -1, p: 'broomdown', hold: 'broom' }],
       b: [{ t: '……はぁ', x: 0.18, y: 0.3, w: 0 }] },
     { bg: 'plain', chars: [{ id: 'mom', x: 0.72, hy: 0.6, hr: 0.19, m: 'smile', f: -1 }, { id: 'haru', x: 0.15, y: 1.04, s: 0.55, m: 'happy', f: 1, p: 'up', legs: 'jump' }],
       b: [{ t: '雨がやむまで\nだからね', x: 0.5, y: 0.3, w: 0, fs: 19 }, { t: 'やった！', x: 0.32, y: 0.85, w: 1, fs: 19 }] },
@@ -942,7 +942,7 @@ const STORY = [
       b: [{ t: 'にらめっこ\nしよう', x: 0.67, y: 0.3, w: 0, fs: 21 }, { t: 'あっぷっぷ', x: 0.1, y: 0.4, w: 0, type: 'shout', fs: 20 }] },
     { bg: 'plain', conc: [0.5, 0.58, 0.32], chars: [{ id: 'moku', x: 0.5, y: 0.6, s: 0.48, m: 'laugh', sparkle: true }],
       b: [{ t: 'ぷふっ', x: 0.84, y: 0.2, w: 0, type: 'small' }], sfx: [{ t: 'ふわっ', x: 0.1, y: 0.22, s: 34 }] },
-    { ...YARD({ sun: [0.75, 0.2], sunR: 0.11, gy: 0.82, noRoofs: true }), chars: [{ id: 'mom', x: 0.48, y: 1.15, s: 1.0, m: 'shock', f: 1, look: 'up', p: 'broomdown', hold: 'broom' }],
+    { ...YARD({ sun: [0.75, 0.2], sunR: 0.11, gy: 0.82, noRoofs: true }), chars: [{ id: 'mom', x: 0.48, y: 1.15, s: 1.0, m: 'shock', f: 1, look: 'up', p: 'down' }],
       b: [{ t: '雨が\nやんだ！', x: 0.15, y: 0.3, w: 0 }] },
   ] },
   /* 7 ── 笑うと晴れる */
@@ -967,7 +967,7 @@ const STORY = [
     { ...YARD({ flowers: [0.05, 0.95], wilt: true, gy: 0.82, flowerS: 0.32, flowerY: 0.15, noRoofs: true, fenceH: 0.3 }),
       chars: [{ id: 'moku', x: 0.6, y: 0.25, s: 0.32, m: 'think' }], b: [{ t: 'お花、\nのどが\nかわいてる？', x: 0.17, y: 0.36, w: 0, type: 'small', fs: 18 }] },
     { ...YARD({ flowers: [0.05, 0.95], gy: 0.82, flowerS: 0.32, flowerY: 0.15, noRoofs: true, fenceH: 0.3 }),
-      chars: [{ id: 'moku', x: 0.5, y: 0.2, s: 0.32, m: 'gentle', rain: 2 }], sfx: [{ t: 'サァァ…', x: 0.1, y: 0.45, s: 28 }] },
+      chars: [{ id: 'moku', x: 0.5, y: 0.2, s: 0.32, m: 'gentle', rain: 2 }], sfx: [{ t: 'サァァ…', x: 0.1, y: 0.3, s: 28 }] },
     { ...YARD({ gy: 0.85, noRoofs: true }), under: [{ t: 'shadow', x: 0.45, y: 0.95, rx: 0.4, ry: 0.06 }],
       chars: [{ id: 'moku', x: 0.42, y: 0.14, s: 0.22, m: 'happy' }, { id: 'mom', x: 0.42, y: 1.15, s: 0.82, m: 'gentle', f: 1, look: 'up' }],
       b: [{ t: 'あら、\nすずしい', x: 0.85, y: 0.5, w: 1 }] },
@@ -1053,18 +1053,19 @@ const STORY = [
     { bg: 'plain', chars: [{ id: 'moku', x: 0.5, y: 0.6, s: 0.5, m: 'laugh' }], sfx: [{ t: 'ぷくぷく', x: 0.5, y: 0.12, s: 38, h: true }] },
     { bg: 'plain', conc: [0.5, 0.56, 0.36], chars: [{ id: 'moku', x: 0.5, y: 0.56, s: 0.66, m: 'laugh', sparkle: true }], sfx: [{ t: 'ぷくーっ', x: 0.5, y: 0.1, s: 38, h: true }] },
     { ...YARD({ pole: [0.08, 0.92, 0.8], laundry: [], gy: 0.92, fenceH: 0.05, noRoofs: true }),
-      chars: [{ id: 'moku', x: 0.5, y: 0.36, s: 0.4, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.8, y: 1.0, s: 0.3, m: 'shock', f: -1, look: 'up' }, { id: 'mom', x: 0.2, y: 1.0, s: 0.4, m: 'happy', f: 1, look: 'up', p: 'hips' }],
+      chars: [{ id: 'moku', x: 0.5, y: 0.36, s: 0.4, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.8, y: 1.0, s: 0.3, m: 'shock', f: -1, look: 'up' }, { id: 'mom', x: 0.2, y: 1.0, s: 0.4, m: 'happy', f: 1, look: 'up', p: 'up' }],
       fx: [{ t: 'lines', at: [[0.3, 0.62, 0.3, 0.76], [0.38, 0.66, 0.38, 0.84], [0.5, 0.67, 0.5, 0.88], [0.62, 0.66, 0.62, 0.84], [0.7, 0.62, 0.7, 0.76]] }],
       sfx: [{ t: 'ふわぁっ', x: 0.88, y: 0.24, s: 52, r: 0.08 }],
       b: [{ t: 'うかんだ！', x: 0.93, y: 0.68, w: 1, fs: 20 }, { t: 'その調子！', x: 0.07, y: 0.62, w: 2, fs: 20 }] },
   ] },
   /* 15 ── とんだ！ */
   { rows: [[1.6, [1]], [0.9, [1, 1]], [1.3, [1]]], panels: [
-    { ...YARD({ pole: [0.55, 0.95, 0.75], laundry: [], gy: 0.88, fenceH: 0.07, noRoofs: true }),
-      chars: [{ id: 'moku', x: 0.45, y: 0.32, s: 0.42, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.2, y: 1.0, s: 0.3, m: 'happy', f: 1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.78, y: 1.0, s: 0.4, m: 'laugh', f: -1, p: 'up', look: 'up' }],
-      fx: [{ t: 'lines', at: [[0.35, 0.66, 0.35, 0.8], [0.45, 0.7, 0.45, 0.88], [0.55, 0.66, 0.55, 0.8]] }],
-      sfx: [{ t: 'ぶわっ', x: 0.88, y: 0.2, s: 50, r: 0.1 }],
-      b: [{ t: 'とんでる！', x: 0.15, y: 0.24, w: 0 }, { t: 'いけーっ！', x: 0.1, y: 0.62, w: 1, type: 'shout', fs: 19 }] },
+    { ...YARD({ gy: 0.95, fenceH: 0.025, noRoofs: true, birds: [[0.2, 0.7], [0.26, 0.74], [0.78, 0.62]] }),
+      chars: [{ id: 'papa', x: 0.25, y: 0.11, s: 0.2, m: 'happy' }, { id: 'mama', x: 0.75, y: 0.1, s: 0.17, m: 'happy' }, { id: 'moku', x: 0.5, y: 0.3, s: 0.24, m: 'laugh', sparkle: true },
+        { id: 'haru', x: 0.42, y: 0.995, s: 0.12, m: 'happy', f: 1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.56, y: 0.995, s: 0.16, m: 'laugh', f: -1, p: 'up', look: 'up' }],
+      fx: [{ t: 'dots', x: 0.5, y1: 0.48, y2: 0.82 }, { t: 'lines', at: [[0.4, 0.46, 0.4, 0.56], [0.6, 0.46, 0.6, 0.56]] }],
+      sfx: [{ t: 'ふわっ', x: 0.9, y: 0.45, s: 46, r: 0.1 }],
+      b: [{ t: 'とどいた！', x: 0.12, y: 0.4, w: 2 }, { t: 'いけーっ！', x: 0.25, y: 0.78, w: 3, type: 'shout', fs: 19 }] },
     { bg: 'sky', chars: [{ id: 'mama', x: 0.7, y: 0.4, s: 0.5, m: 'happy' }, { id: 'moku', x: 0.25, y: 0.7, s: 0.28, m: 'happy' }],
       b: [{ t: 'モク！', x: 0.28, y: 0.3, w: 0 }] },
     { bg: 'sky', chars: [{ id: 'moku', x: 0.55, y: 0.45, s: 0.42, m: 'laugh' }],
