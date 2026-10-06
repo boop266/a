@@ -33,7 +33,7 @@ window.MangaSamples = [
      "outfit": "tshirt",
      "pattern": "dots",
      "items": [
-      "hairflower"
+      "hairbutton"
      ]
     },
     {
@@ -59,18 +59,6 @@ window.MangaSamples = [
      "species": "cloud",
      "age": "child",
      "color": "white",
-     "eyes": "round",
-     "size": 0.85,
-     "items": []
-    },
-    {
-     "id": "moku_ame",
-     "name": "モク",
-     "role": "悲しいときのモク（灰色の雨雲）",
-     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
-     "species": "cloud",
-     "age": "child",
-     "color": "gray",
      "eyes": "round",
      "size": 0.85,
      "items": []
@@ -130,7 +118,14 @@ window.MangaSamples = [
     "reason": "元の原稿（全16ページ）の絵柄に寄せた。子どもからお母さん世代まで読めるよう、線は太く、描き込みは少なめにしている。"
    },
    "cover": {
-    "bg": "park",
+    "bg": "yard",
+    "laundry": [
+     "towel",
+     "shirt",
+     "towel",
+     "shirt",
+     "socks"
+    ],
     "time": "day",
     "weather": "clear",
     "catch": "洗濯物にだけ、\n雨がふる。",
@@ -138,15 +133,16 @@ window.MangaSamples = [
      {
       "id": "mom",
       "pose": "hold",
-      "hold": "box",
+      "hold": "basket",
       "expr": "shock",
       "face": "left",
       "look": "up"
      },
      {
-      "id": "moku_ame",
+      "id": "moku",
       "pose": "float",
       "expr": "sad",
+      "color": "gray",
       "rain": 2
      },
      {
@@ -168,7 +164,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -178,7 +174,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "shirt"
         },
         {
          "id": "haru",
@@ -186,7 +182,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -195,6 +191,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "洗濯日和ね！"
         }
+       ],
+       "laundry": [
+        "towel",
+        "shirt",
+        "towel"
        ],
        "narr": "日曜日。\n朝から\nいい天気。"
       },
@@ -210,7 +211,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "hold",
          "face": "right",
-         "hold": "none"
+         "hold": "socks"
         }
        ],
        "say": [
@@ -246,11 +247,18 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "スッ…",
@@ -260,7 +268,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "cloudy",
        "cast": [
@@ -293,19 +301,27 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         }
        ],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "ザーー",
@@ -369,15 +385,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 2
         },
         {
@@ -409,6 +426,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "ピンポイント\nだね"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
        ]
       }
      ]
@@ -432,7 +454,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "fight",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -453,15 +475,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -478,15 +501,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         },
         {
@@ -495,7 +519,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "run",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -513,6 +537,12 @@ window.MangaSamples = [
          "text": "どきなさーい！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel"
+       ],
        "sfx": [
         {
          "text": "ザザアッ",
@@ -522,7 +552,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -558,10 +588,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [],
@@ -610,15 +641,16 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -638,10 +670,16 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…はぐれたの"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "towel",
+        "shirt"
        ]
       },
       {
@@ -651,20 +689,21 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -698,7 +737,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -708,7 +747,7 @@ window.MangaSamples = [
          "expr": "sad",
          "pose": "stand",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -766,7 +805,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -800,15 +839,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…モク"
         }
@@ -829,10 +869,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -884,7 +925,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -917,7 +958,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -947,6 +988,13 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "えへへ"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "shirt"
        ],
        "fx": [
         "sparkle"
@@ -1085,7 +1133,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -1171,7 +1219,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -1246,7 +1294,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
@@ -1256,7 +1304,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         },
         {
          "id": "moku",
@@ -1330,15 +1378,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -1375,10 +1424,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         },
         {
          "id": "haru",
@@ -1396,10 +1446,13 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…うん"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "narr": "その夜"
       },
@@ -1410,15 +1463,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -1431,19 +1485,23 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "sfx": [
         {
@@ -1475,10 +1533,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -1566,20 +1625,21 @@ window.MangaSamples = [
       },
       {
        "shot": "up",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -1632,10 +1692,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -1696,15 +1757,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "worried",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…ふ"
         }
@@ -1740,15 +1802,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
@@ -1756,7 +1819,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -1870,7 +1933,7 @@ window.MangaSamples = [
         {
          "id": "mom",
          "x": 0.5,
-         "expr": "laugh",
+         "expr": "funny",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -2027,7 +2090,7 @@ window.MangaSamples = [
       },
       {
        "shot": "long",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -2181,9 +2244,9 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "sky",
+       "bg": "rainbow",
        "time": "day",
-       "weather": "rain",
+       "weather": "clear",
        "cast": [
         {
          "id": "haru",
@@ -2215,9 +2278,9 @@ window.MangaSamples = [
         }
        ],
        "fx": [
+        "rainbow",
         "sparkle"
-       ],
-       "narr": "空に、大きな虹。"
+       ]
       }
      ]
     },
@@ -2230,7 +2293,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -2240,7 +2303,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "towel"
         },
         {
          "id": "haru",
@@ -2248,7 +2311,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -2258,11 +2321,18 @@ window.MangaSamples = [
          "text": "今日も\nいい天気！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "narr": "それから"
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "rain",
        "cast": [],
@@ -2368,7 +2438,7 @@ window.MangaSamples = [
      "outfit": "tshirt",
      "pattern": "dots",
      "items": [
-      "hairflower"
+      "hairbutton"
      ]
     },
     {
@@ -2394,18 +2464,6 @@ window.MangaSamples = [
      "species": "cloud",
      "age": "child",
      "color": "white",
-     "eyes": "round",
-     "size": 0.85,
-     "items": []
-    },
-    {
-     "id": "moku_ame",
-     "name": "モク",
-     "role": "悲しいときのモク（灰色の雨雲）",
-     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
-     "species": "cloud",
-     "age": "child",
-     "color": "gray",
      "eyes": "round",
      "size": 0.85,
      "items": []
@@ -2462,7 +2520,14 @@ window.MangaSamples = [
     "panelFrame": "clean"
    },
    "cover": {
-    "bg": "park",
+    "bg": "yard",
+    "laundry": [
+     "towel",
+     "shirt",
+     "towel",
+     "shirt",
+     "socks"
+    ],
     "time": "day",
     "weather": "clear",
     "catch": "洗濯物にだけ、\n雨がふる。",
@@ -2470,15 +2535,16 @@ window.MangaSamples = [
      {
       "id": "mom",
       "pose": "hold",
-      "hold": "box",
+      "hold": "basket",
       "expr": "shock",
       "face": "left",
       "look": "up"
      },
      {
-      "id": "moku_ame",
+      "id": "moku",
       "pose": "float",
       "expr": "sad",
+      "color": "gray",
       "rain": 2
      },
      {
@@ -2500,7 +2566,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -2510,7 +2576,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "shirt"
         },
         {
          "id": "haru",
@@ -2518,7 +2584,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -2527,6 +2593,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "洗濯日和ね！"
         }
+       ],
+       "laundry": [
+        "towel",
+        "shirt",
+        "towel"
        ],
        "narr": "日曜日。\n朝から\nいい天気。"
       },
@@ -2542,7 +2613,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "hold",
          "face": "right",
-         "hold": "none"
+         "hold": "socks"
         }
        ],
        "say": [
@@ -2578,11 +2649,18 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "スッ…",
@@ -2592,7 +2670,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -2625,19 +2703,27 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         }
        ],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "ザーー",
@@ -2701,15 +2787,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 2
         },
         {
@@ -2741,6 +2828,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "ピンポイント\nだね"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
        ]
       }
      ]
@@ -2764,7 +2856,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "fight",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -2785,15 +2877,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -2810,15 +2903,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         },
         {
@@ -2827,7 +2921,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "run",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -2845,6 +2939,12 @@ window.MangaSamples = [
          "text": "どきなさーい！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel"
+       ],
        "sfx": [
         {
          "text": "ザザーッ",
@@ -2854,7 +2954,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -2864,7 +2964,7 @@ window.MangaSamples = [
          "expr": "shock",
          "pose": "fight",
          "face": "right",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -2918,15 +3018,16 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -2946,10 +3047,16 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…はぐれたの"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "towel",
+        "shirt"
        ]
       },
       {
@@ -2959,20 +3066,21 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -3006,7 +3114,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3016,7 +3124,7 @@ window.MangaSamples = [
          "expr": "sad",
          "pose": "stand",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -3074,7 +3182,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3108,15 +3216,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…モク"
         }
@@ -3137,10 +3246,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.86,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -3192,7 +3302,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3203,7 +3313,7 @@ window.MangaSamples = [
          "pose": "stand",
          "face": "right",
          "look": "up",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -3225,7 +3335,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3255,6 +3365,13 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "えへへ"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "shirt"
        ],
        "fx": [
         "sparkle"
@@ -3367,11 +3484,16 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
+       ],
        "sfx": [
         {
          "text": "ポカポカ",
@@ -3390,7 +3512,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3433,7 +3555,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3454,7 +3576,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3476,7 +3598,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3551,7 +3673,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
@@ -3561,7 +3683,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         },
         {
          "id": "moku",
@@ -3623,15 +3745,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -3668,10 +3791,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         },
         {
          "id": "haru",
@@ -3689,10 +3813,13 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…うん"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "narr": "その夜"
       },
@@ -3703,15 +3830,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -3724,19 +3852,23 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "sfx": [
         {
@@ -3768,10 +3900,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -3793,7 +3926,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -3868,20 +4001,21 @@ window.MangaSamples = [
       },
       {
        "shot": "up",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -4043,15 +4177,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
@@ -4059,7 +4194,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -4274,7 +4409,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "long",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -4375,7 +4510,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "street",
+       "bg": "rainbow",
        "time": "day",
        "weather": "rain",
        "cast": [
@@ -4423,7 +4558,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -4433,7 +4568,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "towel"
         },
         {
          "id": "haru",
@@ -4441,7 +4576,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -4451,11 +4586,18 @@ window.MangaSamples = [
          "text": "今日も\nいい天気！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "narr": "それから"
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "rain",
        "cast": [],
@@ -4493,7 +4635,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -4550,6 +4692,10 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "はーい"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel"
        ]
       }
      ]
