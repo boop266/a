@@ -269,12 +269,14 @@
       HV[i] = clamp(s * R.hatchShade + m * R.hatchMat);
     }
     if (R.toneKind === 'dot' || R.toneKind === 'gradient') { dots(out, TV, A, W, H, { per: R.dotPer * S, ang: Math.PI / 4, levels: R.toneKind === 'dot' ? R.levels : null }); }
+    if (R.toneKind === 'sand') sand(out, TV, A, n, 0.75);
     if (R.grainTone > 0) { const G = new Float32Array(n); for (let i = 0; i < n; i++) G[i] = TV[i] * 0.5; sand(out, G, A, n, R.grainTone); }
     const putImg = im => { const t2 = mkCanvas(W, H); t2.getContext('2d').putImageData(im, 0, 0); c.drawImage(t2, 0, 0); };
     putImg(img);
     const sample = arr => (x, y) => { const px = Math.round((x - box.x) * S), py = Math.round((y - box.y) * S); if (px < 0 || py < 0 || px >= W || py >= H) return 0; const i = py * W + px; return A[i] > 127 ? arr[i] : 0; };
     c.save(); c.setTransform(S, 0, 0, S, -box.x * S, -box.y * S); c.fillStyle = '#000';
     if (R.toneKind === 'kakeami') kakeami(c, sample(TV), box, R.sc, 1.0);
+    if (R.toneKind === 'line') hatch(c, sample(TV), box, [{ ang: 0, thr: 0.04, sp: 2.2 * R.sc, w: 1.5 * R.sc, band: 0.7, wave: 0 }], R.sc);
     if (R.hatch.length) hatch(c, sample(HV), box, R.hatch, R.sc);
     c.restore();
     // ベタ
