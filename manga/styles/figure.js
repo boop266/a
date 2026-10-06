@@ -564,32 +564,31 @@
     if (kind === 'open' || kind === 'relax') {
       const open = kind === 'open';
       // 手のひら：手首から指の付け根へ広がる台形
-      const palm = catmull([L(-0.02, -0.26), L(0.5, -0.34), L(0.56, 0.0), L(0.5, 0.36), L(0.2, 0.36), L(-0.02, 0.26)], 4, true);
+      const palm = catmull([L(-0.02, -0.19), L(0.4, -0.24), L(0.46, 0.0), L(0.42, 0.24), L(0.15, 0.26), L(-0.02, 0.19)], 4, true);
       const spread = open ? 0.2 : 0.05, curl = open ? 0.15 : 0.6;
-      const lens = [0.36, 0.42, 0.4, 0.31], ys = [-0.25, -0.08, 0.09, 0.25];
+      const lens = [0.36, 0.41, 0.38, 0.29], ys = [-0.17, -0.055, 0.06, 0.17];
       // 奥の指から
-      for (let i = 3; i >= 0; i--) fp(finger(L(0.5, ys[i]), (i - 1.5) * -spread, hs * lens[i], hs * 0.075, curl * (1 + i * 0.12)));
-      part(ly, palm, mat, { w: 1.2, off: hs * 0.1, lines: [{ p: [L(0.12, 0.2), L(0.3, 0.05), L(0.45, -0.2)], w: 0.45 }] });
+      for (let i = 3; i >= 0; i--) fp(finger(L(0.4, ys[i]), (i - 1.5) * -spread, hs * lens[i], hs * 0.07, curl * (1 + i * 0.12)), 0.75);
+      part(ly, palm, mat, { w: 1.2, off: hs * 0.1, lines: [{ p: [L(0.1, 0.16), L(0.25, 0.05), L(0.36, -0.15)], w: 0.4 }] });
       // 親指：手首側から外へ
-      fp(finger(L(0.12, 0.3), open ? 0.95 : 0.55, hs * 0.38, hs * 0.09, open ? 0.15 : 0.35), 1.1);
+      fp(finger(L(0.1, 0.2), open ? 0.95 : 0.55, hs * 0.32, hs * 0.08, open ? 0.15 : 0.35), 0.85);
     } else { // 拳・握る・指さし
       const grip = kind === 'grip';
       // 握りこぶし：手の甲の面＋折りたたんだ指の段（4つのふくらみ）＋上にかぶさる親指
-      const top = [L(-0.04, -0.3), L(0.3, -0.34), L(0.55, -0.3)];
-      const rolls = []; for (let i = 0; i < 4; i++) { const y0 = -0.3 + i * 0.155; rolls.push(L(0.62 + (i === 1 || i === 2 ? 0.03 : 0), y0 + 0.02), L(0.66 + (i === 1 || i === 2 ? 0.03 : 0), y0 + 0.08)); }
-      const fist = catmull(top.concat(rolls, [L(0.5, 0.36), L(0.2, 0.38), L(-0.04, 0.3)]), 4, true);
+      const top = [L(-0.04, -0.21), L(0.25, -0.25), L(0.44, -0.22)];
+      const rolls = []; for (let i = 0; i < 4; i++) { const y0 = -0.22 + i * 0.11; const bulge = i === 1 || i === 2 ? 0.025 : 0; rolls.push(L(0.5 + bulge, y0 + 0.015), L(0.53 + bulge, y0 + 0.06)); }
+      const fist = catmull(top.concat(rolls, [L(0.42, 0.26), L(0.18, 0.28), L(-0.04, 0.21)]), 4, true);
       const lines = [];
-      // 指の段の区切り（指先側の面）と、第2関節の線
-      for (let i = 1; i < 4; i++) { const y0 = -0.3 + i * 0.155; lines.push({ p: [L(0.66, y0), L(0.48, y0 + 0.01)], w: 0.55, o: { tin: 1, tout: 3 } }); }
-      lines.push({ p: [L(0.5, -0.3), L(0.47, 0.0), L(0.5, 0.3)], w: 0.5, o: { tin: 2, tout: 2 } });
-      // 指の付け根の骨（ナックル）
-      for (let i = 0; i < 4; i++) { const y0 = -0.25 + i * 0.16; lines.push({ p: [L(0.34, y0 - 0.04), L(0.38, y0), L(0.34, y0 + 0.04)], w: 0.45, o: { tin: 1, tout: 1 } }); }
-      part(ly, fist, mat, { w: 1.3, off: hs * 0.12, lines });
+      // 折った指の区切り（指先の面）と、第2関節の線
+      for (let i = 1; i < 4; i++) { const y0 = -0.22 + i * 0.11; lines.push({ p: [L(0.53, y0), L(0.4, y0 + 0.005)], w: 0.5, o: { tin: 1, tout: 3 } }); }
+      lines.push({ p: [L(0.4, -0.22), L(0.38, 0.0), L(0.4, 0.2)], w: 0.45, o: { tin: 2, tout: 2 } });
+      // 指の付け根の骨の盛り上がり（1本の波線）
+      lines.push({ p: [L(0.29, -0.22), L(0.32, -0.12), L(0.3, -0.04), L(0.33, 0.05), L(0.3, 0.14)], w: 0.4, o: { tin: 2, tout: 4 } });
+      part(ly, fist, mat, { w: 1.3, off: hs * 0.1, lines });
       // 親指：拳の下側から、人さし指の上へ斜めにかぶさる
-      const th = catmull([L(0.05, 0.3), L(0.3, 0.42), L(0.55, 0.2), L(0.6, 0.06), L(0.5, 0.04), L(0.32, 0.22), L(0.1, 0.18)], 4, true);
-      part(ly, th, mat, { w: 1.0, off: hs * 0.05, lines: [{ p: [L(0.5, 0.08), L(0.56, 0.16)], w: 0.45 }] });
-      if (kind === 'point') { fp(finger(L(0.55, -0.24), 0.02, hs * 0.48, hs * 0.08, 0.0), 1.1); }
-      if (grip) ink(ly.l, [L(0.58, -0.32), L(0.64, 0.0), L(0.58, 0.3)], 0.5);
+      const th = catmull([L(0.04, 0.21), L(0.24, 0.31), L(0.44, 0.15), L(0.47, 0.04), L(0.39, 0.02), L(0.26, 0.15), L(0.08, 0.13)], 4, true);
+      part(ly, th, mat, { w: 1.0, off: hs * 0.05, lines: [{ p: [L(0.4, 0.06), L(0.45, 0.12)], w: 0.4 }] });
+      if (kind === 'point') { fp(finger(L(0.44, -0.17), 0.02, hs * 0.42, hs * 0.072, 0.0), 0.85); }
     }
   }
   function drawShoe(C, an, toe, k) {
