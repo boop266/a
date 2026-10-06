@@ -73,7 +73,6 @@ kbd{font-family:var(--body);font-size:11px;border:1px solid var(--rule);border-b
   <div class="controls">
     <button class="sub" id="firstBtn">表紙へ</button>
     <button class="sub" id="zoomBtn" aria-pressed="false">大きく見る</button>
-    <button class="sub" id="randBtn">ランダムに1ページ開く</button>
   </div>
   <p class="keys"><kbd>←</kbd> 次　<kbd>→</kbd> 前　（左側タップ・左スワイプでも次へ）</p>
 </div>
@@ -1127,7 +1126,6 @@ async function show(i, dir = 1) {
 $('nextBtn').onclick = () => show(cur + 1, 1);
 $('prevBtn').onclick = () => show(cur - 1, -1);
 $('firstBtn').onclick = () => show(0, -1);
-$('randBtn').onclick = () => { let k = Math.floor(Math.random() * N); if (k === cur && N > 1) k = (k + 1 + Math.floor(Math.random() * (N - 1))) % N; show(k, k >= cur ? 1 : -1); };
 let swiped = false;
 let clickTimer = 0;
 $('sheet').addEventListener('click', e => { if (swiped || $('sheet').classList.contains('zoom')) { swiped = false; return; } if (e.detail > 1) return; const rc = $('sheet').getBoundingClientRect(), left = e.clientX < rc.left + rc.width / 2;
