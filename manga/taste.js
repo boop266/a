@@ -381,8 +381,13 @@
       if (computeB) {
         // B = L⁻¹Φ （n×p）、Σ_jj = s_j - s_j² Σ_i B_ij²
         B = new Float64Array(n * p);
-        for (let i = 0; i < n; i++) { const row = Phi[i]; for (let j = 0; j < p; j++) { let v = row[j]; for (let k = 0; k < i; k++) v -= L[i * n + k] * B[k * p + j]; B[i * p + j] = v / L[i * n + i]; } }
-        diagS = new Float64Array(p); for (let j = 0; j < p; j++) { let a = 0; for (let i = 0; i < n; i++) a += B[i * p + j] ** 2; diagS[j] = Math.max(1e-12, s[j] - s[j] * s[j] * a); }
+        for (let i = 0; i < n; i++) { // 行ごとに連続したメモリで前進代入（速い）
+          const off = i * p, row = Phi[i]; for (let j = 0; j < p; j++) B[off + j] = row[j];
+          for (let k = 0; k < i; k++) { const l = L[i * n + k]; if (l === 0) continue; const ok = k * p; for (let j = 0; j < p; j++) B[off + j] -= l * B[ok + j]; }
+          const inv = 1 / L[i * n + i]; for (let j = 0; j < p; j++) B[off + j] *= inv;
+        }
+        const acc2 = new Float64Array(p); for (let i = 0; i < n; i++) { const off = i * p; for (let j = 0; j < p; j++) acc2[j] += B[off + j] * B[off + j]; }
+        diagS = new Float64Array(p); for (let j = 0; j < p; j++) diagS[j] = Math.max(1e-12, s[j] - s[j] * s[j] * acc2[j]);
       }
       return { G, nz };
     }
