@@ -63,6 +63,18 @@ window.MangaSamples = [
      "items": []
     },
     {
+     "id": "moku_ame",
+     "name": "モク",
+     "role": "悲しいときのモク（灰色の雨雲）",
+     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
+     "species": "cloud",
+     "age": "child",
+     "color": "gray",
+     "eyes": "round",
+     "size": 0.85,
+     "items": []
+    },
+    {
      "id": "papa",
      "name": "雲のパパ",
      "role": "モクのお父さん",
@@ -131,10 +143,9 @@ window.MangaSamples = [
       "look": "up"
      },
      {
-      "id": "moku",
+      "id": "moku_ame",
       "pose": "float",
       "expr": "sad",
-      "color": "gray",
       "rain": 2
      },
      {
@@ -286,11 +297,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 3
         }
        ],
@@ -363,11 +373,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 2
         },
         {
@@ -443,16 +452,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -474,11 +482,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
-         "color": "gray",
          "rain": 3
         },
         {
@@ -550,11 +557,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [],
@@ -608,11 +614,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         },
         {
@@ -632,7 +637,7 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…はぐれたの"
         }
@@ -645,21 +650,20 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -795,16 +799,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…モク"
         }
@@ -825,11 +828,10 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
@@ -1332,11 +1334,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         },
         {
@@ -1373,11 +1374,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         },
         {
          "id": "haru",
@@ -1395,7 +1395,7 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…うん"
         }
@@ -1409,16 +1409,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -1431,17 +1430,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
@@ -1476,11 +1474,10 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
@@ -1588,16 +1585,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -1650,11 +1646,10 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
@@ -1715,16 +1710,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "worried",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…ふ"
         }
@@ -1760,16 +1754,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
@@ -2468,6 +2461,18 @@ window.MangaSamples = [
      "items": []
     },
     {
+     "id": "moku_ame",
+     "name": "モク",
+     "role": "悲しいときのモク（灰色の雨雲）",
+     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
+     "species": "cloud",
+     "age": "child",
+     "color": "gray",
+     "eyes": "round",
+     "size": 0.85,
+     "items": []
+    },
+    {
      "id": "papa",
      "name": "雲のパパ",
      "role": "モクのお父さん",
@@ -2533,10 +2538,9 @@ window.MangaSamples = [
       "look": "up"
      },
      {
-      "id": "moku",
+      "id": "moku_ame",
       "pose": "float",
       "expr": "sad",
-      "color": "gray",
       "rain": 2
      },
      {
@@ -2688,11 +2692,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 3
         }
        ],
@@ -2765,11 +2768,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 2
         },
         {
@@ -2845,16 +2847,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -2876,11 +2877,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
-         "color": "gray",
          "rain": 3
         },
         {
@@ -2985,11 +2985,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         },
         {
@@ -3009,7 +3008,7 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…はぐれたの"
         }
@@ -3022,21 +3021,20 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -3172,16 +3170,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…モク"
         }
@@ -3202,11 +3199,10 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.86,
          "expr": "shock",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
@@ -3694,11 +3690,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         },
         {
@@ -3735,11 +3730,10 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         },
         {
          "id": "haru",
@@ -3757,7 +3751,7 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "…うん"
         }
@@ -3771,16 +3765,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -3793,17 +3786,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
-         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
@@ -3838,11 +3830,10 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
@@ -3944,16 +3935,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -4115,16 +4105,15 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku",
+         "id": "moku_ame",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float",
-         "color": "gray"
+         "pose": "float"
         }
        ],
        "say": [
         {
-         "who": "moku",
+         "who": "moku_ame",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
