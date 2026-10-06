@@ -1,0 +1,526 @@
+<title>漫画ページくじ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap">
+<style>
+/* 原稿台：左に大きな「引いた1ページ」、右に本棚と履歴。スマホでは縦に積む */
+:root{
+  --desk:#eef2f4; --card:#fbfcfc; --ink:#16191d; --tone:#5c6873; --rule:#d3dce2;
+  --blue:#2f8fc7; --blue-soft:#d6ebf7; --danger:#c0392b;
+  --display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --shadow:0 1px 0 rgba(0,0,0,.04),0 10px 30px rgba(22,25,29,.16);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --desk:#111417; --card:#191d22; --ink:#edf1f4; --tone:#9ba7b2; --rule:#2b323a;
+  --blue:#6cbbe8; --blue-soft:#1d3342; --danger:#ff7b6b; --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#111417; --card:#191d22; --ink:#edf1f4; --tone:#9ba7b2; --rule:#2b323a;
+  --blue:#6cbbe8; --blue-soft:#1d3342; --danger:#ff7b6b; --shadow:0 10px 30px rgba(0,0,0,.5); color-scheme:dark}
+html,body{height:100%}
+body{background:var(--desk);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;padding:0 16px}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 40px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+header{grid-column:1/-1;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(26px,4vw,38px);line-height:1.1;margin:0;letter-spacing:.02em}
+h1 small{font-family:var(--body);font-size:13px;color:var(--tone);font-weight:700;letter-spacing:.08em;margin-left:6px}
+.lead{margin:0;color:var(--tone);font-size:14px}
+
+.stage{display:flex;flex-direction:column;align-items:center;gap:16px;min-width:0}
+.sheet{position:relative;background:#fff;box-shadow:var(--shadow);line-height:0;max-width:100%;
+  border-radius:2px;outline:1px solid rgba(0,0,0,.06)}
+.sheet img{display:block;max-width:100%;max-height:min(78vh,1060px);width:auto;height:auto}
+.sheet.flip{animation:flip .38s cubic-bezier(.2,.8,.2,1)}
+@keyframes flip{from{transform:perspective(1400px) rotateY(-28deg) translateX(-6%);opacity:.2;transform-origin:right center}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet.flip{animation:none}}
+.sheet .busy[hidden]{display:none}
+.sheet .busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.7);
+  font:700 14px/1.4 var(--body);color:#16191d;letter-spacing:.1em}
+.meta{display:flex;gap:10px 16px;align-items:baseline;flex-wrap:wrap;justify-content:center;text-align:center;line-height:1.4}
+.meta .book{font-weight:900;font-size:16px}
+.meta .nombre{font-variant-numeric:tabular-nums;color:var(--tone);font-size:13px;letter-spacing:.06em}
+.meta .nombre b{color:var(--ink);font-size:15px}
+
+.controls{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border-radius:999px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);
+  padding:9px 16px;font-weight:700;line-height:1.2}
+button:hover{background:var(--blue-soft)}
+button:focus-visible,input:focus-visible+label,.drop:focus-within{outline:3px solid var(--blue);outline-offset:2px}
+button:disabled{opacity:.35;cursor:default;background:transparent}
+.draw{background:var(--ink);color:var(--desk);font-family:var(--display);font-weight:400;font-size:20px;padding:14px 30px;letter-spacing:.06em}
+.draw:hover{background:var(--ink);transform:translateY(-1px)}
+.draw:active{transform:translateY(1px)}
+.keys{font-size:12px;color:var(--tone);margin:0;text-align:center}
+kbd{font-family:var(--body);font-size:11px;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--card)}
+
+aside{display:flex;flex-direction:column;gap:22px;min-width:0}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel h2{margin:0;font-size:13px;letter-spacing:.14em;color:var(--tone);font-weight:900}
+.shelf{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.shelf li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px dashed var(--rule)}
+.shelf li:last-child{border-bottom:0}
+.shelf input{width:18px;height:18px;accent-color:var(--blue);margin:0}
+.shelf .name{overflow-wrap:anywhere;line-height:1.35;font-size:14px}
+.shelf .name span{display:block;font-size:12px;color:var(--tone);font-variant-numeric:tabular-nums}
+.shelf .del{border:0;padding:4px 8px;font-size:12px;color:var(--tone)}
+.shelf .del.arm{color:var(--danger);border:1px solid var(--danger)}
+.drop{border:2px dashed var(--blue);border-radius:10px;padding:14px;text-align:center;display:flex;flex-direction:column;gap:10px;
+  background:color-mix(in srgb,var(--blue-soft) 45%,transparent);transition:background .15s}
+.drop.over{background:var(--blue-soft)}
+.drop p{margin:0;font-size:13px;color:var(--tone);line-height:1.5}
+.drop strong{color:var(--ink);font-size:14px}
+.drop .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.drop label{cursor:pointer;border:1.5px solid var(--ink);border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;background:var(--card)}
+.drop label:hover{background:var(--blue-soft)}
+.note{font-size:12px;color:var(--tone);margin:0;line-height:1.55}
+.msg{font-size:13px;margin:0;color:var(--blue);font-weight:700;min-height:1.2em}
+.msg.err{color:var(--danger)}
+.hist{display:flex;flex-wrap:wrap;gap:6px}
+.hist button{font-size:12px;font-weight:400;padding:5px 10px;border-color:var(--rule);font-variant-numeric:tabular-nums;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist .empty{font-size:13px;color:var(--tone);margin:0}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>漫画ページくじ<small>RANDOM PAGE</small></h1>
+    <p class="lead">ボタンを押すたびに、本棚のどこかの1ページが開きます。</p>
+  </header>
+
+  <main class="stage">
+    <div class="sheet" id="sheet"><img id="pageImg" alt="引いたページ"><div class="busy" id="busy" hidden>めくっています…</div></div>
+    <div class="meta"><span class="book" id="bookName">—</span><span class="nombre" id="nombre"></span></div>
+    <div class="controls">
+      <button id="nextBtn" title="次のページ（漫画は左へ進みます）">← 次</button>
+      <button class="draw" id="drawBtn">もう一枚ひく</button>
+      <button id="prevBtn" title="前のページ">前 →</button>
+    </div>
+    <p class="keys"><kbd>Space</kbd> もう一枚　<kbd>←</kbd> 次のページ　<kbd>→</kbd> 前のページ</p>
+  </main>
+
+  <aside>
+    <section class="panel">
+      <h2>本棚</h2>
+      <ul class="shelf" id="shelf"></ul>
+      <div class="drop" id="drop">
+        <p><strong>手持ちの漫画をここへドロップ</strong><br>画像（JPG・PNG・WebP）、ZIP・CBZ、PDF に対応</p>
+        <div class="row">
+          <input type="file" id="fileIn" multiple accept="image/*,.zip,.cbz,.pdf,application/pdf,application/zip"><label for="fileIn">ファイルを選ぶ</label>
+          <input type="file" id="dirIn" webkitdirectory multiple><label for="dirIn">フォルダを選ぶ</label>
+        </div>
+      </div>
+      <p class="msg" id="msg" role="status"></p>
+      <p class="note">入れた本はこの端末のブラウザの中だけに置かれ、どこにも送られません。チェックを外した本はくじに入りません。</p>
+    </section>
+    <section class="panel">
+      <h2>さっき引いたページ</h2>
+      <div class="hist" id="hist"><p class="empty">まだありません</p></div>
+    </section>
+  </aside>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const CDN = {
+  jszip: 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  pdfWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+};
+const IMG_RE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const natural = (a, b) => a.localeCompare(b, 'ja', { numeric: true, sensitivity: 'base' });
+
+/* ---------- 乱数 ---------- */
+function rng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let x = t; x = Math.imul(x ^ x >>> 15, x | 1); x ^= x + Math.imul(x ^ x >>> 7, x | 61); return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
+const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+
+/* ---------- 見本：その場で描くオリジナル漫画 ---------- */
+const LINES = ['まさか…','今の、見た？','ここからが本番だ','おなかすいた','待って！','それ、私のプリン','雨、やんだね','もう一回だけ','知ってたよ','うそでしょ？！','よし、行こう','ふふっ','忘れ物した…','なんで笑うの','明日も来る？','静かに！','任せて','やっと会えた','ちょっと寝る','逃げろーっ！','あれ？','約束だよ'];
+const SFX = ['ドン','ゴゴゴ','ザワ…','バーン','シーン','ドキッ','ピカッ','ガタッ','ヒュウ','ズズッ','パァァ'];
+const SAMPLE_PAGES = 9999;
+
+function tonePattern(ctx, size, rad) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.fillStyle = '#000';
+  g.beginPath(); g.arc(size / 2, size / 2, rad, 0, 7); g.fill();
+  g.beginPath(); for (const [x, y] of [[0, 0], [size, 0], [0, size], [size, size]]) { g.moveTo(x, y); g.arc(x, y, rad, 0, 7); } g.fill();
+  return ctx.createPattern(c, 'repeat');
+}
+function concentration(ctx, b, r, cx, cy, clear) {
+  ctx.fillStyle = '#000';
+  const n = 150, R = Math.hypot(b.w, b.h);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + r() * 0.03, w = 0.004 + r() * 0.012, inner = clear * (0.9 + r() * 0.6);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a - w) * R, cy + Math.sin(a - w) * R);
+    ctx.lineTo(cx + Math.cos(a + w) * R, cy + Math.sin(a + w) * R);
+    ctx.lineTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+    ctx.fill();
+  }
+}
+function speedLines(ctx, b, r) {
+  ctx.strokeStyle = '#000';
+  for (let i = 0; i < 60; i++) {
+    const y = b.y + r() * b.h, x = b.x + r() * b.w * 0.3, len = b.w * (0.3 + r() * 0.7);
+    ctx.lineWidth = 0.6 + r() * 2.2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y); ctx.stroke();
+  }
+}
+function drawChar(ctx, x, y, s, who, mood, r, facing) {
+  ctx.save(); ctx.translate(x, y); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  // 肩
+  ctx.fillStyle = who.shirt; ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(2, s * 0.05);
+  ctx.beginPath(); ctx.moveTo(-s * 1.5, s * 2.6); ctx.quadraticCurveTo(-s * 1.4, s * 1.2, -s * 0.35, s * 1.05);
+  ctx.lineTo(s * 0.35, s * 1.05); ctx.quadraticCurveTo(s * 1.4, s * 1.2, s * 1.5, s * 2.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // 首と顔
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.rect(-s * 0.22, s * 0.7, s * 0.44, s * 0.4); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, s * 0.82, s * 0.95, 0, 0, 7); ctx.fill(); ctx.stroke();
+  // 髪
+  ctx.fillStyle = who.hairInk ? '#000' : '#fff';
+  ctx.beginPath();
+  if (who.hair === 0) { // ツンツン
+    ctx.moveTo(-s * 0.9, s * 0.05);
+    for (let i = 0; i <= 7; i++) { const a = Math.PI + (i / 7) * Math.PI; const rr = i % 2 ? s * 1.35 : s * 0.95;
+      ctx.lineTo(Math.cos(a) * rr * 0.95, Math.sin(a) * rr - s * 0.05); }
+    ctx.lineTo(s * 0.9, s * 0.05); ctx.quadraticCurveTo(s * 0.3, -s * 0.55, -s * 0.9, s * 0.05);
+  } else { // ボブ／ポニーテール
+    ctx.moveTo(-s * 0.95, s * 0.55); ctx.quadraticCurveTo(-s * 1.15, -s * 1.2, 0, -s * 1.1);
+    ctx.quadraticCurveTo(s * 1.15, -s * 1.2, s * 0.95, s * 0.55); ctx.lineTo(s * 0.62, s * 0.5);
+    ctx.quadraticCurveTo(s * 0.7, -s * 0.35, s * 0.1, -s * 0.5); ctx.quadraticCurveTo(-s * 0.4, -s * 0.2, -s * 0.62, s * 0.5); ctx.closePath();
+    if (who.hair === 2) { ctx.moveTo(s * 0.9 * -facing, -s * 0.5); ctx.ellipse(s * 1.25 * -facing, -s * 0.2, s * 0.32, s * 0.6, 0.4 * facing, 0, 7); }
+  }
+  ctx.fill(); ctx.stroke();
+  // 目・眉・口
+  const ex = s * 0.32, ey = s * 0.12, off = s * 0.08 * facing;
+  ctx.fillStyle = '#000'; ctx.lineWidth = Math.max(2, s * 0.055);
+  for (const side of [-1, 1]) {
+    const cx = side * ex + off;
+    ctx.beginPath();
+    if (mood === 'happy') { ctx.arc(cx, ey + s * 0.05, s * 0.13, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+    else if (mood === 'shock') { ctx.fillStyle = '#fff'; ctx.ellipse(cx, ey, s * 0.13, s * 0.17, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx, ey, s * 0.035, 0, 7); ctx.fill(); }
+    else { ctx.ellipse(cx, ey, s * 0.1, s * 0.16, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - s * 0.03, ey - s * 0.06, s * 0.035, 0, 7); ctx.fill(); ctx.fillStyle = '#000'; }
+    ctx.beginPath(); const by = ey - s * 0.3;
+    if (mood === 'angry') { ctx.moveTo(cx - side * s * 0.16, by - s * 0.08); ctx.lineTo(cx + side * s * 0.14, by + s * 0.06); }
+    else if (mood === 'sad') { ctx.moveTo(cx - side * s * 0.16, by + s * 0.06); ctx.lineTo(cx + side * s * 0.14, by - s * 0.06); }
+    else { ctx.moveTo(cx - s * 0.15, by); ctx.quadraticCurveTo(cx, by - s * 0.07, cx + s * 0.15, by); }
+    ctx.stroke();
+  }
+  ctx.beginPath(); const my = s * 0.55;
+  if (mood === 'shock') { ctx.fillStyle = '#000'; ctx.ellipse(off, my, s * 0.1, s * 0.14, 0, 0, 7); ctx.fill(); }
+  else if (mood === 'happy') { ctx.moveTo(off - s * 0.18, my - s * 0.04); ctx.quadraticCurveTo(off, my + s * 0.18, off + s * 0.18, my - s * 0.04); ctx.stroke(); }
+  else if (mood === 'sad') { ctx.moveTo(off - s * 0.12, my + s * 0.05); ctx.quadraticCurveTo(off, my - s * 0.06, off + s * 0.12, my + s * 0.05); ctx.stroke(); }
+  else { ctx.moveTo(off - s * 0.1, my); ctx.lineTo(off + s * 0.1, my); ctx.stroke(); }
+  // 汗・照れ
+  if (mood === 'shock' || (mood === 'sad' && r() < 0.6)) {
+    ctx.fillStyle = '#fff'; ctx.lineWidth = Math.max(1.5, s * 0.035); ctx.beginPath();
+    const sx = s * 0.95 * facing * -1, sy = -s * 0.3;
+    ctx.moveTo(sx, sy - s * 0.25); ctx.quadraticCurveTo(sx + s * 0.16, sy + s * 0.05, sx, sy + s * 0.1); ctx.quadraticCurveTo(sx - s * 0.16, sy + s * 0.05, sx, sy - s * 0.25); ctx.fill(); ctx.stroke();
+  } else if (mood === 'happy') {
+    ctx.lineWidth = Math.max(1, s * 0.025);
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) { const bx = side * s * 0.45 + off + i * s * 0.06; ctx.beginPath(); ctx.moveTo(bx, s * 0.3); ctx.lineTo(bx - s * 0.05, s * 0.4); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+function vChar(ch) { return ({ 'ー': '｜', '…': '︙', '〜': '≀', '（': '︵', '）': '︶' })[ch] || ch; }
+function bubble(ctx, text, b, r, tail) {
+  const fs = Math.max(17, Math.min(28, b.w * 0.075)), lh = fs * 1.25, maxRows = Math.max(3, Math.min(8, Math.floor((b.h * 0.55) / fs)));
+  const cols = []; for (let i = 0; i < text.length; i += maxRows) cols.push([...text].slice(i, i + maxRows));
+  const rows = Math.max(...cols.map(c => c.length));
+  const tw = cols.length * lh, th = rows * fs, rx = tw / 2 + fs * 0.9, ry = th / 2 + fs * 0.9;
+  if (rx * 2 > b.w * 0.9 || ry * 2 > b.h * 0.95) return;
+  const right = tail ? tail.x < b.x + b.w / 2 : r() < 0.5;
+  const cx = right ? b.x + b.w - rx - 10 : b.x + rx + 10, cy = b.y + ry + 8;
+  ctx.save(); ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2.6;
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); ctx.fill(); ctx.stroke();
+  if (tail) { // しっぽ
+    const a = Math.atan2(tail.y - cy, tail.x - cx), bx = cx + Math.cos(a) * rx * 0.85, by = cy + Math.sin(a) * ry * 0.85;
+    const tx = bx + (tail.x - bx) * 0.35, ty = by + (tail.y - by) * 0.35, n = 0.22;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a - n) * rx * 0.97, cy + Math.sin(a - n) * ry * 0.97); ctx.lineTo(tx, ty);
+    ctx.lineTo(cx + Math.cos(a + n) * rx * 0.97, cy + Math.sin(a + n) * ry * 0.97); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx - 1.5, ry - 1.5, 0, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#000'; ctx.font = `700 ${fs}px "Zen Kaku Gothic New", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  cols.forEach((col, ci) => { const x = cx + tw / 2 - lh * (ci + 0.5);
+    col.forEach((ch, ri) => { const y = cy - th / 2 + fs * (ri + 0.5);
+      if (ch === '、' || ch === '。') ctx.fillText(ch, x + fs * 0.55, y - fs * 0.5); else ctx.fillText(vChar(ch), x, y); }); });
+  ctx.restore();
+}
+function sfx(ctx, b, r) {
+  const word = pick(r, SFX), fs = Math.min(b.w, b.h) * (0.22 + r() * 0.1);
+  ctx.save(); ctx.translate(b.x + b.w * (0.3 + r() * 0.4), b.y + b.h * (0.25 + r() * 0.3)); ctx.rotate((r() - 0.5) * 0.5);
+  ctx.font = `${fs}px "Dela Gothic One", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = fs * 0.22; ctx.strokeStyle = '#fff'; ctx.fillStyle = '#000';
+  [...word].forEach((ch, i) => { const y = (i - (word.length - 1) / 2) * fs * 0.92; ctx.strokeText(vChar(ch), 0, y); ctx.fillText(vChar(ch), 0, y); });
+  ctx.restore();
+}
+function scenery(ctx, b, r) {
+  const ground = b.y + b.h * (0.62 + r() * 0.15);
+  ctx.fillStyle = tonePattern(ctx, 7, 1.6); ctx.fillRect(b.x, b.y, b.w, ground - b.y);
+  if (r() < 0.5) { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(b.x + b.w * (0.2 + r() * 0.6), b.y + b.h * 0.25, Math.min(b.w, b.h) * 0.11, 0, 7); ctx.fill(); ctx.stroke(); }
+  let x = b.x - 10; ctx.lineWidth = 2;
+  while (x < b.x + b.w) { const w = 30 + r() * 70, h = (ground - b.y) * (0.2 + r() * 0.55);
+    ctx.fillStyle = r() < 0.4 ? '#000' : '#fff'; ctx.strokeStyle = '#000'; ctx.fillRect(x, ground - h, w, h); ctx.strokeRect(x, ground - h, w, h);
+    if (ctx.fillStyle === '#ffffff') { ctx.fillStyle = '#000'; for (let wy = ground - h + 10; wy < ground - 12; wy += 16) for (let wx = x + 7; wx < x + w - 10; wx += 14) if (r() < 0.6) ctx.fillRect(wx, wy, 6, 8); }
+    x += w + r() * 6; }
+  ctx.beginPath(); ctx.moveTo(b.x, ground); ctx.lineTo(b.x + b.w, ground); ctx.lineWidth = 3; ctx.stroke();
+  if (r() < 0.45) { ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; for (let i = 0; i < 90; i++) { const rx = b.x + r() * b.w, ry = b.y + r() * b.h; ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 6, ry + 26); ctx.stroke(); } }
+}
+function samplePage(n) {
+  const W = 840, H = 1188, r = rng(n * 7919 + 17);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const cast = [0, 1].map(() => ({ hair: Math.floor(r() * 3), hairInk: r() < 0.55, shirt: pick(r, ['#fff', '#000', tonePattern(ctx, 6, 1.4)]) }));
+  const L = 58, T = 64, R = W - 58, B = H - 84, gx = 12, gy = 26;
+  const tiers = r() < 0.5 ? 3 : 4, wts = Array.from({ length: tiers }, () => 0.7 + r());
+  const sum = wts.reduce((a, b) => a + b), usable = B - T - gy * (tiers - 1);
+  let y = T;
+  wts.forEach((wt, ti) => {
+    const h = usable * wt / sum, n = pick(r, [1, 2, 2, 3]), ws = Array.from({ length: n }, () => 0.6 + r());
+    const ws0 = ws.reduce((a, b) => a + b), uw = R - L - gx * (n - 1);
+    let x = R; // 漫画は右から左へ
+    ws.forEach(w0 => {
+      const w = uw * w0 / ws0, b = { x: x - w, y, w, h };
+      x -= w + gx;
+      panel(ctx, b, r, cast);
+    });
+    y += h + gy;
+  });
+  // トンボ（裁ち落としの目印）とノンブル
+  ctx.strokeStyle = '#8cc8ea'; ctx.lineWidth = 1;
+  for (const [cx, cy, dx, dy] of [[24, 24, 1, 1], [W - 24, 24, -1, 1], [24, H - 24, 1, -1], [W - 24, H - 24, -1, -1]]) {
+    ctx.beginPath(); ctx.moveTo(cx, cy + dy * 22); ctx.lineTo(cx, cy); ctx.lineTo(cx + dx * 22, cy); ctx.stroke(); }
+  ctx.fillStyle = '#000'; ctx.font = '700 18px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(String(n), W / 2, H - 40);
+  return c;
+}
+function panel(ctx, b, r, cast) {
+  ctx.save(); ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip();
+  const kind = pick(r, b.w > 260 ? ['face', 'duo', 'duo', 'fx', 'scene'] : ['face', 'face', 'fx', 'scene']);
+  const moods = ['normal', 'happy', 'shock', 'angry', 'sad'];
+  let tail = null;
+  if (kind === 'face') {
+    const who = pick(r, cast), s = Math.min(b.w * 0.26, b.h * 0.27), mood = pick(r, moods);
+    const cx = b.x + b.w * (0.35 + r() * 0.3), cy = b.y + b.h * 0.58;
+    if (mood === 'shock' || r() < 0.3) concentration(ctx, b, r, cx, cy, s * 1.6);
+    else if (r() < 0.5) { ctx.fillStyle = tonePattern(ctx, 6, 1.3 + r()); ctx.fillRect(b.x, b.y, b.w, b.h); }
+    drawChar(ctx, cx, cy, s, who, mood, r, r() < 0.5 ? 1 : -1);
+    tail = { x: cx, y: cy - s * 0.4 };
+  } else if (kind === 'duo') {
+    const s = Math.min(b.w * 0.13, b.h * 0.2), gyy = b.y + b.h * 0.62;
+    if (r() < 0.5) { ctx.fillStyle = tonePattern(ctx, 8, 1.2); ctx.fillRect(b.x, b.y, b.w, b.h); }
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x, gyy + s * 2.6); ctx.lineTo(b.x + b.w, gyy + s * 2.6); ctx.stroke();
+    drawChar(ctx, b.x + b.w * 0.3, gyy, s, cast[0], pick(r, moods), r, 1);
+    drawChar(ctx, b.x + b.w * 0.7, gyy, s, cast[1], pick(r, moods), r, -1);
+    tail = { x: b.x + b.w * (r() < 0.5 ? 0.3 : 0.7), y: gyy - s };
+  } else if (kind === 'fx') {
+    if (r() < 0.5) concentration(ctx, b, r, b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w, b.h) * 0.2);
+    else speedLines(ctx, b, r);
+    sfx(ctx, b, r);
+  } else scenery(ctx, b, r);
+  ctx.restore();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 4.5; ctx.strokeRect(b.x, b.y, b.w, b.h);
+  if (kind !== 'scene' && kind !== 'fx' && r() < 0.85) bubble(ctx, pick(r, LINES), b, r, tail);
+  else if (kind === 'scene' && r() < 0.5) { // ナレーション枠
+    const t = pick(r, ['その日の夕方', '三日後', '一方そのころ', '放課後']); ctx.save();
+    ctx.font = '700 18px "Zen Kaku Gothic New", sans-serif'; const fs = 18, h = [...t].length * fs + 20;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.fillRect(b.x + b.w - 44, b.y + 10, 34, h); ctx.strokeRect(b.x + b.w - 44, b.y + 10, 34, h);
+    ctx.fillStyle = '#000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    [...t].forEach((ch, i) => ctx.fillText(vChar(ch), b.x + b.w - 27, b.y + 20 + fs * (i + 0.5))); ctx.restore();
+  }
+}
+
+/* ---------- 本棚の保存（この端末のブラウザ内だけ） ---------- */
+const store = {
+  db: null,
+  async open() {
+    try {
+      this.db = await new Promise((res, rej) => { const q = indexedDB.open('manga-kuji', 1);
+        q.onupgradeneeded = () => q.result.createObjectStore('books', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+    } catch { this.db = null; }
+  },
+  tx(mode, fn) { if (!this.db) return Promise.resolve(null);
+    return new Promise(res => { try { const t = this.db.transaction('books', mode), q = fn(t.objectStore('books')); t.oncomplete = () => res(q && q.result); t.onerror = () => res(null); } catch { res(null); } }); },
+  all() { return this.tx('readonly', s => s.getAll()); },
+  put(rec) { return this.tx('readwrite', s => s.put(rec)); },
+  del(id) { return this.tx('readwrite', s => s.delete(id)); },
+};
+let sampleOn = true;
+try { sampleOn = localStorage.getItem('manga-kuji-sample') !== 'off'; } catch {}
+
+/* ---------- 本の種類ごとの読み方 ---------- */
+const loaded = {};
+function loadScript(src) {
+  return loaded[src] ||= new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error('読み込み用の部品を取得できませんでした。ネットにつながっているか確かめてください。')); }; document.head.append(s); });
+}
+async function pdfLib() {
+  await loadScript(CDN.pdf); await loadScript(CDN.pdfWorker);
+  const lib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+  lib.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
+  return lib;
+}
+const toBlobURL = canvas => new Promise(res => canvas.toBlob(b => res(URL.createObjectURL(b)), 'image/png'));
+
+const books = []; // {id,name,kind,count,enabled,rec,cache}
+const sample = { id: 'sample', name: '見本：その場で描くオリジナル漫画', kind: 'sample', count: SAMPLE_PAGES, get enabled() { return sampleOn; } };
+
+async function openBook(book) {
+  if (book.cache) return book.cache;
+  const rec = book.rec;
+  if (rec.kind === 'images') book.cache = { pages: rec.files };
+  else if (rec.kind === 'zip') {
+    await loadScript(CDN.jszip);
+    const zip = await JSZip.loadAsync(rec.file);
+    const ents = Object.values(zip.files).filter(f => !f.dir && IMG_RE.test(f.name) && !/(^|\/)(__MACOSX|\.)/.test(f.name)).sort((a, b) => natural(a.name, b.name));
+    book.cache = { pages: ents };
+  } else if (rec.kind === 'pdf') {
+    const lib = await pdfLib();
+    const doc = await lib.getDocument({ data: new Uint8Array(await rec.file.arrayBuffer()) }).promise;
+    book.cache = { doc, pages: { length: doc.numPages } };
+  }
+  return book.cache;
+}
+async function pageURL(book, i) {
+  if (book.kind === 'sample') { if (document.fonts) await document.fonts.ready; return toBlobURL(samplePage(i + 1)); }
+  const c = await openBook(book);
+  if (book.kind === 'images') return URL.createObjectURL(c.pages[i]);
+  if (book.kind === 'zip') return URL.createObjectURL(await c.pages[i].async('blob'));
+  const page = await c.doc.getPage(i + 1), vp0 = page.getViewport({ scale: 1 }), scale = Math.min(3, 1500 / vp0.height);
+  const vp = page.getViewport({ scale }), cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+  await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  return toBlobURL(cv);
+}
+
+/* ---------- 画面 ---------- */
+let current = null, curURL = null, history = [], token = 0;
+const msg = (t, err) => { $('msg').textContent = t; $('msg').classList.toggle('err', !!err); };
+const allBooks = () => [sample, ...books];
+const findBook = id => allBooks().find(b => b.id === id);
+
+async function show(book, i, remember = true) {
+  const my = ++token; $('busy').hidden = false;
+  try {
+    const url = await pageURL(book, i);
+    if (my !== token) { URL.revokeObjectURL(url); return; }
+    const img = $('pageImg');
+    await new Promise(res => { img.onload = img.onerror = res; img.src = url; });
+    if (curURL) URL.revokeObjectURL(curURL); curURL = url;
+    current = { book, i };
+    img.alt = `${book.name} の ${i + 1}ページ`;
+    $('bookName').textContent = book.name;
+    $('nombre').innerHTML = book.kind === 'sample' ? `ノンブル <b>${i + 1}</b>` : `ノンブル <b>${i + 1}</b> / ${book.count}`;
+    const sh = $('sheet'); sh.classList.remove('flip'); void sh.offsetWidth; sh.classList.add('flip');
+    $('prevBtn').disabled = i <= 0; $('nextBtn').disabled = i >= book.count - 1;
+    if (remember) { history = [{ id: book.id, i, name: book.name }, ...history.filter(h => !(h.id === book.id && h.i === i))].slice(0, 12); renderHist(); }
+  } catch (e) { if (my === token) msg(`このページを開けませんでした：${e.message || e}`, true); }
+  finally { if (my === token) $('busy').hidden = true; }
+}
+function draw() {
+  const pool = allBooks().filter(b => b.enabled && b.count > 0);
+  if (!pool.length) { msg('くじに入っている本がありません。本棚のチェックを入れてください。', true); return; }
+  // 本を均等に選んでからページを選ぶ（見本の9999ページに埋もれないように）
+  const book = pool[Math.floor(Math.random() * pool.length)];
+  let i = Math.floor(Math.random() * book.count);
+  if (pool.length === 1 && book.count > 1 && current && current.book === book && current.i === i) i = (i + 1 + Math.floor(Math.random() * (book.count - 1))) % book.count;
+  msg(''); show(book, i);
+}
+function step(d) { if (!current) return; const i = current.i + d; if (i >= 0 && i < current.book.count) show(current.book, i, false); }
+
+function renderHist() {
+  const h = $('hist'); h.replaceChildren();
+  if (!history.length) { h.innerHTML = '<p class="empty">まだありません</p>'; return; }
+  for (const e of history) { const b = document.createElement('button'); b.textContent = `${e.name.replace(/^見本：.*/, '見本')}  p.${e.i + 1}`; b.title = `${e.name} の ${e.i + 1}ページ`;
+    b.onclick = () => { const bk = findBook(e.id); if (bk) show(bk, e.i, false); else msg('その本はもう本棚にありません。', true); }; h.append(b); }
+}
+function renderShelf() {
+  const ul = $('shelf'); ul.replaceChildren();
+  for (const b of allBooks()) {
+    const li = document.createElement('li'), cb = document.createElement('input'), nm = document.createElement('label');
+    cb.type = 'checkbox'; cb.id = 'en-' + b.id; cb.checked = b.enabled; nm.htmlFor = cb.id; nm.className = 'name';
+    nm.textContent = b.name; const sub = document.createElement('span');
+    sub.textContent = b.kind === 'sample' ? '描くたびに新しいページ' : `${b.count}ページ・${{ images: '画像', zip: 'ZIP/CBZ', pdf: 'PDF' }[b.kind]}`; nm.append(sub);
+    cb.onchange = () => {
+      if (b.kind === 'sample') { sampleOn = cb.checked; try { localStorage.setItem('manga-kuji-sample', sampleOn ? 'on' : 'off'); } catch {} }
+      else { b.enabled = cb.checked; b.rec.enabled = cb.checked; store.put(b.rec); }
+    };
+    li.append(cb, nm);
+    if (b.kind !== 'sample') {
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = '外す'; del.title = '本棚から外す';
+      del.onclick = async () => {
+        if (!del.classList.contains('arm')) { del.classList.add('arm'); del.textContent = '本当に？'; setTimeout(() => { del.classList.remove('arm'); del.textContent = '外す'; }, 3000); return; }
+        books.splice(books.indexOf(b), 1); await store.del(b.id); history = history.filter(h => h.id !== b.id); renderHist(); renderShelf(); msg(`「${b.name}」を本棚から外しました。`);
+      };
+      li.append(del);
+    } else li.append(document.createElement('span'));
+    ul.append(li);
+  }
+}
+
+async function addRecord(rec) {
+  const book = { id: rec.id, name: rec.name, kind: rec.kind, count: rec.count, enabled: rec.enabled, rec };
+  if (!book.count) { book.count = (await openBook(book)).pages.length; rec.count = book.count; }
+  if (!book.count) throw new Error(`「${rec.name}」の中に漫画の画像が見つかりませんでした`);
+  books.push(book); return book;
+}
+async function addFiles(list) {
+  const files = [...list]; if (!files.length) return;
+  msg('本棚に入れています…');
+  const groups = new Map(), singles = [];
+  for (const f of files) {
+    const path = f.webkitRelativePath || f._path || '';
+    if (/\.(zip|cbz)$/i.test(f.name) || /\.pdf$/i.test(f.name) || f.type === 'application/pdf') singles.push(f);
+    else if (IMG_RE.test(f.name) || f.type.startsWith('image/')) {
+      const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : 'まとめて入れた画像';
+      if (!groups.has(dir)) groups.set(dir, []); groups.get(dir).push({ f, key: path || f.name });
+    }
+  }
+  const recs = [];
+  for (const [dir, arr] of groups) { arr.sort((a, b) => natural(a.key, b.key));
+    recs.push({ id: crypto.randomUUID(), name: dir.split('/').pop(), kind: 'images', files: arr.map(a => a.f), count: arr.length, enabled: true }); }
+  for (const f of singles) recs.push({ id: crypto.randomUUID(), name: f.name.replace(/\.(zip|cbz|pdf)$/i, ''), kind: /\.pdf$/i.test(f.name) || f.type === 'application/pdf' ? 'pdf' : 'zip', file: f, enabled: true });
+  if (!recs.length) { msg('漫画として読めるファイルがありませんでした。画像・ZIP/CBZ・PDF を入れてください。', true); return; }
+  let added = 0, errs = [];
+  for (const rec of recs) { try { await addRecord(rec); await store.put(rec); added++; } catch (e) { errs.push(e.message || String(e)); } }
+  if (added && sampleOn && books.length === added) { sampleOn = false; try { localStorage.setItem('manga-kuji-sample', 'off'); } catch {} }
+  renderShelf();
+  if (errs.length) msg(errs.join(' / '), true); else msg(`${added}冊を本棚に入れました。`);
+  if (added) draw();
+}
+
+// フォルダごとドロップされたときに中身をたどる
+async function walk(entry, out) {
+  if (entry.isFile) { const f = await new Promise((res, rej) => entry.file(res, rej)); f._path = entry.fullPath.replace(/^\//, ''); out.push(f); }
+  else if (entry.isDirectory) { const rd = entry.createReader(); let batch;
+    do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const e of batch) await walk(e, out); } while (batch.length); }
+}
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === 'drop' || !e.relatedTarget) drop.classList.remove('over'); }));
+document.addEventListener('drop', async e => {
+  const items = [...(e.dataTransfer.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (items.length) { const out = []; for (const en of items) await walk(en, out); addFiles(out); } else addFiles(e.dataTransfer.files);
+});
+$('fileIn').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('dirIn').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('drawBtn').onclick = draw;
+$('nextBtn').onclick = () => step(1);
+$('prevBtn').onclick = () => step(-1);
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === ' ' || e.key === 'Enter' && e.target === document.body) { e.preventDefault(); draw(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); step(1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); step(-1); }
+});
+
+(async () => {
+  await store.open();
+  const recs = (await store.all()) || [];
+  for (const rec of recs) { try { await addRecord(rec); } catch {} }
+  if (!books.length && !sampleOn) sampleOn = true;
+  renderShelf();
+  draw();
+})();
+})();
+</script>
