@@ -60,7 +60,7 @@ section[hidden]{display:none!important}
 .wish label{font-weight:900;font-size:14px}
 .wish input{flex:1 1 220px;min-width:0;font:inherit;border:1.5px solid var(--rule-strong);border-radius:10px;padding:8px 12px;background:var(--card);color:var(--ink)}
 .progress{border:2px solid var(--ink);border-radius:16px;background:var(--card);padding:16px;display:grid;gap:14px}
-.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;counter-reset:st}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 @media (max-width:560px){.steps{grid-template-columns:1fr 1fr}}
 .steps li{border:1.5px solid var(--rule-strong);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--sub);position:relative;min-width:0}
 .steps li b{display:block;font-size:14px;color:var(--ink)}
@@ -83,6 +83,9 @@ section[hidden]{display:none!important}
 .read{display:grid;gap:12px;justify-items:center}
 .read-head{width:100%;display:flex;justify-content:space-between;gap:10px;align-items:flex-end;flex-wrap:wrap}
 .read-head>div{min-width:0}
+.artaim{font-size:13.5px;font-weight:700;margin:2px 0}
+.artaim::before{content:"";display:inline-block;width:.7em;height:.7em;border-radius:2px;background:var(--ink);margin-right:.4em;vertical-align:-.05em}
+.book .artline{font-size:11.5px;color:var(--ink)}
 .aim{font-size:12.5px;border:1.5px solid var(--accent);color:var(--ink);background:var(--accent-soft);border-radius:999px;padding:3px 12px;font-weight:700}
 .sheet{position:relative;background:var(--paper);box-shadow:var(--shadow);line-height:0;max-width:100%;border-radius:2px;cursor:pointer;touch-action:pan-y;user-select:none}
 .sheet canvas{display:block;max-width:100%;width:auto;height:auto;max-height:calc(100vh - 230px);min-height:260px}
@@ -186,7 +189,9 @@ details.memo ul{margin:6px 0;padding-left:1.2em;font-size:13.5px}
     <div class="progress" id="progress" hidden aria-live="polite">
       <ol class="steps" id="steps">
         <li data-step="writer"><b>作者</b>ネームを書いています</li>
-        <li data-step="editor"><b>編集者</b>チェック中</li>
+        <li data-step="name"><b>編集者</b>ネームを読み、絵柄を決めています</li>
+        <li data-step="draw"><b>作画</b>その絵柄で描いています</li>
+        <li data-step="check"><b>編集者</b>仕上がりをチェック中</li>
         <li data-step="revise"><b>作者</b>直しています</li>
         <li data-step="finish"><b>仕上げ</b>原稿にしています</li>
       </ol>
@@ -202,7 +207,7 @@ details.memo ul{margin:6px 0;padding-left:1.2em;font-size:13.5px}
   </section>
 
   <section id="tab-read" class="read" role="tabpanel" aria-labelledby="tb-read" hidden>
-    <div class="read-head"><div><h2 id="rTitle"></h2><div class="sub" id="rMeta"></div></div><span class="aim" id="rAim" hidden></span></div>
+    <div class="read-head"><div><h2 id="rTitle"></h2><div class="sub" id="rMeta"></div><div class="artaim" id="rArt" hidden></div></div><span class="aim" id="rAim" hidden></span></div>
     <div class="sheet" id="sheet" title="左半分をタップで次へ／右半分で前へ"></div>
     <div class="pbar" aria-hidden="true"><i id="barFill"></i></div>
     <div class="nav">
@@ -457,14 +462,16 @@ function face(ctx, o) {
   const { R, cx: fcx, cy: hc, expr, eyes, look, F, ink = '#000', paper = '#fff', lw, species } = o;
   const fy = look === 'up' ? -R * 0.16 : look === 'down' ? R * 0.1 : 0;
   const ex = R * (o.ex || 0.36), ey = hc + R * (o.eyY != null ? o.eyY : 0.2) + fy, my = hc + R * (o.mY || 0.6) + fy * 0.5;
-  let ew = R * 0.12, eh = R * 0.19;
-  if (eyes === 'sparkle') { ew = R * 0.16; eh = R * 0.25; }
+  const AS = CUR_ART.eyeStyle, ek = 0.7 + (CUR_ART.eyeSize ?? 0.5) * 0.6;
+  let eyesX = eyes; if (AS === 'dot') eyesX = 'dot'; else if (AS === 'sparkle' && eyes !== 'dot') eyesX = 'sparkle'; else if ((AS === 'sharp' || AS === 'realistic') && eyes !== 'dot') eyesX = 'sharp';
+  let ew = R * 0.12 * ek, eh = R * 0.19 * ek * (AS === 'realistic' ? 0.7 : 1);
+  if (eyesX === 'sparkle') { ew = R * 0.16 * ek; eh = R * 0.25 * ek; }
   const by = ey - R * 0.36;
   const cx = fcx + (look === 'side' ? (F || 1) * R * 0.08 : 0);
   ctx.strokeStyle = ink; ctx.fillStyle = ink;
   let [eye, brow, mouth, extra] = FACE[expr] || FACE.normal;
-  if (eye === 'base') eye = eyes || 'round';
-  if (eye === 'big') eye = eyes === 'dot' ? 'dot' : 'round';
+  if (eye === 'base') eye = eyesX || 'round';
+  if (eye === 'big') eye = eyesX === 'dot' ? 'dot' : 'round';
   if (species === 'cat' && mouth === 'line') mouth = 'cat';
   for (const s of [-1, 1]) {
     const x = cx + s * ex;
@@ -690,6 +697,7 @@ function wornHead(ctx, items, R, hc, lw, F, u, stage, ch) {
 /* ========== 人型（人間・動物・ロボット・宇宙人） ========== */
 function geoFor(ch) {
   const g = { ...(GEO[ch.age] || GEO.adult) };
+  const hk = 0.82 + (CUR_ART.headRatio ?? 0.5) * 0.36, R0 = g.R; g.R = R0 * hk; g.hc -= (g.R - R0) * 0.9;
   if (ch.body === 'slim') g.shX *= 0.88;
   if (ch.body === 'round') { g.shX *= 1.22; g.legX *= 1.2; }
   if (ch.species === 'robot') { g.armW *= 1.1; }
@@ -697,7 +705,7 @@ function geoFor(ch) {
 }
 function humanoid(ctx, X, Y, u, ch, o, r) {
   const g = geoFor(ch), sp = ch.species, robot = sp === 'robot', alien = sp === 'alien', animal = ANIMALS.includes(sp);
-  const lw = clamp(1.3 + 100 * u * 0.0045, 1.5, 4.6) / u;
+  const lw = clamp(1.3 + 100 * u * 0.0045, 1.5, 4.6) / u * (0.65 + CUR_ART.line.weight * 0.7);
   const F = o.F, fw = F || 1, back = o.back, pose = o.pose || 'stand', legs = legsFor(pose);
   const OF = (ch.outfit === 'none' && (sp === 'human')) ? OUTFIT.tshirt : (OUTFIT[ch.outfit] || OUTFIT.tshirt);
   const fur = animal || alien ? (ch.hairColor === 'black' ? '#141414' : ch.hairColor === 'tone' ? MID(ctx, u) : ch.hairColor === 'light' ? LIGHT(ctx, u) : '#fff') : '#fff';
@@ -871,7 +879,7 @@ function robotHead(ctx, ch, o, R, hc, lw, F, u, back) {
 const PUFFS = [[0, 0.06, 0.52], [-0.5, 0.16, 0.36], [0.52, 0.15, 0.38], [-0.27, -0.3, 0.4], [0.27, -0.33, 0.44], [-0.78, 0.3, 0.22], [0.8, 0.3, 0.22], [0, 0.32, 0.38], [-0.45, 0.36, 0.25], [0.45, 0.36, 0.25]];
 function bodyFill(ctx, c, u) { return c === 'gray' ? tone(ctx, 6, 1.3, u) : c === 'dark' ? DARK(ctx, u) : c === 'black' ? '#141414' : c === 'tone' ? MID(ctx, u) : '#fff'; }
 function creature(ctx, X, Y, u, ch, o, r, panel) {
-  const sp = ch.species, lw = clamp(1.5 + 100 * u * 0.004, 1.6, 4.6) / u, F = o.F, expr = o.expr || 'normal';
+  const sp = ch.species, lw = clamp(1.5 + 100 * u * 0.004, 1.6, 4.6) / u * (0.65 + CUR_ART.line.weight * 0.7), F = o.F, expr = o.expr || 'normal';
   ctx.save(); ctx.translate(X, Y); ctx.scale(u, u); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   let head = { x: 0, y: -50, r: 30 }, box = { x: -45, y: -100, w: 90, h: 100 };
   const fl = o.pose === 'jump' || o.pose === 'cheer' ? -12 : 0;
@@ -1279,43 +1287,118 @@ function drawBackground(ctx, b, name, env) {
   if (env.weather === 'fog') { ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(b.x, b.y, b.w, b.h); }
 }
 /* =========================================================
-   作画モジュールの差し替え口（ART）
-   エンジン（コマ割り・吹き出し・自動チェック）は、人物と背景をここ経由でしか描かない。
-   高画質な作画モジュールは window.MangaArt.register({...}) で、下の3つを差し替えるだけでよい。
+   絵柄（art）＝連続パラメータ ＋ 作画方針の文章 ＋ 狙い
+   作品単位の script.art を、コマ単位の panel.art で部分的に上書きできる（例：1コマだけ劇画調の「劇画オチ」）。
+   絵柄はジャンルから決めない。編集者が物語を読んで、自分のセンスと狙いで決める。
 
-   drawCharacter(ctx, spec, pose, expr, box) → { head:{x,y,r}, body:{x,y,w,h} }   （ページ座標 px）
-     spec : 正規化済みの人物定義（species, age, body, hair, hairColor, eyes, outfit, pattern, items, color, size）
-     pose : POSES のどれか　　expr : EXPRS のどれか
-     box  : { footX, footY, unit,           足もとの位置と「1単位あたりのpx」（大人の身長≒100単位）
-              facing: -1|0|1, back: bool, look: 'up'|'down'|'side'|null,
-              hold: HELD のどれか|'none'|null, color, rain,   （コマごとの上書き）
-              panel: {x,y,w,h}, rand: () => 0..1 }
-   drawBackground(ctx, spec, box)
-     spec : { name: BG_LIST のどれか, time, weather, horizon: 0..1, shot }
-     box  : { x, y, w, h, rand }        ※ clip 済みの領域に描く
-   metrics(spec) → { top, hc, R, widthRatio, size }
-     top: 足もとから頭のてっぺんまでの単位数, hc: 頭の中心のy（足もと基準・上がマイナス）, R: 頭の半径（単位）,
-     widthRatio: 横幅÷身長, size: ほかの人物と並べたときの相対的な背の高さ
+   作画モジュール（暫定アダプター）：
+     window.MangaStyles.register(name, {
+       drawCharacter(ctx, charSpec, pose, expression, box, opts) → { head:{x,y,r}, body:{x,y,w,h} }  // ページ座標 px
+       drawBackground(ctx, bgSpec, box, opts)
+       drawEffect(ctx, effectSpec, box, opts)      // false を返すと標準の描き方
+       metrics(charSpec, opts) → { top, hc, R, widthRatio, size }   // 省略可
+     })
+     ・opts は、そのコマで有効な art パラメータ（下の ART_DEFAULT と同じ形）。
+     ・登録された最後のモジュールが使われる（art.renderer に名前があればそれを優先）。
+     ・ページに <meta name="manga-styles" content="styles/index.js"> を置くと、起動時にそのファイルを読み込む
+       （無いファイルを読みに行ってエラーを出さないよう、置いたときだけ読む）。無ければ組み込みの汎用描画で描く。
+   引数：
+     charSpec : 正規化済みの人物定義（species, age, body, hair, hairColor, eyes, outfit, pattern, items, color, size, name, desc）
+     box(人物) : { footX, footY, unit(大人の身長≒100単位のときの px), facing:-1|0|1, back, look, hold, color, rain, panel:{x,y,w,h}, rand }
+     bgSpec   : { name: BG_LIST のどれか, time, weather, horizon:0..1, shot }
+     box(背景・効果) : { x, y, w, h, rand }（clip 済み）
+     effectSpec : { name: FX_LIST のどれか, phase:'under'|'over', focus:{x,y}, heads:[{x,y,r}], dark:bool }
    ========================================================= */
+const ART_DEFAULT = {
+  headRatio: 0.5, deform: 0.4, eyeSize: 0.5, eyeStyle: 'round',
+  line: { weight: 0.5, taper: 0.4, jitter: 0.1, roughness: 0.15 },
+  hatching: 0.15, crossHatch: 0.05, black: 0.3, tone: 0.5, toneKind: 'dot', detail: 0.5, perspective: 0.4,
+  dynamism: 0.4, sparkle: 0.2, softness: 0.4, grain: 0.05, panelFrame: 'clean',
+};
+const EYE_STYLES = ['dot', 'simple', 'round', 'sparkle', 'sharp', 'realistic'];
+const TONE_KINDS = ['dot', 'gradient', 'line', 'sand', 'none'];
+const FRAMES = ['clean', 'rough', 'rounded', 'borderless', 'dynamic'];
+/* 数値のパラメータ（分析にも使う）：[パス, 名前, 0側, 1側] */
+const ART_NUM = [
+  ['headRatio', '頭の大きさ', 'リアルな頭身', '大きな頭'], ['deform', 'デフォルメ', '写実', '崩し'], ['eyeSize', '目の大きさ', '小さい', '大きい'],
+  ['line.weight', '線の太さ', '細い', '太い'], ['line.taper', '線の入り抜き', '均一', '強弱'], ['line.jitter', '線の揺れ', 'まっすぐ', '揺れる'], ['line.roughness', '線の荒さ', 'きれい', 'ラフ'],
+  ['hatching', '斜線', '少ない', '多い'], ['crossHatch', '網目の斜線', '少ない', '多い'], ['black', 'ベタ', '白っぽい', '黒っぽい'], ['tone', 'トーン', '少ない', '多い'],
+  ['detail', '描き込み', 'あっさり', '描き込み'], ['perspective', 'パース', '平面的', '強いパース'], ['dynamism', '動き', '静か', '躍動'],
+  ['sparkle', 'キラキラ', 'なし', '多い'], ['softness', 'やわらかさ', '硬い', 'やわらか'], ['grain', 'ざらつき', 'つるつる', 'ざらざら'],
+];
+const getP = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+function normalizeArt(a, base) {
+  const src = a && typeof a === 'object' ? a : {}; const b = base || ART_DEFAULT;
+  const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? clamp(x > 1 && x <= 10 ? x / 10 : x, 0, 1) : d; };
+  const out = { line: {} };
+  for (const k of ['headRatio', 'deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) out[k] = n(src[k], b[k]);
+  const sl = src.line && typeof src.line === 'object' ? src.line : {};
+  for (const k of ['weight', 'taper', 'jitter', 'roughness']) out.line[k] = n(sl[k], b.line[k]);
+  out.eyeStyle = EYE_STYLES.includes(src.eyeStyle) ? src.eyeStyle : b.eyeStyle;
+  out.toneKind = TONE_KINDS.includes(src.toneKind) ? src.toneKind : b.toneKind;
+  out.panelFrame = FRAMES.includes(src.panelFrame) ? src.panelFrame : b.panelFrame;
+  if (!base) { out.direction = String(src.direction || '').slice(0, 200); out.aim = String(src.aim || '').slice(0, 60); out.reason = String(src.reason || '').slice(0, 300); if (src.renderer) out.renderer = String(src.renderer).slice(0, 30); }
+  return out;
+}
+/* コマ単位の部分的な上書き（書いてある項目だけを持つ） */
+function normalizePanelArt(a) {
+  if (!a || typeof a !== 'object') return null;
+  const out = {}; let any = false;
+  for (const k of ['headRatio', 'deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) { const x = Number(a[k]); if (Number.isFinite(x)) { out[k] = clamp(x, 0, 1); any = true; } }
+  if (a.line && typeof a.line === 'object') { const l = {}; for (const k of ['weight', 'taper', 'jitter', 'roughness']) { const x = Number(a.line[k]); if (Number.isFinite(x)) { l[k] = clamp(x, 0, 1); any = true; } } if (Object.keys(l).length) out.line = l; }
+  for (const [k, list] of [['eyeStyle', EYE_STYLES], ['toneKind', TONE_KINDS], ['panelFrame', FRAMES]]) if (list.includes(a[k])) { out[k] = a[k]; any = true; }
+  if (a.note) out.note = String(a.note).slice(0, 60);
+  return any ? out : null;
+}
+function mergeArt(base, over) { if (!over) return base; return { ...base, ...over, line: { ...base.line, ...(over.line || {}) } }; }
+
 const WIDTH_RATIO = { cloud: 1.15, ghost: 0.8, star: 0.9, slime: 1.0, monster: 0.95 };
-const BUILTIN_ART = {
-  name: 'builtin-v1',
-  drawCharacter(ctx, spec, pose, expr, box) {
+let CUR_ART = ART_DEFAULT; // 組み込み描画が参照する、いま描いているコマの絵柄
+const BUILTIN_STYLE = {
+  name: 'builtin',
+  drawCharacter(ctx, spec, pose, expr, box, opts) {
+    CUR_ART = opts || ART_DEFAULT;
     const o = { pose, expr, F: box.facing, back: !!box.back, look: box.look, hold: box.hold, color: box.color, rain: box.rain };
     const res = drawCharacter(ctx, box.footX, box.footY, box.unit, spec, o, box.rand || Math.random, box.panel);
+    CUR_ART = ART_DEFAULT;
     return { head: { x: res.hx, y: res.hy, r: res.hr }, body: res.box };
   },
-  drawBackground(ctx, spec, box) {
+  drawBackground(ctx, spec, box, opts) {
+    const A = opts || ART_DEFAULT;
     drawBackground(ctx, box, spec.name, { time: spec.time, weather: spec.weather, hz: spec.horizon, r: box.rand || Math.random, shot: spec.shot });
+    if (['black', 'space', 'plain'].includes(spec.name)) return;
+    if (A.detail < 0.45) { ctx.fillStyle = `rgba(255,255,255,${(0.45 - A.detail) * 1.4})`; ctx.fillRect(box.x, box.y, box.w, box.h); }
+    if (A.black > 0.6) { ctx.save(); ctx.globalAlpha = (A.black - 0.6) * 1.6; toneGradient(ctx, box, 2.2, 0.4, 6, 0, 0.75); ctx.restore(); }
+    if (A.hatching > 0.4) { ctx.save(); ctx.globalAlpha = Math.min(0.8, (A.hatching - 0.4) * 1.6); ctx.fillStyle = cloth(ctx, 'hatch', 1); ctx.fillRect(box.x, box.y, box.w, box.h * 0.35); if (A.crossHatch > 0.4) { ctx.translate(box.x * 2 + box.w, 0); ctx.scale(-1, 1); ctx.fillRect(box.x, box.y, box.w, box.h * 0.25); } ctx.restore(); }
   },
-  metrics(spec) { const m = figureMetrics(spec); return { ...m, widthRatio: WIDTH_RATIO[spec.species] || 0.5, size: sizeFactor(spec) }; },
+  drawEffect(ctx, spec, box, opts) { return builtinEffect(ctx, spec, box, opts || ART_DEFAULT); },
+  metrics(spec, opts) { CUR_ART = opts || ART_DEFAULT; const m = figureMetrics(spec); CUR_ART = ART_DEFAULT; return { ...m, widthRatio: WIDTH_RATIO[spec.species] || 0.5, size: sizeFactor(spec) }; },
 };
-let ART = BUILTIN_ART;
-window.MangaArt = {
-  register(impl) { ART = { ...BUILTIN_ART, ...impl }; if (typeof window.__onArtChange === 'function') window.__onArtChange(); return ART.name; },
-  reset() { ART = BUILTIN_ART; if (typeof window.__onArtChange === 'function') window.__onArtChange(); },
-  get current() { return ART.name; },
+const STYLE_MODULES = {}; let lastModule = null;
+function moduleFor(art) { return (art && art.renderer && STYLE_MODULES[art.renderer]) || (lastModule && STYLE_MODULES[lastModule]) || BUILTIN_STYLE; }
+/* 1コマ（または表紙）を描くための作画セット：作品の art にコマの上書きを重ねた opts を渡す */
+function artFor(S, P) {
+  const opts = mergeArt(S.art || ART_DEFAULT, P && P.art);
+  const impl = moduleFor(S.art);
+  const safe = (fn, fb) => (...a) => { if (impl !== BUILTIN_STYLE && impl[fn]) { try { const r = impl[fn](...a, opts); if (r !== false && (fn !== 'drawCharacter' || (r && r.head))) return r; } catch (e) { console.warn('作画モジュール', impl.name, fn, e); } } return fb(...a, opts); };
+  return {
+    opts, module: impl.name,
+    drawCharacter: safe('drawCharacter', BUILTIN_STYLE.drawCharacter),
+    drawBackground: safe('drawBackground', BUILTIN_STYLE.drawBackground),
+    drawEffect: safe('drawEffect', BUILTIN_STYLE.drawEffect),
+    metrics: spec => { const base = BUILTIN_STYLE.metrics(spec, opts); if (impl === BUILTIN_STYLE || !impl.metrics) return base; try { return { ...base, ...impl.metrics(spec, opts) }; } catch (e) { return base; } },
+  };
+}
+window.MangaStyles = {
+  register(name, impl) { if (!name || !impl) return false; STYLE_MODULES[name] = { ...impl, name }; lastModule = name; if (typeof window.__onArtChange === 'function') window.__onArtChange(); return true; },
+  unregister(name) { delete STYLE_MODULES[name]; if (lastModule === name) lastModule = Object.keys(STYLE_MODULES).pop() || null; if (typeof window.__onArtChange === 'function') window.__onArtChange(); },
+  list: () => Object.keys(STYLE_MODULES), defaults: ART_DEFAULT, params: ART_NUM.map(p => p[0]), builtin: BUILTIN_STYLE,
 };
+function loadRendererModules() {
+  const meta = document.querySelector('meta[name="manga-styles"]'); const url = meta && meta.getAttribute('content');
+  if (!url) return Promise.resolve(false);
+  return new Promise(res => { try { const s = document.createElement('script'); s.src = url; s.async = true; s.onload = () => res(true); s.onerror = () => { s.remove(); res(false); }; document.head.append(s); setTimeout(() => res(false), 5000); } catch (e) { res(false); } });
+}
 /* =========================================================
    台本JSONの検証と正規化（足りない値には既定値を入れる）
    ========================================================= */
@@ -1407,7 +1490,7 @@ function normalizePanel(p, chars, issues, where) {
   if (narrFromSay.length) narr = [narr, ...narrFromSay].filter(Boolean).join('\n');
   const sfx = arr(p.sfx).map(s => typeof s === 'string' ? { text: s } : s).filter(s => s && (s.text || s.t)).map(s => ({ text: normText(s.text || s.t).slice(0, 8), size: pick(s.size, ['s', 'm', 'l'], { small: 's', medium: 'm', large: 'l', big: 'l' }, 'm') })).slice(0, 3);
   const fx = arr(p.fx || p.effects).map(f => pick(f, FX_LIST, { concentration: 'focus', 集中線: 'focus', speedlines: 'speed', blackout: 'dark', memory: 'flashback', 回想: 'flashback', glitter: 'sparkle', shine: 'sparkle', love: 'hearts', depression: 'gloom', boom: 'explosion', burst: 'impact', flash: 'impact' }, null)).filter(Boolean);
-  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4) };
+  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4), art: normalizePanelArt(p.art) };
 }
 function normalizeScript(raw, opts = {}) {
   const issues = [];
@@ -1438,7 +1521,7 @@ function normalizeScript(raw, opts = {}) {
     script: {
       v: 1, title: String(s.title || '無題').slice(0, 24), genre: String(s.genre || '').slice(0, 40), logline: String(s.logline || s.synopsis || '').slice(0, 200),
       ending: pick(s.ending, ['end', 'continue'], { tbc: 'continue', to_be_continued: 'continue', つづく: 'continue' }, 'end'),
-      characters: chars, cover, pages, episode: Math.max(1, Math.round(num(s.episode, 1, 1, 99))), seriesTitle: s.seriesTitle ? String(s.seriesTitle).slice(0, 24) : '',
+      characters: chars, cover, pages, art: normalizeArt(s.art), episode: Math.max(1, Math.round(num(s.episode, 1, 1, 99))), seriesTitle: s.seriesTitle ? String(s.seriesTitle).slice(0, 24) : '',
     }, issues,
   };
 }
@@ -1482,7 +1565,7 @@ function repairJSON(text) {
 let WARN = [];
 const charOf = (S, id) => S.characters.find(c => c.id === id);
 
-function placeCast(S, P, b) {
+function placeCast(S, P, b, ART) {
   const list = P.cast.map(c => ({ c, ch: charOf(S, c.id) })).filter(x => x.ch);
   const n = list.length; if (!n || P.shot === 'bg') return [];
   const m = Math.min(b.w, b.h), out = [];
@@ -1711,31 +1794,55 @@ function drawEndMark(ctx, b, word, heads, bodies, occupied) {
   const chars = [...word], step = (p.h - 30) / chars.length; chars.forEach((ch, i) => ctx.fillText(VMAP[ch] || ch, p.x + w / 2, p.y + 15 + step * (i + 0.5))); ctx.restore();
 }
 
-/* ---------- 演出（効果） ---------- */
-function fxBefore(ctx, P, b, r, focusPt) {
-  const fx = new Set(P.fx), dark = fx.has('dark') || ['space', 'black', 'cave', 'stage'].includes(P.bg);
-  if (fx.has('flowers')) ART.drawBackground(ctx, { name: 'flowers', time: 'day', weather: 'clear', horizon: 0.6, shot: P.shot }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
-  if (fx.has('tone')) { ctx.fillStyle = LIGHT(ctx); ctx.fillRect(b.x, b.y, b.w, b.h); }
-  if (fx.has('spotlight')) { ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.beginPath(); ctx.moveTo(focusPt[0] - b.w * 0.08, b.y); ctx.lineTo(focusPt[0] + b.w * 0.08, b.y); ctx.lineTo(focusPt[0] + b.w * 0.28, b.y + b.h); ctx.lineTo(focusPt[0] - b.w * 0.28, b.y + b.h); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); toneGradient(ctx, b, 0.1, 1.0, 7); }
-  if (fx.has('impact') || fx.has('explosion')) { const [x, y] = focusPt; ctx.beginPath(); const n = 18, R = Math.max(b.w, b.h) * 0.75; for (let i = 0; i <= n * 2; i++) { const a = i / (n * 2) * TAU, k = i % 2 ? 0.35 + r() * 0.2 : 1; i ? ctx.lineTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k) : ctx.moveTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k); } ctx.closePath(); ctx.fillStyle = fx.has('explosion') ? MID(ctx) : '#fff'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.stroke(); if (fx.has('explosion')) for (let i = 0; i < 6; i++) cloudShape(ctx, x + (r() - 0.5) * b.w * 0.6, y + (r() - 0.5) * b.h * 0.5, Math.min(b.w, b.h) * (0.06 + r() * 0.05)); }
-  if (fx.has('magic')) { const [x, y] = focusPt, R = Math.min(b.w, b.h) * 0.42; ctx.strokeStyle = dark ? '#fff' : '#000'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, R * 0.82, 0, TAU); ctx.stroke(); ctx.beginPath(); starPath(ctx, x, y, R * 0.82, R * 0.32); ctx.stroke(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.beginPath(); ctx.arc(x + Math.cos(a) * R * 0.91, y + Math.sin(a) * R * 0.91, 3, 0, TAU); ctx.fillStyle = dark ? '#fff' : '#000'; ctx.fill(); } }
-  if (fx.has('focus')) concentration(ctx, b, r, focusPt[0], focusPt[1], Math.min(b.w, b.h) * 0.3, 150, dark ? '#fff' : '#000');
-  if (fx.has('speed')) speedLines(ctx, b, r, 'h', 60, dark ? '#fff' : '#000');
-  if (fx.has('speedv')) speedLines(ctx, b, r, 'v', 60, dark ? '#fff' : '#000');
+/* ---------- 演出（効果）：1つずつ作画モジュールに渡す。組み込みの描き方 ---------- */
+const FX_UNDER = ['flowers', 'tone', 'spotlight', 'impact', 'explosion', 'magic', 'focus', 'speed', 'speedv'];
+function builtinEffect(ctx, spec, b, A) {
+  const r = b.rand || Math.random, dark = spec.dark, ink = dark ? '#fff' : '#000';
+  const fp = spec.focus ? [spec.focus.x, spec.focus.y] : [b.x + b.w / 2, b.y + b.h / 2];
+  const h0 = spec.heads && spec.heads[0] ? { hx: spec.heads[0].x, hy: spec.heads[0].y, hr: spec.heads[0].r } : null;
+  const dyn = A ? 0.6 + (A.dynamism || 0) * 0.9 : 1;
+  switch (spec.name) {
+    case 'flowers': BG.flowers(ctx, b, { r }); break;
+    case 'tone': ctx.fillStyle = LIGHT(ctx); ctx.fillRect(b.x, b.y, b.w, b.h); break;
+    case 'spotlight': ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.beginPath(); ctx.moveTo(fp[0] - b.w * 0.08, b.y); ctx.lineTo(fp[0] + b.w * 0.08, b.y); ctx.lineTo(fp[0] + b.w * 0.28, b.y + b.h); ctx.lineTo(fp[0] - b.w * 0.28, b.y + b.h); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); toneGradient(ctx, b, 0.1, 1.0, 7); break;
+    case 'impact': case 'explosion': { const [x, y] = fp; ctx.beginPath(); const n = 18, R = Math.max(b.w, b.h) * 0.75; for (let i = 0; i <= n * 2; i++) { const a = i / (n * 2) * TAU, k = i % 2 ? 0.35 + r() * 0.2 : 1; i ? ctx.lineTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k) : ctx.moveTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k); } ctx.closePath(); ctx.fillStyle = spec.name === 'explosion' ? MID(ctx) : '#fff'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.stroke(); if (spec.name === 'explosion') for (let i = 0; i < 6; i++) cloudShape(ctx, x + (r() - 0.5) * b.w * 0.6, y + (r() - 0.5) * b.h * 0.5, Math.min(b.w, b.h) * (0.06 + r() * 0.05)); break; }
+    case 'magic': { const [x, y] = fp, R = Math.min(b.w, b.h) * 0.42; ctx.strokeStyle = ink; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(x, y, R * 0.82, 0, TAU); ctx.stroke(); ctx.beginPath(); starPath(ctx, x, y, R * 0.82, R * 0.32); ctx.stroke(); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.beginPath(); ctx.arc(x + Math.cos(a) * R * 0.91, y + Math.sin(a) * R * 0.91, 3, 0, TAU); ctx.fillStyle = ink; ctx.fill(); } break; }
+    case 'focus': concentration(ctx, b, r, fp[0], fp[1], Math.min(b.w, b.h) * 0.3, Math.round(150 * dyn), ink); break;
+    case 'speed': speedLines(ctx, b, r, 'h', Math.round(60 * dyn), ink); break;
+    case 'speedv': speedLines(ctx, b, r, 'v', Math.round(60 * dyn), ink); break;
+    case 'sparkle': for (let i = 0; i < 7; i++) star4(ctx, b.x + b.w * (0.08 + r() * 0.84), b.y + b.h * (0.08 + r() * 0.6), 6 + r() * 12); break;
+    case 'hearts': for (let i = 0; i < 5; i++) heart(ctx, (h0 ? h0.hx : b.x + b.w / 2) + (r() - 0.5) * b.w * 0.7, (h0 ? h0.hy - h0.hr * 1.2 : b.y + b.h * 0.3) + (r() - 0.5) * b.h * 0.3, 7 + r() * 8); break;
+    case 'gloom': ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; for (let i = 0; i < 26; i++) { const x = b.x + b.w * (i + 0.5) / 26; ctx.beginPath(); ctx.moveTo(x, b.y); ctx.lineTo(x, b.y + b.h * (0.18 + (i % 3) * 0.07 + r() * 0.06)); ctx.stroke(); } break;
+    case 'shake': if (h0) { ctx.strokeStyle = '#000'; ctx.lineWidth = 2.2; for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const x = h0.hx + s * h0.hr * (1.35 + k * 0.25), y = h0.hy - h0.hr * 0.6 + k * h0.hr * 0.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + s * 6, y + 8, x, y + 16); ctx.stroke(); } } break;
+    case 'sweat': if (h0) { const x = h0.hx + h0.hr * 1.1, y = h0.hy - h0.hr * 0.7, s = h0.hr * 0.28; ctx.beginPath(); ctx.moveTo(x, y - s); ctx.quadraticCurveTo(x + s * 0.8, y + s * 0.3, x, y + s * 0.6); ctx.quadraticCurveTo(x - s * 0.8, y + s * 0.3, x, y - s); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke(); } break;
+    case 'question': case 'exclaim': { const t = spec.name === 'question' ? '？' : '！', x = h0 ? h0.hx + h0.hr * 0.9 : b.x + b.w * 0.7, y = h0 ? h0.hy - h0.hr * 1.5 : b.y + b.h * 0.25, s = clamp(h0 ? h0.hr * 0.9 : 40, 22, 70); ctx.save(); ctx.font = `900 ${s}px ${DISP}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = s * 0.2; ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round'; ctx.strokeText(t, x, Math.max(y, b.y + s * 0.7)); ctx.fillStyle = '#000'; ctx.fillText(t, x, Math.max(y, b.y + s * 0.7)); ctx.restore(); break; }
+    case 'fire': for (let i = 0; i < 6; i++) { const x = b.x + b.w * (i + 0.5) / 6 + (r() - 0.5) * 20, y = b.y + b.h, h = b.h * (0.18 + r() * 0.2), w = b.w * 0.09; ctx.beginPath(); ctx.moveTo(x - w, y); ctx.quadraticCurveTo(x - w, y - h * 0.6, x + (r() - 0.5) * w, y - h); ctx.quadraticCurveTo(x + w * 0.2, y - h * 0.5, x + w, y); ctx.closePath(); ctx.fillStyle = i % 2 ? MID(ctx) : '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke(); } break;
+    case 'smoke': for (let i = 0; i < 5; i++) cloudShape(ctx, b.x + b.w * (0.1 + r() * 0.8), b.y + b.h * (0.75 + r() * 0.2), Math.min(b.w, b.h) * (0.05 + r() * 0.04)); break;
+    case 'wind': ctx.strokeStyle = '#000'; ctx.lineWidth = 2; for (let i = 0; i < 5; i++) { const y = b.y + b.h * (0.15 + i * 0.17), x = b.x + b.w * (0.1 + r() * 0.3); ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + b.w * 0.2, y - 12, x + b.w * 0.35, y + 12, x + b.w * 0.5, y - 4); ctx.arc(x + b.w * 0.5, y - 12, 8, Math.PI / 2, -Math.PI * 0.3, true); ctx.stroke(); } break;
+    case 'bubbles': for (let i = 0; i < 10; i++) blob(ctx, b.x + r() * b.w, b.y + r() * b.h, 3 + r() * 7, 3 + r() * 7, '#fff', 1.5); break;
+    case 'flashback': { const g = ctx.createRadialGradient(b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w, b.h) * 0.3, b.x + b.w / 2, b.y + b.h / 2, Math.hypot(b.w, b.h) * 0.55); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,1)'); ctx.fillStyle = g; ctx.fillRect(b.x, b.y, b.w, b.h); break; }
+    case 'grain': { ctx.fillStyle = '#000'; const n = Math.round(b.w * b.h / 900 * spec.amount); for (let i = 0; i < n; i++) ctx.fillRect(b.x + r() * b.w, b.y + r() * b.h, 1.2, 1.2); break; }
+  }
+  return true;
 }
-function fxAfter(ctx, P, b, r, heads) {
-  const fx = new Set(P.fx), h0 = heads[0];
-  if (fx.has('sparkle')) for (let i = 0; i < 7; i++) star4(ctx, b.x + b.w * (0.08 + r() * 0.84), b.y + b.h * (0.08 + r() * 0.6), 6 + r() * 12);
-  if (fx.has('hearts')) for (let i = 0; i < 5; i++) heart(ctx, (h0 ? h0.hx : b.x + b.w / 2) + (r() - 0.5) * b.w * 0.7, (h0 ? h0.hy - h0.hr * 1.2 : b.y + b.h * 0.3) + (r() - 0.5) * b.h * 0.3, 7 + r() * 8);
-  if (fx.has('gloom')) { ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; for (let i = 0; i < 26; i++) { const x = b.x + b.w * (i + 0.5) / 26; ctx.beginPath(); ctx.moveTo(x, b.y); ctx.lineTo(x, b.y + b.h * (0.18 + (i % 3) * 0.07 + r() * 0.06)); ctx.stroke(); } }
-  if (fx.has('shake') && h0) { ctx.strokeStyle = '#000'; ctx.lineWidth = 2.2; for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { const x = h0.hx + s * h0.hr * (1.35 + k * 0.25), y = h0.hy - h0.hr * 0.6 + k * h0.hr * 0.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + s * 6, y + 8, x, y + 16); ctx.stroke(); } }
-  if (fx.has('sweat') && h0) { const x = h0.hx + h0.hr * 1.1, y = h0.hy - h0.hr * 0.7, s = h0.hr * 0.28; ctx.beginPath(); ctx.moveTo(x, y - s); ctx.quadraticCurveTo(x + s * 0.8, y + s * 0.3, x, y + s * 0.6); ctx.quadraticCurveTo(x - s * 0.8, y + s * 0.3, x, y - s); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke(); }
-  if (fx.has('question') || fx.has('exclaim')) { const t = fx.has('question') ? '？' : '！', x = h0 ? h0.hx + h0.hr * 0.9 : b.x + b.w * 0.7, y = h0 ? h0.hy - h0.hr * 1.5 : b.y + b.h * 0.25, s = clamp(h0 ? h0.hr * 0.9 : 40, 22, 70); ctx.save(); ctx.font = `900 ${s}px ${DISP}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = s * 0.2; ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round'; ctx.strokeText(t, x, Math.max(y, b.y + s * 0.7)); ctx.fillStyle = '#000'; ctx.fillText(t, x, Math.max(y, b.y + s * 0.7)); ctx.restore(); }
-  if (fx.has('fire')) for (let i = 0; i < 6; i++) { const x = b.x + b.w * (i + 0.5) / 6 + (r() - 0.5) * 20, y = b.y + b.h, h = b.h * (0.18 + r() * 0.2), w = b.w * 0.09; ctx.beginPath(); ctx.moveTo(x - w, y); ctx.quadraticCurveTo(x - w, y - h * 0.6, x + (r() - 0.5) * w, y - h); ctx.quadraticCurveTo(x + w * 0.2, y - h * 0.5, x + w, y); ctx.closePath(); ctx.fillStyle = i % 2 ? MID(ctx) : '#fff'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke(); }
-  if (fx.has('smoke')) for (let i = 0; i < 5; i++) cloudShape(ctx, b.x + b.w * (0.1 + r() * 0.8), b.y + b.h * (0.75 + r() * 0.2), Math.min(b.w, b.h) * (0.05 + r() * 0.04));
-  if (fx.has('wind')) { ctx.strokeStyle = '#000'; ctx.lineWidth = 2; for (let i = 0; i < 5; i++) { const y = b.y + b.h * (0.15 + i * 0.17), x = b.x + b.w * (0.1 + r() * 0.3); ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + b.w * 0.2, y - 12, x + b.w * 0.35, y + 12, x + b.w * 0.5, y - 4); ctx.arc(x + b.w * 0.5, y - 12, 8, Math.PI / 2, -Math.PI * 0.3, true); ctx.stroke(); } }
-  if (fx.has('bubbles')) for (let i = 0; i < 10; i++) blob(ctx, b.x + r() * b.w, b.y + r() * b.h, 3 + r() * 7, 3 + r() * 7, '#fff', 1.5);
-  if (fx.has('flashback')) { const g = ctx.createRadialGradient(b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w, b.h) * 0.3, b.x + b.w / 2, b.y + b.h / 2, Math.hypot(b.w, b.h) * 0.55); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,1)'); ctx.fillStyle = g; ctx.fillRect(b.x, b.y, b.w, b.h); }
+function runEffects(ART, ctx, P, b, r, phase, focusPt, heads) {
+  const dark = P.fx.includes('dark') || ['space', 'black', 'cave', 'stage'].includes(P.bg);
+  let list = P.fx.filter(f => f !== 'dark' && (phase === 'under') === FX_UNDER.includes(f));
+  if (phase === 'under') list.sort((x, y) => FX_UNDER.indexOf(x) - FX_UNDER.indexOf(y));
+  if (phase === 'over' && ART.opts.sparkle > 0.7 && !list.includes('sparkle')) list.push('sparkle');
+  if (phase === 'over' && list.includes('flashback')) list = [...list.filter(f => f !== 'flashback'), 'flashback'];
+  for (const name of list) ART.drawEffect(ctx, { name, phase, focus: { x: focusPt[0], y: focusPt[1] }, heads: heads.map(h => ({ x: h.hx, y: h.hy, r: h.hr })), dark }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
+  if (phase === 'over' && ART.opts.grain > 0.25) ART.drawEffect(ctx, { name: 'grain', phase, amount: ART.opts.grain, focus: { x: focusPt[0], y: focusPt[1] }, heads: [], dark }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
+}
+/* 枠線：art.panelFrame と line で変わる */
+function drawFrame(ctx, b, A, flash, r) {
+  ctx.save(); ctx.strokeStyle = '#000'; const lw = 2.4 + A.line.weight * 3.6;
+  if (flash) { ctx.lineWidth = 2; ctx.setLineDash([10, 6]); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 14); ctx.stroke(); }
+  else if (A.panelFrame === 'borderless') { ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.strokeRect(b.x, b.y, b.w, b.h); }
+  else if (A.panelFrame === 'rounded') { ctx.lineWidth = lw; ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, Math.min(22, b.w * 0.06)); ctx.stroke(); }
+  else if (A.panelFrame === 'rough' || A.line.roughness > 0.6) { ctx.lineWidth = lw; ctx.lineJoin = 'round'; const j = 1.2 + A.line.roughness * 3; ctx.beginPath(); const pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h], [b.x, b.y]]; for (let k = 0; k < 4; k++) { const [x1, y1] = pts[k], [x2, y2] = pts[k + 1]; const n = 10; for (let i = 0; i <= n; i++) { const t = i / n; const x = x1 + (x2 - x1) * t + (r() - 0.5) * j, y = y1 + (y2 - y1) * t + (r() - 0.5) * j; k === 0 && i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } } ctx.stroke(); }
+  else { ctx.lineWidth = A.panelFrame === 'dynamic' ? lw * 1.4 : lw; ctx.strokeRect(b.x, b.y, b.w, b.h); }
+  ctx.restore();
 }
 
 /* ---------- コマ ---------- */
@@ -1744,23 +1851,23 @@ function drawPanel(ctx, S, b, P, r, tag, isLast) {
   ctx.fillStyle = '#fff'; ctx.fillRect(b.x, b.y, b.w, b.h);
   const fx = new Set(P.fx), dark = fx.has('dark');
   const hz = P.shot === 'long' ? 0.58 : P.shot === 'full' ? 0.64 : P.shot === 'bust' ? 0.8 : P.shot === 'up' ? 0.86 : 0.6;
-  const env = { time: P.time, weather: P.weather, hz, r, shot: P.shot };
+  const ART = artFor(S, P);
   if (dark) { ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); }
   else {
     ART.drawBackground(ctx, { name: P.bg, time: P.time, weather: P.weather, horizon: hz, shot: P.shot }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
     if (P.shot === 'up' || (P.shot === 'bust' && P.cast.length)) { ctx.fillStyle = P.shot === 'up' ? 'rgba(255,255,255,.62)' : 'rgba(255,255,255,.35)'; ctx.fillRect(b.x, b.y, b.w, b.h); }
     if (fx.has('flashback')) { ctx.fillStyle = tone(ctx, 6, 1.15, 1, true); ctx.fillRect(b.x, b.y, b.w, b.h); }
   }
-  const placed = placeCast(S, P, b);
+  const placed = placeCast(S, P, b, ART);
   const focusPt = placed.length ? [placed[0].X, placed[0].Y + ART.metrics(placed[0].ch).hc * placed[0].u] : [b.x + b.w / 2, b.y + b.h / 2];
-  fxBefore(ctx, P, b, r, focusPt);
+  runEffects(ART, ctx, P, b, r, 'under', focusPt, []);
   const heads = [], bodies = [];
   placed.forEach(x => {
     const fc = facing(x, placed.length, b);
     const res = ART.drawCharacter(ctx, x.ch, x.c.pose, x.c.expr, { footX: x.X, footY: x.Y, unit: x.u, facing: fc.F, back: fc.back, look: x.c.look, hold: x.c.hold, color: x.c.color, rain: x.c.rain, panel: b, rand: r });
     heads.push({ id: x.ch.id, hx: res.head.x, hy: res.head.y, hr: res.head.r }); bodies.push(res.body);
   });
-  fxAfter(ctx, P, b, r, heads);
+  runEffects(ART, ctx, P, b, r, 'over', focusPt, heads);
   const visHeads = heads.filter(h => h.hy > b.y - h.hr * 0.5 && h.hy < b.y + b.h + h.hr * 0.5 && h.hx > b.x - h.hr && h.hx < b.x + b.w + h.hr);
   const visBodies = bodies.map(B => { const x = Math.max(B.x, b.x), y = Math.max(B.y, b.y), x2 = Math.min(B.x + B.w, b.x + b.w), y2 = Math.min(B.y + B.h, b.y + b.h); return { x, y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) }; }).filter(B => B.w > 2 && B.h > 2);
   // 効果音はコマの中（枠線の下）
@@ -1773,9 +1880,7 @@ function drawPanel(ctx, S, b, P, r, tag, isLast) {
   const sfxE = placeSfx(ctx, P, b, visHeads, visBodies, [...occupied, ...bubbles], r, false);
   ctx.restore();
   // 枠
-  ctx.save(); ctx.strokeStyle = '#000'; ctx.lineWidth = fx.has('flashback') ? 2 : 4.2;
-  if (fx.has('flashback')) { ctx.setLineDash([10, 6]); ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 14); ctx.stroke(); } else ctx.strokeRect(b.x, b.y, b.w, b.h);
-  ctx.restore();
+  drawFrame(ctx, b, ART.opts, fx.has('flashback'), r);
   // 吹き出し・ナレーションは枠の上
   if (P.narr) drawNarr(ctx, P.narr, b, visHeads, visBodies, [], dark, tag);
   bubbles.forEach(pb => drawBubble(ctx, pb, b));
@@ -1821,6 +1926,7 @@ function splitTitle(t) {
 function drawCover(ctx, S, r) {
   const b = { x: 0, y: 0, w: W, h: H }, C = S.cover;
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+  const ART = artFor(S, null);
   ART.drawBackground(ctx, { name: C.bg, time: C.time, weather: C.weather, horizon: 0.74, shot: 'long' }, { x: 0, y: 0, w: W, h: H, rand: r });
   toneGradient(ctx, { x: 0, y: 0, w: W, h: H * 0.34 }, 1.8, 0.1, 7);
   const cast = C.cast.map(c => ({ c, ch: charOf(S, c.id) })).filter(x => x.ch).slice(0, 3);
@@ -1897,6 +2003,31 @@ function scriptFeatures(S) {
   for (const k in f) f[k] = clamp(Math.round(f[k] * 100) / 100, 0, 1);
   return f;
 }
+/* ---------- 絵柄の特徴（連続値）と「物語と絵柄のズレ」 ----------
+   王道の目安：物語のプロファイル（20軸）から「よくある絵柄」を線形に予想し、実際の art との差をズレとする。
+   ズレが大きい＝あえてズラした作品（例：ゆるい絵の静かなホラー）、小さい＝王道の組み合わせ。 */
+const ART_KEYS = ART_NUM.map(a => a[0]);
+const EXPECT = {
+  headRatio: ax => 0.3 + 0.5 * ax.cute + 0.2 * ax.humor - 0.2 * ax.dark - 0.15 * ax.tension,
+  deform: ax => 0.15 + 0.5 * ax.humor + 0.3 * ax.absurd + 0.2 * ax.cute - 0.25 * ax.dark,
+  eyeSize: ax => 0.3 + 0.4 * ax.cute + 0.3 * ax.romance - 0.2 * ax.dark,
+  'line.weight': ax => 0.35 + 0.3 * ax.action + 0.2 * ax.tension - 0.2 * ax.cute,
+  'line.roughness': ax => 0.15 + 0.3 * ax.dark + 0.3 * ax.action - 0.2 * ax.cute,
+  hatching: ax => 0.05 + 0.5 * ax.dark + 0.3 * ax.tension,
+  black: ax => 0.15 + 0.5 * ax.dark + 0.3 * ax.tension,
+  detail: ax => 0.3 + 0.3 * ax.scale + 0.2 * ax.fantasy + 0.2 * ax.tension - 0.2 * ax.humor,
+  dynamism: ax => 0.15 + 0.7 * ax.action + 0.2 * ax.tempo,
+  sparkle: ax => 0.05 + 0.5 * ax.romance + 0.3 * ax.cute,
+  softness: ax => 0.3 + 0.4 * ax.warmth + 0.3 * ax.cute - 0.3 * ax.dark,
+};
+function expectedArt(axes) { const o = {}; for (const k in EXPECT) o[k] = clamp(EXPECT[k](axes), 0, 1); return o; }
+function artFeatures(S, profile) {
+  const A = S.art || ART_DEFAULT, out = {};
+  for (const k of ART_KEYS) out[k] = Math.round((getP(A, k) ?? 0.5) * 100) / 100;
+  if (profile && profile.axes) { const ex = expectedArt(profile.axes); let d = 0, n = 0; for (const k in ex) { d += Math.abs((getP(A, k) ?? 0.5) - ex[k]); n++; } out.gap = Math.round(clamp(d / n / 0.4, 0, 1) * 100) / 100; }
+  else out.gap = 0.5;
+  return out;
+}
 /* 編集者のプロファイルが無いときの控えめな推定（台本から） */
 function heuristicProfile(S) {
   const f = scriptFeatures(S), panels = S.pages.flatMap(p => p.panels), np = Math.max(1, panels.length);
@@ -1952,7 +2083,7 @@ function analyze(works, fbs, history) {
   for (const w of all) {
     const fb = fbs[w.id]; const leftLater = lastOpen[w.id] != null && lastOpen[w.id] < (history || []).length - 1;
     const rw = rewardOf(fb, w, { medianDwell, leftLater }); if (!rw) continue;
-    rows.push({ w, r: rw.r, parts: rw.parts, x: w.profile.axes, f: w.feat || scriptFeatures(w.script), tags: flatTags(w.profile) });
+    rows.push({ w, r: rw.r, parts: rw.parts, x: w.profile.axes, f: w.feat || scriptFeatures(w.script), a: artFeatures(w.script, w.profile), tags: flatTags(w.profile) });
   }
   const n = rows.length, pos = rows.map(x => Math.max(0, x.r)), neg = rows.map(x => Math.max(0, -x.r) + 0.35);
   const P = pos.reduce((a, b) => a + b, 0), N = neg.reduce((a, b) => a + b, 0);
@@ -1969,7 +2100,7 @@ function analyze(works, fbs, history) {
     }
     return out;
   }
-  const axes = axisStats(rw => rw.x, AXIS_KEYS), feats = axisStats(rw => rw.f, FEATS.map(f => f[0]));
+  const axes = axisStats(rw => rw.x, AXIS_KEYS), feats = axisStats(rw => rw.f, FEATS.map(f => f[0])), art = axisStats(rw => rw.a, [...ART_KEYS, 'gap']);
   // タグ：ラプラス平滑化した対数オッズ
   const tagSet = new Set(rows.flatMap(rw => rw.tags)), tags = [];
   for (const t of tagSet) {
@@ -2006,13 +2137,14 @@ function analyze(works, fbs, history) {
   let more = null; const target = 0.8;
   if (n === 0) more = 3; else if (avgConf < target && se2s.length) { const se2T = tau2 * (1 - target) / target; more = Math.max(1, Math.ceil(n * (medSe2 / se2T) - n)); } else if (!se2s.length) more = Math.max(1, 4 - n);
   const nPos = rows.filter(rw => rw.r > 0.3).length, nNeg = rows.filter(rw => rw.r < -0.3).length;
-  return { n, nPos, nNeg, rows, axes, feats, tags, combos: combos.slice(0, 4), unique: unique.slice(0, 4), avgConf, more, P, N };
+  return { n, nPos, nNeg, rows, axes, feats, art, tags, combos: combos.slice(0, 4), unique: unique.slice(0, 4), avgConf, more, P, N };
 }
 /* 好み度の予測（0〜100%） */
-function predictFit(A, profile) {
+function predictFit(A, profile, art) {
   if (!A || !profile || A.n === 0) return null;
   let s = 0; for (const k of AXIS_KEYS) { const st = A.axes[k]; s += st.pref * ((profile.axes[k] ?? 0.5) - st.base) * 9; }
   const ft = flatTags(profile); for (const t of A.tags) if (ft.includes(t.t)) s += clamp(t.lo, -2, 2) * t.conf * 0.6;
+  if (art) { const af = artFeatures({ art }, profile); for (const k of [...ART_KEYS, 'gap']) { const st = A.art[k]; if (st) s += st.pref * ((af[k] ?? 0.5) - st.base) * 5; } }
   const bias = Math.log((A.nPos + 1) / (A.nNeg + A.n * 0.3 + 1)) * 0.5;
   return Math.round(100 / (1 + Math.exp(-(s + bias))));
 }
@@ -2067,7 +2199,14 @@ function prefSeed(A, r) {
   const likes = A.tags.filter(t => t.lo > 0.4 && t.conf > 0.3).slice(0, 4).map(t => tagLabel(t.t));
   const combo = A.combos.filter(c => c.syn > 0).slice(0, 1).map(c => `${AXIS_LABEL[c.a].r}と${AXIS_LABEL[c.b].r}を両方強く`);
   const fe = {}; for (const [k] of FEATS) { const s = A.feats[k]; if (s && s.conf > 0.3) fe[k] = Math.round(s.likedMean * 100) / 100; }
+  const artHints = [];
+  if (A.art) {
+    const g = A.art.gap; if (g && g.conf > 0.2 && Math.abs(g.pref) > 0.04) artHints.push(g.pref > 0 ? `物語と絵柄をあえてズラした作品に反応が良い（確信度${Math.round(g.conf * 100)}%）` : `物語と絵柄が素直に合った王道の作品に反応が良い（確信度${Math.round(g.conf * 100)}%）`);
+    ART_NUM.map(([k, name, l, r]) => ({ k, name, l, r, st: A.art[k] })).filter(x => x.st && x.st.conf > 0.3 && Math.abs(x.st.pref) > 0.05).sort((a, b) => Math.abs(b.st.pref) * b.st.conf - Math.abs(a.st.pref) * a.st.conf).slice(0, 3)
+      .forEach(x => artHints.push(`${x.name}は「${x.st.pref > 0 ? x.r : x.l}」寄りの作品に反応が良い（確信度${Math.round(x.st.conf * 100)}%）`));
+  }
   return {
+    artHints,
     mode: 'pref', genre: genre[0].v, setting: setting[0].v, hero: pickR(SEED.hero, r), relation: relation[0].v, conflict: pickR(SEED.conflict, r), tone: pickR(SEED.tone, r), ending: ending[0].v,
     gimmick: pickR(SEED.gimmick, r), motifs: motifs.map(m => m.v), pages: 8 + Math.floor(r() * 5), axes, likes, avoid, combo, craft: fe, shifted,
     explore: [...genre, ...motifs, ...setting].filter(x => !x.known).map(x => x.v),
@@ -2121,7 +2260,8 @@ fx: ${FX_LIST.join(' / ')}（focus=集中線, speed=スピード線, dark=暗転
 - shot が up なら cast は1人。bg なら cast は空。1コマの cast は最大4人。
 - who は characters の id。コマにいない人のセリフは「声だけ」として描かれる。
 - 雲（cloud）は表情で色が変わる（悲しいと灰色、怒ると黒）。cast に "rain":0〜3 を付けると雨を降らせる。
-- 絵は白黒の漫画。色の名前は使わず、hairColor・pattern・color の値で表す。`;
+- 絵は白黒の漫画。色の名前は使わず、hairColor・pattern・color の値で表す。
+- 作品全体の "art"（絵柄）と、コマごとの "art"（そのコマだけ部分的に変える）は、編集者が決める。`;
 const ORIGINALITY = `【オリジナリティの決まり（必ず守る）】
 - 既存の漫画・アニメ・映画・ゲーム・小説・絵本のキャラクター、名前、決めゼリフ、見た目、設定、話の筋をまねしない。パロディもしない。
 - 実在の人物・企業・商品名を出さない。
@@ -2142,11 +2282,60 @@ function writerPrompt(seed, prev) {
 - 1ページ目でつかみ、真ん中で転がし、最後にオチ。最後の1コマは余韻か笑い。
 - キャラは見た目で区別できるように、髪型・服・小物を人物ごとに変える。
 - セリフは短く、話し言葉で。説明はナレーションに回す。
+- 絵柄（art）は、このあと編集者がネームを読んで決めるので、書かなくてよい。
 ${ORIGINALITY}
 ${SCHEMA_DOC}`;
 }
-function editorPrompt(S, seed, issues, warnings, hasImages, finalRound) {
-  return `あなたは漫画編集者です。作者が書いた短編漫画の台本（JSON）をチェックし、直してください。${hasImages ? '添付画像は、この台本をプログラムで描いた数ページ（表紙・最初・途中・最後）です。吹き出しの読みやすさや絵の伝わり方も見てください。' : ''}
+/* ひらめきの種：絵柄パラメータを2〜3個ランダムに振った案（使うかどうかは編集者が決める） */
+function artSparks(r) {
+  const out = [];
+  for (let i = 0; i < 3; i++) {
+    const n = 2 + (r() < 0.5 ? 1 : 0), used = new Set(), parts = [], art = {};
+    while (parts.length < n) { const [k, name, l, rr] = pickR(ART_NUM, r); if (used.has(k)) continue; used.add(k); const v = r() < 0.5 ? Math.round(r() * 20) / 100 : Math.round((0.8 + r() * 0.2) * 100) / 100; parts.push(`${name}=${v}（${v > 0.5 ? rr : l}）`); art[k] = v; }
+    if (r() < 0.35) { const f = pickR(FRAMES, r); parts.push(`枠=${f}`); art.panelFrame = f; }
+    if (r() < 0.3) { const e = pickR(EYE_STYLES, r); parts.push(`目=${e}`); art.eyeStyle = e; }
+    out.push({ label: '案' + 'ABC'[i], parts, art });
+  }
+  return out;
+}
+const ART_DOC = `【絵柄 art の形】（すべて 0〜1 の連続値。文字の項目は書かれた候補から）
+{"headRatio":頭の大きさ(0=リアルな頭身,1=大きな頭),"deform":デフォルメ(0=写実,1=崩し),"eyeSize":目の大きさ,"eyeStyle":"${EYE_STYLES.join('|')}",
+ "line":{"weight":線の太さ,"taper":入り抜きの強弱,"jitter":線の揺れ,"roughness":線の荒さ},
+ "hatching":斜線の量,"crossHatch":網目の斜線,"black":ベタ(黒)の量,"tone":トーンの量,"toneKind":"${TONE_KINDS.join('|')}",
+ "detail":描き込み,"perspective":パースの強さ,"dynamism":動き・躍動,"sparkle":キラキラ,"softness":やわらかさ,"grain":紙のざらつき,"panelFrame":"${FRAMES.join('|')}",
+ "direction":"作画方針（作画担当への指示。60〜150字）","aim":"狙いを一言（30字以内。読者に見せる）","reason":"なぜこの絵柄にしたか（2〜3文）"}`;
+function editorNamePrompt(S, seed, issues, sparks) {
+  return `あなたは漫画編集者です。作者のネーム（台本JSON）を読んで、(1) ネームを検討し、(2) この作品の「今回の絵柄」と作画の方針を、あなた自身のセンスと狙いで決めてください。
+【企画の種】
+${seedBrief(seed)}
+【自動チェックの警告】
+${issues.slice(0, 20).join('\n') || 'なし'}
+【(1) ネームの検討】
+- 筋が通っているか、オチが効いているか、完結しているか、読みやすいか、スキーマ違反がないか。
+- オリジナリティ：既存の作品のキャラクター・名前・決めゼリフ・見た目・設定に似ているものがあれば、別の新しいものに差し替える。
+- 軽い直しは自分で script に反映して返す。筋やオチを大きく直すべきときは verdict を "revise" にして notes に書く（作者が直す）。
+【(2) 絵柄の決め方】（いちばん大事）
+- ジャンルから絵柄を機械的に決めてはいけない。「ホラーだから劇画」「ラブコメだからキラキラ」「ギャグだから崩し」のような決め方は禁止。それはいちばんつまらない。
+- 次のことを考えて、あなたのセンスで決める：
+  ・この物語のどこを、読者にいちばん感じさせたいか
+  ・あえてズラすと何が生まれるか（例：ゆるい絵で描く静かなホラー、劇画の濃さで描く日常の小さな事件、絵本のやわらかさで描く喪失）
+  ・絵柄が物語とどう響き合うか（同じ方向に強めるのか、逆の方向で引き立てるのか）
+- 王道の組み合わせを選ぶのもよいが、その場合も「なぜ王道がこの話に効くのか」を狙いとして言葉にする。
+- 1コマだけ絵柄を変える演出もできる（例：ギャグの中で1コマだけ劇画調になる「劇画オチ」）。そのときは panelArt で、変えたい項目だけを書く。
+【ひらめきの種】（ページ側でランダムに振った案。使っても、混ぜても、無視してもよい）
+${sparks.map(x => `${x.label}: ${x.parts.join('、')}`).join('\n')}
+${seed.artHints && seed.artHints.length ? `【参考：この読者の絵柄の反応】（あくまで参考。最終判断はあなたのセンスで）\n${seed.artHints.join('\n')}\n` : ''}${ART_DOC}
+${ORIGINALITY}
+【返事】次のJSONだけを返す:
+{"verdict":"ok か revise","notes":["作者への具体的な直し（最大6つ）"],"originality":"似ていたものと差し替えた内容（無ければ 問題なし）",
+ "script": 直したネーム全体（同じ形のJSON。直しが不要なら null）,
+ "art": { …上の形のすべての項目… },
+ "panelArt": [ {"page":ページ番号(表紙が1、本文は2から。原稿の下の数字と同じ),"panel":そのページの何コマ目か(1から),"art":{変えたい項目だけ},"note":"演出の意図（20字以内）"} ]}
+【ネーム】
+${JSON.stringify(S)}`;
+}
+function editorCheckPrompt(S, seed, issues, warnings, hasImages, finalRound) {
+  return `あなたは漫画編集者です。ネームとあなたが決めた絵柄で作画した原稿の仕上がりを確認してください。${hasImages ? '添付画像は、この台本を作画した数ページ（表紙・最初・途中・最後）です。吹き出しの読みやすさ、絵の伝わり方、絵柄の狙いが効いているかも見てください。' : ''}
 【企画の種】
 ${seedBrief(seed)}
 【自動チェックの警告】
@@ -2154,18 +2343,19 @@ ${[...issues, ...warnings].slice(0, 30).join('\n') || 'なし'}
 【見るところ】
 1. 筋が通っているか（人物の動機、場面のつながり、時間の流れ）
 2. オチ・結末が効いているか、完結しているか
-3. 読みやすさ（セリフの長さ、1コマの情報量、コマ割り、誰がしゃべっているか分かるか）
-4. スキーマ違反（使えない値、rows とコマ数のずれ、up に2人 など）と自動チェックの警告
-5. オリジナリティ：既存の作品のキャラクター・名前・決めゼリフ・見た目・設定に似ているものがあれば、別の新しいものに差し替える
+3. 読みやすさ（セリフの長さ、1コマの情報量、コマ割り、誰がしゃべっているか分かるか）と自動チェックの警告
+4. 絵柄の狙い（script.art.aim）が、仕上がりで効いているか。効いていなければ artFix で項目を直す（ジャンルに合わせるための直しはしない）
+5. オリジナリティ：既存の作品に似ているものがあれば、別の新しいものに差し替える
 ${ORIGINALITY}
 【返事】次のJSONだけを返す:
 {"verdict":"ok か revise","notes":["作者への具体的な直し（最大6つ、短く）"],"originality":"似ていたもの と 差し替えた内容（無ければ 問題なし）",
  "script": 直した台本の全体（同じ形のJSON。直しが不要なら null）,
+ "artFix": {直したい絵柄の項目だけ。無ければ null},
  "profile":{"axes":{${AXIS_KEYS.map(k => `"${k}":0.0`).join(',')}},
   "tags":{"genre":["…"],"setting":["…"],"protagonist":["主人公の種族"],"age":["主人公の年代"],"relation":["友情/家族/師弟/ライバル/恋 など"],"ending":["ハッピーエンド/ほろ苦い/どんでん返し/余韻 など"],"humor":["ボケとツッコミ/ドタバタ/シュール/ほっこり/ブラック/なし など"],"motif":["食べ物/天気/動物/魔法/機械/音楽 など"]}}}
-- セリフの短縮・言い回し・スキーマ違反・似ている名前の差し替えなど、軽い直しは自分で script に反映して返す。
+- セリフの短縮・言い回し・スキーマ違反・似ている名前の差し替えなど、軽い直しは自分で script に反映して返す（art はそのまま残す）。
 - 筋やオチを大きく直すべきときは verdict を "revise" にして notes に書く（作者が直す）。${finalRound ? '\n- 今回が最後のチェックなので、verdict は "ok" にし、直せるものは script に反映して返す。' : ''}
-- profile は、直したあとの作品について、次の物差しで 0〜1 を付ける（小数2桁）。タグは各1〜3語。
+- profile は、直したあとの作品の「物語」について、次の物差しで 0〜1 を付ける（小数2桁）。絵柄ではなく物語の味で付ける。タグは各1〜3語。
 ${AXIS_RUBRIC}
 【台本】
 ${JSON.stringify(S)}`;
@@ -2176,6 +2366,7 @@ function revisePrompt(S, seed, notes, prevScriptOrNull) {
 ${seedBrief(seed)}
 【編集者の指示】
 ${notes.map((n, i) => `${i + 1}. ${n}`).join('\n')}
+- "art" と、コマの "art" は編集者が決めた絵柄なので、そのまま残す。
 ${ORIGINALITY}
 ${SCHEMA_DOC}
 【いまの台本】
@@ -2187,6 +2378,7 @@ function peekStream(text) {
   const m = [...t.matchAll(/"text"\s*:\s*"((?:[^"\\]|\\.){1,60})"/g)]; if (m.length) out.line = m[m.length - 1][1].replace(/\\n/g, ' ');
   const ti = text.match(/"title"\s*:\s*"((?:[^"\\]|\\.){1,40})"/); if (ti) out.title = ti[1];
   out.pages = (text.match(/"panels"\s*:/g) || []).length; out.chars = text.length;
+  const am = text.match(/"aim"\s*:\s*"((?:[^"\\]|\\.){1,60})"/); if (am) out.aim = am[1];
   const v = text.match(/"verdict"\s*:\s*"(ok|revise)"/); if (v) out.verdict = v[1];
   const nm = [...text.matchAll(/"notes"\s*:\s*\[\s*"((?:[^"\\]|\\.){1,80})"/g)]; if (nm.length) out.note = nm[0][1];
   return out;
@@ -2250,7 +2442,7 @@ const Store = {
 };
 
 /* ---------- 状態 ---------- */
-const S0 = {"script": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "あの\n一日十個の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "冷蔵庫\nみたいだ…"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "探偵は\nこわがらない。"}], "fx": ["sweat"]}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "それなら、\nおばけ用の席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2, 1], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "happy"}], "say": [{"who": "tencho", "text": "プリンは\n毎日十一個\n作ることに\nしました。"}]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}]}, "profile": {"axes": {"humor": 0.62, "warmth": 0.85, "tension": 0.35, "tempo": 0.6, "dark": 0.2, "fantasy": 0.55, "romance": 0.0, "action": 0.25, "mystery": 0.6, "tearjerk": 0.45, "absurd": 0.3, "charDriven": 0.65, "talky": 0.55, "growth": 0.3, "everyday": 0.6, "scale": 0.1, "twist": 0.55, "afterglow": 0.35, "cute": 0.8, "smart": 0.45}, "tags": {"genre": ["ミステリー", "ほのぼの"], "setting": ["カフェ", "商店街"], "protagonist": ["猫"], "age": ["大人"], "relation": ["師弟", "友情"], "ending": ["ハッピーエンド"], "humor": ["ほっこり"], "motif": ["食べ物", "おばけ"]}}};
+const S0 = {"script": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "あの\n一日十個の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "冷蔵庫\nみたいだ…"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "探偵は\nこわがらない。"}], "fx": ["sweat"], "art": {"headRatio": 0.15, "deform": 0.1, "black": 0.9, "hatching": 0.85, "crossHatch": 0.6, "line": {"weight": 0.95, "roughness": 0.5}, "eyeStyle": "realistic", "panelFrame": "rough", "note": "劇画オチ"}}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "それなら、\nおばけ用の席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2, 1], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "happy"}], "say": [{"who": "tencho", "text": "プリンは\n毎日十一個\n作ることに\nしました。"}]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}], "art": {"headRatio": 0.78, "deform": 0.55, "eyeSize": 0.62, "eyeStyle": "round", "line": {"weight": 0.45, "taper": 0.5, "jitter": 0.15, "roughness": 0.1}, "hatching": 0.1, "crossHatch": 0.0, "black": 0.35, "tone": 0.6, "toneKind": "dot", "detail": 0.42, "perspective": 0.35, "dynamism": 0.35, "sparkle": 0.3, "softness": 0.75, "grain": 0.05, "panelFrame": "rounded", "direction": "ぬいぐるみのように丸い頭身で、こわい場面もやわらかい線のまま描く。夜のカフェだけはトーンを重ねて静けさを出す。", "aim": "謎解きを、ぬいぐるみの丸さで「小さな事件」に", "reason": "おばけの正体は寂しさなので、こわさより愛嬌が先に伝わる絵にした。探偵が強がる1コマだけ劇画にして、笑いに変える。"}}, "profile": {"axes": {"humor": 0.62, "warmth": 0.85, "tension": 0.35, "tempo": 0.6, "dark": 0.2, "fantasy": 0.55, "romance": 0.0, "action": 0.25, "mystery": 0.6, "tearjerk": 0.45, "absurd": 0.3, "charDriven": 0.65, "talky": 0.55, "growth": 0.3, "everyday": 0.6, "scale": 0.1, "twist": 0.55, "afterglow": 0.35, "cute": 0.8, "smart": 0.45}, "tags": {"genre": ["ミステリー", "ほのぼの"], "setting": ["カフェ", "商店街"], "protagonist": ["猫"], "age": ["大人"], "relation": ["師弟", "友情"], "ending": ["ハッピーエンド"], "humor": ["ほっこり"], "motif": ["食べ物", "おばけ"]}}};
 const SAMPLE_ID = 'sample-mike';
 const state = { works: {}, fb: {}, history: [], cur: null, page: 0, tab: 'make', filter: 'all', sample: null, sampleWhy: 'checking', imgOK: false, busy: false, ctl: null, A: null };
 function sampleWork() {
@@ -2316,8 +2508,8 @@ function renderMake() {
   list.forEach(w => rec.append(bookCard(w)));
 }
 function setStep(step) {
-  const order = ['writer', 'editor', 'revise', 'finish']; const k = order.indexOf(step);
-  for (const li of $('steps').children) { const j = order.indexOf(li.dataset.step); li.classList.toggle('on', j === k); li.classList.toggle('done', j < k && !(li.dataset.step === 'revise' && !state.revised)); }
+  state.visited = state.visited || new Set(); if (state.stepNow) state.visited.add(state.stepNow); state.stepNow = step;
+  for (const li of $('steps').children) { li.classList.toggle('on', li.dataset.step === step); li.classList.toggle('done', li.dataset.step !== step && state.visited.has(li.dataset.step)); }
 }
 function seedChips(seed) {
   if (!seed) return [];
@@ -2332,6 +2524,7 @@ function ticker(role) {
     const p = peekStream(text), t = $('ticker'); t.innerHTML = '';
     t.append(el('b', { text: `${role}が書いています（${p.chars.toLocaleString()} 字）` }));
     if (p.title) t.append(el('div', {}, '題名：', el('span', { class: 'q', text: `『${p.title}』` }), p.pages ? `　${p.pages} ページ目まで` : ''));
+    if (p.aim) t.append(el('div', {}, '絵柄の狙い：', el('span', { class: 'q', text: p.aim })));
     if (p.note) t.append(el('div', {}, '赤ペン：', el('span', { class: 'q', text: p.note })));
     else if (p.line) t.append(el('div', {}, 'いまのセリフ：', el('span', { class: 'q', text: `「${p.line}」` })));
   };
@@ -2370,7 +2563,7 @@ function seedTags(seed) { return { genre: [seed.genre], setting: [seed.setting],
 async function runMake(mode, src) {
   if (state.busy) return;
   if (!canMake()) { toast('新しい漫画は Claude.ai で開くと作れます'); return; }
-  state.busy = true; state.revised = false; renderMake();
+  state.busy = true; state.revised = false; state.visited = new Set(); state.stepNow = null; renderMake();
   const ctl = new AbortController(); state.ctl = ctl;
   const r = rng((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
   const A = analysisNow();
@@ -2389,26 +2582,41 @@ async function runMake(mode, src) {
     let raw = await callJSON(writerPrompt(seed, src), { signal: ctl.signal, onText: ticker('作者') });
     let { script: S, issues } = normalizeScript(raw);
     if (mode === 'sequel') keepSeries(S, src);
-    const editor = []; let profile = null;
-    for (let round = 0; round < 3; round++) {
-      setStep('editor'); $('roundInfo').textContent = `編集チェック ${round + 1} 回目`; $('ticker').textContent = '編集者が原稿を読んでいます…';
+    const editor = []; let profile = null, trips = 0;
+    const MAX_TRIPS = 2;
+    const adopt = (obj, keepArt) => { const n = normalizeScript(obj); if (n.script.pages.length < Math.min(5, S.pages.length)) return false; const art = S.art, pa = S.pages.map(pg => pg.panels.map(p => p.art)); S = n.script; issues = n.issues; if (keepArt) { if (!(obj.art && typeof obj.art === 'object')) S.art = art; S.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (!p.art && pa[i] && pa[i][k]) p.art = pa[i][k]; })); } if (mode === 'sequel') keepSeries(S, src); return true; };
+    const writerFix = async notes => { state.revised = true; setStep('revise'); $('ticker').textContent = '作者が赤ペンを見て直しています…'; trips++; const rv = await callJSON(revisePrompt(S, seed, notes), { signal: ctl.signal, onText: ticker('作者') }); adopt(rv, true); };
+    /* (1) 編集者：ネームの検討と、今回の絵柄の決定 */
+    setStep('name'); $('ticker').textContent = '編集者がネームを読んで、今回の絵柄を考えています…';
+    const sparks = artSparks(r);
+    const edN = await callJSON(editorNamePrompt(S, seed, issues, sparks), { signal: ctl.signal, onText: ticker('編集者') });
+    if (edN && edN.script && typeof edN.script === 'object') adopt(edN.script, false);
+    S.art = normalizeArt(edN && edN.art);
+    for (const pa of arr(edN && edN.panelArt)) { const pg = S.pages[(Number(pa.page) || 0) - 2], pn = pg && pg.panels[(Number(pa.panel) || 0) - 1]; const art = normalizePanelArt({ ...(pa.art || {}), note: pa.note }); if (pn && art) pn.art = art; }
+    editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(String).slice(0, 8), originality: String((edN && edN.originality) || ''), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}`) });
+    if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(String));
+    /* (2) 作画 → 編集者：仕上がりチェック（直しは合わせて最大2往復） */
+    for (let round = 1; ; round++) {
+      setStep('draw'); $('ticker').textContent = `「${S.art.aim || '今回の絵柄'}」で作画しています…`; $('roundInfo').textContent = `仕上がりチェック ${round} 回目`;
+      await new Promise(res => setTimeout(res, 20));
       const warnings = checkScript(S);
       const images = await pageImages(S);
-      const ed = await callJSON(editorPrompt(S, seed, issues, warnings, !!images, round === 2), { signal: ctl.signal, onText: ticker('編集者'), ...(images ? { images } : {}) });
+      const finalRound = trips >= MAX_TRIPS;
+      setStep('check'); $('ticker').textContent = '編集者が仕上がりを確認しています…';
+      const ed = await callJSON(editorCheckPrompt(S, seed, issues, warnings, !!images, finalRound), { signal: ctl.signal, onText: ticker('編集者'), ...(images ? { images } : {}) });
       const p = normalizeProfile(ed && ed.profile); if (p) profile = p;
-      if (ed && ed.script && typeof ed.script === 'object') { const n2 = normalizeScript(ed.script); if (n2.script.pages.length >= Math.min(5, S.pages.length)) { S = n2.script; issues = n2.issues; if (mode === 'sequel') keepSeries(S, src); } }
-      editor.push({ round: round + 1, verdict: ed && ed.verdict === 'revise' ? 'revise' : 'ok', notes: arr(ed && ed.notes).map(String).slice(0, 8), originality: String((ed && ed.originality) || ''), warnings: warnings.length });
-      if (!(ed && ed.verdict === 'revise') || round === 2) break;
-      state.revised = true; setStep('revise'); $('ticker').textContent = '作者が赤ペンを見て直しています…';
-      const rv = await callJSON(revisePrompt(S, seed, arr(ed.notes).map(String)), { signal: ctl.signal, onText: ticker('作者') });
-      const n3 = normalizeScript(rv); if (n3.script.pages.length >= Math.min(5, S.pages.length)) { S = n3.script; issues = n3.issues; if (mode === 'sequel') keepSeries(S, src); }
+      if (ed && ed.script && typeof ed.script === 'object') adopt(ed.script, true);
+      if (ed && ed.artFix && typeof ed.artFix === 'object') { const fix = normalizePanelArt(ed.artFix); if (fix) { const { note, ...f } = fix; S.art = { ...mergeArt(S.art, f), direction: S.art.direction, aim: S.art.aim, reason: S.art.reason }; } }
+      editor.push({ stage: 'check', round, verdict: ed && ed.verdict === 'revise' && !finalRound ? 'revise' : 'ok', notes: arr(ed && ed.notes).map(String).slice(0, 8), originality: String((ed && ed.originality) || ''), warnings: warnings.length, artFix: ed && ed.artFix ? Object.keys(ed.artFix).join('、') : '' });
+      if (!(ed && ed.verdict === 'revise') || finalRound) break;
+      await writerFix(arr(ed.notes).map(String));
     }
     setStep('finish'); $('ticker').textContent = '原稿に仕上げています…';
     await new Promise(res => setTimeout(res, 30));
     if (!profile) profile = heuristicProfile(S);
     const id = newId();
-    const w = { id, script: S, profile, feat: scriptFeatures(S), meta: { createdAt: Date.now(), mode, seed, aim, editor, warnings: checkScript(S).slice(0, 30), seriesId: mode === 'sequel' ? (src.meta.seriesId || src.id) : null } };
-    if (mode === 'pref' && A.n) w.meta.aim.fit = predictFit(A, profile);
+    const w = { id, script: S, profile, feat: scriptFeatures(S), artFeat: artFeatures(S, profile), meta: { createdAt: Date.now(), mode, seed, aim, editor, warnings: checkScript(S).slice(0, 30), seriesId: mode === 'sequel' ? (src.meta.seriesId || src.id) : null } };
+    if (mode === 'pref' && A.n) w.meta.aim.fit = predictFit(A, profile, S.art);
     if (mode === 'sequel') { fbOf(src.id).sequel = true; saveFb(src.id, true); if (!src.meta.seriesId) { src.meta.seriesId = src.id; if (!src.meta.bundled) Store.put('work_' + src.id, src); else state.sampleSeries = true; } }
     state.works[id] = w; await Store.put('work_' + id, w);
     $('progress').hidden = true; $('wish').value = '';
@@ -2445,6 +2653,7 @@ function renderReadHead() {
   $('rTitle').textContent = fullTitle(S);
   $('rMeta').textContent = [S.genre, `全${S.pages.length + 1}ページ`, w.meta.mode === 'sample' ? '見本' : fmtDate(w.meta.createdAt)].filter(Boolean).join('　・　');
   const at = aimText(w); $('rAim').hidden = !at; $('rAim').textContent = at || '';
+  const aa = S.art && S.art.aim; $('rArt').hidden = !aa; $('rArt').textContent = aa ? '絵柄の狙い：' + aa : '';
   $('likeBtn').setAttribute('aria-pressed', String(!!f.liked)); $('mehBtn').setAttribute('aria-pressed', String(!!f.disliked));
   $('seqBtn').disabled = state.busy; $('seqBtn').title = canMake() ? `第${(S.episode || 1) + 1}話を作ります` : 'Claude.ai で開くと続編を作れます';
   renderMemo();
@@ -2465,9 +2674,23 @@ function showPage(i, dir) {
 function renderMemo() {
   const w = state.works[state.cur], b = $('memoBody'); b.innerHTML = '';
   if (w.meta.seed) b.append(el('h3', { text: '企画の種' }), el('div', { class: 'seedcard' }, ...seedChips(w.meta.seed)));
+  const art = w.script.art;
+  if (art) {
+    b.append(el('h3', { text: '今回の絵柄（編集者が決定）', style: 'margin-top:10px' }));
+    if (art.aim) b.append(el('div', { class: 'artaim', text: '狙い：' + art.aim }));
+    if (art.reason) b.append(el('div', { class: 'sub', text: '理由：' + art.reason }));
+    if (art.direction) b.append(el('div', { class: 'sub', text: '作画方針：' + art.direction }));
+    b.append(el('div', { class: 'minibars' }, ...ART_NUM.map(([k, name]) => el('div', { class: 'minibar' }, el('span', { text: name }), el('i', { style: `--v:${Math.round((getP(art, k) ?? 0.5) * 100)}%` })))));
+    b.append(el('div', { class: 'sub', text: `目：${art.eyeStyle}　トーン：${art.toneKind}　枠：${art.panelFrame}　物語とのズレ：${Math.round(artFeatures(w.script, w.profile).gap * 100)}%（0%＝王道の組み合わせ）` }));
+    const over = []; w.script.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (p.art) over.push(`${i + 2}ページ${k + 1}コマ目：${p.art.note || ''}（${Object.keys(p.art).filter(x => x !== 'note').join('、')}）`); }));
+    if (over.length) b.append(el('div', { class: 'sub', text: 'コマごとの絵柄の切り替え：' }), el('ul', {}, ...over.map(t => el('li', { text: t }))));
+  }
   if (w.meta.editor && w.meta.editor.length) {
-    b.append(el('h3', { text: `編集者のチェック（${w.meta.editor.length}回）`, style: 'margin-top:10px' }));
-    for (const e of w.meta.editor) b.append(el('div', { class: 'sub', text: `${e.round}回目：${e.verdict === 'revise' ? '要修正 → 作者が直しました' : 'OK'}${e.warnings ? `（自動チェックの警告 ${e.warnings} 件）` : ''}` }), e.notes.length ? el('ul', {}, ...e.notes.map(n => el('li', { text: n }))) : '', e.originality ? el('div', { class: 'sub', text: 'オリジナリティ：' + e.originality }) : '');
+    b.append(el('h3', { text: '編集者のチェック', style: 'margin-top:10px' }));
+    for (const e of w.meta.editor) {
+      const head = e.stage === 'name' ? `ネーム検討：${e.verdict === 'revise' ? '要修正 → 作者が直しました' : 'OK'}` : `仕上がりチェック ${e.round || ''}回目：${e.verdict === 'revise' ? '要修正 → 作者が直しました' : 'OK'}${e.warnings ? `（自動チェックの警告 ${e.warnings} 件）` : ''}${e.artFix ? `／絵柄を調整：${e.artFix}` : ''}`;
+      b.append(el('div', { class: 'sub', text: head }), e.notes && e.notes.length ? el('ul', {}, ...e.notes.map(n => el('li', { text: n }))) : '', e.originality ? el('div', { class: 'sub', text: 'オリジナリティ：' + e.originality }) : '', e.sparks ? el('div', { class: 'sub', text: 'ひらめきの種：' + e.sparks.join('／') }) : '');
+    }
   }
   if (w.meta.warnings && w.meta.warnings.length) b.append(el('h3', { text: '自動チェックで残った注意', style: 'margin-top:10px' }), el('ul', {}, ...w.meta.warnings.slice(0, 8).map(n => el('li', { text: n }))));
   if (w.profile) {
@@ -2492,7 +2715,8 @@ function bookCard(w) {
   return el('button', { class: 'book', onclick: () => openWork(w.id, f.finished || !f.opens ? 0 : f.maxPage || 0), 'aria-label': `${fullTitle(w.script)}を読む` },
     el('span', { class: 'cv' }, thumb(w), w.script.episode > 1 ? el('span', { class: 'badge', text: `第${w.script.episode}話` }) : w.meta.mode === 'sample' ? el('span', { class: 'badge', text: '見本' }) : '', f.liked ? el('span', { class: 'badge like', text: '♥' }) : ''),
     el('span', { class: 't', text: w.script.episode > 1 ? `第${w.script.episode}話 ${w.script.title}` : w.script.title }),
-    el('span', { class: 'm', text: `${w.script.genre || ''}　${status}` }));
+    el('span', { class: 'm', text: `${w.script.genre || ''}　${status}` }),
+    w.script.art && w.script.art.aim ? el('span', { class: 'm artline', text: '絵柄：' + w.script.art.aim }) : '');
 }
 function renderShelf() {
   for (const b of $('filters').children) b.setAttribute('aria-pressed', String(b.dataset.f === state.filter));
@@ -2556,6 +2780,14 @@ function renderTaste() {
   })));
   else uq.append(el('p', { class: 'sub', text: '確信度が上がると、ここに出てきます。' }));
   body.append(el('div', { class: 'tags2' }, combo, uq));
+  // 絵柄
+  const ap = el('div', { class: 'panel' }, el('h3', { text: '絵柄の好み（編集者が決めた絵柄のパラメータ）' }));
+  const g = A.art.gap;
+  const gapText = A.n === 0 ? 'まだ分かりません' : g.conf < 0.2 || Math.abs(g.pref) < 0.03 ? 'ズラした作品と王道の作品、どちらが好きかはまだはっきりしません' : g.pref > 0 ? `物語と絵柄を「あえてズラした」作品のほうが好き（確信度${Math.round(g.conf * 100)}%）` : `物語と絵柄が素直に合った「王道」の作品のほうが好き（確信度${Math.round(g.conf * 100)}%）`;
+  ap.append(el('p', { class: 'artaim', text: gapText }), dbar({ l: '王道の組み合わせ', r: 'あえてズラす' }, g), el('p', { class: 'sub', style: 'margin:8px 0 4px', text: '絵柄の各パラメータ：' }));
+  ART_NUM.forEach(([k, name, l, r]) => ap.append(dbar({ l: `${name}：${l}`, r }, A.art[k])));
+  ap.append(el('p', { class: 'sub', style: 'margin-top:6px', text: '「ズレ」は、物語の20軸から予想した王道の絵柄と、実際の絵柄との差です。「好みで作る」では、この結果を編集者に参考として渡すだけで、絵柄はいつも編集者のセンスで決めます。' }));
+  body.append(ap);
   // 作り
   const fp = el('div', { class: 'panel' }, el('h3', { text: '作りの好み（台本から計算）' }), el('p', { class: 'sub', text: 'セリフの量・アップの割合・効果音の数などを台本から数えて、同じ方法で比べています。' }));
   FEATS.forEach(([k, name, l, r]) => fp.append(dbar({ l: `${name}：${l}`, r }, A.feats[k])));
@@ -2570,6 +2802,7 @@ function renderTaste() {
     el('li', { text: 'プラスの作品の重み付き平均と、マイナス・ふつうの作品の平均の差を、軸ごとの好みとします。件数が少ないうちは、標準誤差から決めた割合で0に縮めます（縮小推定）。その割合が確信度です。' }),
     el('li', { text: 'タグは +1 のラプラス平滑化をした対数オッズ比で、好き・苦手と確信度を出します。' }),
     el('li', { text: '「好みで作る」では、好きな作品の平均を狙いつつ、確信が弱い軸ほど大きくゆらし、1軸はわざとずらします。タグはベータ分布からのトンプソン抽出で選ぶので、まだ試していないジャンルも混ざります。' }),
+    el('li', { text: '絵柄は、頭の大きさ・線の太さ・ベタ・描き込みなど17の連続値と、「物語と絵柄のズレ」（物語の軸から予想した王道の絵柄との差）を、同じ方法で比べています。' }),
     el('li', { text: `保存先：${Store.label()}` }))));
 }
 async function explainTaste(btn, out) {
@@ -2602,7 +2835,7 @@ function drawIcons() {
   speedLines(c1, { x: 0, y: 0, w: 144, h: 144 }, rng(3), 'h', 14); dice(52, 80, 58, -0.25, 5); dice(100, 56, 44, 0.3, 3);
   const c2 = $('icoPref').getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0, 0, 144, 144);
   concentration(c2, { x: 0, y: 0, w: 144, h: 144 }, rng(5), 72, 66, 40, 60);
-  ART.drawCharacter(c2, normalizeCharacter({ id: 'ico', species: 'cat', age: 'child', hairColor: 'white', eyes: 'sparkle', outfit: 'none' }, 0, []), 'stand', 'love', { footX: 72, footY: 196, unit: 1.6, facing: 0, panel: { x: 0, y: 0, w: 144, h: 144 }, rand: rng(2) });
+  artFor({ art: ART_DEFAULT }, null).drawCharacter(c2, normalizeCharacter({ id: 'ico', species: 'cat', age: 'child', hairColor: 'white', eyes: 'sparkle', outfit: 'none' }, 0, []), 'stand', 'love', { footX: 72, footY: 196, unit: 1.6, facing: 0, panel: { x: 0, y: 0, w: 144, h: 144 }, rand: rng(2) });
 }
 
 /* ---------- 起動 ---------- */
@@ -2641,7 +2874,7 @@ async function boot() {
   await Store.init();
   const all = await Store.loadAll();
   for (const [k, v] of Object.entries(all)) {
-    if (k.startsWith('work_') && v && v.script) { try { const n = normalizeScript(v.script); state.works[v.id] = { ...v, script: { ...n.script, episode: v.script.episode || 1, seriesTitle: v.script.seriesTitle || '' }, profile: v.profile || heuristicProfile(n.script) }; } catch (e) {} }
+    if (k.startsWith('work_') && v && v.script) { try { const n = normalizeScript(v.script); state.works[v.id] = { ...v, script: { ...n.script, episode: v.script.episode || 1, seriesTitle: v.script.seriesTitle || '' }, profile: v.profile || heuristicProfile(n.script) }; } catch (e) { console.warn('作品を読み込めませんでした', k, e); } }
     else if (k.startsWith('fb_')) state.fb[k.slice(3)] = v;
     else if (k === 'history' && v && Array.isArray(v.items)) state.history = v.items;
   }
@@ -2650,7 +2883,7 @@ async function boot() {
   if (ui.cur && state.works[ui.cur]) { state.cur = ui.cur; state.page = ui.page || 0; renderReadHead(); showPage(state.page, 0); }
   setTab(tab);
   if (document.fonts) document.fonts.addEventListener('loadingdone', () => { cache.clear(); thumbCache.clear(); if (state.tab === 'read' && state.cur) showPage(state.page, 0); });
-  window.__mk = { state, Store, analyze: analysisNow, normalizeScript, renderPage, checkScript, runMake, openWork, setTab, repairJSON, art: () => ART.name };
+  window.__mk = { state, Store, analyze: analysisNow, normalizeScript, renderPage, checkScript, runMake, openWork, setTab, repairJSON, styles: () => window.MangaStyles.list() };
 }
 boot();
 
