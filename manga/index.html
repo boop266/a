@@ -47,10 +47,7 @@ button:disabled{opacity:.3;cursor:default;background:transparent}
 .nombre{font-variant-numeric:tabular-nums;color:var(--tone);font-size:14px;letter-spacing:.06em;min-width:6.5em;text-align:center}
 .nombre b{color:var(--ink);font-size:17px}
 .nombre .cv{font-size:13px;color:var(--tone);font-weight:400}
-.sheet.zoom{overflow:auto;max-height:calc(100vh - 200px);cursor:zoom-out;touch-action:auto;width:100%}
-.sheet.zoom canvas{max-width:none;max-height:none;width:200%;height:auto}
-@media (min-width:700px){.sheet.zoom canvas{width:1260px}}
-.bar{width:min(480px,100%);height:5px;border-radius:9px;background:var(--rule);overflow:hidden;direction:rtl}
+@media (min-width:700px){.bar{width:min(480px,100%);height:5px;border-radius:9px;background:var(--rule);overflow:hidden;direction:rtl}
 .bar i{display:block;height:100%;background:var(--blue);transition:width .25s}
 .keys{font-size:12px;color:var(--tone);margin:0;text-align:center}
 kbd{font-family:var(--body);font-size:11px;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--card)}
@@ -85,7 +82,6 @@ body.fs .fshud{display:flex}
   </div>
   <div class="controls">
     <button class="sub" id="firstBtn">表紙へ</button>
-    <button class="sub" id="zoomBtn" aria-pressed="false">大きく見る</button>
     <button class="sub" id="fsBtn">フルスクリーン</button>
   </div>
   <p class="keys"><kbd>←</kbd> 次　<kbd>→</kbd> 前　<kbd>F</kbd> フルスクリーン　（左側タップ・左スワイプでも次へ）</p>
@@ -1143,20 +1139,15 @@ $('nextBtn').onclick = () => show(cur + 1, 1);
 $('prevBtn').onclick = () => show(cur - 1, -1);
 $('firstBtn').onclick = () => show(0, -1);
 let swiped = false;
-let clickTimer = 0;
-$('sheet').addEventListener('click', e => { if (swiped || $('sheet').classList.contains('zoom')) { swiped = false; return; } if (e.detail > 1) return; const rc = $('sheet').getBoundingClientRect(), left = e.clientX < rc.left + rc.width / 2;
-  clearTimeout(clickTimer); clickTimer = setTimeout(() => { if (left) show(cur + 1, 1); else show(cur - 1, -1); }, 230); });
+$('sheet').addEventListener('click', e => { if (swiped) { swiped = false; return; } const rc = $('sheet').getBoundingClientRect(), left = e.clientX < rc.left + rc.width / 2;
+  if (left) show(cur + 1, 1); else show(cur - 1, -1); });
 // スワイプ：左へ払うと次のページ（漫画は左へ進む）
 let tx = 0, ty = 0;
 $('sheet').addEventListener('touchstart', e => { const t = e.changedTouches[0]; tx = t.clientX; ty = t.clientY; }, { passive: true });
 $('sheet').addEventListener('touchend', e => {
-  if ($('sheet').classList.contains('zoom')) return;
   const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
   if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) { swiped = true; setTimeout(() => { swiped = false; }, 400); if (dx < 0) show(cur + 1, 1); else show(cur - 1, -1); }
 });
-function setZoom(on) { $('sheet').classList.toggle('zoom', on); $('zoomBtn').setAttribute('aria-pressed', on); $('zoomBtn').textContent = on ? 'もとの大きさ' : '大きく見る'; }
-$('zoomBtn').onclick = () => setZoom(!$('sheet').classList.contains('zoom'));
-$('sheet').addEventListener('dblclick', e => { e.preventDefault(); clearTimeout(clickTimer); setZoom(!$('sheet').classList.contains('zoom')); });
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'ArrowLeft') { e.preventDefault(); show(cur + 1, 1); }
@@ -1166,7 +1157,6 @@ document.addEventListener('keydown', e => {
 let hudTimer = 0;
 function pokeHud() { const h = $('fsHud'); h.classList.remove('idle'); clearTimeout(hudTimer); hudTimer = setTimeout(() => h.classList.add('idle'), 2500); }
 function setFs(on) {
-  if (on && $('sheet').classList.contains('zoom')) setZoom(false);
   document.body.classList.toggle('fs', on); $('fsBtn').textContent = on ? 'フルスクリーンを終える' : 'フルスクリーン';
   if (on) pokeHud();
 }
