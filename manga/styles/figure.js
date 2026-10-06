@@ -57,9 +57,9 @@
     think: { e: 'lookup', b: 'quirk', m: 'side' }, determined: { e: 'glare', b: 'angry', m: 'firm' }, nervous: { e: 'open', b: 'sad', m: 'wavy', x: ['sweat', 'sweat'] },
     sleepy: { e: 'closed', b: 'flat', m: 'o', x: ['zzz'] }, smug: { e: 'half', b: 'quirk', m: 'smirk' }, love: { e: 'heart', b: 'soft', m: 'smile', x: ['blush'] },
     scared: { e: 'shock', b: 'sad', m: 'wavyopen', x: ['sweat', 'gloom'] }, embarrassed: { e: 'away', b: 'sad', m: 'wavy', x: ['blush', 'sweat'] },
-    blank: { e: 'blank', b: 'flat', m: 'line' }, pain: { e: 'squeeze', b: 'sad', m: 'teeth', x: ['sweat'] }, funny: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] },
+    blank: { e: 'blank', b: 'flat', m: 'line' }, pain: { e: 'squeeze', b: 'sad', m: 'teeth', x: ['sweat'] }, funny: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] }, funny2: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] }, puff: { e: 'open', b: 'angry', m: 'o', x: ['blush'] },
   };
-  const EXPR_ALIAS = { neutral: 'normal', joy: 'happy', glad: 'happy', grin: 'happy', mad: 'angry', fury: 'rage', crying: 'cry', tears: 'cry', fear: 'scared', afraid: 'scared', serious: 'determined', calm: 'normal', shy: 'embarrassed' };
+  const EXPR_ALIAS = { appuppu: 'puff', cheeks: 'puff', funnier: 'funny2', henkao: 'funny', neutral: 'normal', joy: 'happy', glad: 'happy', grin: 'happy', mad: 'angry', fury: 'rage', crying: 'cry', tears: 'cry', fear: 'scared', afraid: 'scared', serious: 'determined', calm: 'normal', shy: 'embarrassed' };
 
   /* ---------- 人物の素材（同じ charSpec はどの絵柄でも同じ「人」になる） ---------- */
   const HAIR_MAT = { black: 0.96, tone: 0.5, light: 0.2, white: 0.0, gray: 0.5, brown: 0.6, blonde: 0.15, red: 0.55, blue: 0.7 };
@@ -198,6 +198,8 @@
     spec = spec || {}; box = box || {};
     const art = K.normalizeArt(opts && (opts.art || opts));
     if (box.color) spec = Object.assign({}, spec, { color: box.color }); // コマごとの色（例：雲を灰色に）
+    // 宙に浮かせる：box.float = true（体の高さの0.6倍）または数値（体の高さに対する割合）、box.lift = px
+    { const Ht0 = 100 * (box.unit || 3) * sizeFactor(spec); const Ha = 100 * (box.unit || 3); const up = (box.float === true ? 0.6 : typeof box.float === 'number' ? box.float : 0) * Ha + (box.lift || 0) + (pose === 'float' && BLOBS.includes(spec.species) ? Ht0 * 0.15 : 0); if (up) box = Object.assign({}, box, { footY: (box.footY || 0) - up }); }
     const unit = box.unit || 3, sz = sizeFactor(spec), Ht = 100 * unit * sz;
     seed(hashStr((spec.id || spec.name || 'x') + '|' + pose + '|' + expr + '|' + Math.round(box.footX || 0)));
     const lineSc = clamp(Math.sqrt(Ht / 300), 0.45, 2.2);
@@ -216,6 +218,9 @@
     const freeHand = !NOHOLD.has(poseKey);
     const ctxD = { ly, spec, art, m, rig, R, line, expr: EXPRS[expr] || EXPRS[EXPR_ALIAS[expr]] || EXPRS.normal, exprName: expr, box, hold: box.hold != null ? box.hold : (rig.P.hold || (freeHand ? (spec.items || []).find(i => HELD_SET.has(i)) : null)) };
     if (ctxD.hold === 'none') ctxD.hold = null;
+    // 変顔の強さ：0=ほっぺをふくらませる(puff), 1=変顔, 2=もっと崩す（funny2、または大人の funny）
+    const en = EXPRS[expr] ? expr : (EXPR_ALIAS[expr] || expr); ctxD.exprName = en;
+    ctxD.funnyLevel = en === 'puff' ? 0 : en === 'funny2' ? 2 : en === 'funny' ? (box.exprLevel != null ? clamp(Math.round(box.exprLevel), 0, 2) : (spec.age === 'adult' || spec.age === 'elder' ? 2 : 1)) : -1;
     const res = BLOBS.includes(spec.species) ? drawBlob(ctxD) : art.rough ? drawRough(ctxD) : drawHumanoid(ctxD);
     ctx.save();
     if (box.panel) { ctx.beginPath(); ctx.rect(box.panel.x, box.panel.y, box.panel.w, box.panel.h); ctx.clip(); }
@@ -654,7 +659,7 @@
     for (let i = 0; i < 36; i++) { const a = i / 36 * TAU; pts.push([F.c.x + Math.cos(a) * R * 0.98, F.c.y + Math.sin(a) * R * 0.98]); }
     for (const sx of [-1, 1]) { const j = pt(sx * jawW, jawY, lerp(0.1, 0.0, q)); pts.push([j.x, j.y]); const cw = pt(sx * chinW, chinY * 0.97, chinZ); pts.push([cw.x, cw.y]); }
     const ch = pt(0, chinY, chinZ); pts.push([ch.x, ch.y]);
-    if (C.exprName === 'funny' && !frog) for (const sx of [-1, 1]) { const pf = pt(sx * 1.08, 0.48, 0.3); pts.push([pf.x, pf.y]); const pf2 = pt(sx * 0.9, 0.7, 0.45); pts.push([pf2.x, pf2.y]); }
+    if (C.funnyLevel >= 0 && !frog) { const k = [1.1, 1.06, 1.14][C.funnyLevel]; for (const sx of [-1, 1]) { const pf = pt(sx * k, 0.48, 0.3); pts.push([pf.x, pf.y]); const pf2 = pt(sx * 0.92, 0.72, 0.45); pts.push([pf2.x, pf2.y]); } }
     if (!frog) for (const sx of [-1, 1]) { const cb = pt(sx * 0.84, 0.28, 0.42); pts.push([cb.x, cb.y]); const cj = pt(sx * lerp(0.62, 0.5, q), lerp(0.7, 0.92, q), lerp(0.4, 0.38, q)); pts.push([cj.x, cj.y]); }
     // 動物の鼻先
     const sp = spec.species, animal = ANIMAL_EARS[sp];
@@ -741,7 +746,7 @@
 
   // ---- 顔のパーツ ----
   function drawFace(C, F) {
-    if (C.exprName === 'funny') return drawFunnyFace(C, F);
+    if (C.funnyLevel >= 0) return drawFunnyFace(C, F);
     const { ly, m, art, spec } = C; const { R, q } = F; const l = ly.l; const e = C.expr;
     const look = C.box.look;
     const sz = art.eyeSize, st = art.eyeStyle === 'round' ? 'simple' : art.eyeStyle;
@@ -887,29 +892,57 @@
   }
   // 変顔：寄り目・眉の上下ずれ・広がった鼻の穴・ふくらんだ頬・出した舌（どの絵柄でも大きく崩す）
   function drawFunnyFace(C, F) {
-    const { ly, art } = C; const { R, q } = F; const l = ly.l;
+    const { ly, art, spec } = C; const { R, q } = F; const l = ly.l; const lv = C.funnyLevel;
+    const animal = !!ANIMAL_EARS[spec.species];
     const eyeV = lerp(0.25, 0.06, q), eyeU = 0.4, er = R * lerp(0.15, 0.12, q) * lerp(0.9, 1.3, art.eyeSize);
     const eyes = [];
     for (const sx of [-1, 1]) { const p = F.sp(sx * eyeU, eyeV); if (p.z < 0.1) continue; eyes.push({ sx, p }); }
+    const blush = (n = 4) => { for (const { p } of eyes) for (let i = 0; i < n; i++) { const bx = p.x + (i - (n - 1) / 2) * R * 0.07, byy = p.y + R * 0.4; ink(l, [[bx + R * 0.03, byy - R * 0.05], [bx - R * 0.03, byy + R * 0.05]], 0.7, { tin: 1, tout: 1 }); } };
+    // 頬のふくらみの線（左右の弧）
+    const puffLines = k => { for (const sx of [-1, 1]) { const c = F.sp(sx * 0.78, 0.5); if (c.z < 0) continue; ink(l, ellipsePts(c.x, c.y, R * 0.2 * k, R * 0.2 * k, 0, 10, sx > 0 ? -1.2 : Math.PI - 0.6, sx > 0 ? 0.6 : Math.PI + 1.2), 0.6, { dense: true, tin: 2, tout: 2 }); } };
+    // 人の鼻の穴：輪郭なし、上向きに少し大きく（動物は鼻づらで描く）
+    const nostrils = (k, crease) => { if (animal) { drawMuzzle(C, F, spec.species); return; } const n = F.sp(0, 0.47); const nr = R * 0.055 * k; for (const sx of [-1, 1]) { l.beginPath(); l.ellipse(n.x + sx * nr * 1.15 + F.side * nr * 0.5, n.y, nr * 0.75, nr * 0.55, sx * 0.35, 0, TAU); l.fill(); } ink(l, [[n.x - nr * 1.6, n.y + nr * 0.9], [n.x, n.y + nr * 1.3], [n.x + nr * 1.6, n.y + nr * 0.9]], 0.5, { tin: 1, tout: 1 }); if (crease) for (const sx of [-1, 1]) ink(l, [[n.x + sx * nr * 2.4, n.y - nr * 0.8], [n.x + sx * nr * 2.9, n.y + nr * 0.4], [n.x + sx * nr * 2.5, n.y + nr * 1.5]], 0.6, { tin: 1, tout: 3 }); };
+    if (lv === 0) {
+      // あっぷっぷ：にらむ目、すぼめた口、ふくらんだ頬
+      const st = art.eyeStyle === 'round' ? 'simple' : art.eyeStyle;
+      const base = { dot: [0.13, 0.13], simple: [0.24, 0.3], sparkle: [0.32, 0.42], sharp: [0.36, 0.17], realistic: [0.3, 0.15] }[st] || [0.24, 0.3];
+      for (const { sx, p } of eyes) { const fs = clamp(p.z * 1.1, 0.25, 1); const E = { sx, x: p.x, y: p.y, w: R * base[0] * lerp(0.55, 1.45, art.eyeSize) * fs, h: R * base[1] * lerp(0.55, 1.45, art.eyeSize), fs, scr: Math.sign((p.x - F.c.x) || sx) };
+        animal ? drawAnimalEye(C, E, 'glare', [0, 0], false, spec.species) : drawEye(C, E, st, 'glare', [0, 0], false);
+        const inner = -E.scr; ink(l, [[E.x + inner * E.w * 0.8, E.y - E.h - R * 0.06], [E.x - inner * E.w * 0.9, E.y - E.h - R * 0.17]], lerp(1.2, 2.2, q), { tin: 0.5, tout: 3 }); }
+      if (!animal) { const n = F.sp(0, 0.44); l.beginPath(); l.arc(n.x - R * 0.04, n.y, R * 0.025, 0, TAU); l.arc(n.x + R * 0.04, n.y, R * 0.025, 0, TAU); l.fill(); } else drawMuzzle(C, F, spec.species);
+      const mp = F.sp(0, 0.76); const mr = R * 0.07; const M = ellipsePts(mp.x, mp.y, mr, mr * 0.8, 0, 14); ly.fill(M, 0.9, { shade: 0, knock: false }); contour(l, M, 1.0);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ink(l, [[mp.x + Math.cos(a) * mr * 1.3, mp.y + Math.sin(a) * mr * 1.1], [mp.x + Math.cos(a) * mr * 2.0, mp.y + Math.sin(a) * mr * 1.7]], 0.5, { tin: 1, tout: 1 }); }
+      puffLines(1); blush(3); return;
+    }
     eyes.forEach(({ sx, p }, i) => {
-      const r = er * (i === 0 ? 1.15 : 0.9); const E = ellipsePts(p.x, p.y, r * clamp(p.z * 1.1, 0.4, 1), r, 0, 20);
+      const r = er * (i === 0 ? 1.15 : 0.9) * (lv === 2 ? 1.15 : 1); const E = ellipsePts(p.x, p.y, r * clamp(p.z * 1.1, 0.4, 1), r, 0, 20);
       ly.fill(E, 0, { shade: 0, knock: false }); contour(l, E, 1.2);
-      const toward = Math.sign((F.c.x - p.x) || -sx); l.fillStyle = '#000'; l.beginPath(); l.arc(p.x + toward * r * 0.55, p.y + r * 0.1, r * 0.38, 0, TAU); l.fill(); // 寄り目
-      // 眉：片方は高く、片方は低く斜め
-      const by = p.y - r * (i === 0 ? 2.2 : 1.25), bw = r * 1.4;
+      const toward = Math.sign((F.c.x - p.x) || -sx); l.fillStyle = '#000';
+      if (lv === 2) { // 白目：黒目は上へ半分かくれる
+        l.save(); l.beginPath(); pathPoly(l, E); l.clip(); l.beginPath(); l.arc(p.x + toward * r * 0.3 * (i ? 1 : -1), p.y - r * 0.85, r * 0.42, 0, TAU); l.fill(); l.restore();
+        ink(l, [[p.x - r, p.y - r * 0.35], [p.x, p.y - r * 0.55], [p.x + r, p.y - r * 0.35]], 1.0);
+      } else { l.beginPath(); l.arc(p.x + toward * r * 0.55, p.y + r * 0.1, r * 0.38, 0, TAU); l.fill(); } // 寄り目
+      const by = p.y - r * (i === 0 ? (lv === 2 ? 2.6 : 2.2) : 1.25), bw = r * 1.4;
       ink(l, i === 0 ? [[p.x - bw, by + r * 0.3], [p.x, by - r * 0.35], [p.x + bw, by + r * 0.2]] : [[p.x - bw, by - r * 0.25 * toward], [p.x + bw, by + r * 0.35 * toward]], lerp(1.3, 2.2, q), { tin: 1, tout: 3 });
     });
-    // 鼻：広がった鼻の穴
-    const n = F.sp(0, 0.42); const nr = R * 0.16; const nose = ellipsePts(n.x, n.y, nr * 1.3, nr, 0, 20); ly.fill(nose, C.mat.fur ?? C.mat.skin, { shade: 0.2, knock: false }); contour(l, nose, 1.0);
-    for (const sx of [-1, 1]) { l.beginPath(); l.ellipse(n.x + sx * nr * 0.5, n.y + nr * 0.15, nr * 0.32, nr * 0.42, sx * 0.3, 0, TAU); l.fill(); }
-    // 口：横に広くあけて、舌をだす
-    const mp = F.sp(0.05, lerp(0.72, 0.8, q)); const w = R * 0.32;
+    nostrils(lv === 2 ? 1.6 : 1.25, lv === 2);
+    // 口：lv1 は横にあけて舌、lv2 は鼻の下をのばし、上くちびるをめくって大きく舌
+    const drop = lv === 2 ? 0.12 : 0; const mp = F.sp(0.05, lerp(0.72, 0.8, q) + drop); const w = R * (lv === 2 ? 0.38 : 0.32);
+    if (lv === 2 && !animal) { const n = F.sp(0, 0.5); for (const dx of [-0.05, 0.05]) ink(l, [[n.x + R * dx, n.y], [mp.x + R * dx * 1.2, mp.y - w * 0.3]], 0.6, { tin: 1, tout: 1 }); }
     const mouth = catmull([[mp.x - w, mp.y - w * 0.1], [mp.x + w, mp.y - w * 0.25], [mp.x + w * 0.6, mp.y + w * 0.35], [mp.x - w * 0.6, mp.y + w * 0.3]], 4, true);
     ly.fill(mouth, 0.97, { shade: 0, knock: false }); contour(l, mouth, 1.2);
-    const tongue = catmull([[mp.x - w * 0.35, mp.y + w * 0.15], [mp.x + w * 0.35, mp.y + w * 0.12], [mp.x + w * 0.38, mp.y + w * 0.75], [mp.x, mp.y + w * 0.95], [mp.x - w * 0.36, mp.y + w * 0.75]], 4, true);
-    ly.fill(tongue, 0.3, { shade: 0.3 }); contour(l, tongue, 1.0); ink(l, [[mp.x, mp.y + w * 0.3], [mp.x, mp.y + w * 0.7]], 0.6);
-    // ふくらんだ頬：赤らみの斜線
-    for (const { p } of eyes) for (let i = 0; i < 4; i++) { const bx = p.x + (i - 1.5) * R * 0.07, byy = p.y + R * 0.38; ink(l, [[bx + R * 0.03, byy - R * 0.05], [bx - R * 0.03, byy + R * 0.05]], 0.7, { tin: 1, tout: 1 }); }
+    if (lv === 2) { // めくれた上くちびる（歯ぐきと歯）と、たれた下くちびる
+      const lip = catmull([[mp.x - w * 0.9, mp.y - w * 0.12], [mp.x, mp.y - w * 0.42], [mp.x + w * 0.9, mp.y - w * 0.26], [mp.x + w * 0.55, mp.y - w * 0.14], [mp.x - w * 0.55, mp.y - w * 0.04]], 4, true);
+      ly.fill(lip, (C.mat && C.mat.skin) || 0, { shade: 0.2, knock: false }); contour(l, lip, 1.0);
+      for (let i = -1; i <= 1; i++) { const T = [[mp.x + i * w * 0.24 - w * 0.1, mp.y - w * 0.08], [mp.x + i * w * 0.24 + w * 0.1, mp.y - w * 0.1], [mp.x + i * w * 0.24 + w * 0.09, mp.y + w * 0.08], [mp.x + i * w * 0.24 - w * 0.09, mp.y + w * 0.09]]; ly.fill(T, 0, { shade: 0, knock: false }); ink(l, T.concat([T[0]]), 0.5, { dense: true }); }
+    }
+    const tl = lv === 2 ? 1.35 : 1;
+    const tongue = catmull([[mp.x - w * 0.35, mp.y + w * 0.15], [mp.x + w * 0.35, mp.y + w * 0.12], [mp.x + w * 0.4, mp.y + w * 0.75 * tl], [mp.x, mp.y + w * 0.97 * tl], [mp.x - w * 0.38, mp.y + w * 0.75 * tl]], 4, true);
+    ly.fill(tongue, 0.3, { shade: 0.3 }); contour(l, tongue, 1.0); ink(l, [[mp.x, mp.y + w * 0.3], [mp.x, mp.y + w * 0.7 * tl]], 0.6);
+    if (lv === 2) { // よだれと、顔の縦線
+      ink(l, [[mp.x + w * 0.7, mp.y + w * 0.3], [mp.x + w * 0.75, mp.y + w * 0.9]], 0.6); for (let i = 0; i < 4; i++) { const x = F.c.x - R * 0.35 + i * R * 0.13; ink(l, [[x, F.c.y - R * 0.95], [x, F.c.y - R * 0.6]], 0.6, { tin: 1, tout: 6 }); }
+    }
+    puffLines(lv === 2 ? 1.2 : 0.9); blush(4);
   }
   // 雨：その人物から降る（雲は体の下から、ほかは頭の上の小さな雨雲から）
   function rainFrom(ctx, C, res, art) {
@@ -1386,6 +1419,32 @@
     const ears = { long: 1.6, bigpoint: 0.75, point: 0.5 }[ANIMAL_EARS[(spec || {}).species]] || 0;
     return { top: Ht + m.R * (0.15 + ears), hc: -(Ht - m.R), R: m.R, widthRatio: clamp(0.3 + 0.35 / (m.H / 2), 0.32, 0.6), size: sz };
   }
+  /* 床に置く小物：drawProp(ctx, name, { x, y, unit, facing }, opts)
+     x,y＝物の底の中心（床の上）。unit は人物と同じ（大人の身長≒100単位）なので、並べても大きさがそろう */
+  function drawProp(ctx, name, box, opts) {
+    const art = K.normalizeArt(opts && (opts.art || opts)); const unit = box.unit || 3, s = unit; const Ht = 100 * unit;
+    const lb = { x: box.x - s * 50, y: box.y - s * 75, w: s * 100, h: s * 80 };
+    const S = K.ctxScale(ctx); const ly = new Layer(lb, S); const { line, R } = derive(art, clamp(Math.sqrt(Ht / 300), 0.45, 2.2)); setLine(line);
+    seed(hashStr('prop' + name + Math.round(box.x)));
+    const PK = 1.8; // 持ち物の大きさは手に持つ用。床に置く物は実物大に近づける
+    const C = { ly, art, line, R, m: { Ht: Ht * PK, hand: s * 7 * PK }, rig: { mir: box.facing === -1 ? -1 : 1, P: {} }, box: {}, hold: name, mat: { skin: 0 } };
+    const l = ly.l, x = box.x, y = box.y;
+    if (name === 'bucket') drawHeld(C, [x, y - s * 14.5 * PK], [0, 1], 1);
+    else if (name === 'basket') drawHeld(C, [x, y - s * 11.5 * PK], [0, 1], 1);
+    else if (name === 'beater' || name === 'broom' || name === 'umbrella' || name === 'staff') { // 床に寝かせる
+      const P = [[x - s * 22, y - s * 1.2], [x + s * 6, y - s * 1.2], [x + s * 6, y], [x - s * 22, y]]; ly.fill(P, 0.5, { shade: 0.3 }); contour(l, P, 1.0, { seg: 1 });
+      if (name === 'beater') for (const [k, off] of [[1, 0], [0.62, 1], [0.3, 1.6]]) { const E = ellipsePts(x + s * (13 - off * 1.2), y - s * 2.5 * k, s * 8 * k, s * 2.6 * k, 0, 28); ink(l, E.concat([E[0]]), 1.4, { dense: true, taper: 0.2 }); }
+      else if (name === 'umbrella') { const F2 = catmull([[x - s * 4, y - s * 1], [x + s * 10, y - s * 3.5], [x + s * 22, y - s * 0.5], [x + s * 10, y], [x - s * 4, y]], 3, true); ly.fill(F2, 0.5, { shade: 0.5 }); contour(l, F2, 1.1); }
+    }
+    else if (name === 'shirt' || name === 'towel' || name === 'socks' || name === 'laundry') { // たたんで重ねた洗濯物
+      const n = name === 'socks' ? 1 : 3; for (let i = 0; i < n; i++) { const yy = y - i * s * 2.4, w = s * (name === 'socks' ? 6 : 11) * (1 - i * 0.06); const P = catmull([[x - w, yy], [x + w, yy], [x + w * 0.96, yy - s * 2.4], [x - w * 0.96, yy - s * 2.4]], 2, true); ly.fill(P, i % 2 ? 0.25 : 0, { shade: 0.4 }); contour(l, P, 1.0); ink(l, [[x - w * 0.3, yy - s * 2.3], [x - w * 0.25, yy - s * 0.3]], 0.5); }
+    }
+    else drawHeld(C, [x, y - s * 8 * PK], [0, 1], 1); // そのほかは持ち物の描き方で
+    // 床の影（線で：横に短い線を数本）→ 物
+    ctx.save(); ctx.fillStyle = '#000'; for (let i = 0; i < 5; i++) { const yy = y + s * (0.2 + i * 0.35), ww = s * (11 - i * 1.8); penPath(ctx, [[x - ww, yy], [x + ww, yy]], 0.6, { tin: ww * 0.4, tout: ww * 0.4, taper: 1, jit: 0 }); } ctx.restore();
+    ctx.save(); compose(ctx, ly, R); ctx.restore();
+    return { x: lb.x, y: lb.y, w: lb.w, h: lb.h };
+  }
   function _handTest(ctx, box, opts) {
     const art = K.normalizeArt(opts); const S = K.ctxScale(ctx); const ly = new Layer(box, S); const { line, R } = derive(art, 2); setLine(line);
     const C = { ly, art, m: { hand: 60 }, rig: { mir: 1 }, line };
@@ -1393,5 +1452,5 @@
     kinds.forEach((k, i) => dirs.forEach((d, j) => drawHand(C, [box.x + 80 + i * 150, box.y + 50 + j * 140], V.norm(d), 70, k, j === 2 ? 'f' : 'n', 0)));
     compose(ctx, ly, R);
   }
-  Object.assign(K, { _handTest, drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
+  Object.assign(K, { drawProp, _handTest, drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
 })();

@@ -2,7 +2,7 @@
 <!--
 ================================================================================
  漫画工房（studio.html）── データの形のまとめ  ※スキーマを変えたら、ここも必ず更新する
- 版: schema v4（2026-10-06）企画会議 meeting・ネーム段階の台本 nameScript・裏話 extras・制作ログ meta.log
+ 版: schema v4.1（2026-10-06）企画会議 meeting・ネーム段階の台本 nameScript・裏話 extras・制作ログ meta.log
 ================================================================================
 
 ■ 1. 台本（script）── 正規化後の形（normalizeScript の出力。Claude の出力はこの形に寄せて検証・補完される）
@@ -23,22 +23,24 @@ CHAR = { id, name, role, desc,
   outfit: tshirt|shirt|suit|dress|uniform|sailor|kimono|armor|labcoat|hoodie|robe|apron|jersey|spacesuit|none,
   pattern: white|black|tone|light|stripe|dots|check|star|null,
   items: [WORN または HELD](≤4),  color: white|gray|dark|black|tone|null（cloud/ghost/star/slime/monster の体）,  size: 0.5〜1.8 }
-  WORN = glasses|sunglasses|hat|fedora|cap|crown|helmet|headband|scarf|ribbon|cape|mask|eyepatch|beard|mustache|bowtie|necklace|hairflower|bandage|horns|halo|wings|headphones|earmuffs
-  HELD = sword|staff|wand|book|umbrella|bag|flower|phone|cup|lantern|letter|ball|blaster|shield|food|mic|key|camera|fishingrod|broom|bouquet|map|box|guitar|sweets
+  WORN = glasses|sunglasses|hat|fedora|cap|crown|helmet|headband|scarf|ribbon|cape|mask|eyepatch|beard|mustache|bowtie|necklace|hairflower|bandage|horns|halo|wings|headphones|earmuffs|hairbutton
+  HELD = sword|staff|wand|book|umbrella|bag|flower|phone|cup|lantern|letter|ball|blaster|shield|food|mic|key|camera|fishingrod|broom|bouquet|map|box|guitar|sweets|basket|bucket|beater|shirt|towel|socks
 PANEL = {
   shot: up(顔のアップ・1人)|bust|full|long|bg(人物なし),
   bg: BG,  time: day|evening|night,  weather: clear|cloudy|rain|snow|storm|fog,
   cast: [CAST](≤5),
   say: [ { who: CHAR.id | "off"(コマの外の声), type: speech|shout|think|whisper|electric|mono, text: string(≤60, \n で改行) } ],
   narr: string(≤80),  sfx: [ { text: string(≤8), size: s|m|l } ](≤3),
-  fx: [focus|speed|speedv|dark|spotlight|flashback|sparkle|hearts|gloom|shake|impact|explosion|fire|smoke|magic|question|exclaim|flowers|tone|sweat|wind|bubbles](≤4),
+  fx: [rainbow|focus|speed|speedv|dark|spotlight|flashback|sparkle|hearts|gloom|shake|impact|explosion|fire|smoke|magic|question|exclaim|flowers|tone|sweat|wind|bubbles](≤4),
+  laundry: [string](≤8, bg=yard のとき干す物。作画モジュールには bgSpec.laundry で渡る),
+  props: [ string | { name, x?, y?, s? } ](≤8, 床に置く小物。作画モジュールには bgSpec.props で渡る),
   art: ART_PARTIAL | null                       // このコマだけ絵柄を部分的に上書き（例：劇画オチ）
 }
 CAST = { id, x: 0.05〜0.95|null(自動), face: left|right|front|back|null(自動), expr: EXPR, pose: POSE, hold: HELD|"none"|null,
          color: (cloud等の色の上書き)|null, rain: 0〜3|null(雲の雨), look: up|down|side|null }
   EXPR = normal|smile|happy|laugh|surprised|shock|angry|rage|sad|cry|worried|think|determined|nervous|sleepy|smug|love|scared|embarrassed|blank|pain|funny
   POSE = stand|walk|run|jump|sit|kneel|point|wave|surprise|cheer|fight|punch|cast|think|cry|hold|armscross|reach|shrug|hips|hide|float
-BG = room|classroom|office|kitchen|cafe|washitsu|hospital|lab|library|station|street|shopping|park|forest|beach|mountain|field|sky|space|spaceship|castle|throne|cave|shrine|desert|underwater|rooftop|edo|gym|stage|plain|tone|black|flowers|sparkle（別名も受け付ける：BG_ALIAS）
+BG = rainbow|yard（物干しの庭。PANEL.laundry に干す物の配列）|room|classroom|office|kitchen|cafe|washitsu|hospital|lab|library|station|street|shopping|park|forest|beach|mountain|field|sky|space|spaceship|castle|throne|cave|shrine|desert|underwater|rooftop|edo|gym|stage|plain|tone|black|flowers|sparkle（別名も受け付ける：BG_ALIAS）
 
 ■ 2. 絵柄（art）── 連続パラメータ。値の範囲は作画担当の styles/art.js（MangaStylesKit）に合わせている
 ART = {
@@ -96,6 +98,11 @@ FB = { liked: bool, disliked: bool（いまいち）, opens: number, finished: b
        dwell: [秒](ページごとの滞在の合計、1ページ最大180秒), rereads: number, sequel: bool（続編を作った）, lastRead: ms }
 HISTORY = { items: [ { id: workId, t: ms } ](開いた順・最新300件) }
 ・db が使えないときは localStorage の "mangakobo:" + 同じキー、それも無理ならメモリ。
+・保存の決まり：どの文書にも savedAt（ms）を付ける。起動の読み込みが終わるまで書き込みは待たせる。
+  書き込みは、まず localStorage の "mangakobo-pending:" + キーに同期的に控え（タブを閉じても消えない）、db が受け取ったら消す。
+  db への書き込みが失敗しても保存先は切り替えず、localStorage の "mangakobo-pending:" + キーに控えて、次の起動で db に送り直す。
+  読み込んだ文書は（db では凍結されているので）複製してから使う。作品は work.id で一意にまとめ、同じ id なら savedAt の新しいほうを残す。
+  読み込み中にできた反応・履歴は、読み込んだ分と足し合わせる。
 
 ■ 5. 企画の種（seed）── 作者・編集者への指示に渡す
 SEED = { mode: random|pref|sequel, genre, setting, hero, relation, conflict, tone, ending, gimmick, motifs: [string], pages: 8〜12,
@@ -950,9 +957,9 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     think: { e: 'lookup', b: 'quirk', m: 'side' }, determined: { e: 'glare', b: 'angry', m: 'firm' }, nervous: { e: 'open', b: 'sad', m: 'wavy', x: ['sweat', 'sweat'] },
     sleepy: { e: 'closed', b: 'flat', m: 'o', x: ['zzz'] }, smug: { e: 'half', b: 'quirk', m: 'smirk' }, love: { e: 'heart', b: 'soft', m: 'smile', x: ['blush'] },
     scared: { e: 'shock', b: 'sad', m: 'wavyopen', x: ['sweat', 'gloom'] }, embarrassed: { e: 'away', b: 'sad', m: 'wavy', x: ['blush', 'sweat'] },
-    blank: { e: 'blank', b: 'flat', m: 'line' }, pain: { e: 'squeeze', b: 'sad', m: 'teeth', x: ['sweat'] }, funny: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] },
+    blank: { e: 'blank', b: 'flat', m: 'line' }, pain: { e: 'squeeze', b: 'sad', m: 'teeth', x: ['sweat'] }, funny: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] }, funny2: { e: 'squeeze', b: 'up', m: 'cat', x: ['blush'] }, puff: { e: 'open', b: 'angry', m: 'o', x: ['blush'] },
   };
-  const EXPR_ALIAS = { neutral: 'normal', joy: 'happy', glad: 'happy', grin: 'happy', mad: 'angry', fury: 'rage', crying: 'cry', tears: 'cry', fear: 'scared', afraid: 'scared', serious: 'determined', calm: 'normal', shy: 'embarrassed' };
+  const EXPR_ALIAS = { appuppu: 'puff', cheeks: 'puff', funnier: 'funny2', henkao: 'funny', neutral: 'normal', joy: 'happy', glad: 'happy', grin: 'happy', mad: 'angry', fury: 'rage', crying: 'cry', tears: 'cry', fear: 'scared', afraid: 'scared', serious: 'determined', calm: 'normal', shy: 'embarrassed' };
 
   /* ---------- 人物の素材（同じ charSpec はどの絵柄でも同じ「人」になる） ---------- */
   const HAIR_MAT = { black: 0.96, tone: 0.5, light: 0.2, white: 0.0, gray: 0.5, brown: 0.6, blonde: 0.15, red: 0.55, blue: 0.7 };
@@ -1090,6 +1097,9 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   function drawCharacter(ctx, spec, pose, expr, box, opts) {
     spec = spec || {}; box = box || {};
     const art = K.normalizeArt(opts && (opts.art || opts));
+    if (box.color) spec = Object.assign({}, spec, { color: box.color }); // コマごとの色（例：雲を灰色に）
+    // 宙に浮かせる：box.float = true（体の高さの0.6倍）または数値（体の高さに対する割合）、box.lift = px
+    { const Ht0 = 100 * (box.unit || 3) * sizeFactor(spec); const up = (box.float === true ? 0.6 : typeof box.float === 'number' ? box.float : 0) * Ht0 + (box.lift || 0) + (pose === 'float' && BLOBS.includes(spec.species) ? Ht0 * 0.15 : 0); if (up) box = Object.assign({}, box, { footY: (box.footY || 0) - up }); }
     const unit = box.unit || 3, sz = sizeFactor(spec), Ht = 100 * unit * sz;
     seed(hashStr((spec.id || spec.name || 'x') + '|' + pose + '|' + expr + '|' + Math.round(box.footX || 0)));
     const lineSc = clamp(Math.sqrt(Ht / 300), 0.45, 2.2);
@@ -1108,15 +1118,19 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const freeHand = !NOHOLD.has(poseKey);
     const ctxD = { ly, spec, art, m, rig, R, line, expr: EXPRS[expr] || EXPRS[EXPR_ALIAS[expr]] || EXPRS.normal, exprName: expr, box, hold: box.hold != null ? box.hold : (rig.P.hold || (freeHand ? (spec.items || []).find(i => HELD_SET.has(i)) : null)) };
     if (ctxD.hold === 'none') ctxD.hold = null;
+    // 変顔の強さ：0=ほっぺをふくらませる(puff), 1=変顔, 2=もっと崩す（funny2、または大人の funny）
+    const en = EXPRS[expr] ? expr : (EXPR_ALIAS[expr] || expr); ctxD.exprName = en;
+    ctxD.funnyLevel = en === 'puff' ? 0 : en === 'funny2' ? 2 : en === 'funny' ? (box.exprLevel != null ? clamp(Math.round(box.exprLevel), 0, 2) : (spec.age === 'adult' || spec.age === 'elder' ? 2 : 1)) : -1;
     const res = BLOBS.includes(spec.species) ? drawBlob(ctxD) : art.rough ? drawRough(ctxD) : drawHumanoid(ctxD);
     ctx.save();
     if (box.panel) { ctx.beginPath(); ctx.rect(box.panel.x, box.panel.y, box.panel.w, box.panel.h); ctx.clip(); }
     compose(ctx, ly, R);
+    if (box.rain) rainFrom(ctx, ctxD, res, art);
     ctx.restore();
     return res;
   }
   const NOHOLD = new Set(['armscross', 'cheer', 'cry', 'think', 'hips', 'shrug', 'hide', 'surprise', 'jump', 'fall', 'wave']);
-  const HELD_SET = new Set(['sword', 'staff', 'wand', 'book', 'umbrella', 'bag', 'flower', 'phone', 'cup', 'lantern', 'letter', 'ball', 'blaster', 'shield', 'food', 'mic', 'key', 'camera', 'fishingrod', 'broom', 'bouquet', 'map', 'box', 'guitar', 'sweets']);
+  const HELD_SET = new Set(['basket', 'bucket', 'beater', 'shirt', 'towel', 'socks', 'sword', 'staff', 'wand', 'book', 'umbrella', 'bag', 'flower', 'phone', 'cup', 'lantern', 'letter', 'ball', 'blaster', 'shield', 'food', 'mic', 'key', 'camera', 'fishingrod', 'broom', 'bouquet', 'map', 'box', 'guitar', 'sweets']);
 
   // 線の太さ（基準）
   const LWb = c => 1.5;
@@ -1545,6 +1559,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     for (let i = 0; i < 36; i++) { const a = i / 36 * TAU; pts.push([F.c.x + Math.cos(a) * R * 0.98, F.c.y + Math.sin(a) * R * 0.98]); }
     for (const sx of [-1, 1]) { const j = pt(sx * jawW, jawY, lerp(0.1, 0.0, q)); pts.push([j.x, j.y]); const cw = pt(sx * chinW, chinY * 0.97, chinZ); pts.push([cw.x, cw.y]); }
     const ch = pt(0, chinY, chinZ); pts.push([ch.x, ch.y]);
+    if (C.funnyLevel >= 0 && !frog) { const k = [1.1, 1.06, 1.14][C.funnyLevel]; for (const sx of [-1, 1]) { const pf = pt(sx * k, 0.48, 0.3); pts.push([pf.x, pf.y]); const pf2 = pt(sx * 0.92, 0.72, 0.45); pts.push([pf2.x, pf2.y]); } }
     if (!frog) for (const sx of [-1, 1]) { const cb = pt(sx * 0.84, 0.28, 0.42); pts.push([cb.x, cb.y]); const cj = pt(sx * lerp(0.62, 0.5, q), lerp(0.7, 0.92, q), lerp(0.4, 0.38, q)); pts.push([cj.x, cj.y]); }
     // 動物の鼻先
     const sp = spec.species, animal = ANIMAL_EARS[sp];
@@ -1631,6 +1646,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
 
   // ---- 顔のパーツ ----
   function drawFace(C, F) {
+    if (C.funnyLevel >= 0) return drawFunnyFace(C, F);
     const { ly, m, art, spec } = C; const { R, q } = F; const l = ly.l; const e = C.expr;
     const look = C.box.look;
     const sz = art.eyeSize, st = art.eyeStyle === 'round' ? 'simple' : art.eyeStyle;
@@ -1773,6 +1789,75 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       ink(l, catmull(up.map(p => [p[0], p[1] - h * 0.32]), 5).slice(4, -1), 0.55, { dense: true, tin: 2, tout: 3 }); // 二重
     } else if (st === 'sharp') { ink(l, catmull(lo, 4).slice(4), 0.6, { dense: true, tin: 1, tout: 2 }); }
     else { if (art.detail > 0.4) ink(l, catmull(lo, 4).slice(2, -2), 0.5, { dense: true }); }
+  }
+  // 変顔：寄り目・眉の上下ずれ・広がった鼻の穴・ふくらんだ頬・出した舌（どの絵柄でも大きく崩す）
+  function drawFunnyFace(C, F) {
+    const { ly, art, spec } = C; const { R, q } = F; const l = ly.l; const lv = C.funnyLevel;
+    const animal = !!ANIMAL_EARS[spec.species];
+    const eyeV = lerp(0.25, 0.06, q), eyeU = 0.4, er = R * lerp(0.15, 0.12, q) * lerp(0.9, 1.3, art.eyeSize);
+    const eyes = [];
+    for (const sx of [-1, 1]) { const p = F.sp(sx * eyeU, eyeV); if (p.z < 0.1) continue; eyes.push({ sx, p }); }
+    const blush = (n = 4) => { for (const { p } of eyes) for (let i = 0; i < n; i++) { const bx = p.x + (i - (n - 1) / 2) * R * 0.07, byy = p.y + R * 0.4; ink(l, [[bx + R * 0.03, byy - R * 0.05], [bx - R * 0.03, byy + R * 0.05]], 0.7, { tin: 1, tout: 1 }); } };
+    // 頬のふくらみの線（左右の弧）
+    const puffLines = k => { for (const sx of [-1, 1]) { const c = F.sp(sx * 0.78, 0.5); if (c.z < 0) continue; ink(l, ellipsePts(c.x, c.y, R * 0.2 * k, R * 0.2 * k, 0, 10, sx > 0 ? -1.2 : Math.PI - 0.6, sx > 0 ? 0.6 : Math.PI + 1.2), 0.6, { dense: true, tin: 2, tout: 2 }); } };
+    // 人の鼻の穴：輪郭なし、上向きに少し大きく（動物は鼻づらで描く）
+    const nostrils = (k, crease) => { if (animal) { drawMuzzle(C, F, spec.species); return; } const n = F.sp(0, 0.44); const nr = R * 0.1 * k; for (const sx of [-1, 1]) { l.beginPath(); l.ellipse(n.x + sx * nr * 0.9 + F.side * nr * 0.5, n.y, nr * 0.45, nr * 0.7, sx * -0.45, 0, TAU); l.fill(); } if (crease) for (const sx of [-1, 1]) ink(l, [[n.x + sx * nr * 1.9, n.y - nr * 0.6], [n.x + sx * nr * 2.3, n.y + nr * 0.4], [n.x + sx * nr * 2.0, n.y + nr * 1.6]], 0.7, { tin: 1, tout: 3 }); };
+    if (lv === 0) {
+      // あっぷっぷ：にらむ目、すぼめた口、ふくらんだ頬
+      const st = art.eyeStyle === 'round' ? 'simple' : art.eyeStyle;
+      const base = { dot: [0.13, 0.13], simple: [0.24, 0.3], sparkle: [0.32, 0.42], sharp: [0.36, 0.17], realistic: [0.3, 0.15] }[st] || [0.24, 0.3];
+      for (const { sx, p } of eyes) { const fs = clamp(p.z * 1.1, 0.25, 1); const E = { sx, x: p.x, y: p.y, w: R * base[0] * lerp(0.55, 1.45, art.eyeSize) * fs, h: R * base[1] * lerp(0.55, 1.45, art.eyeSize), fs, scr: Math.sign((p.x - F.c.x) || sx) };
+        animal ? drawAnimalEye(C, E, 'glare', [0, 0], false, spec.species) : drawEye(C, E, st, 'glare', [0, 0], false);
+        const inner = -E.scr; ink(l, [[E.x + inner * E.w * 0.8, E.y - E.h - R * 0.06], [E.x - inner * E.w * 0.9, E.y - E.h - R * 0.17]], lerp(1.2, 2.2, q), { tin: 0.5, tout: 3 }); }
+      if (!animal) { const n = F.sp(0, 0.44); l.beginPath(); l.arc(n.x - R * 0.04, n.y, R * 0.025, 0, TAU); l.arc(n.x + R * 0.04, n.y, R * 0.025, 0, TAU); l.fill(); } else drawMuzzle(C, F, spec.species);
+      const mp = F.sp(0, 0.76); const mr = R * 0.07; const M = ellipsePts(mp.x, mp.y, mr, mr * 0.8, 0, 14); ly.fill(M, 0.9, { shade: 0, knock: false }); contour(l, M, 1.0);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; ink(l, [[mp.x + Math.cos(a) * mr * 1.3, mp.y + Math.sin(a) * mr * 1.1], [mp.x + Math.cos(a) * mr * 2.0, mp.y + Math.sin(a) * mr * 1.7]], 0.5, { tin: 1, tout: 1 }); }
+      puffLines(1); blush(3); return;
+    }
+    eyes.forEach(({ sx, p }, i) => {
+      const r = er * (i === 0 ? 1.15 : 0.9) * (lv === 2 ? 1.15 : 1); const E = ellipsePts(p.x, p.y, r * clamp(p.z * 1.1, 0.4, 1), r, 0, 20);
+      ly.fill(E, 0, { shade: 0, knock: false }); contour(l, E, 1.2);
+      const toward = Math.sign((F.c.x - p.x) || -sx); l.fillStyle = '#000';
+      if (lv === 2) { // 白目：黒目は上へ半分かくれる
+        l.save(); l.beginPath(); pathPoly(l, E); l.clip(); l.beginPath(); l.arc(p.x + toward * r * 0.3 * (i ? 1 : -1), p.y - r * 0.85, r * 0.42, 0, TAU); l.fill(); l.restore();
+        ink(l, [[p.x - r, p.y - r * 0.35], [p.x, p.y - r * 0.55], [p.x + r, p.y - r * 0.35]], 1.0);
+      } else { l.beginPath(); l.arc(p.x + toward * r * 0.55, p.y + r * 0.1, r * 0.38, 0, TAU); l.fill(); } // 寄り目
+      const by = p.y - r * (i === 0 ? (lv === 2 ? 2.6 : 2.2) : 1.25), bw = r * 1.4;
+      ink(l, i === 0 ? [[p.x - bw, by + r * 0.3], [p.x, by - r * 0.35], [p.x + bw, by + r * 0.2]] : [[p.x - bw, by - r * 0.25 * toward], [p.x + bw, by + r * 0.35 * toward]], lerp(1.3, 2.2, q), { tin: 1, tout: 3 });
+    });
+    nostrils(lv === 2 ? 1.5 : 1.15, lv === 2);
+    // 口：lv1 は横にあけて舌、lv2 は鼻の下をのばし、上くちびるをめくって大きく舌
+    const drop = lv === 2 ? 0.12 : 0; const mp = F.sp(0.05, lerp(0.72, 0.8, q) + drop); const w = R * (lv === 2 ? 0.38 : 0.32);
+    if (lv === 2 && !animal) { const n = F.sp(0, 0.5); for (const dx of [-0.05, 0.05]) ink(l, [[n.x + R * dx, n.y], [mp.x + R * dx * 1.2, mp.y - w * 0.3]], 0.6, { tin: 1, tout: 1 }); }
+    const mouth = catmull([[mp.x - w, mp.y - w * 0.1], [mp.x + w, mp.y - w * 0.25], [mp.x + w * 0.6, mp.y + w * 0.35], [mp.x - w * 0.6, mp.y + w * 0.3]], 4, true);
+    ly.fill(mouth, 0.97, { shade: 0, knock: false }); contour(l, mouth, 1.2);
+    if (lv === 2) { // めくれた上くちびる（歯ぐきと歯）と、たれた下くちびる
+      const lip = catmull([[mp.x - w * 0.95, mp.y - w * 0.1], [mp.x, mp.y - w * 0.55], [mp.x + w * 0.95, mp.y - w * 0.24], [mp.x + w * 0.5, mp.y - w * 0.05], [mp.x - w * 0.5, mp.y + w * 0.02]], 4, true);
+      ly.fill(lip, (C.mat && C.mat.skin) || 0, { shade: 0.3, knock: false }); contour(l, lip, 1.1);
+      for (let i = -2; i <= 2; i++) { const T = [[mp.x + i * w * 0.2 - w * 0.08, mp.y - w * 0.05], [mp.x + i * w * 0.2 + w * 0.08, mp.y - w * 0.07], [mp.x + i * w * 0.2 + w * 0.07, mp.y + w * 0.12], [mp.x + i * w * 0.2 - w * 0.07, mp.y + w * 0.13]]; ly.fill(T, 0, { shade: 0, knock: false }); ink(l, T.concat([T[0]]), 0.5, { dense: true }); }
+      const lo = catmull([[mp.x - w * 0.6, mp.y + w * 0.3], [mp.x + w * 0.6, mp.y + w * 0.35], [mp.x + w * 0.45, mp.y + w * 0.65], [mp.x - w * 0.45, mp.y + w * 0.6]], 4, true); ly.fill(lo, 0.25, { shade: 0.3 }); contour(l, lo, 1.0);
+    }
+    const tl = lv === 2 ? 1.35 : 1;
+    const tongue = catmull([[mp.x - w * 0.35, mp.y + w * 0.15], [mp.x + w * 0.35, mp.y + w * 0.12], [mp.x + w * 0.4, mp.y + w * 0.75 * tl], [mp.x, mp.y + w * 0.97 * tl], [mp.x - w * 0.38, mp.y + w * 0.75 * tl]], 4, true);
+    ly.fill(tongue, 0.3, { shade: 0.3 }); contour(l, tongue, 1.0); ink(l, [[mp.x, mp.y + w * 0.3], [mp.x, mp.y + w * 0.7 * tl]], 0.6);
+    if (lv === 2) { // よだれと、顔の縦線
+      ink(l, [[mp.x + w * 0.7, mp.y + w * 0.3], [mp.x + w * 0.75, mp.y + w * 0.9]], 0.6); for (let i = 0; i < 4; i++) { const x = F.c.x - R * 0.35 + i * R * 0.13; ink(l, [[x, F.c.y - R * 0.95], [x, F.c.y - R * 0.6]], 0.6, { tin: 1, tout: 6 }); }
+    }
+    puffLines(lv === 2 ? 1.2 : 0.9); blush(4);
+  }
+  // 雨：その人物から降る（雲は体の下から、ほかは頭の上の小さな雨雲から）
+  function rainFrom(ctx, C, res, art) {
+    const b = res.body, hd = res.head, cloud = C.spec.species === 'cloud';
+    const x0 = cloud ? b.x + b.w * 0.15 : hd.x - hd.r * 1.3, x1 = cloud ? b.x + b.w * 0.85 : hd.x + hd.r * 1.3;
+    const y0 = cloud ? b.y + b.h * 0.85 : hd.y - hd.r * 2.0;
+    const y1 = C.box.panel ? C.box.panel.y + C.box.panel.h : y0 + C.m.Ht;
+    seed(hashStr('rain' + Math.round(x0)));
+    ctx.save(); ctx.fillStyle = '#000';
+    if (!cloud) { const cx = (x0 + x1) / 2, r = hd.r * 0.55; const pts = []; for (let i = 0; i < 60; i++) { const a = i / 60 * TAU; const k = 1 + 0.18 * Math.abs(Math.sin(a * 3)); pts.push([cx + Math.cos(a) * r * 1.9 * k, y0 + Math.sin(a) * r * 0.75 * k]); } ctx.fillStyle = '#fff'; fillPoly(ctx, pts); ctx.fillStyle = '#000'; ink(ctx, pts.concat([pts[0]]), 1.2, { dense: true }); }
+    const n = Math.round((x1 - x0) / 5 * (0.6 + art.detail));
+    for (let i = 0; i < n; i++) { const x = rr(x0, x1), ys = y0 + rr(0, (y1 - y0) * 0.6), L = rr(8, 22); ink(ctx, [[x, ys], [x - L * 0.15, ys + L]], rr(0.6, 1.1), { tin: L * 0.3, tout: L * 0.3, noRough: true }); }
+    for (let i = 0; i < n / 4; i++) { const x = rr(x0, x1), y = rr(y0 + (y1 - y0) * 0.3, y1 - 4), r = rr(1.5, 3); const D = catmull([[x, y - r * 1.8], [x + r, y + r * 0.3], [x, y + r], [x - r, y + r * 0.3]], 3, true); ctx.fillStyle = '#fff'; fillPoly(ctx, D); ctx.fillStyle = '#000'; ink(ctx, D.concat([D[0]]), 0.7, { dense: true }); }
+    ctx.restore();
   }
   // 動物の目：白目の少ない丸い黒目。ネコ・キツネは縦長の瞳孔、カエルは横長の瞳孔
   function drawAnimalEye(C, E, state, lk, gag, sp) {
@@ -2041,6 +2126,8 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (items.has('headband')) { const pts = []; for (let i = 0; i <= 14; i++) { const u = -1.6 + i / 14 * 3.2; const p = F.sp(u, -0.5, 1.12); if (p.z > -0.1) pts.push([p.x, p.y]); } if (pts.length > 2) { const sw = sweep(catmull(pts, 3), () => R * 0.09); ly.fill(sw.poly, 0.1, { shade: 0.6 }); contour(l, sw.poly, 1.1); } }
     if (items.has('bandage') && front) { const p = F.sp(0.5, 0.45); if (p.z > 0) { const P = [[p.x - R * 0.15, p.y - R * 0.08], [p.x + R * 0.15, p.y - R * 0.13], [p.x + R * 0.17, p.y + R * 0.0], [p.x - R * 0.13, p.y + R * 0.05]]; ly.fill(P, 0, { shade: 0.3 }); contour(l, P, 0.9); ink(l, [[p.x - R * 0.02, p.y - R * 0.1], [p.x, p.y + R * 0.03]], 0.5); } }
     if (items.has('mustache') && front) { const p = F.sp(0, lerp(0.62, 0.66, q)); if (p.z > 0) { const P = catmull([[p.x - R * 0.3, p.y + R * 0.08], [p.x, p.y - R * 0.06], [p.x + R * 0.3, p.y + R * 0.08], [p.x, p.y + R * 0.04]], 3, true); ly.fill(P, C.mat.hair > 0.3 ? C.mat.hair : 0.6, { shade: 0.4 }); contour(l, P, 1.0); } }
+    if (items.has('hairbutton')) { // ボタン型の髪どめ：丸い板に穴が2つ
+      const p = pt(-0.68, -0.55, 0.5); if (p.z > -0.2) { const r = R * 0.2; const B = ellipsePts(p.x, p.y, r * clamp(p.z + 0.4, 0.5, 1), r, 0, 18); ly.fill(B, 0, { shade: 0.4 }); contour(l, B, 1.2); ink(l, ellipsePts(p.x, p.y, r * 0.62 * clamp(p.z + 0.4, 0.5, 1), r * 0.62, 0, 14).concat([]), 0.6, { dense: true, closed: true }); for (const d of [-1, 1]) { l.beginPath(); l.arc(p.x + d * r * 0.25, p.y, r * 0.13, 0, TAU); l.fill(); } } }
     if (items.has('hairflower')) { const p = pt(0.7 * C.rig.mir, -0.65, 0.4); drawFlower(ly, p.x, p.y, R * 0.28); }
     if (items.has('ribbon')) { const p = pt(-0.6, -0.8, 0.3); for (const sx of [-1, 1]) { const P = catmull([[p.x, p.y], [p.x + sx * R * 0.4, p.y - R * 0.25], [p.x + sx * R * 0.45, p.y + R * 0.2]], 3, true); ly.fill(P, 0.9, { shade: 0.3 }); contour(l, P, 1.1); } const k = ellipsePts(p.x, p.y, R * 0.09, R * 0.09, 0, 10); ly.fill(k, 0.9, { shade: 0 }); }
     if (items.has('horns')) for (const sx of [-1, 1]) { const b = pt(sx * 0.5, -0.85, 0.2); const t = pt(sx * 0.95, -1.55, 0.1); const P = catmull([[b.x - R * 0.13, b.y], [lerp(b.x, t.x, 0.5) + sx * R * 0.1, lerp(b.y, t.y, 0.6)], [t.x, t.y], [b.x + R * 0.13, b.y + R * 0.02]], 4, true); ly.fill(P, 0.25, { shade: 0.9, off: R * 0.1 }); contour(l, P, 1.2); }
@@ -2142,6 +2229,33 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       if (it === 'broom') { const P2 = [V.add(a, [-m.Ht * 0.05, 0]), V.add(a, [m.Ht * 0.05, 0]), V.add(a, [m.Ht * 0.07, m.Ht * 0.12]), V.add(a, [-m.Ht * 0.07, m.Ht * 0.12])]; ly.fill(P2, 0.3, { shade: 0.5 }); contour(l, P2, 1.1); }
       return;
     }
+    if (it === 'basket') { // 洗濯かご：編み目と、のぞく洗濯物
+      const c = V.add(W, [0, s * 6]); const w = s * 16, h = s * 11;
+      const P = catmull([[c[0] - w * 0.55, c[1] - h * 0.4], [c[0] + w * 0.55, c[1] - h * 0.4], [c[0] + w * 0.45, c[1] + h * 0.5], [c[0] - w * 0.45, c[1] + h * 0.5]], 2, true);
+      const cl = catmull([[c[0] - w * 0.45, c[1] - h * 0.4], [c[0] - w * 0.2, c[1] - h * 0.85], [c[0] + w * 0.1, c[1] - h * 0.6], [c[0] + w * 0.35, c[1] - h * 0.9], [c[0] + w * 0.45, c[1] - h * 0.4]], 4, true); ly.fill(cl, 0, { shade: 0.4 }); contour(l, cl, 1.0);
+      ly.fill(P, 0.3, { shade: 0.6, off: w * 0.1 }); contour(l, P, 1.3);
+      for (let i = 1; i < 6; i++) { const t = i / 6; ink(l, [[lerp(c[0] - w * 0.55, c[0] + w * 0.55, t), c[1] - h * 0.4], [lerp(c[0] - w * 0.45, c[0] + w * 0.45, t), c[1] + h * 0.5]], 0.5); }
+      for (let j = 1; j < 4; j++) { const t = j / 4; ink(l, [[lerp(c[0] - w * 0.55, c[0] - w * 0.45, t), lerp(c[1] - h * 0.4, c[1] + h * 0.5, t)], [lerp(c[0] + w * 0.55, c[0] + w * 0.45, t), lerp(c[1] - h * 0.4, c[1] + h * 0.5, t)]], 0.5); }
+      const rim = [[c[0] - w * 0.58, c[1] - h * 0.48], [c[0] + w * 0.58, c[1] - h * 0.48], [c[0] + w * 0.56, c[1] - h * 0.33], [c[0] - w * 0.56, c[1] - h * 0.33]]; ly.fill(rim, 0.5, { shade: 0.3 }); contour(l, rim, 1.0, { seg: 1 });
+      return;
+    }
+    if (it === 'bucket') { // バケツ：取っ手・ふち・帯
+      const c = V.add(W, [0, s * 9]); const w = s * 10, h = s * 11;
+      ink(l, catmull([[c[0] - w * 0.5, c[1] - h * 0.4], [c[0], c[1] - h * 1.15], [c[0] + w * 0.5, c[1] - h * 0.4]], 6), 0.9);
+      const P = [[c[0] - w * 0.55, c[1] - h * 0.45], [c[0] + w * 0.55, c[1] - h * 0.45], [c[0] + w * 0.42, c[1] + h * 0.5], [c[0] - w * 0.42, c[1] + h * 0.5]]; ly.fill(P, 0.35, { shade: 0.7, off: w * 0.15 }); contour(l, P, 1.3, { seg: 1 });
+      const rim = ellipsePts(c[0], c[1] - h * 0.45, w * 0.55, h * 0.12, 0, 24); ly.fill(rim, 0.6, { shade: 0 }); contour(l, rim, 1.0);
+      for (const t of [0.15, 0.75]) ink(l, [[lerp(c[0] - w * 0.55, c[0] - w * 0.42, t + 0.05), c[1] - h * 0.45 + h * 0.95 * (t + 0.05)], [lerp(c[0] + w * 0.55, c[0] + w * 0.42, t + 0.05), c[1] - h * 0.45 + h * 0.95 * (t + 0.05)]], 0.6);
+      return;
+    }
+    if (it === 'beater') { // 布団たたき：長い柄と、輪をかさねた頭
+      const up = dir[1] < -0.3 ? dir : V.norm([C.rig.mir * 1.0, -0.55]); const a = V.add(W, V.mul(up, -m.hand * 0.3)), b = V.add(a, V.mul(up, m.Ht * 0.3));
+      const sh = limb2(a, b, m.Ht * 0.008, m.Ht * 0.006, [[0, 1, 1], [1, 1, 1]]); ly.fill(sh.poly, 0.5, { shade: 0.5 }); contour(l, sh.poly, 1.0);
+      const hs2 = m.Ht * 0.11, ang = Math.atan2(up[1], up[0]) + Math.PI / 2;
+      const loop = (k, off) => { const P = []; for (let i = 0; i <= 40; i++) { const t = i / 40 * TAU; const x = Math.sin(t) * hs2 * 0.5 * k, y = -(1 - Math.cos(t)) * hs2 * 0.55 * k - off; P.push(V.add(b, V.rot([x, y], ang))); } return P; };
+      for (const [k, off] of [[1, 0], [0.62, hs2 * 0.08], [0.3, hs2 * 0.12]]) { const P = loop(k, off); const sw = K.sweep(P, () => m.Ht * 0.005); ly.fill(sw.poly, 0.5, { shade: 0.2, knock: false }); ink(l, P, 1.6, { dense: true, taper: 0.2 }); }
+      return;
+    }
+    if (it === 'shirt' || it === 'towel' || it === 'socks') { K.laundry(ly, it, W[0], W[1] - s * 2, s * 14, 0.2); return; }
     if (it === 'umbrella' && !C.box.rain) { // 晴れの日は閉じた傘（杖のように持つ）
       const a0 = V.add(W, [0, -m.hand * 0.6]), b0 = V.add(W, [C.rig.mir * m.Ht * 0.04, m.Ht * 0.36]);
       const sh = limb2(a0, b0, m.Ht * 0.007, m.Ht * 0.005, [[0, 1, 1], [1, 1, 1]]); ly.fill(sh.poly, 0.6, { shade: 0 }); contour(l, sh.poly, 0.9);
@@ -2177,8 +2291,17 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (sp === 'ghost') { R = H * 0.3; hc = [cx, base - H * 0.62]; const pts = []; for (let i = 0; i <= 18; i++) { const a = Math.PI + i / 18 * Math.PI; pts.push([hc[0] + Math.cos(a) * R, hc[1] + Math.sin(a) * R]); } pts.push([hc[0] + R * 1.0, hc[1] + H * 0.25], [hc[0] + R * 0.5 - rig.mir * R * 0.4 * wob, base - H * 0.08], [hc[0] - rig.mir * R * 1.2, base - H * 0.02], [hc[0] - R * 0.6, hc[1] + H * 0.3], [hc[0] - R, hc[1] + H * 0.2]); P = catmull(pts, 4, true); }
     else if (sp === 'slime') { R = H * 0.45; hc = [cx, base - H * 0.42]; P = catmull([[cx - R * 1.2, base], [cx - R * 1.0, base - R * 0.7], [cx - R * 0.2, base - R * 1.35], [cx + R * 0.4, base - R * 1.1], [cx + R * 1.05, base - R * 0.55], [cx + R * 1.2, base]], 5, true); }
     else if (sp === 'star') { R = H * 0.35; hc = [cx, base - H * 0.5]; const pts = []; for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, r = k % 2 ? R * 0.55 : R * 1.25; pts.push([hc[0] + Math.cos(a) * r, hc[1] + Math.sin(a) * r]); } P = catmull(pts, 3, true); }
-    else { R = H * 0.38; hc = [cx, base - H * 0.6]; const pts = []; for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; const rr2 = R * (i % 2 ? 0.95 : 1.15); pts.push([hc[0] + Math.cos(a) * rr2 * 1.35, hc[1] + Math.sin(a) * rr2 * 0.85]); } P = catmull(pts, 6, true); }
+    else { // 雲：丸いふくらみを重ねた、もこもこの形（笑うとふくらみ、悲しいとしぼむ）
+      const happy = ['happy', 'laugh', 'smile', 'love'].includes(C.exprName), sad = ['sad', 'cry', 'worried', 'scared'].includes(C.exprName);
+      const k = happy ? 1.12 : sad ? 0.92 : 1; R = H * 0.36 * k; hc = [cx, base - H * 0.6 + (sad ? H * 0.03 : 0)];
+      const CIR = [[-0.78, -0.08, 0.55], [-0.32, -0.48, 0.66], [0.3, -0.55, 0.72], [0.82, -0.12, 0.56], [-1.12, 0.3, 0.42], [-0.5, 0.42, 0.5], [0.15, 0.45, 0.52], [0.78, 0.38, 0.47], [1.18, 0.18, 0.36]]
+        .map(([x, y, r], i) => [x * R * 1.12, y * R * (sad ? 0.92 : 1) + (sad && y > 0 ? R * 0.08 : 0), r * R * (happy && i < 4 ? 1.08 : 1)]);
+      const pts = []; const N = 140;
+      for (let i = 0; i < N; i++) { const a = i / N * TAU, d = [Math.cos(a), Math.sin(a)]; let best = 0; for (const [x, y, r] of CIR) { const b = d[0] * x + d[1] * y, c2 = x * x + y * y - r * r, disc = b * b - c2; if (disc >= 0) best = Math.max(best, b + Math.sqrt(disc)); } pts.push([hc[0] + d[0] * best, hc[1] + d[1] * best]); }
+      P = pts; C.cloudPuffs = CIR.map(([x, y, r]) => [hc[0] + x, hc[1] + y, r]); }
     part(ly, P, mat, { w: 1.8, off: R * 0.3, blur: R * 0.05 });
+    if (C.cloudPuffs) for (const [x, y, r] of C.cloudPuffs.slice(4, 8)) { // 内側のふくらみの重なり（短い弧）
+      const a0 = -Math.PI * 0.85, arc = ellipsePts(x, y, r, r, 0, 12, a0, a0 + 0.9); ink(ly.l, arc, 0.7, { dense: true, tin: 2, tout: 4 }); }
     // 顔（人と同じ顔の仕組みで）
     const F = { c: { x: hc[0], y: hc[1], k: 1 }, R: R * 0.8, yaw: 0, nod: 0, tilt: 0, q: 0, faceOn: 1, side: (box.facing || 0) * 0.3,
       sp: (u, v) => ({ x: hc[0] + Math.sin(u) * R * 0.8 + (box.facing || 0) * R * 0.15, y: hc[1] + v * R * 0.8, z: Math.cos(u), vis: true }), pt: (x, y) => ({ x: hc[0] + x * R * 0.8, y: hc[1] + y * R * 0.8, z: 1 }) };
@@ -2197,6 +2320,31 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     const ears = { long: 1.6, bigpoint: 0.75, point: 0.5 }[ANIMAL_EARS[(spec || {}).species]] || 0;
     return { top: Ht + m.R * (0.15 + ears), hc: -(Ht - m.R), R: m.R, widthRatio: clamp(0.3 + 0.35 / (m.H / 2), 0.32, 0.6), size: sz };
   }
+  /* 床に置く小物：drawProp(ctx, name, { x, y, unit, facing }, opts)
+     x,y＝物の底の中心（床の上）。unit は人物と同じ（大人の身長≒100単位）なので、並べても大きさがそろう */
+  function drawProp(ctx, name, box, opts) {
+    const art = K.normalizeArt(opts && (opts.art || opts)); const unit = box.unit || 3, s = unit; const Ht = 100 * unit;
+    const lb = { x: box.x - s * 30, y: box.y - s * 45, w: s * 60, h: s * 50 };
+    const S = K.ctxScale(ctx); const ly = new Layer(lb, S); const { line, R } = derive(art, clamp(Math.sqrt(Ht / 300), 0.45, 2.2)); setLine(line);
+    seed(hashStr('prop' + name + Math.round(box.x)));
+    const C = { ly, art, line, R, m: { Ht, hand: s * 7 }, rig: { mir: box.facing === -1 ? -1 : 1, P: {} }, box: {}, hold: name, mat: { skin: 0 } };
+    const l = ly.l, x = box.x, y = box.y;
+    if (name === 'bucket') drawHeld(C, [x, y - s * 14.5], [0, 1], 1);
+    else if (name === 'basket') drawHeld(C, [x, y - s * 11.5], [0, 1], 1);
+    else if (name === 'beater' || name === 'broom' || name === 'umbrella' || name === 'staff') { // 床に寝かせる
+      const P = [[x - s * 22, y - s * 1.2], [x + s * 6, y - s * 1.2], [x + s * 6, y], [x - s * 22, y]]; ly.fill(P, 0.5, { shade: 0.3 }); contour(l, P, 1.0, { seg: 1 });
+      if (name === 'beater') for (const [k, off] of [[1, 0], [0.62, 1], [0.3, 1.6]]) { const E = ellipsePts(x + s * (13 - off * 1.2), y - s * 2.5 * k, s * 8 * k, s * 2.6 * k, 0, 28); ink(l, E.concat([E[0]]), 1.4, { dense: true, taper: 0.2 }); }
+      else if (name === 'umbrella') { const F2 = catmull([[x - s * 4, y - s * 1], [x + s * 10, y - s * 3.5], [x + s * 22, y - s * 0.5], [x + s * 10, y], [x - s * 4, y]], 3, true); ly.fill(F2, 0.5, { shade: 0.5 }); contour(l, F2, 1.1); }
+    }
+    else if (name === 'shirt' || name === 'towel' || name === 'socks' || name === 'laundry') { // たたんで重ねた洗濯物
+      const n = name === 'socks' ? 1 : 3; for (let i = 0; i < n; i++) { const yy = y - i * s * 2.4, w = s * (name === 'socks' ? 6 : 11) * (1 - i * 0.06); const P = catmull([[x - w, yy], [x + w, yy], [x + w * 0.96, yy - s * 2.4], [x - w * 0.96, yy - s * 2.4]], 2, true); ly.fill(P, i % 2 ? 0.25 : 0, { shade: 0.4 }); contour(l, P, 1.0); ink(l, [[x - w * 0.3, yy - s * 2.3], [x - w * 0.25, yy - s * 0.3]], 0.5); }
+    }
+    else drawHeld(C, [x, y - s * 8], [0, 1], 1); // そのほかは持ち物の描き方で
+    // 床の影（線で：横に短い線を数本）→ 物
+    ctx.save(); ctx.fillStyle = '#000'; for (let i = 0; i < 5; i++) { const yy = y + s * (0.2 + i * 0.35), ww = s * (11 - i * 1.8); penPath(ctx, [[x - ww, yy], [x + ww, yy]], 0.6, { tin: ww * 0.4, tout: ww * 0.4, taper: 1, jit: 0 }); } ctx.restore();
+    ctx.save(); compose(ctx, ly, R); ctx.restore();
+    return { x: lb.x, y: lb.y, w: lb.w, h: lb.h };
+  }
   function _handTest(ctx, box, opts) {
     const art = K.normalizeArt(opts); const S = K.ctxScale(ctx); const ly = new Layer(box, S); const { line, R } = derive(art, 2); setLine(line);
     const C = { ly, art, m: { hand: 60 }, rig: { mir: 1 }, line };
@@ -2204,7 +2352,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     kinds.forEach((k, i) => dirs.forEach((d, j) => drawHand(C, [box.x + 80 + i * 150, box.y + 50 + j * 140], V.norm(d), 70, k, j === 2 ? 'f' : 'n', 0)));
     compose(ctx, ly, R);
   }
-  Object.assign(K, { _handTest, drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
+  Object.assign(K, { drawProp, _handTest, drawCharacter, metrics, POSES, EXPRS, POSE_ALIAS, EXPR_ALIAS, OUTFIT, sizeFactor, drawStarShape: drawStar, drawFlowerShape: drawFlower });
 })();
 
 </script>
@@ -2278,10 +2426,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   const NAMES = {
     city: ['street', 'shopping', 'station', 'edo', 'rooftop', 'ruins'],
     interior: ['room', 'classroom', 'office', 'kitchen', 'cafe', 'washitsu', 'hospital', 'lab', 'library', 'gym', 'castle', 'throne', 'spaceship', 'stage'],
-    nature: ['park', 'forest', 'beach', 'mountain', 'field', 'desert', 'cave', 'shrine'],
+    nature: ['park', 'forest', 'beach', 'mountain', 'field', 'desert', 'cave', 'shrine', 'yard', 'rainbow'],
     void: ['sky', 'space', 'underwater', 'plain', 'tone', 'black', 'flowers', 'sparkle'],
   };
-  const ALIAS = { home: 'room', bedroom: 'room', school: 'classroom', city: 'street', town: 'street', road: 'street', arcade: 'shopping', market: 'shopping', ocean: 'beach', sea: 'beach', hill: 'field', meadow: 'field', temple: 'shrine', jungle: 'forest', woods: 'forest', palace: 'castle', ship: 'spaceship', universe: 'space', train: 'station', restaurant: 'cafe', dungeon: 'cave', roof: 'rooftop', ruin: 'ruins', white: 'plain', none: 'plain' };
+  const ALIAS = { garden: 'yard', backyard: 'yard', laundry: 'yard', 物干し: 'yard', niji: 'rainbow', 虹: 'rainbow', home: 'room', bedroom: 'room', school: 'classroom', city: 'street', town: 'street', road: 'street', arcade: 'shopping', market: 'shopping', ocean: 'beach', sea: 'beach', hill: 'field', meadow: 'field', temple: 'shrine', jungle: 'forest', woods: 'forest', palace: 'castle', ship: 'spaceship', universe: 'space', train: 'station', restaurant: 'cafe', dungeon: 'cave', roof: 'rooftop', ruin: 'ruins', white: 'plain', none: 'plain' };
 
   function drawBackground(ctx, bg, box, opts) {
     bg = bg || {}; box = box || { x: 0, y: 0, w: 800, h: 600 };
@@ -2405,6 +2553,13 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (!edo && !roof) for (let i = 0; i < Math.round(det * 6); i++) { const z = rr(8, 80), sd = rand() < 0.5 ? -1 : 1; ll([sd * (Wst - 0.5), 0, z], [sd * (Wst - 0.5), rr(7, 9), z], 1.0); }
     if (ruins) for (let i = 0; i < Math.round(6 + det * 18); i++) { const z = rr(3, 40), x = rr(-Wst + 0.5, Wst - 0.5), s = rr(0.2, 0.9) * (z < 10 ? 1.3 : 1); sc.box(x - s, 0, z - s * 0.6, x + s, s * rr(0.4, 1.2), z + s * 0.6, rr(0.1, 0.6), { shade: 0.9 }); }
     sc.draw();
+    // 街の小物：街灯、看板、横断歩道
+    if (!edo && !roof && det > 0.15) {
+      const lampAt = (sd, z) => { const x = sd * (Wst - 0.6); ll([x, 0, z], [x, 4.6, z], 1.4); ll([x, 4.6, z], [x - sd * 0.9, 4.9, z], 1.1); const p0 = cam.proj([x - sd * 1.0, 4.85, z]); if (p0) { const r = cam.f * 0.22 / Math.max(1, cam.view([x, 0, z])[2]); const E = ellipsePts(p0[0], p0[1] + r * 0.3, r * 1.2, r * 0.5, 0, 14); ly.fill(E, 0.2, { shade: 0 }); ink(ly.l, E.concat([E[0]]), 0.6, { dense: true }); } };
+      for (let z = 6; z < 70; z += 14) { lampAt(-1, z); lampAt(1, z + 7); }
+      for (let i = 0; i < Math.round(det * 6); i++) { const b = pick3(...blocks.filter(b2 => b2.z0 < 50)); if (!b) continue; const xe = b.sd < 0 ? b.x1 + 0.02 : b.x0 - 0.02, z = lerp(b.z0, b.z1, rr(0.2, 0.8)), y0 = rr(2.6, 5); const P3 = [[xe, y0, z], [xe - b.sd * 0.9, y0, z], [xe - b.sd * 0.9, y0 + 2.2, z], [xe, y0 + 2.2, z]]; const P = cam.poly(P3).map(q => [q[0], q[1]]); if (P.length > 2) { ly.fill(P, pick3(0.0, 0.85, 0.3), { shade: 0.2 }); ink(ly.l, P.concat([P[0]]), 0.7, { dense: true }); for (let k = 0; k < 3; k++) ll([xe - b.sd * 0.45, y0 + 1.9 - k * 0.6, z - 0.01], [xe - b.sd * 0.45, y0 + 1.5 - k * 0.6, z - 0.01], 0.9); } }
+      for (let k = -3; k <= 3; k++) { const P = cam.poly([[k * 1.6 - 0.4, 0.01, 10], [k * 1.6 + 0.4, 0.01, 10], [k * 1.6 + 0.4, 0.01, 13], [k * 1.6 - 0.4, 0.01, 13]]).map(q => [q[0], q[1]]); if (P.length > 2) { ly.fill(P, 0.0, { shade: 0, knock: false }); ink(ly.l, P.concat([P[0]]), 0.5, { dense: true }); } }
+    }
     // 地面の線（描いたあと）
     if (!roof) { ll([-Wst, 0, 1], [-Wst, 0, 200], 1.0); ll([Wst, 0, 1], [Wst, 0, 200], 1.0); ll([-Wst + 2, 0, 1], [-Wst + 2, 0, 200], 0.6); ll([Wst - 2, 0, 1], [Wst - 2, 0, 200], 0.6); for (let z = 3; z < 120; z += 6) ll([0, 0, z], [0, 0, z + 2.5], 0.9); }
     if (det > 0.5) for (let i = 0; i < det * 30; i++) { const z = rr(1.5, 40), x = rr(-Wst, Wst); ll([x, 0, z], [x + rr(-0.6, 0.6), 0, z + rr(0.2, 1)], 0.4); }
@@ -2420,10 +2575,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   function interior(env) {
     const { ly, box, hz, art, name, night } = env;
     const p = art.perspective, det = art.detail;
-    const Wd = name === 'gym' || name === 'castle' || name === 'throne' ? 14 : name === 'washitsu' ? 6 : 8, Dp = name === 'gym' || name === 'castle' || name === 'throne' ? 30 : 12, Hh = name === 'castle' || name === 'throne' || name === 'gym' ? 9 : 3;
+    const big = name === 'gym' || name === 'castle' || name === 'throne' || name === 'library' || name === 'classroom', Wd = big ? (name === 'library' || name === 'classroom' ? 8 : 14) : name === 'washitsu' ? 6 : 6.5, Dp = big ? (name === 'library' || name === 'classroom' ? 11 : 30) : 7.5, Hh = name === 'castle' || name === 'throne' || name === 'gym' ? 9 : 3;
     const f = box.w * lerp(1.0, 0.45, p);
     const pitch = lerp(0, 0.35, Math.max(0, p - 0.5) / 0.5);
-    const cam = new Cam({ pos: [lerp(0, Wd * 0.25, p) * (rand() < 0.5 ? 1 : -1), 1.5, -Dp * 0.25], yaw: lerp(0, 0.35, p) * (rand() < 0.5 ? 1 : -1), pitch, f, cx: box.x + box.w / 2, cy: hz + Math.tan(pitch) * f, fish: p > 0.85 ? (p - 0.85) / 0.15 * 0.6 : 0 });
+    const cam = new Cam({ pos: [lerp(0, Wd * 0.15, p) * (rand() < 0.5 ? 1 : -1), 1.5, -Dp * 0.25], yaw: lerp(0, 0.2, p) * (rand() < 0.5 ? 1 : -1), pitch, f, cx: box.x + box.w / 2, cy: hz + Math.tan(pitch) * f, fish: p > 0.85 ? (p - 0.85) / 0.15 * 0.6 : 0 });
     env.cam = cam;
     const sc = new Scene(cam, ly, art); sc.fogD = 400;
     const ll = (a, b, w = 0.7) => { const P = cam.seg(a, b, 10).map(q => [q[0], q[1]]); if (P.length > 1) ink(ly.l, P, w, { dense: true, tin: 1, tout: 2 }); };
@@ -2437,15 +2592,28 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     sc.face([[-W2, 0, -Dp], [-W2, 0, zFar], [-W2, Hh, zFar], [-W2, Hh, -Dp]], wallMat, night ? 0.6 : 0.2);
     sc.face([[W2, 0, zFar], [W2, 0, -Dp], [W2, Hh, -Dp], [W2, Hh, zFar]], wallMat, night ? 0.75 : 0.45, { extra: (fc, P3, w) => sideWall(env, cam, ll, W2, Hh, zFar, w) });
     sc.face([[-W2, Hh, zFar], [W2, Hh, zFar], [W2, Hh, -Dp], [-W2, Hh, -Dp]], 0.05, 0.3);
-    // 家具
+    // 家具：板と脚、引き出し、本…と、部品を組み立てて「それと分かる」形に
     const furn = (x, z, w, d, h, mat = 0.3) => sc.box(x - w / 2, 0, z - d / 2, x + w / 2, h, z + d / 2, mat, { shade: 0.7 });
-    if (name === 'classroom') for (let r = 0; r < 3; r++) for (let c = -1; c <= 1; c++) furn(c * 2.2, 3 + r * 2.4, 1.1, 0.7, 0.75, 0.2);
-    if (name === 'office' || name === 'lab') for (let c = -1; c <= 1; c += 2) furn(c * 2.2, 5, 1.8, 1.0, 0.75, name === 'lab' ? 0.05 : 0.35);
-    if (name === 'cafe') { furn(-W2 + 1.2, zFar - 4, 1.6, 6, 1.0, 0.6); for (let i = 0; i < 2; i++) furn(1 + i * 2.3, 3 + i * 3, 0.9, 0.9, 0.75, 0.3); }
-    if (name === 'kitchen') { furn(-W2 + 0.5, zFar - 4, 1.0, 7, 0.95, 0.15); furn(0.5, zFar - 0.5, 6, 1.0, 0.95, 0.15); }
-    if (name === 'room') { furn(W2 - 1.2, zFar - 1.5, 2.2, 1.2, 0.5, 0.05); furn(-1, 4, 1.2, 0.8, 0.45, 0.4); }
-    if (name === 'library') for (let i = -2; i <= 2; i++) { if (!i) continue; sc.box(i * 1.6 - 0.25, 0, 4, i * 1.6 + 0.25, 2.4, zFar - 2, 0.45, { shade: 0.8, extra: (fc, P3, w) => { if (fc.o.n[0] === 0) return; for (let y = 0.4; y < 2.4; y += 0.45) ll([i * 1.6 + fc.o.n[0] * 0.25, y, 4], [i * 1.6 + fc.o.n[0] * 0.25, y, zFar - 2], w * 0.7); if (det > 0.4) for (let z = 4.2; z < zFar - 2; z += 0.25) ll([i * 1.6 + fc.o.n[0] * 0.25, 0.4 + Math.floor(rand() * 4) * 0.45, z], [i * 1.6 + fc.o.n[0] * 0.25, 0.75 + Math.floor(rand() * 4) * 0.45, z], w * 0.3); } }); }
-    if (name === 'hospital') furn(-1.5, 5, 1.0, 2.0, 0.6, 0.0);
+    const slab = (x0, y0, z0, x1, y1, z1, mat, o) => sc.box(x0, y0, z0, x1, y1, z1, mat, Object.assign({ shade: 0.7 }, o || {}));
+    // 面の上の点（u: 横 0..1, v: 縦 0..1）
+    const onFace = (P3, u, v) => { const [a, b, c2, d] = P3; const top = [lerp(d[0], c2[0], u), lerp(d[1], c2[1], u), lerp(d[2], c2[2], u)], bot = [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)]; return [lerp(bot[0], top[0], v), lerp(bot[1], top[1], v), lerp(bot[2], top[2], v)]; };
+    const legs = (x, z, w, d, h, t, mat) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) slab(x + sx * (w / 2 - t) - t / 2, 0, z + sz * (d / 2 - t) - t / 2, x + sx * (w / 2 - t) + t / 2, h, z + sz * (d / 2 - t) + t / 2, mat, { shade: 0.5, lw: 0.7 }); };
+    const desk = (x, z, w, d, h, mat = 0.25, drawer = false) => { slab(x - w / 2, h - 0.04, z - d / 2, x + w / 2, h, z + d / 2, mat); legs(x, z, w, d, h - 0.04, 0.05, 0.6); if (drawer) slab(x - w / 2 + 0.05, h - 0.2, z - d / 2 + 0.02, x - w / 2 + 0.5, h - 0.04, z + d / 2 - 0.02, mat + 0.1, { extra: (fc, P3, w2) => { if (fc.o.n[2] !== -1) return; ll(onFace(P3, 0.3, 0.5), onFace(P3, 0.7, 0.5), w2); } }); };
+    const chair = (x, z, s = 0.45, back = 1, mat = 0.4) => { slab(x - s / 2, 0.42, z - s / 2, x + s / 2, 0.46, z + s / 2, mat); legs(x, z, s, s, 0.42, 0.035, 0.7); slab(x - s / 2, 0.46, z + back * s / 2 - 0.035, x + s / 2, 0.95, z + back * s / 2, mat, { extra: (fc, P3, w2) => { if (Math.abs(fc.o.n[2]) !== 1) return; ll(onFace(P3, 0.1, 0.6), onFace(P3, 0.9, 0.6), w2 * 0.6); } }); };
+    const books = (x0, x1, y0, y1, z, face) => { let x = x0; while (x < x1 - 0.04) { const bw = rr(0.035, 0.09), bh = (y1 - y0) * rr(0.65, 0.95); const lean = rand() < 0.08; const P = [[x, y0, z], [x + bw, y0, z], [x + bw + (lean ? 0.05 : 0), y0 + bh, z], [x + (lean ? 0.05 : 0), y0 + bh, z]]; sc.face(P, pick3(0.1, 0.35, 0.6, 0.85, 0.05), 0.2, { lw: 0.5, extra: (fc, P3, w2) => { if (rand() < 0.4 && bh > 0.2) ll(onFace(P3, 0.1, 0.8), onFace(P3, 0.9, 0.8), w2 * 0.5); } }); x += bw + (rand() < 0.1 ? rr(0.05, 0.12) : 0.003); } };
+    const shelf = (x0, x1, z, h, dep, n, mat = 0.5) => { slab(x0, 0, z, x1, h, z + dep, mat); const rows = n; for (let r = 0; r < rows; r++) { const y0 = 0.08 + r * (h - 0.1) / rows, y1 = y0 + (h - 0.1) / rows - 0.04; sc.face([[x0 + 0.04, y0, z - 0.005], [x1 - 0.04, y0, z - 0.005], [x1 - 0.04, y1, z - 0.005], [x0 + 0.04, y1, z - 0.005]], 0.85, 0.2, { lw: 0.6 }); if (det > 0.2) books(x0 + 0.06, x1 - 0.06, y0, y1, z - 0.01); } };
+    const cabinet = (x0, x1, z0, z1, h, mat = 0.12, top = 0.6, faceN = -1) => { slab(x0, 0, z0, x1, h - 0.04, z1, mat, { extra: (fc, P3, w2) => { const n = fc.o.n; if (n[1] !== 0) return; const W = Math.hypot(P3[1][0] - P3[0][0], P3[1][2] - P3[0][2]); const k = Math.max(1, Math.round(W / 0.6)); for (let i = 1; i < k; i++) ll(onFace(P3, i / k, 0.04), onFace(P3, i / k, 0.96), w2 * 0.8); ll(onFace(P3, 0, 0.78), onFace(P3, 1, 0.78), w2 * 0.6); for (let i = 0; i < k; i++) { const u = (i + 0.5) / k; ll(onFace(P3, u - 0.08, 0.86), onFace(P3, u + 0.08, 0.86), w2 * 1.4); ll(onFace(P3, u + (i % 2 ? -0.35 : 0.35) / k, 0.45), onFace(P3, u + (i % 2 ? -0.35 : 0.35) / k, 0.62), w2 * 1.4); } } }); slab(x0 - 0.03, h - 0.04, z0 - 0.03, x1 + 0.03, h, z1 + 0.03, top, { shade: 0.3 }); };
+    const ellipseFlat = (cx, y, cz, rx, rz, mat) => { const P = []; for (let i = 0; i < 20; i++) { const a = i / 20 * TAU; P.push([cx + Math.cos(a) * rx, y, cz + Math.sin(a) * rz]); } sc.face(P, mat, 0, { lw: 0.6 }); };
+    const monitor = (x, z, y) => { slab(x - 0.28, y + 0.12, z, x + 0.28, y + 0.47, z + 0.04, 0.85, { extra: (fc, P3, w2) => { if (fc.o.n[2] !== -1) return; const P = [onFace(P3, 0.06, 0.08), onFace(P3, 0.94, 0.08), onFace(P3, 0.94, 0.92), onFace(P3, 0.06, 0.92)]; sc.ly.fill(cam.poly(P).map(q => [q[0], q[1]]), 0.5, { shade: 0, knock: false }); } }); slab(x - 0.03, y, z + 0.01, x + 0.03, y + 0.13, z + 0.04, 0.7); slab(x - 0.12, y, z - 0.04, x + 0.12, y + 0.015, z + 0.08, 0.7); };
+    const bed = (x, z, w, len) => { slab(x - w / 2, 0, z - len / 2, x + w / 2, 0.3, z + len / 2, 0.45); slab(x - w / 2 + 0.03, 0.3, z - len / 2 + 0.03, x + w / 2 - 0.03, 0.48, z + len / 2 - 0.03, 0.02); slab(x - w / 2, 0, z + len / 2 - 0.06, x + w / 2, 0.9, z + len / 2, 0.45); slab(x - w * 0.35, 0.48, z + len / 2 - 0.5, x + w * 0.35, 0.6, z + len / 2 - 0.1, 0.0, { shade: 0.3 }); slab(x - w / 2 - 0.02, 0.32, z - len / 2 - 0.02, x + w / 2 + 0.02, 0.52, z + len * 0.15, 0.3, { shade: 0.5, extra: (fc, P3, w2) => { if (fc.o.n[1] !== 1) return; for (const u of [0.3, 0.55, 0.8]) ll(onFace(P3, u, 0.1), onFace(P3, u + 0.05, 0.9), w2 * 0.6); } }); };
+    const stool = (x, z, h = 0.75) => { slab(x - 0.18, h - 0.05, z - 0.18, x + 0.18, h, z + 0.18, 0.6); legs(x, z, 0.32, 0.32, h - 0.05, 0.03, 0.7); slab(x - 0.14, 0.3, z - 0.14, x + 0.14, 0.33, z + 0.14, 0.7, { lw: 0.5 }); };
+    if (name === 'classroom') { for (let r = 0; r < 3; r++) for (let c = -1; c <= 1; c++) { const x = c * 2.0, z = 2.6 + r * 2.2; desk(x, z, 0.75, 0.5, 0.72, 0.15); chair(x, z + 0.55, 0.42, 1, 0.45); } slab(-1.3, 0, zFar - 1.6, 1.3, 0.95, zFar - 1.0, 0.3); }
+    if (name === 'office' || name === 'lab') for (let c = -1; c <= 1; c += 2) for (let r = 0; r < 2; r++) { const x = c * 2.0, z = 3.5 + r * 3; desk(x, z, 1.5, 0.75, 0.74, name === 'lab' ? 0.03 : 0.3, true); if (name === 'office') monitor(x + 0.2, z + 0.15, 0.74); else { slab(x - 0.5, 0.74, z - 0.1, x - 0.35, 0.95, z + 0.05, 0.05); ellipseFlat(x + 0.3, 0.745, z, 0.12, 0.08, 0.0); } chair(x, z - 0.65, 0.45, -1, 0.75); }
+    if (name === 'cafe') { cabinet(-W2 + 0.4, -W2 + 1.2, 2, zFar - 1.5, 1.05, 0.5, 0.75); for (let i = 0; i < 4; i++) stool(-W2 + 1.6, 3 + i * 1.6); for (let i = 0; i < 2; i++) { const x = 1.2 + i * 1.8, z = 3 + i * 3; slab(x - 0.4, 0.72, z - 0.4, x + 0.4, 0.76, z + 0.4, 0.3); slab(x - 0.04, 0, z - 0.04, x + 0.04, 0.72, z + 0.04, 0.7); slab(x - 0.25, 0, z - 0.25, x + 0.25, 0.03, z + 0.25, 0.7); chair(x + 0.75, z, 0.42, 1, 0.5); chair(x - 0.75, z, 0.42, -1, 0.5); ellipseFlat(x, 0.765, z, 0.1, 0.07, 0.0); } shelf(-W2 + 0.3, -W2 + 2.6, zFar - 0.35, 2.2, 0.3, 3, 0.55); }
+    if (name === 'kitchen') { cabinet(-W2 + 0.05, -W2 + 0.65, 1.5, zFar - 0.05, 0.92); cabinet(-W2 + 0.65, W2 - 1.0, zFar - 0.65, zFar - 0.05, 0.92); ellipseFlat(0.2, 0.925, zFar - 0.35, 0.35, 0.18, 0.75); for (const dx of [-1.6, -1.1]) ellipseFlat(dx, 0.925, zFar - 0.35, 0.16, 0.1, 0.9); slab(-W2 + 0.65, 1.5, zFar - 0.35, W2 - 1.0, 2.2, zFar - 0.05, 0.12, { extra: (fc, P3, w2) => { if (fc.o.n[2] !== -1) return; for (const u of [0.25, 0.5, 0.75]) ll(onFace(P3, u, 0.05), onFace(P3, u, 0.95), w2 * 0.8); } }); slab(W2 - 0.95, 0, zFar - 0.8, W2 - 0.1, 1.9, zFar - 0.1, 0.05, { extra: (fc, P3, w2) => { if (fc.o.n[2] !== -1) return; ll(onFace(P3, 0, 0.62), onFace(P3, 1, 0.62), w2); ll(onFace(P3, 0.85, 0.66), onFace(P3, 0.85, 0.8), w2 * 1.5); ll(onFace(P3, 0.85, 0.3), onFace(P3, 0.85, 0.5), w2 * 1.5); } }); slab(1.2, 0.72, 3.5, 2.2, 0.76, 4.3, 0.3); legs(1.7, 3.9, 1.0, 0.8, 0.72, 0.05, 0.6); }
+    if (name === 'room') { bed(W2 - 1.0, zFar - 1.3, 1.1, 2.0); desk(-W2 + 0.9, zFar - 0.5, 1.2, 0.6, 0.72, 0.3, true); chair(-W2 + 0.9, zFar - 1.1, 0.42, -1, 0.5); shelf(-W2 + 0.05, -W2 + 0.4, 3, 1.6, 0.3, 4, 0.5); slab(-0.6, 0, 3.6, 0.6, 0.38, 4.3, 0.35); legs(0, 3.95, 1.2, 0.7, 0.34, 0.04, 0.6); }
+    if (name === 'library') { for (let i = -2; i <= 2; i++) { if (!i) continue; const x0 = i * 1.6 - 0.25, x1 = i * 1.6 + 0.25; slab(x0, 0, 4, x1, 2.4, zFar - 2, 0.45, { extra: (fc, P3, w2) => { if (fc.o.n[0] === 0) return; for (let r = 0; r < 5; r++) { const y0 = 0.1 + r * 0.46; ll(onFace(P3, 0, y0 / 2.4), onFace(P3, 1, y0 / 2.4), w2 * 0.8); if (det > 0.2) { let u = 0.01; while (u < 0.99) { const bw = rr(0.006, 0.014), bh = rr(0.3, 0.42) / 2.4; const P = [onFace(P3, u, y0 / 2.4 + 0.005), onFace(P3, u + bw, y0 / 2.4 + 0.005), onFace(P3, u + bw, y0 / 2.4 + bh), onFace(P3, u, y0 / 2.4 + bh)]; const PP = cam.poly(P).map(q => [q[0], q[1]]); if (PP.length > 2) { sc.ly.fill(PP, pick3(0.1, 0.4, 0.7, 0.9), { shade: 0, knock: false }); ink(sc.ly.l, PP.concat([PP[0]]), w2 * 0.4, { dense: true, noRough: true }); } u += bw + 0.002; } } } } }); } desk(0, 2.5, 1.6, 0.8, 0.74, 0.3); chair(-0.5, 1.9, 0.42, -1); chair(0.5, 1.9, 0.42, -1); }
+    if (name === 'hospital') { const x = -1.5, z = 5; slab(x - 0.5, 0.5, z - 1, x + 0.5, 0.65, z + 1, 0.02); legs(x, z, 1.0, 2.0, 0.5, 0.04, 0.7); slab(x - 0.5, 0.5, z + 0.95, x + 0.5, 1.2, z + 1.0, 0.6); slab(x - 0.3, 0.65, z + 0.5, x + 0.3, 0.75, z + 0.9, 0.0); slab(x + 0.8, 0, z + 0.6, x + 0.85, 1.8, z + 0.65, 0.6); }
     if (name === 'throne' || name === 'castle') { for (const sd of [-1, 1]) for (let z = 3; z < zFar; z += 6) furn(sd * (W2 - 1.5), z, 1.2, 1.2, Hh, 0.3); if (name === 'throne') { furn(0, zFar - 2, 2, 1.5, 2.8, 0.85); sc.face([[-1.2, 0.01, 0], [1.2, 0.01, 0], [1.2, 0.01, zFar - 3], [-1.2, 0.01, zFar - 3]], 0.75, 0.1); } }
     if (name === 'stage') { for (const sd of [-1, 1]) sc.face([[sd * W2, 0, zFar - 0.5], [sd * (W2 - 2.5), 0, zFar - 0.5], [sd * (W2 - 2.0), Hh, zFar - 0.5], [sd * W2, Hh, zFar - 0.5]], 0.9, 0.4, { extra: (fc, P3, w) => { for (let k = 1; k < 6; k++) ll([sd * (W2 - k * 0.45), 0, zFar - 0.5], [sd * (W2 - k * 0.4), Hh, zFar - 0.5], w * 0.6); } }); }
     sc.draw();
@@ -2464,16 +2632,65 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     else if (name === 'spaceship') { rect(-W2 + 0.5, 1, W2 - 0.5, Hh - 0.3, 0.97); for (let x = -W2 + 0.5; x < W2; x += 1.5) ll([x, 1, z - 0.02], [x, Hh - 0.3, z - 0.02], w * 1.5); env.windowStars = true; }
     else if (name === 'library') { }
     else if (name === 'stage') { rect(-W2 + 2.5, 0, W2 - 2.5, Hh, 0.3); }
-    else { const P = rect(-1.4, 0.9, 1.4, 2.3, night ? 0.95 : 0.0); if (P) { const c = cam.proj([0, 1.6, z]); if (c) { ll([0, 0.9, z - 0.02], [0, 2.3, z - 0.02], w); ll([-1.4, 1.6, z - 0.02], [1.4, 1.6, z - 0.02], w); } if (det > 0.4) { rect(-1.7, 0.85, -1.4, 2.4, 0.4, 0.8); rect(1.4, 0.85, 1.7, 2.4, 0.4, 0.8); } } }
+    else { const P = rect(-1.4, 0.9, 1.4, 2.3, night ? 0.95 : 0.0); if (P) { rect(-1.48, 0.84, 1.48, 0.9, 0.4, 0.8); ll([0, 0.9, z - 0.02], [0, 2.3, z - 0.02], w * 1.2); ll([-1.4, 1.6, z - 0.02], [1.4, 1.6, z - 0.02], w); if (!night && det > 0.3) { ll([-1.2, 2.1, z - 0.02], [-0.9, 1.8, z - 0.02], w * 0.5); ll([0.3, 2.15, z - 0.02], [0.55, 1.95, z - 0.02], w * 0.5); }
+        // カーテン：ひだのある布
+        if (det > 0.2) for (const sd of [-1, 1]) { const x0 = sd * 1.35, x1 = sd * 1.85; const Pc = cam.poly([[Math.min(x0, x1), 0.8, z - 0.05], [Math.max(x0, x1), 0.8, z - 0.05], [Math.max(x0, x1), 2.45, z - 0.05], [Math.min(x0, x1), 2.45, z - 0.05]]).map(q => [q[0], q[1]]); if (Pc.length > 2) { ly.fill(Pc, 0.35, { shade: 0.3, knock: false }); ink(ly.l, Pc.concat([Pc[0]]), w, { dense: true }); for (let k = 1; k < 4; k++) ll([lerp(x0, x1, k / 4), 0.85, z - 0.06], [lerp(x0, x1, k / 4 + 0.03), 2.4, z - 0.06], w * 0.6); } }
+        ll([-2.0, 2.5, z - 0.07], [2.0, 2.5, z - 0.07], w * 1.3); } }
+    // 幅木と時計
+    ll([-W2, 0.08, z - 0.01], [W2, 0.08, z - 0.01], w * 0.7);
+    if (['classroom', 'office', 'cafe', 'kitchen', 'room'].includes(name) && det > 0.3) { const c = cam.proj([W2 * 0.55, 2.55, z - 0.02]); if (c) { const r = cam.f * 0.16 / Math.max(1, cam.view([0, 0, z])[2]); const E = ellipsePts(c[0], c[1], r, r, 0, 16); ly.fill(E, 0, { shade: 0, knock: false }); ink(ly.l, E.concat([E[0]]), w, { dense: true }); ink(ly.l, [[c[0], c[1]], [c[0], c[1] - r * 0.7]], w * 0.8); ink(ly.l, [[c[0], c[1]], [c[0] + r * 0.5, c[1]]], w * 0.8); } }
     if (name === 'cafe' || name === 'room' || name === 'office') for (let i = 0; i < det * 3; i++) { const x = rr(-W2 + 0.5, W2 - 1.2), y = rr(1.6, 2.4); rect(x, y, x + 0.6, y + 0.5, rr(0, 0.6), 0.8); }
   }
   function sideWall(env, cam, ll, W2, Hh, z, w) { const { name, art } = env; if (name === 'classroom' || name === 'office' || name === 'hospital') for (let zz = 2; zz < z - 1; zz += 3) { const P = cam.poly([[W2 - 0.01, 0.9, zz], [W2 - 0.01, 0.9, zz + 2], [W2 - 0.01, 2.4, zz + 2], [W2 - 0.01, 2.4, zz]]).map(p => [p[0], p[1]]); if (P.length > 2) { env.ly.fill(P, 0, { shade: 0, knock: false }); ink(env.ly.l, P.concat([P[0]]), w, { dense: true }); } } }
 
+  // ---------- 洗濯物（背景と持ち物で共通） ----------
+  // ly: Layer。x,y = 吊るす点（竿の上）, s = 大きさ, sway = 風でゆれる量
+  function laundry(ly, kind, x, y, s, sway = 0, mat = 0) {
+    const l = ly.l, sw = sway * s;
+    const pin = (px, py) => { const P = [[px - s * 0.05, py - s * 0.12], [px + s * 0.05, py - s * 0.12], [px + s * 0.04, py + s * 0.1], [px - s * 0.04, py + s * 0.1]]; ly.fill(P, 0.6, { shade: 0 }); ink(l, P.concat([P[0]]), 0.7, { dense: true }); };
+    if (kind === 'shirt') { // 肩で竿にかけたシャツ
+      const P = catmull([[x - s * 0.55, y], [x - s * 0.18, y - s * 0.04], [x, y + s * 0.08], [x + s * 0.18, y - s * 0.04], [x + s * 0.55, y], [x + s * 0.8 + sw * 0.3, y + s * 0.3], [x + s * 0.55 + sw * 0.3, y + s * 0.42], [x + s * 0.42 + sw, y + s * 0.28], [x + s * 0.45 + sw, y + s * 1.05], [x - s * 0.45 + sw, y + s * 1.08], [x - s * 0.42 + sw, y + s * 0.28], [x - s * 0.55 + sw * 0.3, y + s * 0.42], [x - s * 0.8 + sw * 0.3, y + s * 0.3]], 3, true);
+      ly.fill(P, mat, { shade: 0.5, off: s * 0.1 }); contour(l, P, 1.2);
+      ink(l, [[x - s * 0.18, y - s * 0.03], [x, y + s * 0.22], [x + s * 0.18, y - s * 0.03]], 0.8);
+      for (let i = 0; i < 3; i++) { const yy = y + s * (0.45 + i * 0.2); ink(l, [[x + sw - s * 0.1 + i * s * 0.08, yy], [x + sw - s * 0.02 + i * s * 0.1, yy + s * 0.18]], 0.5); }
+      pin(x - s * 0.45, y); pin(x + s * 0.45, y);
+    } else if (kind === 'towel') { // 二つ折りのタオル：端に縞
+      const P = catmull([[x - s * 0.5, y], [x + s * 0.5, y], [x + s * 0.52 + sw, y + s * 0.9], [x + sw * 0.9, y + s * 0.95], [x - s * 0.48 + sw, y + s * 0.88]], 3, true);
+      ly.fill(P, mat, { shade: 0.5, off: s * 0.1 }); contour(l, P, 1.2);
+      for (const t of [0.72, 0.8]) ink(l, [[x - s * 0.49 + sw * t, y + s * t], [x + s * 0.51 + sw * t, y + s * t]], 0.6);
+      ink(l, [[x - s * 0.2 + sw * 0.4, y + s * 0.15], [x - s * 0.15 + sw * 0.6, y + s * 0.6]], 0.5);
+      pin(x - s * 0.4, y); pin(x + s * 0.4, y);
+    } else if (kind === 'socks') { // くつ下ふたつ
+      for (const dx of [-0.18, 0.18]) { const cx = x + dx * s; const P = catmull([[cx - s * 0.08, y], [cx + s * 0.08, y], [cx + s * 0.09 + sw * 0.5, y + s * 0.42], [cx + s * 0.25 + sw * 0.5, y + s * 0.5], [cx + s * 0.22 + sw * 0.5, y + s * 0.62], [cx - s * 0.02 + sw * 0.5, y + s * 0.6], [cx - s * 0.09 + sw * 0.5, y + s * 0.45]], 3, true); ly.fill(P, mat, { shade: 0.4 }); contour(l, P, 1.0); ink(l, [[cx - s * 0.08, y + s * 0.1], [cx + s * 0.08, y + s * 0.1]], 0.5); pin(cx, y); }
+    } else if (kind === 'futon') {
+      const P = [[x - s * 0.9, y], [x + s * 0.9, y], [x + s * 0.92 + sw, y + s * 0.55], [x - s * 0.88 + sw, y + s * 0.55]];
+      const PP = catmull(P, 4, true); ly.fill(PP, mat || 0.25, { shade: 0.5, off: s * 0.15 }); contour(l, PP, 1.3); ink(l, [[x - s * 0.9, y + s * 0.02], [x + s * 0.9, y + s * 0.02]], 1.0);
+    }
+  }
+  // 虹：7本の帯を、トーンの濃さを変えて（白黒でも帯の区別がつく）
+  function rainbowArc(ly, cx, cy, r, w, a0 = Math.PI * 1.04, a1 = Math.PI * 1.96, bold = false) {
+    // 太い虹は、黒に近い帯から白い帯までコントラストを大きく（白黒でも帯がはっきり見える）
+    const mats = bold ? [0.25, 0.05, 0.5, 0.95, 0.7, 0.12, 0.38] : [0.55, 0.12, 0.38, 0.05, 0.3, 0.7, 0.2]; const n = mats.length;
+    for (let i = 0; i < n; i++) { const r0 = r - w * i / n, r1 = r - w * (i + 1) / n; const P = ellipsePts(cx, cy, r0, r0, 0, 60, a0, a1).concat(ellipsePts(cx, cy, r1, r1, 0, 60, a0, a1).reverse()); ly.fill(P, mats[i], { shade: 0, knock: false, ha: 2 }); }
+    ink(ly.l, ellipsePts(cx, cy, r, r, 0, 60, a0, a1), 1.1, { dense: true, tin: 20, tout: 20 }); ink(ly.l, ellipsePts(cx, cy, r - w, r - w, 0, 60, a0, a1), 0.8, { dense: true, tin: 20, tout: 20 });
+    for (let i = 1; i < n; i++) { const rr2 = r - w * i / n; ink(ly.l, ellipsePts(cx, cy, rr2, rr2, 0, 50, a0 + 0.05, a1 - 0.05), 0.35, { dense: true, tin: 30, tout: 30 }); }
+  }
   // ---------- 自然 ----------
   function nature(env) {
     const { ly, box, hz, art, name, night } = env; const det = art.detail, l = ly.l;
     const ground = [[box.x, hz], [box.x + box.w, hz], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]];
     if (name === 'cave') { ly.fill([[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]], 0.92, { shade: 0 }); const mouth = []; for (let i = 0; i <= 16; i++) { const a = Math.PI + i / 16 * Math.PI; mouth.push([box.x + box.w / 2 + Math.cos(a) * box.w * 0.32 * rr(0.9, 1.1), hz + Math.sin(a) * box.h * 0.5 * rr(0.9, 1.08)]); } mouth.push([box.x + box.w * 0.82, box.y + box.h], [box.x + box.w * 0.18, box.y + box.h]); const P = catmull(mouth, 3, true); ly.fill(P, 0.25, { shade: 0.4 }); ink(l, P, 1.4, { dense: true, closed: true }); for (let i = 0; i < det * 30; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h; ink(ly.hi, [[x, y], [x + rr(-10, 10), y + rr(4, 14)]], 0.6); } return; }
+    if (name === 'rainbow') { // 空いっぱいの大きな虹＋丘
+      // bgSpec.scale（既定1、大ゴマでは自動で大きく）: 1 で画面幅いっぱい、帯の太さもそれに合わせる
+      const big = env.bg.big || (env.bg.scale ?? (box.w * box.h > 150000 ? 1.25 : 1)) > 1.1; const sc2 = env.bg.scale ?? (big ? 1.3 : 1);
+      const cx = box.x + box.w * 0.5, cyR = hz + box.h * (big ? 0.2 : 0.1), r = Math.min(box.w * 0.5 * sc2, (cyR - box.y) * (big ? 1.05 : 0.92));
+      rainbowArc(ly, cx, cyR, r, r * (big ? 0.42 : 0.26), Math.PI * 1.0, Math.PI * 2.0, big);
+      const hill = catmull([[box.x - 10, hz + box.h * 0.04], [box.x + box.w * 0.3, hz - box.h * 0.04], [box.x + box.w * 0.7, hz + box.h * 0.02], [box.x + box.w + 10, hz - box.h * 0.03], [box.x + box.w + 10, box.y + box.h], [box.x - 10, box.y + box.h]], 6, true);
+      ly.fill(hill, 0.12, { shade: 0, ha: 2 }); ink(l, hill.slice(0, 24), 1.0, { dense: true });
+      for (let i = 0; i < 12 + art.detail * 20; i++) { const x = box.x + rand() * box.w, y = hz + rand() * (box.y + box.h - hz), s2 = lerp(3, 12, (y - hz) / (box.y + box.h - hz)); ink(l, [[x - s2 * 0.3, y], [x, y - s2], [x + s2 * 0.3, y]], 0.6); }
+      return;
+    }
+    if (name === 'yard') return yard(env);
     const gm = name === 'beach' ? 0.08 : name === 'desert' ? 0.15 : name === 'field' || name === 'park' ? 0.12 : 0.2;
     ly.fill(ground, gm * (night ? 3 : 1), { shade: 0, ha: 2 });
     // 遠景
@@ -2516,6 +2733,31 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     for (let i = 0; i < gN; i++) { const t = rand(), x = box.x + rand() * box.w, y = hz + t * t * (box.y + box.h - hz), s = lerp(3, 16, t); for (let k = -1; k <= 1; k++) ink(l, [[x + k * s * 0.3, y], [x + k * s * 0.5 + rr(-2, 2), y - s * rr(0.7, 1.2)]], 0.7, { tin: 1, tout: s * 0.6 }); }
     if (name === 'park' && det > 0.2) { const y = hz + box.h * 0.25, x = box.x + box.w * 0.7, w2 = box.w * 0.15; const seat = [[x, y], [x + w2, y], [x + w2 * 1.05, y + box.h * 0.03], [x + w2 * 0.05, y + box.h * 0.03]]; ly.fill(seat, 0.5, { shade: 0.5 }); contour(l, seat, 1.1); ink(l, [[x + w2 * 0.1, y + box.h * 0.03], [x + w2 * 0.1, y + box.h * 0.09]], 1); ink(l, [[x + w2 * 0.95, y + box.h * 0.03], [x + w2 * 0.95, y + box.h * 0.09]], 1); }
   }
+  // 物干しのある庭：家の壁・縁側、板の塀、物干し台2本と竿、洗濯物
+  function yard(env) {
+    const { ly, box, hz, art, night } = env; const l = ly.l, det = art.detail;
+    const g = [[box.x, hz], [box.x + box.w, hz], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]]; ly.fill(g, 0.1, { shade: 0, ha: 2 });
+    // 塀（板）
+    const fy = hz - box.h * 0.22; const fence = [[box.x, fy], [box.x + box.w, fy], [box.x + box.w, hz], [box.x, hz]]; ly.fill(fence, 0.18, { shade: 0.2, ha: 1 }); ink(l, [[box.x, fy], [box.x + box.w, fy]], 1.1);
+    const bw = lerp(28, 14, det); for (let x = box.x + bw; x < box.x + box.w; x += bw) ink(l, [[x, fy + 1], [x, hz]], 0.6, { noRough: true });
+    ink(l, [[box.x, fy + (hz - fy) * 0.35], [box.x + box.w, fy + (hz - fy) * 0.35]], 0.5);
+    // 家の壁（左端）と縁側
+    const wx = box.x + box.w * 0.14; const wall = [[box.x, box.y], [wx, box.y], [wx, hz + box.h * 0.12], [box.x, hz + box.h * 0.12]]; ly.fill(wall, 0.05, { shade: 0.6, ha: 1 }); ink(l, [[wx, box.y], [wx, hz + box.h * 0.12]], 1.3);
+    const ew = [[box.x, hz + box.h * 0.06], [wx + box.w * 0.05, hz + box.h * 0.06], [wx + box.w * 0.05, hz + box.h * 0.12], [box.x, hz + box.h * 0.12]]; ly.fill(ew, 0.35, { shade: 0.3 }); ink(l, ew.concat([ew[0]]), 1.0, { dense: true });
+    const win = [[box.x + box.w * 0.02, box.y + box.h * 0.12], [wx - box.w * 0.02, box.y + box.h * 0.12], [wx - box.w * 0.02, hz - box.h * 0.05], [box.x + box.w * 0.02, hz - box.h * 0.05]]; ly.fill(win, night ? 0.9 : 0.25, { shade: 0, knock: false }); ink(l, win.concat([win[0]]), 0.9, { dense: true }); ink(l, [[(win[0][0] + win[1][0]) / 2, win[0][1]], [(win[0][0] + win[1][0]) / 2, win[2][1]]], 0.7);
+    // 物干し台：2本の柱（T字）と竿
+    const py = hz - box.h * 0.48, base = hz + box.h * 0.1; const xs = [box.x + box.w * 0.24, box.x + box.w * 0.92];
+    for (const x of xs) { const post = [[x - 3, py], [x + 3, py], [x + 4, base], [x - 4, base]]; ly.fill(post, 0.45, { shade: 0.6, ha: 1 }); ink(l, post.concat([post[0]]), 1.0, { dense: true }); const arm = [[x - 16, py - 3], [x + 16, py - 3], [x + 16, py + 3], [x - 16, py + 3]]; ly.fill(arm, 0.45, { shade: 0.4 }); ink(l, arm.concat([arm[0]]), 1.0, { dense: true }); const ft = [[x - 12, base], [x + 12, base], [x + 9, base - 6], [x - 9, base - 6]]; ly.fill(ft, 0.8, { shade: 0 }); ink(l, ft.concat([ft[0]]), 0.8, { dense: true }); }
+    const sag = box.h * 0.012; const pole = catmull([[xs[0] - 10, py - 1], [(xs[0] + xs[1]) / 2, py + sag], [xs[1] + 10, py - 1]], 12);
+    const poleP = K.sweep(pole, () => 2.2).poly; ly.fill(poleP, 0.15, { shade: 0.3 }); ink(l, poleP.slice(0, pole.length), 1.0, { dense: true }); ink(l, poleP.slice(pole.length), 0.8, { dense: true });
+    // 洗濯物
+    const items = env.bg.laundry || ['shirt', 'towel', 'socks', 'shirt', 'towel'];
+    const sway = (art.dynamism - 0.3) * 0.3 + (env.bg.weather === 'storm' ? 0.4 : 0);
+    const s0 = (xs[1] - xs[0]) / (items.length + 0.5) * 0.8;
+    items.forEach((k, i) => { const t = (i + 0.75) / (items.length + 0.5); const x = lerp(xs[0], xs[1], t); laundry(ly, k, x, py + sag * 4 * t * (1 - t) + 1, s0 * (k === 'socks' ? 0.8 : 1), sway * rr(0.6, 1.2), i % 3 === 2 ? 0.3 : 0); });
+    // 草
+    for (let i = 0; i < 15 + det * 30; i++) { const x = box.x + rand() * box.w, y = hz + rand() * (box.y + box.h - hz), s2 = lerp(3, 12, (y - hz) / (box.y + box.h - hz)); ink(l, [[x - s2 * 0.3, y], [x, y - s2], [x + s2 * 0.3, y]], 0.6); }
+  }
   // ---------- 空間・装飾背景 ----------
   function voidBg(env) {
     const { ly, box, hz, art, name } = env; const all = [[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]];
@@ -2537,7 +2779,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     if (w === 'snow') { for (let i = 0; i < box.w * box.h / 2400; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h, r = rr(1, 3.2); const P = ellipsePts(x, y, r, r, 0, 10); ly.hi.beginPath(); ly.hi.arc(x, y, r, 0, TAU); ly.hi.fill(); ink(ly.l, P.concat([P[0]]), 0.5, { dense: true }); } }
     if (w === 'fog') { const prev = env.post; env.post = ctx => { if (prev) prev(ctx); const g = ctx.createLinearGradient(0, box.y, 0, box.y + box.h); g.addColorStop(0, 'rgba(255,255,255,.3)'); g.addColorStop(0.6, 'rgba(255,255,255,.75)'); g.addColorStop(1, 'rgba(255,255,255,.5)'); ctx.fillStyle = g; ctx.fillRect(box.x, box.y, box.w, box.h); }; }
   }
-  Object.assign(K, { drawBackground, Cam, BG_NAMES: NAMES });
+  Object.assign(K, { drawBackground, Cam, BG_NAMES: NAMES, laundry, rainbowArc });
 })();
 
 </script>
@@ -2552,7 +2794,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
 
   // 効果ごとに「人物の下（under）」か「上（over）」か
   const PHASE = { focus: 'under', speed: 'under', speedv: 'under', dark: 'under', spotlight: 'under', flashback: 'under', tone: 'under', flowers: 'under', gloom: 'under', betaflash: 'under', wind: 'under', bubbles: 'under',
-    sparkle: 'over', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
+    sparkle: 'over', rainbow: 'under', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
 
   function drawEffect(ctx, spec, box, opts) {
     spec = typeof spec === 'string' ? { name: spec } : (spec || {});
@@ -2623,6 +2865,11 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       case 'bubbles': for (let i = 0; i < 14; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h, r = rr(3, 10) * sc; const P = ellipsePts(x, y, r, r, 0, 16); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 0.8, { dense: true }); } break;
       case 'smoke': case 'fire': case 'magic': { const n = name === 'magic' ? 10 : 7; for (let i = 0; i < n; i++) { const c = [f[0] + rr(-0.4, 0.4) * box.w, f[1] + rr(-0.1, 0.4) * box.h], r = rr(15, 40) * sc; if (name === 'fire') { const P = catmull([[c[0] - r * 0.6, c[1] + r], [c[0] - r * 0.4, c[1]], [c[0] + rr(-r, r) * 0.3, c[1] - r * 1.6], [c[0] + r * 0.45, c[1] - r * 0.2], [c[0] + r * 0.6, c[1] + r]], 5, true); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 1.2, { dense: true }); } else if (name === 'magic') star(ctx, c[0], c[1], r * 0.5, 1); else { const P = []; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; P.push([c[0] + Math.cos(a) * r * rr(0.8, 1.1), c[1] + Math.sin(a) * r * 0.75]); } const PP = catmull(P, 4, true); ctx.fillStyle = '#fff'; fillPoly(ctx, PP); ctx.fillStyle = '#000'; ink(ctx, PP.concat([PP[0]]), 0.9, { dense: true }); } } break; }
       case 'rain': { const n = Math.round(box.w * box.h / 900 * (spec.amount || 1)); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; const a = 1.72 + (dyn - 0.5) * 0.15; const d = [Math.cos(a), Math.sin(a)]; for (let i = 0; i < n; i++) { const p = [box.x + rr(-0.1, 1.05) * box.w, box.y + rr(-0.1, 1) * box.h], L = rr(8, 36) * sc, q = V.add(p, V.mul(d, L)); penPath(ctx, [p, q], rr(0.35, 1.0) * sc, { tin: L * 0.4, tout: L * 0.4, wob: 0, taper: 1, jit: 0 }); } break; }
+      case 'rainbow': { // 虹の効果：コマに重ねる虹（下地を少し白く抜いてから）
+        const ly = new K.Layer(box, K.ctxScale(ctx)); const big = spec.big || (spec.scale ?? 1) > 1.1; const cx = spec.x ?? box.x + box.w * 0.5, cy = spec.y ?? box.y + box.h * (big ? 1.05 : 0.95), r = spec.r ?? Math.min(box.w * 0.55 * (spec.scale ?? 1), box.h * (big ? 1.0 : 0.85));
+        K.rainbowArc(ly, cx, cy, r, r * (big ? 0.42 : 0.22), Math.PI, TAU, big); const { R: RR } = derive(art, sc); K.compose(ctx, ly, RR);
+        if (spk > 0.2) for (let i = 0; i < 4 + spk * 8; i++) { const a = Math.PI * rr(1.05, 1.95); star(ctx, cx + Math.cos(a) * r * rr(0.7, 1.08), cy + Math.sin(a) * r * rr(0.7, 1.08), rr(4, 10) * sc, spk); }
+        break; }
       case 'grain': { const amt = spec.amount ?? art.grain; const c = ctx.getImageData ? null : null; for (let i = 0; i < box.w * box.h / 60 * amt; i++) { ctx.fillStyle = rand() < 0.5 ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.6)'; ctx.fillRect(box.x + rand() * box.w, box.y + rand() * box.h, rr(0.4, 1.2), rr(0.4, 1.2)); } break; }
       case 'sfx': K.sfxText(ctx, spec.text || 'ドン', spec.x ?? f[0], spec.y ?? f[1], spec.size ?? Math.min(box.w, box.h) * 0.22, art, spec); break;
       default: done = false;
@@ -2801,6 +3048,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
     metrics: (spec, opts) => K.metrics(spec, opts),
     drawFrame: (ctx, box, opts) => K.drawFrame(ctx, box, opts),
     drawCharacterSheet, drawExpressionSheet,
+    drawProp: (ctx, name, box, opts) => K.drawProp(ctx, name, box, opts),
     sfx: (ctx, text, x, y, size, opts) => K.sfxText(ctx, text, x, y, size, opts),
     normalizeArt: K.normalizeArt, randomArt: K.randomArt, presets: K.PRESETS, POSES: K.POSES, EXPRS: K.EXPRS, BG_NAMES: K.BG_NAMES,
   };
@@ -4986,7 +5234,7 @@ window.MangaSamples = [
      "outfit": "tshirt",
      "pattern": "dots",
      "items": [
-      "hairflower"
+      "hairbutton"
      ]
     },
     {
@@ -5012,18 +5260,6 @@ window.MangaSamples = [
      "species": "cloud",
      "age": "child",
      "color": "white",
-     "eyes": "round",
-     "size": 0.85,
-     "items": []
-    },
-    {
-     "id": "moku_ame",
-     "name": "モク",
-     "role": "悲しいときのモク（灰色の雨雲）",
-     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
-     "species": "cloud",
-     "age": "child",
-     "color": "gray",
      "eyes": "round",
      "size": 0.85,
      "items": []
@@ -5083,7 +5319,14 @@ window.MangaSamples = [
     "reason": "元の原稿（全16ページ）の絵柄に寄せた。子どもからお母さん世代まで読めるよう、線は太く、描き込みは少なめにしている。"
    },
    "cover": {
-    "bg": "park",
+    "bg": "yard",
+    "laundry": [
+     "towel",
+     "shirt",
+     "towel",
+     "shirt",
+     "socks"
+    ],
     "time": "day",
     "weather": "clear",
     "catch": "洗濯物にだけ、\n雨がふる。",
@@ -5091,15 +5334,16 @@ window.MangaSamples = [
      {
       "id": "mom",
       "pose": "hold",
-      "hold": "box",
+      "hold": "basket",
       "expr": "shock",
       "face": "left",
       "look": "up"
      },
      {
-      "id": "moku_ame",
+      "id": "moku",
       "pose": "float",
       "expr": "sad",
+      "color": "gray",
       "rain": 2
      },
      {
@@ -5121,7 +5365,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5131,7 +5375,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "shirt"
         },
         {
          "id": "haru",
@@ -5139,7 +5383,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -5148,6 +5392,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "洗濯日和ね！"
         }
+       ],
+       "laundry": [
+        "towel",
+        "shirt",
+        "towel"
        ],
        "narr": "日曜日。\n朝から\nいい天気。"
       },
@@ -5163,7 +5412,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "hold",
          "face": "right",
-         "hold": "none"
+         "hold": "socks"
         }
        ],
        "say": [
@@ -5199,11 +5448,18 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "スッ…",
@@ -5213,7 +5469,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "cloudy",
        "cast": [
@@ -5246,19 +5502,27 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         }
        ],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "ザーー",
@@ -5322,15 +5586,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 2
         },
         {
@@ -5362,6 +5627,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "ピンポイント\nだね"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
        ]
       }
      ]
@@ -5385,7 +5655,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "fight",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -5406,15 +5676,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -5431,15 +5702,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         },
         {
@@ -5448,7 +5720,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "run",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -5466,6 +5738,12 @@ window.MangaSamples = [
          "text": "どきなさーい！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel"
+       ],
        "sfx": [
         {
          "text": "ザザアッ",
@@ -5475,7 +5753,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5511,10 +5789,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [],
@@ -5563,15 +5842,16 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -5591,10 +5871,16 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…はぐれたの"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "towel",
+        "shirt"
        ]
       },
       {
@@ -5604,20 +5890,21 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -5651,7 +5938,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5661,7 +5948,7 @@ window.MangaSamples = [
          "expr": "sad",
          "pose": "stand",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -5719,7 +6006,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5753,15 +6040,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…モク"
         }
@@ -5782,10 +6070,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -5837,7 +6126,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5870,7 +6159,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -5900,6 +6189,13 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "えへへ"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "shirt"
        ],
        "fx": [
         "sparkle"
@@ -6038,7 +6334,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -6124,7 +6420,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -6199,7 +6495,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
@@ -6209,7 +6505,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         },
         {
          "id": "moku",
@@ -6283,15 +6579,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -6328,10 +6625,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         },
         {
          "id": "haru",
@@ -6349,10 +6647,13 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…うん"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "narr": "その夜"
       },
@@ -6363,15 +6664,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -6384,19 +6686,23 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "sfx": [
         {
@@ -6428,10 +6734,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -6519,20 +6826,21 @@ window.MangaSamples = [
       },
       {
        "shot": "up",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -6585,10 +6893,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.88,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -6649,15 +6958,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "worried",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…ふ"
         }
@@ -6693,15 +7003,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
@@ -6709,7 +7020,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -6823,7 +7134,7 @@ window.MangaSamples = [
         {
          "id": "mom",
          "x": 0.5,
-         "expr": "laugh",
+         "expr": "funny",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -6980,7 +7291,7 @@ window.MangaSamples = [
       },
       {
        "shot": "long",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7134,9 +7445,9 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "sky",
+       "bg": "rainbow",
        "time": "day",
-       "weather": "rain",
+       "weather": "clear",
        "cast": [
         {
          "id": "haru",
@@ -7168,9 +7479,9 @@ window.MangaSamples = [
         }
        ],
        "fx": [
+        "rainbow",
         "sparkle"
-       ],
-       "narr": "空に、大きな虹。"
+       ]
       }
      ]
     },
@@ -7183,7 +7494,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7193,7 +7504,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "towel"
         },
         {
          "id": "haru",
@@ -7201,7 +7512,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -7211,11 +7522,18 @@ window.MangaSamples = [
          "text": "今日も\nいい天気！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "narr": "それから"
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "rain",
        "cast": [],
@@ -7321,7 +7639,7 @@ window.MangaSamples = [
      "outfit": "tshirt",
      "pattern": "dots",
      "items": [
-      "hairflower"
+      "hairbutton"
      ]
     },
     {
@@ -7347,18 +7665,6 @@ window.MangaSamples = [
      "species": "cloud",
      "age": "child",
      "color": "white",
-     "eyes": "round",
-     "size": 0.85,
-     "items": []
-    },
-    {
-     "id": "moku_ame",
-     "name": "モク",
-     "role": "悲しいときのモク（灰色の雨雲）",
-     "desc": "泣くと灰色になり雨を降らせる。同じモクの、悲しいときの姿",
-     "species": "cloud",
-     "age": "child",
-     "color": "gray",
      "eyes": "round",
      "size": 0.85,
      "items": []
@@ -7415,7 +7721,14 @@ window.MangaSamples = [
     "panelFrame": "clean"
    },
    "cover": {
-    "bg": "park",
+    "bg": "yard",
+    "laundry": [
+     "towel",
+     "shirt",
+     "towel",
+     "shirt",
+     "socks"
+    ],
     "time": "day",
     "weather": "clear",
     "catch": "洗濯物にだけ、\n雨がふる。",
@@ -7423,15 +7736,16 @@ window.MangaSamples = [
      {
       "id": "mom",
       "pose": "hold",
-      "hold": "box",
+      "hold": "basket",
       "expr": "shock",
       "face": "left",
       "look": "up"
      },
      {
-      "id": "moku_ame",
+      "id": "moku",
       "pose": "float",
       "expr": "sad",
+      "color": "gray",
       "rain": 2
      },
      {
@@ -7453,7 +7767,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7463,7 +7777,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "shirt"
         },
         {
          "id": "haru",
@@ -7471,7 +7785,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -7480,6 +7794,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "洗濯日和ね！"
         }
+       ],
+       "laundry": [
+        "towel",
+        "shirt",
+        "towel"
        ],
        "narr": "日曜日。\n朝から\nいい天気。"
       },
@@ -7495,7 +7814,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "hold",
          "face": "right",
-         "hold": "none"
+         "hold": "socks"
         }
        ],
        "say": [
@@ -7531,11 +7850,18 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "スッ…",
@@ -7545,7 +7871,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7578,19 +7904,27 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         }
        ],
        "say": [],
+       "laundry": [
+        "towel",
+        "shirt",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "sfx": [
         {
          "text": "ザーー",
@@ -7654,15 +7988,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 2
         },
         {
@@ -7694,6 +8029,11 @@ window.MangaSamples = [
          "type": "speech",
          "text": "ピンポイント\nだね"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
        ]
       }
      ]
@@ -7717,7 +8057,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "fight",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -7738,15 +8078,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.58,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ひゃっ"
         }
@@ -7763,15 +8104,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.2,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 3
         },
         {
@@ -7780,7 +8122,7 @@ window.MangaSamples = [
          "expr": "angry",
          "pose": "run",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -7798,6 +8140,12 @@ window.MangaSamples = [
          "text": "どきなさーい！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel"
+       ],
        "sfx": [
         {
          "text": "ザザーッ",
@@ -7807,7 +8155,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7817,7 +8165,7 @@ window.MangaSamples = [
          "expr": "shock",
          "pose": "fight",
          "face": "right",
-         "hold": "broom"
+         "hold": "beater"
         },
         {
          "id": "haru",
@@ -7871,15 +8219,16 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -7899,10 +8248,16 @@ window.MangaSamples = [
          "text": "どうしたの？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…はぐれたの"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "towel",
+        "shirt"
        ]
       },
       {
@@ -7912,20 +8267,21 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "風が\nはやくて"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "みんなに\nおいてかれた"
         }
@@ -7959,7 +8315,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -7969,7 +8325,7 @@ window.MangaSamples = [
          "expr": "sad",
          "pose": "stand",
          "face": "left",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -8027,7 +8383,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8061,15 +8417,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "normal",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…モク"
         }
@@ -8090,10 +8447,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.86,
          "expr": "shock",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -8145,7 +8503,7 @@ window.MangaSamples = [
       },
       {
        "shot": "bust",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8156,7 +8514,7 @@ window.MangaSamples = [
          "pose": "stand",
          "face": "right",
          "look": "up",
-         "hold": "broom"
+         "hold": "beater"
         }
        ],
        "say": [
@@ -8178,7 +8536,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8208,6 +8566,13 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "えへへ"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "shirt"
        ],
        "fx": [
         "sparkle"
@@ -8320,11 +8685,16 @@ window.MangaSamples = [
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [],
        "say": [],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt"
+       ],
        "sfx": [
         {
          "text": "ポカポカ",
@@ -8343,7 +8713,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8386,7 +8756,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8407,7 +8777,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8429,7 +8799,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8504,7 +8874,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
@@ -8514,7 +8884,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         },
         {
          "id": "moku",
@@ -8576,15 +8946,16 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "evening",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.3,
          "expr": "sad",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         },
         {
@@ -8621,10 +8992,11 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.26,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         },
         {
          "id": "haru",
@@ -8642,10 +9014,13 @@ window.MangaSamples = [
          "text": "おうちに\n帰りたい？"
         },
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "…うん"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "narr": "その夜"
       },
@@ -8656,15 +9031,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.38,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "でも\nぼく\n小さいから"
         }
@@ -8677,19 +9053,23 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "cry",
          "pose": "float",
+         "color": "gray",
          "rain": 1
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "高く\nとべないの"
         }
+       ],
+       "props": [
+        "bucket"
        ],
        "sfx": [
         {
@@ -8721,10 +9101,11 @@ window.MangaSamples = [
          "hold": "none"
         },
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.14,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
@@ -8746,7 +9127,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -8821,20 +9202,21 @@ window.MangaSamples = [
       },
       {
        "shot": "up",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.5,
          "expr": "cry",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "とどかない…"
         }
@@ -8996,15 +9378,16 @@ window.MangaSamples = [
        "weather": "clear",
        "cast": [
         {
-         "id": "moku_ame",
+         "id": "moku",
          "x": 0.55,
          "expr": "sad",
-         "pose": "float"
+         "pose": "float",
+         "color": "gray"
         }
        ],
        "say": [
         {
-         "who": "moku_ame",
+         "who": "moku",
          "type": "whisper",
          "text": "ごめん…\n笑えないよ"
         }
@@ -9012,7 +9395,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -9227,7 +9610,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "long",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -9328,7 +9711,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "street",
+       "bg": "rainbow",
        "time": "day",
        "weather": "rain",
        "cast": [
@@ -9376,7 +9759,7 @@ window.MangaSamples = [
      "panels": [
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -9386,7 +9769,7 @@ window.MangaSamples = [
          "expr": "happy",
          "pose": "reach",
          "face": "left",
-         "hold": "none"
+         "hold": "towel"
         },
         {
          "id": "haru",
@@ -9394,7 +9777,7 @@ window.MangaSamples = [
          "expr": "smile",
          "pose": "hold",
          "face": "right",
-         "hold": "box"
+         "hold": "basket"
         }
        ],
        "say": [
@@ -9404,11 +9787,18 @@ window.MangaSamples = [
          "text": "今日も\nいい天気！"
         }
        ],
+       "laundry": [
+        "shirt",
+        "towel",
+        "shirt",
+        "towel",
+        "socks"
+       ],
        "narr": "それから"
       },
       {
        "shot": "bg",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "rain",
        "cast": [],
@@ -9446,7 +9836,7 @@ window.MangaSamples = [
       },
       {
        "shot": "full",
-       "bg": "park",
+       "bg": "yard",
        "time": "day",
        "weather": "clear",
        "cast": [
@@ -9503,6 +9893,10 @@ window.MangaSamples = [
          "type": "whisper",
          "text": "はーい"
         }
+       ],
+       "laundry": [
+        "shirt",
+        "towel"
        ]
       }
      ]
@@ -13434,8 +13828,8 @@ const HAIRS = ['short', 'bob', 'long', 'ponytail', 'twintail', 'spiky', 'bun', '
 const EYES = ['round', 'sharp', 'sleepy', 'dot', 'sparkle', 'narrow'];
 const OUTFITS = ['tshirt', 'shirt', 'suit', 'dress', 'uniform', 'sailor', 'kimono', 'armor', 'labcoat', 'hoodie', 'robe', 'apron', 'jersey', 'spacesuit', 'none'];
 const PATTERNS = ['white', 'black', 'tone', 'light', 'stripe', 'dots', 'check', 'star'];
-const WORN = ['glasses', 'sunglasses', 'hat', 'fedora', 'cap', 'crown', 'helmet', 'headband', 'scarf', 'ribbon', 'cape', 'mask', 'eyepatch', 'beard', 'mustache', 'bowtie', 'necklace', 'hairflower', 'bandage', 'horns', 'halo', 'wings', 'headphones', 'earmuffs'];
-const HELD = ['sword', 'staff', 'wand', 'book', 'umbrella', 'bag', 'flower', 'phone', 'cup', 'lantern', 'letter', 'ball', 'blaster', 'shield', 'food', 'mic', 'key', 'camera', 'fishingrod', 'broom', 'bouquet', 'map', 'box', 'guitar', 'sweets'];
+const WORN = ['glasses', 'sunglasses', 'hat', 'fedora', 'cap', 'crown', 'helmet', 'headband', 'scarf', 'ribbon', 'cape', 'mask', 'eyepatch', 'beard', 'mustache', 'bowtie', 'necklace', 'hairflower', 'bandage', 'horns', 'halo', 'wings', 'headphones', 'earmuffs', 'hairbutton'];
+const HELD = ['sword', 'staff', 'wand', 'book', 'umbrella', 'bag', 'flower', 'phone', 'cup', 'lantern', 'letter', 'ball', 'blaster', 'shield', 'food', 'mic', 'key', 'camera', 'fishingrod', 'broom', 'bouquet', 'map', 'box', 'guitar', 'sweets', 'basket', 'bucket', 'beater', 'shirt', 'towel', 'socks'];
 const EXPRS = ['normal', 'smile', 'happy', 'laugh', 'surprised', 'shock', 'angry', 'rage', 'sad', 'cry', 'worried', 'think', 'determined', 'nervous', 'sleepy', 'smug', 'love', 'scared', 'embarrassed', 'blank', 'pain', 'funny'];
 const POSES = ['stand', 'walk', 'run', 'jump', 'sit', 'kneel', 'point', 'wave', 'surprise', 'cheer', 'fight', 'punch', 'cast', 'think', 'cry', 'hold', 'armscross', 'reach', 'shrug', 'hips', 'hide', 'float'];
 const HAIRFILL = (ctx, c, u) => c === 'white' ? '#fff' : c === 'tone' ? MID(ctx, u) : c === 'light' ? LIGHT(ctx, u) : '#141414';
@@ -13708,6 +14102,10 @@ function heldItem(ctx, it, hand, other, fw, u, lw, pose) {
     case 'shield': { const sx = other ? other[0] : x, sy = other ? other[1] : y; ctx.beginPath(); ctx.moveTo(sx - 10, sy - 12); ctx.lineTo(sx + 10, sy - 12); ctx.lineTo(sx + 10, sy + 2); ctx.quadraticCurveTo(sx + 8, sy + 12, sx, sy + 16); ctx.quadraticCurveTo(sx - 8, sy + 12, sx - 10, sy + 2); ctx.closePath(); ctx.fillStyle = MID(ctx, u); ctx.fill(); ctx.lineWidth = lw; ctx.stroke(); ctx.beginPath(); ctx.moveTo(sx, sy - 9); ctx.lineTo(sx, sy + 11); ctx.moveTo(sx - 7, sy - 3); ctx.lineTo(sx + 7, sy - 3); ctx.lineWidth = lw * 1.5; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.strokeStyle = '#000'; break; }
     case 'food': ctx.beginPath(); ctx.moveTo(x, y - 12); ctx.quadraticCurveTo(x + 10, y + 2, x + 8, y + 4); ctx.lineTo(x - 8, y + 4); ctx.quadraticCurveTo(x - 10, y + 2, x, y - 12); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = lw; ctx.stroke(); ctx.fillStyle = '#141414'; ctx.fillRect(x - 4, y - 2, 8, 6); break;
     case 'sweets': blob(ctx, x, y + 3, 11, 3, '#fff', lw); poly(ctx, [[x - 6, y + 2], [x + 6, y + 2], [x + 4.5, y - 7], [x - 4.5, y - 7]], '#fff', lw); poly(ctx, [[x - 4.6, y - 6.5], [x + 4.6, y - 6.5], [x + 4, y - 9], [x - 4, y - 9]], '#141414', lw * 0.7); blob(ctx, x, y - 11, 1.8, 1.8, '#141414', 0); break;
+    case 'basket': poly(ctx, [[x - 12, y - 2], [x + 12, y - 2], [x + 9, y + 12], [x - 9, y + 12]], LIGHT(ctx, u), lw); ctx.beginPath(); ctx.arc(x, y - 2, 9, Math.PI, 0); ctx.lineWidth = lw; ctx.stroke(); break;
+    case 'bucket': poly(ctx, [[x - 9, y], [x + 9, y], [x + 7, y + 14], [x - 7, y + 14]], '#fff', lw); ctx.beginPath(); ctx.arc(x, y, 9, Math.PI, 0); ctx.lineWidth = lw * 0.8; ctx.stroke(); break;
+    case 'beater': { const e = stick(30, up, 2, '#fff'); ctx.beginPath(); ctx.ellipse(e[0], e[1] - 6, 7, 9, 0, 0, TAU); ctx.lineWidth = lw * 1.2; ctx.stroke(); break; }
+    case 'shirt': case 'towel': case 'socks': { const w = it === 'socks' ? 7 : 16, h = it === 'socks' ? 10 : 12; poly(ctx, [[x - w / 2, y - 2], [x + w / 2, y - 2], [x + w / 2, y + h], [x - w / 2, y + h]], it === 'towel' ? cloth(ctx, 'stripe', u) : '#fff', lw); if (it === 'shirt') { poly(ctx, [[x - w / 2, y - 2], [x - w / 2 - 5, y + 4], [x - w / 2, y + 6]], '#fff', lw); poly(ctx, [[x + w / 2, y - 2], [x + w / 2 + 5, y + 4], [x + w / 2, y + 6]], '#fff', lw); } break; }
     case 'mic': limb(ctx, [[x, y + 4], [x + fw * 2, y - 8]], 2.6, '#141414', lw * 0.6); blob(ctx, x + fw * 2.5, y - 11, 4, 4.5, MID(ctx, u), lw); break;
     case 'key': blob(ctx, x, y - 6, 4.5, 4.5, '#fff', lw); limb(ctx, [[x, y - 2], [x, y + 12]], 2, '#fff', lw * 0.7); limb(ctx, [[x, y + 10], [x + fw * 4, y + 10]], 1.6, '#fff', lw * 0.7); break;
     case 'camera': poly(ctx, [[x - 9, y - 6], [x + 9, y - 6], [x + 9, y + 6], [x - 9, y + 6]], '#141414', lw); blob(ctx, x, y, 4, 4, '#fff', lw * 0.7); blob(ctx, x, y, 2, 2, MID(ctx, u), 0); break;
@@ -14025,9 +14423,9 @@ const BG_ALIAS = {
   arcade: 'shopping', market: 'shopping', ocean: 'beach', sea: 'beach', seaside: 'beach', hill: 'field', meadow: 'field', grassland: 'field', farm: 'field', temple: 'shrine', jungle: 'forest', woods: 'forest',
   palace: 'castle', throne_room: 'throne', ship: 'spaceship', spacestation: 'spaceship', universe: 'space', train: 'station', platform: 'station', restaurant: 'cafe', bar: 'cafe', diner: 'cafe',
   japanese_room: 'washitsu', tatami: 'washitsu', clinic: 'hospital', laboratory: 'lab', mountains: 'mountain', valley: 'mountain', dungeon: 'cave', ruins: 'cave', ocean_floor: 'underwater', sea_bottom: 'underwater',
-  roof: 'rooftop', stadium: 'gym', court: 'gym', field_sports: 'gym', concert: 'stage', theater: 'stage', bookstore: 'library', old_town: 'edo', village: 'edo', samurai_town: 'edo', white: 'plain', none: 'plain',
+  roof: 'rooftop', stadium: 'gym', court: 'gym', field_sports: 'gym', concert: 'stage', theater: 'stage', bookstore: 'library', old_town: 'edo', village: 'edo', samurai_town: 'edo', white: 'plain', none: 'plain', niji: 'rainbow', '虹': 'rainbow', garden: 'yard', backyard: 'yard', laundry: 'yard', '物干し': 'yard', '庭': 'yard',
 };
-const BG_LIST = ['room', 'classroom', 'office', 'kitchen', 'cafe', 'washitsu', 'hospital', 'lab', 'library', 'station', 'street', 'shopping', 'park', 'forest', 'beach', 'mountain', 'field', 'sky', 'space', 'spaceship', 'castle', 'throne', 'cave', 'shrine', 'desert', 'underwater', 'rooftop', 'edo', 'gym', 'stage', 'plain', 'tone', 'black', 'flowers', 'sparkle'];
+const BG_LIST = ['rainbow', 'yard', 'room', 'classroom', 'office', 'kitchen', 'cafe', 'washitsu', 'hospital', 'lab', 'library', 'station', 'street', 'shopping', 'park', 'forest', 'beach', 'mountain', 'field', 'sky', 'space', 'spaceship', 'castle', 'throne', 'cave', 'shrine', 'desert', 'underwater', 'rooftop', 'edo', 'gym', 'stage', 'plain', 'tone', 'black', 'flowers', 'sparkle'];
 const OUTDOOR = new Set(['street', 'shopping', 'park', 'forest', 'beach', 'mountain', 'field', 'sky', 'castle', 'shrine', 'desert', 'rooftop', 'edo', 'station']);
 
 function line(ctx, x1, y1, x2, y2, w = 2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineWidth = w; ctx.strokeStyle = '#000'; ctx.stroke(); }
@@ -14074,6 +14472,15 @@ function building(ctx, x, y, w, h, env, r, style = 0) {
 }
 
 const BG = {
+  rainbow(ctx, b, env) { skyFill(ctx, b, env, b.y + b.h); rainbowArc(ctx, b); const hy = b.y + b.h * Math.max(env.hz, 0.7); ctx.fillStyle = '#fff'; ctx.fillRect(b.x, hy, b.w, b.y + b.h - hy); line(ctx, b.x, hy, b.x + b.w, hy, 2); },
+  yard(ctx, b, env) { // 物干しのある庭（builtin の簡単版。laundry の数だけ洗濯物を干す）
+    const hy = b.y + b.h * env.hz, r = env.r; skyFill(ctx, b, env, hy);
+    ctx.fillStyle = '#fff'; ctx.fillRect(b.x, hy, b.w, b.y + b.h - hy); line(ctx, b.x, hy, b.x + b.w, hy, 2);
+    for (let i = 0; i < b.w / 18; i++) rectS(ctx, b.x + i * 18, hy - 34, 12, 34, '#fff', 1.2);
+    const py = b.y + (hy - b.y) * 0.35; line(ctx, b.x + b.w * 0.08, py, b.x + b.w * 0.92, py, 2.4); line(ctx, b.x + b.w * 0.08, py - 6, b.x + b.w * 0.08, hy + 10, 4); line(ctx, b.x + b.w * 0.92, py - 6, b.x + b.w * 0.92, hy + 10, 4);
+    const items = (env.laundry && env.laundry.length ? env.laundry : ['shirt', 'towel']).slice(0, 8);
+    items.forEach((it, i) => { const x = b.x + b.w * (0.15 + 0.7 * (i + 0.5) / items.length), w = Math.min(46, b.w * 0.6 / items.length), h = it === 'sock' || it === 'socks' ? w * 0.7 : w * 0.9; rectS(ctx, x - w / 2, py, w, h, it === 'towel' ? cloth(ctx, 'stripe', 1) : '#fff', 1.6); });
+  },
   plain(ctx, b) { ctx.fillStyle = '#fff'; ctx.fillRect(b.x, b.y, b.w, b.h); },
   tone(ctx, b, env) { ctx.fillStyle = env.dark ? MID(ctx) : LIGHT(ctx); ctx.fillRect(b.x, b.y, b.w, b.h); },
   black(ctx, b) { ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); },
@@ -14322,6 +14729,7 @@ const BG = {
   },
 };
 
+function rainbowArc(ctx, b) { const cx = b.x + b.w * 0.5, cy = b.y + b.h * 0.95, R = Math.max(b.w, b.h) * 0.62; for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(cx, cy, R - i * 9, Math.PI * 1.05, Math.PI * 1.95); ctx.lineWidth = 7; ctx.strokeStyle = i % 2 ? '#fff' : 'rgba(0,0,0,.18)'; ctx.stroke(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#000'; ctx.stroke(); } }
 function drawBackground(ctx, b, name, env) {
   const fn = BG[name] || BG.plain;
   ctx.save(); fn(ctx, b, env); ctx.restore();
@@ -14423,7 +14831,7 @@ const BUILTIN_STYLE = {
   },
   drawBackground(ctx, spec, box, opts) {
     const A = opts || ART_DEFAULT;
-    drawBackground(ctx, box, spec.name, { time: spec.time, weather: spec.weather, hz: spec.horizon, r: box.rand || Math.random, shot: spec.shot });
+    drawBackground(ctx, box, spec.name, { time: spec.time, weather: spec.weather, hz: spec.horizon, r: box.rand || Math.random, shot: spec.shot, laundry: spec.laundry || [] });
     if (['black', 'space', 'plain'].includes(spec.name)) return;
     if (A.detail < 0.45) { ctx.fillStyle = `rgba(255,255,255,${(0.45 - A.detail) * 1.4})`; ctx.fillRect(box.x, box.y, box.w, box.h); }
     if (A.black > 0.6) { ctx.save(); ctx.globalAlpha = (A.black - 0.6) * 1.6; toneGradient(ctx, box, 2.2, 0.4, 6, 0, 0.75); ctx.restore(); }
@@ -14469,7 +14877,7 @@ const SHOTS = ['up', 'bust', 'full', 'long', 'bg'];
 const TIMES = ['day', 'evening', 'night'];
 const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'storm', 'fog'];
 const SAY_TYPES = ['speech', 'shout', 'think', 'whisper', 'electric', 'mono'];
-const FX_LIST = ['focus', 'speed', 'speedv', 'dark', 'spotlight', 'flashback', 'sparkle', 'hearts', 'gloom', 'shake', 'impact', 'explosion', 'fire', 'smoke', 'magic', 'question', 'exclaim', 'flowers', 'tone', 'sweat', 'wind', 'bubbles'];
+const FX_LIST = ['rainbow', 'focus', 'speed', 'speedv', 'dark', 'spotlight', 'flashback', 'sparkle', 'hearts', 'gloom', 'shake', 'impact', 'explosion', 'fire', 'smoke', 'magic', 'question', 'exclaim', 'flowers', 'tone', 'sweat', 'wind', 'bubbles'];
 const SYN = {
   species: { person: 'human', man: 'human', woman: 'human', boy: 'human', girl: 'human', kid: 'human', android: 'robot', cyborg: 'robot', spirit: 'ghost', yokai: 'monster', demon: 'monster', dragon: 'monster', beast: 'monster', kitten: 'cat', puppy: 'dog', bunny: 'rabbit', hamster: 'mouse', rat: 'mouse', owl: 'bird', crow: 'bird', chicken: 'bird', toad: 'frog', raccoon: 'tanuki', alien: 'alien', martian: 'alien', blob: 'slime', jelly: 'slime', 猫: 'cat', 犬: 'dog', 人間: 'human', 雲: 'cloud', 星: 'star', 幽霊: 'ghost', おばけ: 'ghost', ロボット: 'robot' },
   age: { kid: 'child', young: 'teen', youth: 'teen', student: 'teen', old: 'elder', senior: 'elder', grownup: 'adult', middle: 'adult', baby: 'child' },
@@ -14524,6 +14932,8 @@ function normalizeCast(c, chars, issues, where) {
     rain: c.rain != null ? num(c.rain, 0, 0, 3) : null, look: pick(c.look, ['up', 'down', 'side'], null, null),
   };
 }
+/* 床に置く小物（作画モジュールに bgSpec.props で渡す）。文字列か {name, x, y, s} */
+function normProps(v) { return arr(v).map(x => typeof x === 'string' ? { name: txt(x, 16).toLowerCase() } : x && typeof x === 'object' ? { ...x, name: txt(x.name || x.type || x.id, 16).toLowerCase() } : null).filter(x => x && x.name).slice(0, 8); }
 function normalizePanel(p, chars, issues, where) {
   p = p && typeof p === 'object' ? p : {};
   const castRaw = arr(p.cast || p.chars || p.characters);
@@ -14552,8 +14962,8 @@ function normalizePanel(p, chars, issues, where) {
   if (typeof p.nar === 'object' && p.nar && p.nar.t) narr = normText(p.nar.t);
   if (narrFromSay.length) narr = [narr, ...narrFromSay].filter(Boolean).join('\n');
   const sfx = arr(p.sfx).map(s => typeof s === 'string' ? { text: s } : s).filter(s => s && (s.text || s.t)).map(s => ({ text: normText(s.text || s.t).slice(0, 8), size: pick(s.size, ['s', 'm', 'l'], { small: 's', medium: 'm', large: 'l', big: 'l' }, 'm') })).slice(0, 3);
-  const fx = arr(p.fx || p.effects).map(f => pick(f, FX_LIST, { concentration: 'focus', 集中線: 'focus', speedlines: 'speed', blackout: 'dark', memory: 'flashback', 回想: 'flashback', glitter: 'sparkle', shine: 'sparkle', love: 'hearts', depression: 'gloom', boom: 'explosion', burst: 'impact', flash: 'impact' }, null)).filter(Boolean);
-  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4), art: normalizePanelArt(p.art) };
+  const fx = arr(p.fx || p.effects).map(f => pick(f, FX_LIST, { concentration: 'focus', 集中線: 'focus', niji: 'rainbow', 虹: 'rainbow', speedlines: 'speed', blackout: 'dark', memory: 'flashback', 回想: 'flashback', glitter: 'sparkle', shine: 'sparkle', love: 'hearts', depression: 'gloom', boom: 'explosion', burst: 'impact', flash: 'impact' }, null)).filter(Boolean);
+  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4), art: normalizePanelArt(p.art), laundry: arr(p.laundry || (p.bgSpec && p.bgSpec.laundry) || (p.bgo && p.bgo.laundry)).map(x => txt(x, 12).toLowerCase()).filter(Boolean).slice(0, 8), props: normProps(p.props || (p.bgSpec && p.bgSpec.props)) };
 }
 function normalizeScript(raw, opts = {}) {
   const issues = [];
@@ -14575,6 +14985,7 @@ function normalizeScript(raw, opts = {}) {
   const cv = s.cover && typeof s.cover === 'object' ? s.cover : {};
   const coverCast = arr(cv.cast).map(c => normalizeCast(c, chars, issues, '表紙')).filter(Boolean).slice(0, 3);
   const cover = {
+    laundry: arr(cv.laundry || (cv.bgSpec && cv.bgSpec.laundry)).map(x => txt(x, 12).toLowerCase()).filter(Boolean).slice(0, 8), props: normProps(cv.props),
     bg: BG_LIST.includes(BG_ALIAS[cv.bg] || cv.bg) ? (BG_ALIAS[cv.bg] || cv.bg) : (pages[0].panels.find(p => p.bg !== 'plain') || {}).bg || 'sky',
     time: pick(cv.time, TIMES, SYN.time, 'day'), weather: pick(cv.weather, WEATHERS, SYN.weather, 'clear'),
     cast: coverCast.length ? coverCast : chars.slice(0, Math.min(2, chars.length)).map((c, i) => ({ id: c.id, x: null, face: null, expr: 'smile', pose: i ? 'stand' : 'point', hold: null, color: null, rain: null, look: null })),
@@ -14858,7 +15269,7 @@ function drawEndMark(ctx, b, word, heads, bodies, occupied) {
 }
 
 /* ---------- 演出（効果）：1つずつ作画モジュールに渡す。組み込みの描き方 ---------- */
-const FX_UNDER = ['flowers', 'tone', 'spotlight', 'impact', 'explosion', 'magic', 'focus', 'speed', 'speedv'];
+const FX_UNDER = ['rainbow', 'flowers', 'tone', 'spotlight', 'impact', 'explosion', 'magic', 'focus', 'speed', 'speedv'];
 function builtinEffect(ctx, spec, b, A) {
   const r = b.rand || Math.random, dark = spec.dark, ink = dark ? '#fff' : '#000';
   const fp = spec.focus ? [spec.focus.x, spec.focus.y] : [b.x + b.w / 2, b.y + b.h / 2];
@@ -14866,6 +15277,7 @@ function builtinEffect(ctx, spec, b, A) {
   const dyn = A ? 0.6 + (A.dynamism || 0) * 0.9 : 1;
   switch (spec.name) {
     case 'flowers': BG.flowers(ctx, b, { r }); break;
+    case 'rainbow': rainbowArc(ctx, b); break;
     case 'tone': ctx.fillStyle = LIGHT(ctx); ctx.fillRect(b.x, b.y, b.w, b.h); break;
     case 'spotlight': ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); ctx.beginPath(); ctx.moveTo(fp[0] - b.w * 0.08, b.y); ctx.lineTo(fp[0] + b.w * 0.08, b.y); ctx.lineTo(fp[0] + b.w * 0.28, b.y + b.h); ctx.lineTo(fp[0] - b.w * 0.28, b.y + b.h); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); toneGradient(ctx, b, 0.1, 1.0, 7); break;
     case 'impact': case 'explosion': { const [x, y] = fp; ctx.beginPath(); const n = 18, R = Math.max(b.w, b.h) * 0.75; for (let i = 0; i <= n * 2; i++) { const a = i / (n * 2) * TAU, k = i % 2 ? 0.35 + r() * 0.2 : 1; i ? ctx.lineTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k) : ctx.moveTo(x + Math.cos(a) * R * k, y + Math.sin(a) * R * k); } ctx.closePath(); ctx.fillStyle = spec.name === 'explosion' ? MID(ctx) : '#fff'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.stroke(); if (spec.name === 'explosion') for (let i = 0; i < 6; i++) cloudShape(ctx, x + (r() - 0.5) * b.w * 0.6, y + (r() - 0.5) * b.h * 0.5, Math.min(b.w, b.h) * (0.06 + r() * 0.05)); break; }
@@ -14918,7 +15330,7 @@ function drawPanel(ctx, S, b, P, r, tag, isLast, mode) {
   const ART = artFor(S, P, mode);
   if (dark) { ctx.fillStyle = '#000'; ctx.fillRect(b.x, b.y, b.w, b.h); }
   else {
-    ART.drawBackground(ctx, { name: P.bg, time: P.time, weather: P.weather, horizon: hz, shot: P.shot }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
+    ART.drawBackground(ctx, { name: P.bg, time: P.time, weather: P.weather, horizon: hz, shot: P.shot, laundry: P.laundry || [], props: P.props || [] }, { x: b.x, y: b.y, w: b.w, h: b.h, rand: r });
     if (P.shot === 'up' || (P.shot === 'bust' && P.cast.length)) { ctx.fillStyle = P.shot === 'up' ? 'rgba(255,255,255,.62)' : 'rgba(255,255,255,.35)'; ctx.fillRect(b.x, b.y, b.w, b.h); }
     if (fx.has('flashback')) { ctx.fillStyle = tone(ctx, 6, 1.15, 1, true); ctx.fillRect(b.x, b.y, b.w, b.h); }
   }
@@ -14991,7 +15403,7 @@ function drawCover(ctx, S, r, mode) {
   const b = { x: 0, y: 0, w: W, h: H }, C = S.cover;
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
   const ART = artFor(S, null, mode);
-  ART.drawBackground(ctx, { name: C.bg, time: C.time, weather: C.weather, horizon: 0.74, shot: 'long' }, { x: 0, y: 0, w: W, h: H, rand: r });
+  ART.drawBackground(ctx, { name: C.bg, time: C.time, weather: C.weather, horizon: 0.74, shot: 'long', laundry: C.laundry || [], props: C.props || [] }, { x: 0, y: 0, w: W, h: H, rand: r });
   toneGradient(ctx, { x: 0, y: 0, w: W, h: H * 0.34 }, 1.8, 0.1, 7);
   const cast = C.cast.map(c => ({ c, ch: charOf(S, c.id) })).filter(x => x.ch).slice(0, 3);
   const mets = cast.map(x => ART.metrics(x.ch)), sfs = mets.map(m => m.size ** 0.7), sfMax = Math.max(1, ...sfs);
@@ -15651,10 +16063,10 @@ const Store = {
       if (c && typeof c.use === 'function') {
         try {
           const [db, user] = await Promise.all([c.use('db').catch(() => null), c.use('user').catch(() => null)]);
-          if (db && user) { const uid = await user.id(); if (uid) { this.db = db; this.uid = uid; this.kind = 'db'; return; } }
+          if (db && user) { const uid = await user.id(); if (uid) { this.db = db; this.uid = uid; this.kind = 'db'; this.resolved = true; return; } }
         } catch (e) {}
       }
-      this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory';
+      this.kind = lsSet(this.prefix + 'probe', '1') ? 'local' : 'memory'; this.resolved = true;
     })();
     return this.ready;
   },
@@ -15675,7 +16087,7 @@ const Store = {
       for (const [k, v] of Object.entries(this.pending())) { const cur = out[k]; if (!cur || (v.savedAt || 0) >= (cur.savedAt || 0)) { out[k] = v; this.put(k, v, true); } }
       return out;
     }
-    if (this.kind === 'local') { try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(this.prefix) && k !== this.prefix + 'probe' && k !== this.prefix + 'ui') { try { out[k.slice(this.prefix.length)] = JSON.parse(localStorage.getItem(k)); } catch (e) {} } } this.loadOK = true; } catch (e) {} }
+    if (this.kind === 'local') { for (const [k, v] of Object.entries(this.pending())) { this.put(k, v, true); out[k] = v; } try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(this.prefix) && k !== this.prefix + 'probe' && k !== this.prefix + 'ui') { try { out[k.slice(this.prefix.length)] = JSON.parse(localStorage.getItem(k)); } catch (e) {} } } this.loadOK = true; } catch (e) {} }
     if (this.kind === 'memory') { Object.assign(out, this.clone(this.mem)); this.loadOK = true; }
     return out;
   },
@@ -15683,17 +16095,20 @@ const Store = {
   put(key, obj, resend) { // 同じ文書への書き込みは1つずつ、読み込みが終わってから
     const data = this.clone(obj); if (!data) return Promise.resolve();
     if (!resend && data && typeof data === 'object') data.savedAt = Date.now();
+    // 先にこの端末へ「未送信」として同期的に控える（送り終える前にタブが閉じても消えないように）。db が受け取ったら消す
+    if (!this.resolved || this.kind === 'db') lsSet(this.pendingPrefix + key, JSON.stringify(data));
     const run = async () => {
       await this.init();
       if (this.kind === 'db') {
         for (let tries = 0; tries < 2; tries++) {
-          try { await this.db.doc(this.path() + '/' + key).set(data); try { localStorage.removeItem(this.pendingPrefix + key); } catch (e) {} return; }
+          try { await this.db.doc(this.path() + '/' + key).set(data); try { const cur = JSON.parse(localStorage.getItem(this.pendingPrefix + key) || 'null'); if (!cur || (cur.savedAt || 0) <= (data.savedAt || 0)) localStorage.removeItem(this.pendingPrefix + key); } catch (e) {} return; }
           catch (e) { if (e && e.code === 'unavailable' && tries === 0) { await new Promise(r => setTimeout(r, 600 + Math.random() * 600)); continue; } if (e && e.code === 'quota_exceeded') toast('保存の容量がいっぱいです'); break; }
         }
         // 失敗：保存先は db のまま。この端末に「未送信」として控える（次の起動で送り直す）
         if (!lsSet(this.pendingPrefix + key, JSON.stringify(data))) this.mem[key] = data;
         return;
       }
+      try { localStorage.removeItem(this.pendingPrefix + key); } catch (e) {}
       if (this.kind === 'local' && lsSet(this.prefix + key, JSON.stringify(data))) return;
       this.mem[key] = data;
     };
@@ -16391,6 +16806,8 @@ async function boot() {
   renderMake(); drawIcons();
   loadRendererModules();
   Store.init();
+  // prompts.js の語彙に、本体と作画モジュールが描ける名前をそろえる
+  try { const P = window.MangaPrompts; if (P && typeof P.setVocab === 'function') { const V = P.VOCAB || {}; const u = (a, b) => [...new Set([...(a || []), ...b])]; P.setVocab({ bg: u(V.bg, BG_LIST), fx: u(V.fx, FX_LIST), held: u(V.held, HELD), worn: u(V.worn, WORN), species: u(V.species, SPECIES), expr: u(V.expr, EXPRS), pose: u(V.pose, POSES) }); } } catch (e) { console.warn('setVocab', e); }
   // Claude の機能（sample）を確かめる。届かない環境では null になる
   const c = window.claude;
   const samplePromise = (c && typeof c.use === 'function') ? c.use('sample').catch(() => null) : Promise.resolve(null);

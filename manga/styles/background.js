@@ -309,8 +309,9 @@
     }
   }
   // 虹：7本の帯を、トーンの濃さを変えて（白黒でも帯の区別がつく）
-  function rainbowArc(ly, cx, cy, r, w, a0 = Math.PI * 1.04, a1 = Math.PI * 1.96) {
-    const mats = [0.55, 0.12, 0.38, 0.05, 0.3, 0.7, 0.2]; const n = mats.length;
+  function rainbowArc(ly, cx, cy, r, w, a0 = Math.PI * 1.04, a1 = Math.PI * 1.96, bold = false) {
+    // 太い虹は、黒に近い帯から白い帯までコントラストを大きく（白黒でも帯がはっきり見える）
+    const mats = bold ? [0.25, 0.05, 0.5, 0.95, 0.7, 0.12, 0.38] : [0.55, 0.12, 0.38, 0.05, 0.3, 0.7, 0.2]; const n = mats.length;
     for (let i = 0; i < n; i++) { const r0 = r - w * i / n, r1 = r - w * (i + 1) / n; const P = ellipsePts(cx, cy, r0, r0, 0, 60, a0, a1).concat(ellipsePts(cx, cy, r1, r1, 0, 60, a0, a1).reverse()); ly.fill(P, mats[i], { shade: 0, knock: false, ha: 2 }); }
     ink(ly.l, ellipsePts(cx, cy, r, r, 0, 60, a0, a1), 1.1, { dense: true, tin: 20, tout: 20 }); ink(ly.l, ellipsePts(cx, cy, r - w, r - w, 0, 60, a0, a1), 0.8, { dense: true, tin: 20, tout: 20 });
     for (let i = 1; i < n; i++) { const rr2 = r - w * i / n; ink(ly.l, ellipsePts(cx, cy, rr2, rr2, 0, 50, a0 + 0.05, a1 - 0.05), 0.35, { dense: true, tin: 30, tout: 30 }); }
@@ -321,7 +322,10 @@
     const ground = [[box.x, hz], [box.x + box.w, hz], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]];
     if (name === 'cave') { ly.fill([[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]], 0.92, { shade: 0 }); const mouth = []; for (let i = 0; i <= 16; i++) { const a = Math.PI + i / 16 * Math.PI; mouth.push([box.x + box.w / 2 + Math.cos(a) * box.w * 0.32 * rr(0.9, 1.1), hz + Math.sin(a) * box.h * 0.5 * rr(0.9, 1.08)]); } mouth.push([box.x + box.w * 0.82, box.y + box.h], [box.x + box.w * 0.18, box.y + box.h]); const P = catmull(mouth, 3, true); ly.fill(P, 0.25, { shade: 0.4 }); ink(l, P, 1.4, { dense: true, closed: true }); for (let i = 0; i < det * 30; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h; ink(ly.hi, [[x, y], [x + rr(-10, 10), y + rr(4, 14)]], 0.6); } return; }
     if (name === 'rainbow') { // 空いっぱいの大きな虹＋丘
-      const cx = box.x + box.w * 0.5, cyR = hz + box.h * 0.1, r = Math.min(box.w * 0.46, cyR - box.y - box.h * 0.08); rainbowArc(ly, cx, cyR, r, r * 0.24);
+      // bgSpec.scale（既定1、大ゴマでは自動で大きく）: 1 で画面幅いっぱい、帯の太さもそれに合わせる
+      const big = env.bg.big || (env.bg.scale ?? (box.w * box.h > 150000 ? 1.25 : 1)) > 1.1; const sc2 = env.bg.scale ?? (big ? 1.3 : 1);
+      const cx = box.x + box.w * 0.5, cyR = hz + box.h * (big ? 0.2 : 0.1), r = Math.min(box.w * 0.5 * sc2, (cyR - box.y) * (big ? 1.05 : 0.92));
+      rainbowArc(ly, cx, cyR, r, r * (big ? 0.42 : 0.26), Math.PI * 1.0, Math.PI * 2.0, big);
       const hill = catmull([[box.x - 10, hz + box.h * 0.04], [box.x + box.w * 0.3, hz - box.h * 0.04], [box.x + box.w * 0.7, hz + box.h * 0.02], [box.x + box.w + 10, hz - box.h * 0.03], [box.x + box.w + 10, box.y + box.h], [box.x - 10, box.y + box.h]], 6, true);
       ly.fill(hill, 0.12, { shade: 0, ha: 2 }); ink(l, hill.slice(0, 24), 1.0, { dense: true });
       for (let i = 0; i < 12 + art.detail * 20; i++) { const x = box.x + rand() * box.w, y = hz + rand() * (box.y + box.h - hz), s2 = lerp(3, 12, (y - hz) / (box.y + box.h - hz)); ink(l, [[x - s2 * 0.3, y], [x, y - s2], [x + s2 * 0.3, y]], 0.6); }

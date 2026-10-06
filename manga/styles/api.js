@@ -84,6 +84,7 @@
     metrics: (spec, opts) => K.metrics(spec, opts),
     drawFrame: (ctx, box, opts) => K.drawFrame(ctx, box, opts),
     drawCharacterSheet, drawExpressionSheet,
+    drawProp: (ctx, name, box, opts) => K.drawProp(ctx, name, box, opts),
     sfx: (ctx, text, x, y, size, opts) => K.sfxText(ctx, text, x, y, size, opts),
     normalizeArt: K.normalizeArt, randomArt: K.randomArt, presets: K.PRESETS, POSES: K.POSES, EXPRS: K.EXPRS, BG_NAMES: K.BG_NAMES,
   };
