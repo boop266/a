@@ -10,6 +10,7 @@ const QUICK = !!ARGS.quick;
 const SEED = Number(ARGS.seed || 1);
 const ONLY = ARGS.only ? new Set(String(ARGS.only).split(',')) : null;
 const want = k => !ONLY || ONLY.has(k);
+if (ARGS.sig) Taste.configure({ SIGNALS: JSON.parse(ARGS.sig) }); // 実験用：信号の重みを差し替える
 const MOPTS = ARGS.opts ? JSON.parse(ARGS.opts) : {}; // 実験用：analyze に渡す追加の設定
 const an = (W, F, H, o) => Taste.analyze(W, F, H, Object.assign({ now: 1e15 }, MOPTS, o || {}));
 const AX = Taste.schema.AXES.map(a => a[0]);

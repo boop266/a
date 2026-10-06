@@ -55,7 +55,8 @@
         const P3 = cam.clipPoly(f.P3); if (P3.length < 3) continue;
         const P = cam.poly(P3).map(p => [p[0], p[1]]); if (P.length < 3) continue;
         const fog = clamp(1 - f.d / (this.fogD || 140));
-        ly.fill(P, f.mat * lerp(0.4, 1, fog), { shade: f.shade * lerp(0.35, 1, fog), off: 0, blur: 0 });
+        const nn = f.o.n || [0, 1, 0]; const ha = nn[1] !== 0 ? 2 : (Math.abs(nn[2]) > 0.5 ? 3 : 1);
+        ly.fill(P, f.mat * lerp(0.4, 1, fog), { shade: f.shade * lerp(0.35, 1, fog), off: 0, blur: 0, ha });
         const w = clamp(9 / Math.max(2, f.d), 0.25, 1.5) * (f.o.lw ?? 1);
         if (f.o.noEdge !== true) { l.fillStyle = '#000'; ink(l, P.concat([P[0]]), w, { dense: true, tin: 1, tout: 1, noRough: f.d > 40, jit: 0.6 }); }
         if (f.o.extra) f.o.extra(f, P3, w, fog);
@@ -74,6 +75,7 @@
   function drawBackground(ctx, bg, box, opts) {
     bg = bg || {}; box = box || { x: 0, y: 0, w: 800, h: 600 };
     let art = K.normalizeArt(opts && (opts.art || opts));
+    if (art.rough) art = Object.assign({}, art, { detail: Math.min(art.detail, 0.2) });
     const name = ALIAS[bg.name] || bg.name || 'plain';
     seed(hashStr(name + (bg.time || '') + Math.round(box.x) + ',' + Math.round(box.y) + ',' + Math.round(box.w)));
     const sc = clamp(Math.sqrt(box.w / 500), 0.6, 1.5) * 0.8;
@@ -102,10 +104,12 @@
   function sky(env) {
     const { ly, box, hz, night, eve, art } = env; const m = ly.m;
     const P = [[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, hz + 2], [box.x, hz + 2]];
-    ly.fill(P, 0, { shade: 0 });
+    ly.fill(P, 0, { shade: 0, ha: 2 });
     if (night) { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.97)); g.addColorStop(1, ly.g(lerp(0.6, 0.9, art.black))); m.fillStyle = g; fillPoly(m, P); env.stars = true; }
     else if (eve) { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.55)); g.addColorStop(1, ly.g(0.08)); m.fillStyle = g; fillPoly(m, P); }
     else if (env.bg.weather === 'rain' || env.bg.weather === 'storm' || env.bg.weather === 'cloudy') { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.5)); g.addColorStop(1, ly.g(0.15)); m.fillStyle = g; fillPoly(m, P); }
+    // ベタの多い絵柄は、昼でも空を暗く重く
+    if (!night && art.black > 0.7) { const k = (art.black - 0.7) / 0.3; const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(lerp(0.3, 0.92, k))); g.addColorStop(1, ly.g(lerp(0.1, 0.45, k))); m.fillStyle = g; fillPoly(m, P); }
     // 雲
     if (!night && art.detail > 0.15) {
       const n = 1 + Math.round(art.detail * 3);
@@ -260,7 +264,7 @@
     const ground = [[box.x, hz], [box.x + box.w, hz], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]];
     if (name === 'cave') { ly.fill([[box.x, box.y], [box.x + box.w, box.y], [box.x + box.w, box.y + box.h], [box.x, box.y + box.h]], 0.92, { shade: 0 }); const mouth = []; for (let i = 0; i <= 16; i++) { const a = Math.PI + i / 16 * Math.PI; mouth.push([box.x + box.w / 2 + Math.cos(a) * box.w * 0.32 * rr(0.9, 1.1), hz + Math.sin(a) * box.h * 0.5 * rr(0.9, 1.08)]); } mouth.push([box.x + box.w * 0.82, box.y + box.h], [box.x + box.w * 0.18, box.y + box.h]); const P = catmull(mouth, 3, true); ly.fill(P, 0.25, { shade: 0.4 }); ink(l, P, 1.4, { dense: true, closed: true }); for (let i = 0; i < det * 30; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h; ink(ly.hi, [[x, y], [x + rr(-10, 10), y + rr(4, 14)]], 0.6); } return; }
     const gm = name === 'beach' ? 0.08 : name === 'desert' ? 0.15 : name === 'field' || name === 'park' ? 0.12 : 0.2;
-    ly.fill(ground, gm * (night ? 3 : 1), { shade: 0 });
+    ly.fill(ground, gm * (night ? 3 : 1), { shade: 0, ha: 2 });
     // 遠景
     if (name === 'mountain' || name === 'field' || name === 'desert' || name === 'shrine' || name === 'park') {
       const layers = name === 'mountain' ? 3 : 2;
@@ -281,7 +285,7 @@
     const tree = (x, gy, s, far) => {
       const tw = s * 0.07, th = s * 0.55;
       const trunk = [[x - tw, gy], [x - tw * 0.6, gy - th], [x + tw * 0.6, gy - th], [x + tw, gy]];
-      ly.fill(trunk, 0.6, { shade: 0.8, off: tw }); ink(l, [trunk[0], trunk[1]], 1.0 * (far ? 0.6 : 1)); ink(l, [trunk[3], trunk[2]], 1.2 * (far ? 0.6 : 1));
+      ly.fill(trunk, 0.6, { shade: 0.8, off: tw, ha: 1 }); ink(l, [trunk[0], trunk[1]], 1.0 * (far ? 0.6 : 1)); ink(l, [trunk[3], trunk[2]], 1.2 * (far ? 0.6 : 1));
       const cy = gy - th - s * 0.2, pts = []; const k = 11;
       for (let i = 0; i < k; i++) { const a = i / k * TAU; const r = s * 0.38 * rr(0.85, 1.1); pts.push([x + Math.cos(a) * r * 1.1, cy + Math.sin(a) * r * 0.85]); }
       // 葉のふち：もこもこ

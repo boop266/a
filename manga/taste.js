@@ -313,8 +313,8 @@
      --------------------------------------------------------------------------- */
   const GROUPS = ['icpt', 'lin', 'quad', 'inter', 'gap', 'art', 'feat', 'tag'];
   // 事前分散（u の尺度で）と、経験ベイズの更新でどれくらい事前値に引っぱるか（擬似件数 nu）
-  let GMAX = 30, FMAX = 60, NU_FEAT = 1.0; const ARD_GROUPS = new Set(['lin', 'quad', 'inter']);
-  const PRIOR = { icpt: { s: 1.0, nu: Infinity }, lin: { s: 0.12, nu: 4 }, quad: { s: 0.08, nu: 4 }, inter: { s: 0.02, nu: 12 }, gap: { s: 0.06, nu: 3 }, art: { s: 0.012, nu: 6 }, feat: { s: 0.02, nu: 6 }, tag: { s: 0.15, nu: 6 } };
+  const HYPER = { gmax: 30, fmax: 60, nuFeat: 0.3 }; const ARD_GROUPS = new Set(['lin', 'quad', 'inter']); // nuFeat：軸ごとの ARD を群の値へ引き戻す強さ（検証で 0.3 が最良）
+  const PRIOR = { icpt: { s: 1.0, nu: Infinity }, lin: { s: 0.12, nu: 4 }, quad: { s: 0.08, nu: 4 }, inter: { s: 0.02, nu: 12 }, gap: { s: 0.06, nu: 3 }, art: { s: 0.006, nu: 6 }, feat: { s: 0.02, nu: 6 }, tag: { s: 0.05, nu: 6 } };
   function featurize(aw, tagIndex, p) {
     const phi = new Float64Array(p);
     phi[0] = 1;
@@ -354,7 +354,7 @@
   function fitRows(rows, opts) {
     opts = opts || {};
     const useQuad = opts.quad !== false, useInter = opts.inter !== false, useArd = opts.ard !== false;
-    if (opts.gmax) GMAX = opts.gmax; if (opts.fmax) FMAX = opts.fmax; if (opts.nuFeat) NU_FEAT = opts.nuFeat;
+    const GMAX = opts.gmax || HYPER.gmax, FMAX = opts.fmax || HYPER.fmax, NU_FEAT = opts.nuFeat || HYPER.nuFeat;
     const tagCount = new Map(); for (const r of rows) for (const t of r.aw.tags) tagCount.set(t, (tagCount.get(t) || 0) + 1);
     const tagNames = [...tagCount.keys()].sort(); const tagIndex = new Map(tagNames.map((t, i) => [t, i]));
     const p = OFF.tag + tagNames.length, n = rows.length;
@@ -421,7 +421,8 @@
       sigma2 = clamp((num + 4 * 0.35) / (den + 4), 0.04, 3);
     }
     if (!n) { B = new Float64Array(0); alpha = new Float64Array(0); L = new Float64Array(0); diagS = Float64Array.from(s); }
-    return { n, p, rows, Phi, y, tau, d: dd, s, gs, sigma2, L, alpha, mu, B, diagS, tagNames, tagIndex, tagCount, opts };
+    let logML = 0; for (let i = 0; i < n; i++) logML -= 0.5 * y[i] * alpha[i] + Math.log(L[i * n + i]) + 0.5 * Math.log(2 * Math.PI);
+    return { n, p, logML, rows, Phi, y, tau, d: dd, s, gs, sigma2, L, alpha, mu, B, diagS, tagNames, tagIndex, tagCount, opts };
   }
   /* 事後の共分散の一部：Σ_ab = δ s_a − s_a s_b (B_a·B_b) */
   function covAB(M, a, b) { let acc = 0; for (let i = 0; i < M.n; i++) acc += M.B[i * M.p + a] * M.B[i * M.p + b]; return (a === b ? M.s[a] : 0) - M.s[a] * M.s[b] * acc; }
@@ -468,11 +469,33 @@
   /* ---------------------------------------------------------------------------
      9. 学習の入口
      --------------------------------------------------------------------------- */
+  const HALF_LIVES = [1e9, 40, 15];
   function fit(works, fbs, history, opts) {
     opts = opts || {};
-    const F = fuse(works, fbs, history, opts);
-    let rows = F.rows; if (rows.length > (opts.maxRows || 400)) rows = rows.slice(-(opts.maxRows || 400));
-    const M = fitRows(rows, opts);
+    // 好みの変化：古い反応の重みを下げる半減期を、最近の作品での予測の当たり具合で自動選択（∞ / 40作 / 15作）。
+    // 30作未満では変化を見分けられないので ∞（ただし opts.halfLife の指定があればそれを使う）
+    const fitWith = hl => { const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl })); let rows = F1.rows; if (rows.length > (opts.maxRows || 400)) rows = rows.slice(-(opts.maxRows || 400)); const M1 = fitRows(rows, opts); M1.halfLife = hl; return { M: M1, F: F1 }; };
+    let best;
+    if (opts.halfLife != null) best = fitWith(opts.halfLife);
+    else {
+      const base = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: 1e9 }));
+      const nAll = base.rows.length;
+      if (nAll < 30) best = fitWith(1e9);
+      else {
+        const m = Math.max(8, Math.round(nAll / 5)); const scores = {};
+        for (const hl of HALF_LIVES) {
+          // 古い順に並んだ反応のうち、最後の m 作を隠して学習し、その m 作の好き度を当てられるか（対数予測密度）
+          const F1 = fuse(works, fbs, history, Object.assign({}, opts, { halfLife: hl }));
+          const rows = F1.rows; const train = rows.slice(0, rows.length - m).map(r => Object.assign({}, r, { d: Math.max(0.05, Math.pow(0.5, (rows.length - m - 1 - r.order) / hl)) }));
+          const M1 = fitRows(train, Object.assign({}, opts, { iters: 4 }));
+          let sc = 0; for (const r of rows.slice(-m)) { const pr = predictPhi(M1, featurize(r.aw, M1.tagIndex, M1.p)); const v = pr.var + M1.sigma2 + r.tau; sc += -0.5 * Math.log(2 * Math.PI * v) - 0.5 * (r.y - pr.mean) ** 2 / v; }
+          scores[hl] = sc;
+        }
+        let hl = 1e9; for (const h of HALF_LIVES) if (scores[h] > scores[hl] + 1.0) hl = h; // 1.0：変化ありと判断する小さな余裕
+        best = fitWith(hl); best.M.halfLifeScores = scores;
+      }
+    }
+    const M = best.M, F = best.F;
     M.reader = F.reader;
     M.reliability = reliabilityOf(M);
     return M;

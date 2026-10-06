@@ -66,6 +66,7 @@
     for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
     up.pop(); lo.pop(); return lo.concat(up);
   }
+  const angBucket = a => { const BA = [-1.0, 1.45, 0.1, 0.62]; let best = 0, bd = 9; BA.forEach((b, i) => { let d = Math.abs(((a - b) % Math.PI + Math.PI * 1.5) % Math.PI - Math.PI / 2); if (d < bd) { bd = d; best = i; } }); return best; };
   const fillPoly = (c, P) => { if (!P || P.length < 2) return; c.beginPath(); c.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) c.lineTo(P[i][0], P[i][1]); c.closePath(); c.fill(); };
   const pathPoly = (c, P) => { c.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) c.lineTo(P[i][0], P[i][1]); c.closePath(); };
 
@@ -143,9 +144,11 @@
     constructor(box, S) {
       this.box = { x: Math.floor(box.x) - 2, y: Math.floor(box.y) - 2, w: Math.ceil(box.w) + 4, h: Math.ceil(box.h) + 4 }; this.S = S;
       const { x, y, w, h } = this.box;
-      this.mc = mkCanvas(w * S, h * S); this.sc = mkCanvas(w * S, h * S); this.lc = mkCanvas(w * S, h * S); this.hc = mkCanvas(w * S, h * S);
+      this.mc = mkCanvas(w * S, h * S); this.sc = mkCanvas(w * S, h * S); this.ac = mkCanvas(w * S, h * S); this.lc = mkCanvas(w * S, h * S); this.hc = mkCanvas(w * S, h * S);
       [this.m, this.s, this.l, this.hi] = [this.mc, this.sc, this.lc, this.hc].map(c => { const g = c.getContext('2d'); g.setTransform(S, 0, 0, S, -x * S, -y * S); g.lineCap = 'round'; g.lineJoin = 'round'; return g; });
       this.l.fillStyle = '#000'; this.hi.fillStyle = '#fff';
+      this.a = this.ac.getContext('2d'); this.a.setTransform(S, 0, 0, S, -x * S, -y * S);
+      this.ha = 0; // いまの既定の斜線の向き（0..3）
     }
     g(v) { const q = Math.round(255 * (1 - clamp(v))); return `rgb(${q},${q},${q})`; }
     knock(P) { for (const c of [this.l, this.hi]) { c.save(); c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; fillPoly(c, P); c.restore(); } }
@@ -154,6 +157,7 @@
       if (!P || P.length < 3) return;
       const m = this.m, s = this.s;
       m.fillStyle = this.g(mat); fillPoly(m, P);
+      const hb = o.ha ?? this.ha; this.a.fillStyle = `rgb(${hb * 60 + 10},0,0)`; fillPoly(this.a, P);
       const sh = o.shade ?? 0.8;
       s.save(); s.beginPath(); pathPoly(s, P); s.clip();
       s.fillStyle = this.g(sh); fillPoly(s, P);
@@ -175,9 +179,10 @@
   function readMaps(ly) {
     const W = ly.mc.width, H = ly.mc.height;
     const md = ly.m.getImageData(0, 0, W, H).data, sd = ly.s.getImageData(0, 0, W, H).data;
-    const n = W * H, M = new Float32Array(n), Sh = new Float32Array(n), A = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { const a = md[i * 4 + 3]; A[i] = a; if (a) { M[i] = 1 - md[i * 4] / 255; Sh[i] = 1 - sd[i * 4] / 255; } }
-    return { M, Sh, A, w: W, h: H };
+    const ad = ly.a.getImageData(0, 0, W, H).data;
+    const n = W * H, M = new Float32Array(n), Sh = new Float32Array(n), A = new Uint8Array(n), B = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { const a = md[i * 4 + 3]; A[i] = a; if (a) { M[i] = 1 - md[i * 4] / 255; Sh[i] = 1 - sd[i * 4] / 255; B[i] = Math.min(3, Math.floor(ad[i * 4] / 60)); } }
+    return { M, Sh, A, B, w: W, h: H };
   }
   // 網点（levels があれば段階に量子化＝貼りトーン、なければグラデーション）
   function dots(out, V0, A, W, H, o) {
@@ -247,7 +252,7 @@
 
   // レイヤーを ctx へ合成。R = art から作った描き分け設定（art.js の derive）
   function compose(ctx, ly, R) {
-    const mp = readMaps(ly), { M, Sh, A, w: W, h: H } = mp, n = W * H, S = ly.S, box = ly.box;
+    const mp = readMaps(ly), { M, Sh, A, B, w: W, h: H } = mp, n = W * H, S = ly.S, box = ly.box;
     const tmp = mkCanvas(W, H), c = tmp.getContext('2d');
     // 紙
     c.drawImage(ly.mc, 0, 0); c.globalCompositeOperation = 'source-in'; c.fillStyle = R.paper || '#fff'; c.fillRect(0, 0, W, H);
@@ -269,7 +274,7 @@
       HV[i] = clamp(s * R.hatchShade + m * R.hatchMat);
     }
     if (R.toneKind === 'dot' || R.toneKind === 'gradient') { dots(out, TV, A, W, H, { per: R.dotPer * S, ang: Math.PI / 4, levels: R.toneKind === 'dot' ? R.levels : null }); }
-    if (R.toneKind === 'sand') sand(out, TV, A, n, 0.75);
+    if (R.toneKind === 'sand') sand(out, TV, A, n, 0.5);
     if (R.grainTone > 0) { const G = new Float32Array(n); for (let i = 0; i < n; i++) G[i] = TV[i] * 0.5; sand(out, G, A, n, R.grainTone); }
     const putImg = im => { const t2 = mkCanvas(W, H); t2.getContext('2d').putImageData(im, 0, 0); c.drawImage(t2, 0, 0); };
     putImg(img);
@@ -277,7 +282,11 @@
     c.save(); c.setTransform(S, 0, 0, S, -box.x * S, -box.y * S); c.fillStyle = '#000';
     if (R.toneKind === 'kakeami') kakeami(c, sample(TV), box, R.sc, 1.0);
     if (R.toneKind === 'line') hatch(c, sample(TV), box, [{ ang: 0, thr: 0.04, sp: 2.2 * R.sc, w: 1.5 * R.sc, band: 0.7, wave: 0 }], R.sc);
-    if (R.hatch.length) hatch(c, sample(HV), box, R.hatch, R.sc);
+    if (R.hatch.length) {
+      // 斜線の向きは形ごと（腕は腕を横切る向き、壁は縦、地面は横…）
+      const BA = [-1.0, 1.45, 0.1, 0.62], used = new Set(); for (let i = 0; i < n; i += 7) if (A[i] > 127 && HV[i] > 0.1) used.add(B[i]);
+      for (const b of used) { const smp = (x, y) => { const px = Math.round((x - box.x) * S), py = Math.round((y - box.y) * S); if (px < 0 || py < 0 || px >= W || py >= H) return 0; const i = py * W + px; return A[i] > 127 && B[i] === b ? HV[i] : 0; }; hatch(c, smp, box, R.hatch.map(lv => Object.assign({}, lv, { ang: BA[b] + (lv.ang + 1.0) })), R.sc); }
+    }
     c.restore();
     // ベタ
     const bi = new ImageData(W, H), bo = bi.data; for (let i = 0; i < n; i++) if (BV[i] > 0) bo[i * 4 + 3] = Math.round(BV[i] * 255 * (A[i] / 255)); putImg(bi);
@@ -285,10 +294,11 @@
     c.globalCompositeOperation = 'source-over';
     c.drawImage(ly.hc, 0, 0);
     erode(ly.lc, R.grain * 0.9 + R.rough * 0.25, box.x * 3 + box.y);
+    if (R.pencil) { const g = ly.lc.getContext('2d'); g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#3c3c3c'; g.fillRect(0, 0, W, H); g.restore(); }
     c.drawImage(ly.lc, 0, 0);
-    if (R.grain > 0.05) { // 紙の粒（鉛筆のざらつき）
+    if (R.grain > 0.05 && !R.pencil) { // 紙の粒（鉛筆のざらつき）
       const gi = c.getImageData(0, 0, W, H), gd = gi.data;
-      for (let i = 0; i < gd.length; i += 4) { if (!gd[i + 3]) continue; const p = i >> 2; const v = hash2(p, 13); if (gd[i] < 128 && v < R.grain * 0.22) { gd[i] = gd[i + 1] = gd[i + 2] = 255; } else if (gd[i] > 128 && v > 1 - R.grain * 0.035) { gd[i] = gd[i + 1] = gd[i + 2] = 60; } }
+      for (let i = 0; i < gd.length; i += 4) { if (!gd[i + 3]) continue; const p = i >> 2; const v = hash2(p, 13); if (gd[i] < 128 && R.grain > 0.4 && v < (R.grain - 0.4) * 0.02) { gd[i] = gd[i + 1] = gd[i + 2] = 255; } else if (gd[i] > 128 && v > 1 - R.grain * 0.004) { gd[i] = gd[i + 1] = gd[i + 2] = 90; } }
       c.putImageData(gi, 0, 0);
     }
     ctx.drawImage(tmp, box.x, box.y, box.w, box.h);
@@ -296,5 +306,5 @@
   // ctx の今の拡大率（studio のページがどの倍率でも、細い線が潰れないように）
   function ctxScale(ctx) { try { const m = ctx.getTransform(); return clamp(Math.hypot(m.a, m.b), 0.5, 4); } catch (e) { return 2; } }
 
-  Object.assign(K, { TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
+  Object.assign(K, { angBucket, TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
 })();

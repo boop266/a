@@ -26,6 +26,11 @@
     const pencil = art.rough;
     if (pencil) ctx.globalAlpha = 0.75;
     let done = true;
+    if (pencil && ['betaflash', 'dark', 'spotlight'].includes(name)) { // ネームでは黒く塗らず、斜線で「ここは黒」と示す
+      ctx.fillStyle = '#3c3c3c'; const sp = 9 * sc; for (let o = -box.h; o < box.w; o += sp) { const p0 = [box.x + o, box.y + box.h], p1 = [box.x + o + box.h * 0.6, box.y]; penPath(ctx, [p0, p1], 0.6 * sc, { tin: 4, tout: 4, taper: 0.4, jit: 1 }); }
+      if (name === 'betaflash') { ctx.fillStyle = '#fff'; const g = ctx.createRadialGradient(f[0], f[1], 0, f[0], f[1], Math.min(box.w, box.h) * 0.45); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(box.x, box.y, box.w, box.h); }
+      ctx.restore(); return true;
+    }
     switch (name) {
       case 'focus': { // 集中線
         const n = Math.round(lerp(60, 260, dyn) * sc * (pencil ? 0.3 : 1)); const r0 = Math.min(box.w, box.h) * lerp(0.42, 0.28, dyn);
@@ -98,14 +103,16 @@
     const font = o.font ?? (art.softness > 0.6 ? '"Zen Maru Gothic","Dela Gothic One","IPAGothic",sans-serif' : '"Dela Gothic One","IPAGothic",sans-serif');
     const chars = [...text]; let cx = x, cy = y; const ang = o.ang ?? (art.dynamism > 0.5 ? -0.12 : 0), step = size * 0.85;
     const S = K.ctxScale(ctx);
-    const warp = lerp(0.0, 0.09, Math.max(art.dynamism, art.line.roughness)), shear = lerp(0, 0.3, art.dynamism);
+    const warp = lerp(0.0, 0.05, Math.max(art.dynamism, art.line.roughness)), shear = lerp(0, 0.16, art.dynamism);
     chars.forEach((ch, i) => {
       const sz = size * (o.grow ? Math.pow(o.grow, i) : 1) * rr(0.92, 1.08);
       const c = K.mkCanvas(sz * 1.8 * S, sz * 1.8 * S), g = c.getContext('2d');
       g.scale(S, S); g.translate(sz * 0.9, sz * 0.9); g.font = `${sz}px ${font}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
-      if (o.outline !== false) { g.strokeStyle = '#fff'; g.lineWidth = sz * 0.24; g.strokeText(ch, 0, 0); }
-      g.strokeStyle = '#000'; g.lineWidth = sz * lerp(0.04, 0.1, art.line.weight); g.strokeText(ch, 0, 0);
-      g.fillStyle = art.black > 0.4 || art.rough ? '#000' : '#fff'; g.fillText(ch, 0, 0);
+      // 外側の黒フチ → 白フチ → 文字（黒）。soft な絵柄では白抜き文字
+      const whiteIn = art.softness > 0.6 && !art.rough;
+      if (o.outline !== false) { g.strokeStyle = '#000'; g.lineWidth = sz * lerp(0.22, 0.3, art.line.weight); g.strokeText(ch, 0, 0); g.strokeStyle = '#fff'; g.lineWidth = sz * 0.17; g.strokeText(ch, 0, 0); }
+      g.fillStyle = whiteIn ? '#fff' : '#000'; g.fillText(ch, 0, 0);
+      if (whiteIn) { g.strokeStyle = '#000'; g.lineWidth = sz * 0.03; g.strokeText(ch, 0, 0); }
       const d = K.mkCanvas(c.width, c.height), h = d.getContext('2d'); const band = 3 * S, ph = rand() * 9, amp = warp * sz * S;
       for (let yy = 0; yy < c.height; yy += band) { const dx = Math.sin(yy / c.height * Math.PI * 1.3 + ph) * amp + (yy / c.height - 0.5) * shear * sz * S; h.drawImage(c, 0, yy, c.width, band, dx, yy, c.width, band); }
       ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang + rr(-0.15, 0.15) * (0.3 + art.dynamism)); if (art.rough) ctx.globalAlpha = 0.7; ctx.drawImage(d, -sz * 0.9, -sz * 0.9, sz * 1.8, sz * 1.8); ctx.restore();

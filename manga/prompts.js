@@ -324,6 +324,7 @@ const CRAFT_AVOID = `【面白くするための禁じ手】
 - 「私は○○。」の自己紹介ナレーションで始めない。状況説明から始めない。
 - 教訓をセリフで言わない（「大切なのは○○なんだ」「○○って素敵だね」）。テーマは行動と小物で見せる。
 - 最後に全員で笑って終わるだけ、夢オチ、「全部うそでした」は禁止（種がそれを求めるときだけ例外）。
+- オチの意味をナレーションで解説しない。オチは「絵」と「ひと言」で。読者が一瞬考えて分かるくらいがいちばん気持ちいい（分かりにくければ、前半の伏線を濃くする）。
 - 最初に思いついた展開は、読者も思いつく。2つ目か3つ目の案を使う。
 - 驚きと笑いは「前振り→外し」。前振りのコマを必ず先に置く。
 - 障害や悪役にも、その人なりの理由がある。
@@ -353,7 +354,12 @@ const CRAFT_DRAW = `【描けるものだけで書く】
 - リストにない物（自転車、ピアノ、車、特定の建物、群衆など）は、(a) 近い背景・小物に置きかえる、(b) セリフ・ナレーション・効果音で伝える、(c) コマの外で起きたことにする。描けない物をコマの主役にしない。
 - 種の舞台がリストにないときは、いちばん近い bg を選び、最初のナレーションか張り紙のセリフで場所を伝える。
 - 人物は見た目で見分けられるように、髪型・服・柄・小物のうち2つ以上を人物ごとに変える。動物どうしなら species か color を変える。
-- 登場人物は2〜4人に絞る（多くて5人）。名前は読みやすく短く（カタカナ2〜4字か、短い和名）。`;
+- 登場人物は2〜4人に絞る（多くて5人）。名前は読みやすく短く（カタカナ2〜4字か、短い和名）。
+- 座る・ひざをつく（sit / kneel）は full か long のコマで。bust や up で使うと頭が沈んでコマから外れる。
+- ghost・cloud・star・slime には手が描かれず、持ち物（hold や手に持つ items）が見えない。物語に大事な小物は、手のある人物（human・動物・robot・alien・monster）に持たせる。
+- 体の色が dark の人物や、hairColor が black の動物（黒い毛）は、表情や小物が黒に埋もれる。表情で見せたい主人公は white / light / tone にし、黒は脇役や怖さの演出に使う。
+- 効果 spotlight は full か long のコマで（bust だと人物が光に埋もれる）。
+- 動物（cat・dog・bear・frog など）も人のような体で描かれる。outfit を "none" にすると裸の人の体に見えるので、動物にも服を着せる（"none" は robot・ghost・cloud・star・slime だけ）。`;
 
 function targetBlock(target) {
   if (!target || typeof target !== 'object') return '';
@@ -533,7 +539,7 @@ ${JSON.stringify(script)}`;
 const WARN_GUIDE = `【自動チェックの警告の読み方と直し方】
 - 「顔に重なっています」→ セリフを短くする、吹き出しを減らす、shot を up から bust に、または話し手を1人にする。
 - 「他の吹き出しと重なっています」「吹き出しがコマに収まりません」→ 1コマの吹き出しを2個までにし、長いセリフを削るか次のコマへ送る。小さいコマ（3コマの段）には吹き出し1個まで。
-- 「話し手がコマにいません」→ しっぽが外を向く。声だけの演出でなければ、話し手を cast に入れるか、who を直す。
+- 「話し手がコマにいません」→ しっぽが外を向く。電話・放送の声（type:"electric"）や、意図した「声だけ」の演出なら問題なし。そうでなければ、話し手を cast に入れるか、who を直す。
 - 「ナレーション: 人物と重なっています」→ ナレーションを短く（20字以内）するか、人物の少ないコマ（long・bg）へ移す。
 - 「セリフが長すぎます」→ ${BUBBLE_MAX}字以内に。`;
 
@@ -573,7 +579,7 @@ ${JSON.stringify(script)}`;
 
 /* 絵柄のひらめき（数値の案＋素材のたとえ）。ジャンルとは独立に振る */
 function artSparks(rngIn, n = 3) {
-  const r = asRng(rngIn), out = [];
+  const r = asRng(rngIn), out = [], moods = pickN(SEEDS.artMood, n, r);
   for (let i = 0; i < n; i++) {
     const k = 2 + (r() < 0.5 ? 1 : 0), used = new Set(), parts = [], art = {};
     while (parts.length < k) {
@@ -584,7 +590,7 @@ function artSparks(rngIn, n = 3) {
     }
     if (r() < 0.35) { const f = pickR(VOCAB.panelFrame, r); parts.push(`枠=${f}`); art.panelFrame = f; }
     if (r() < 0.3) { const e = pickR(VOCAB.eyeStyle, r); parts.push(`目=${e}`); art.eyeStyle = e; }
-    const mood = pickR(SEEDS.artMood, r); parts.push(`たとえ=${mood}`);
+    const mood = moods[i]; parts.push(`たとえ=${mood}`);
     out.push({ label: '案' + 'ABCDE'[i], parts, art, mood });
   }
   return out;
@@ -656,13 +662,14 @@ function extrasPrompt({ script, art, artIntent, history } = {}) {
 - 制作の経緯（作者あとがきの「着想」「苦労」、編集後記の「絵柄を決めた理由」「ネームからの変更点」「没になった案」、没ネタ）は、下の【制作の記録】に書かれた事実だけにもとづいて書く。
   ・記録にない出来事（「三日徹夜した」「編集部で大げんかした」「取材に行った」など）を作り話にしない。
   ・記録が少ないところは、短く正直に書く（「ネームからの大きな変更はありませんでした」でよい）。
+  ・苦労・迷い・時間のかけ方（「何度も描き直した」「悩みに悩んだ」「一晩かかった」）は、記録にあるときだけ書く。「苦労したコマ」は、そのコマが『なぜ難しいか』（セリフが無い、制約がある、直しが入った など）で書く。
   ・各項目の "basis" に、もとにした記録の項目名（例：「編集者の指摘2」「採用しなかったひらめきの種 案B」）を書く。記録にもとづかない感想だけなら "感想" と書く。
 - 裏設定（人物の過去・秘密・好きなもの、世界の裏設定）は自由に創作してよい。ただし本編と矛盾させない。本編に描かれたこと（見た目・セリフ・出来事）は変えない。
 - 伏線の解説は、本編に実際にあるコマだけを指す（下の【コマの一覧】の番号「ページ-コマ」を使う）。無い伏線をでっちあげない。後付けの「じつはこういう意味もあった」は裏設定として書き、伏線の解説には入れない。
 - 企画会議の議事録は、すでに読者に見せる記録。引用するときは一字一句そのまま。議事録にない発言や場面を「会議でこんなことも言っていた」と足さない。
 【絵に添える短いコメント】（画面では次の3つが「絵」として並ぶ。文章は絵に添える短いコメントにする。1つ30字以内）
 - キャラクターデザイン案の比較：案ごとに一言（例：「案Bは目つきが鋭すぎて没」「案Aの丸い体型が、怖がりの性格に合った」）。理由はデザイン案の記録と議事録から。
-- ネームと完成原稿の比較：ネームの段階の台本と完成台本で、違うコマを選んで一言（例：「ネームでは説明ゼリフだったのを、表情だけに」）。ネームの記録が無ければ空にする。違いが無いコマを選ばない。
+- ネームと完成原稿の比較：panel は完成原稿のページ-コマ番号で書く。ネームの段階の台本と完成台本で、違うコマを選んで一言（例：「ネームでは説明ゼリフだったのを、表情だけに」）。ネームの記録が無ければ空にする。違いが無いコマを選ばない。
 - 表情集：人物ごとに、本編で使った表情を2〜4個選び、一言（例：「smug：探偵が強がるときの顔。三回出てくる」）。本編に無い表情を選ばない。
 【面白くするコツ】
 - 裏設定は「本編のあのコマの見え方が変わる」ものにする（例：口ぐせの由来、小物を手放さない理由）。どうでもいいプロフィールの羅列にしない。
@@ -930,13 +937,14 @@ function validateScript(raw, opts = {}) {
     const species = snap(c.species, VOCAB.species, SYN.species, 'human');
     const items = arr(c.items).map(x => String(x).toLowerCase().trim()).filter(x => VOCAB.worn.includes(x) || VOCAB.held.includes(x)).slice(0, 4);
     if (arr(c.items).length > items.length) issues.push(`人物 ${id}: 描けない小物を外しました（${arr(c.items).filter(x => !items.includes(String(x).toLowerCase().trim())).join('、')}）`);
+    if (String(c.outfit).toLowerCase() === 'none' && !['robot', 'ghost', 'cloud', 'star', 'slime'].includes(species)) issues.push(`人物 ${id}: ${species} に outfit:none だと裸の人の体に見えます（服を着せる）`);
     if (c.species && !VOCAB.species.includes(String(c.species).toLowerCase())) issues.push(`人物 ${id}: 種族「${c.species}」→ ${species}`);
     const o = {
       id, name: str(c.name || id, 16), role: str(c.role, 30), species,
       age: snap(c.age, VOCAB.age, SYN.age, species === 'human' ? 'teen' : 'adult'), body: snap(c.body, VOCAB.body, null, 'normal'),
       hair: snap(c.hair, VOCAB.hair, null, 'short'), hairColor: snap(c.hairColor || c.hair_color, VOCAB.hairColor, SYN.hairColor, 'black'),
       eyes: snap(c.eyes, VOCAB.eyes, { big: 'sparkle', small: 'dot', closed: 'narrow' }, 'round'),
-      outfit: snap(c.outfit, VOCAB.outfit, SYN.outfit, species === 'human' ? 'tshirt' : 'none'), pattern: snap(c.pattern, VOCAB.pattern, { plain: 'white', striped: 'stripe', polka: 'dots', plaid: 'check', dark: 'black' }, 'white'),
+      outfit: snap(c.outfit, VOCAB.outfit, SYN.outfit, ['robot', 'ghost', 'cloud', 'star', 'slime'].includes(species) ? 'none' : 'tshirt'), pattern: snap(c.pattern, VOCAB.pattern, { plain: 'white', striped: 'stripe', polka: 'dots', plaid: 'check', dark: 'black' }, 'white'),
       items, desc: str(c.desc || c.description, 80),
     };
     const col = snap(c.color, VOCAB.bodyColor, { black: 'dark' }, null); if (col) o.color = col;
@@ -981,6 +989,9 @@ function validateScript(raw, opts = {}) {
       if (shot === 'bg' && cast.length) { issues.push(`${w}: 背景だけ（bg）に人物がいたので full にしました`); shot = cast.length > 2 ? 'full' : 'bust'; }
       if (shot !== 'bg' && !cast.length) shot = 'bg';
       if (cast.length > 4) { issues.push(`${w}: 人物が多すぎるので4人にしました`); cast = cast.slice(0, 4); }
+      // 描画の都合：bust で座る・ひざをつくと頭がコマから沈むので、全身に引く
+      if (shot === 'bust' && cast.some(c => c.pose === 'sit' || c.pose === 'kneel')) { issues.push(`${w}: bust で sit/kneel は頭が沈むので full にしました`); shot = 'full'; }
+      for (const c of cast) { const ch = chars.find(x => x.id === c.id); if (ch && ['ghost', 'cloud', 'star', 'slime'].includes(ch.species) && c.hold && c.hold !== 'none') issues.push(`${w}: ${ch.id}（${ch.species}）は手が無いので「${c.hold}」が描かれません`); }
       let bgRaw = String(p.bg || p.background || '').toLowerCase().trim().replace(/[\s-]+/g, '_');
       let bg = VOCAB.bg.includes(bgRaw) ? bgRaw : SYN.bg[bgRaw] || VOCAB.bg.find(x => bgRaw.includes(x)) || null;
       if (!bg) { if (bgRaw) issues.push(`${w}: 背景「${p.bg}」は描けないので plain にしました`); bg = 'plain'; }
@@ -996,7 +1007,8 @@ function validateScript(raw, opts = {}) {
         if (who === 'narr' || who === 'narration') { panel.narr = [panel.narr, text].filter(Boolean).join('\n'); continue; }
         const rid = resolve(who);
         if (rid) who = rid; else if (who === 'off') who = 'off'; else { if (who) issues.push(`${w}: 話し手「${who}」がいないので画面外の声にしました`); who = 'off'; }
-        if (who !== 'off' && !castIds.has(who) && panel.shot !== 'bg') issues.push(`${w}: 話し手 ${who} がコマにいません（画面外の声になります）`);
+        const typeIn = snap(b.type, VOCAB.sayType, SYN.sayType, 'speech');
+        if (who !== 'off' && !castIds.has(who) && panel.shot !== 'bg' && typeIn !== 'electric') issues.push(`${w}: 話し手 ${who} がコマにいません（画面外の声になります）`);
         if (/[A-Za-z]/.test(text)) issues.push(`${w}: セリフに英字があります「${text.slice(0, 10)}」`);
         const type = snap(b.type, VOCAB.sayType, SYN.sayType, 'speech');
         const parts = splitBubble(text);
@@ -1141,10 +1153,11 @@ function craftReport(script) {
     for (const b of say) if (visLen(b.text || '') > BUBBLE_MAX) out.push(`${where}: 吹き出しが${BUBBLE_MAX}字を超えています（${visLen(b.text)}字）「${String(b.text).replace(/\n/g, '').slice(0, 10)}…」`);
     if (say.length > 2) out.push(`${where}: 吹き出しが${say.length}個（2個までが読みやすい）`);
     const castIds = arr(p.cast).map(c => c.id);
-    for (const b of say) if (b.who && b.who !== 'off' && p.shot !== 'bg' && !castIds.includes(b.who)) out.push(`${where}: 話し手 ${b.who} がコマにいない（しっぽが外を向く）`);
+    for (const b of say) if (b.who && b.who !== 'off' && b.type !== 'electric' && p.shot !== 'bg' && !castIds.includes(b.who)) out.push(`${where}: 話し手 ${b.who} がコマにいない（しっぽが外を向く）`);
     if (say.length >= 2 && castIds.length >= 2) { const first = castIds.indexOf(say[0].who), second = castIds.indexOf(say[1].who); if (first > second && second >= 0) out.push(`${where}: 先にしゃべる人を cast の先頭（右側）に置くと読む順と合う`); }
     if (p.shot === lastShot) { sameShot++; if (sameShot === 3) out.push(`${where}: 同じ shot（${p.shot}）が3コマ続いています`); } else { sameShot = 1; lastShot = p.shot; }
     for (const c of arr(p.cast)) { const r = exprRun[c.id] || { e: null, n: 0 }; if (r.e === c.expr) r.n++; else { r.e = c.expr; r.n = 1; } exprRun[c.id] = r; if (r.n === 3) out.push(`${where}: ${c.id} の表情（${c.expr}）が3コマ続いています`); }
+    if (arr(p.fx).includes('spotlight') && (p.shot === 'bust' || p.shot === 'up')) out.push(`${where}: spotlight は bust・up だと人物が光に埋もれる（full か long で）`);
     if (p.narr && visLen(p.narr) > 30) out.push(`${where}: ナレーションが長め（${visLen(p.narr)}字）`);
   }
   for (const pg of S.pages) bigPanels += arr(pg.rows).filter(n => n === 1).length;

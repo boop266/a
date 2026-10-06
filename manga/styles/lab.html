@@ -62,7 +62,7 @@ function renderSample(art, title) {
     M.drawBackground(ctx, { name: 'street', time: 'day', horizon: 0.7, shot: 'bust' }, p2, art);
     M.drawEffect(ctx, { name: 'focus', phase: 'under', focus: { x: p2.x + p2.w * 0.5, y: p2.y + p2.h * 0.35 } }, p2, art);
     const met = M.metrics(CAST.gantetsu, art); const unit = p2.h * 0.5 / Math.max(met.R * 2.6, 20);
-    const r = M.drawCharacter(ctx, CAST.gantetsu, 'guard', 'angry', { footX: p2.x + p2.w * 0.55, footY: p2.y + p2.h * 0.36 - met.hc * unit, unit, facing: -1, panel: p2 }, art);
+    const r = M.drawCharacter(ctx, CAST.gantetsu, 'guard', 'angry', { footX: p2.x + p2.w * 0.55, footY: p2.y + p2.h, unit, facing: -1, panel: p2, headAt: { x: p2.x + p2.w * 0.58, y: p2.y + p2.h * 0.4 } }, art);
     balloon(ctx, p2.x + 40, p2.y + 66, 54, 104, '通行証\nは！', [r.head.x - 30, r.head.y], true);
   });
   M.drawFrame(ctx, p2, art);
@@ -71,7 +71,7 @@ function renderSample(art, title) {
     M.drawBackground(ctx, { name: 'plain' }, p3, art);
     M.drawEffect(ctx, { name: art.sparkle > 0.6 ? 'betaflash' : 'focus', phase: 'under', focus: { x: p3.x + p3.w * 0.5, y: p3.y + p3.h * 0.4 } }, p3, art);
     const met = M.metrics(CAST.tsumugi, art); const unit = p3.h * 0.42 / Math.max(met.R * 2.6, 20);
-    const r = M.drawCharacter(ctx, CAST.tsumugi, 'surprise', 'shock', { footX: p3.x + p3.w * 0.5, footY: p3.y + p3.h * 0.42 - met.hc * unit, unit, facing: 0, panel: p3 }, art);
+    const r = M.drawCharacter(ctx, CAST.tsumugi, 'surprise', 'shock', { footX: p3.x + p3.w * 0.5, footY: p3.y + p3.h, unit, facing: 0, panel: p3, headAt: { x: p3.x + p3.w * 0.5, y: p3.y + p3.h * 0.42 } }, art);
     M.drawEffect(ctx, { name: 'sweat', heads: [r.head] }, p3, art);
     M.sfx(ctx, 'ギクッ', p3.x + 14, p3.y + 30, 28, art);
   });

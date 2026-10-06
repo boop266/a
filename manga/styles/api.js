@@ -53,7 +53,7 @@
     const met = K.metrics(spec, art);
     const unit = pan.h * 0.36 / Math.max(met.R, 6);
     const footY = pan.y + pan.h * 0.42 - met.hc * unit;
-    K.drawCharacter(ctx, spec, pose, expr, { footX: pan.x + pan.w / 2, footY, unit, facing, panel: pan, res: 1 }, art);
+    K.drawCharacter(ctx, spec, pose, expr, { footX: pan.x + pan.w / 2, footY, unit, facing, panel: pan, headAt: { x: pan.x + pan.w / 2, y: pan.y + pan.h * 0.42 } }, art);
   }
   // 表情集
   function drawExpressionSheet(ctx, spec, art, box, expressions) {
@@ -70,7 +70,7 @@
       const c = i % cols, r = Math.floor(i / cols);
       const pan = { x: gx + c * cw + 3, y: gy + r * ch + 3, w: cw - 6, h: ch - th * 0.9 - 6 };
       ctx.strokeStyle = '#000'; ctx.lineWidth = 1.2; ctx.strokeRect(pan.x, pan.y, pan.w, pan.h);
-      bust(ctx, spec, art, pan, e, i % 2 ? -1 : 1, { cry: 'cry', think: 'think', angry: 'fight', surprised: 'surprise' }[e] || 'stand');
+      bust(ctx, spec, art, pan, e, i % 2 ? -1 : 1, { cry: 'cry', think: 'think' }[e] || 'stand');
       label(ctx, EXPR_JA[e] || e, pan.x + pan.w / 2, pan.y + pan.h + th * 0.5, th * 0.62);
     });
     ctx.restore();

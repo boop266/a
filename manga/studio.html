@@ -2,7 +2,7 @@
 <!--
 ================================================================================
  漫画工房（studio.html）── データの形のまとめ  ※スキーマを変えたら、ここも必ず更新する
- 版: schema v3（2026-10-06）裏話 extras・制作ログ meta.log を追加
+ 版: schema v4（2026-10-06）企画会議 meeting・ネーム段階の台本 nameScript・裏話 extras・制作ログ meta.log
 ================================================================================
 
 ■ 1. 台本（script）── 正規化後の形（normalizeScript の出力。Claude の出力はこの形に寄せて検証・補完される）
@@ -42,7 +42,7 @@ BG = room|classroom|office|kitchen|cafe|washitsu|hospital|lab|library|station|st
 
 ■ 2. 絵柄（art）── 連続パラメータ。値の範囲は作画担当の styles/art.js（MangaStylesKit）に合わせている
 ART = {
-  headRatio: 2〜8（頭身。2=強いデフォルメ、8=リアル）, deform, eyeSize: 0〜1, eyeStyle: dot|simple|sparkle|sharp|realistic,
+  headRatio: 2〜8（頭身。2=強いデフォルメ、8=リアル。0〜1 で来たら「頭の大きさ」とみなし 8−6×値 に直す）, deform, eyeSize: 0〜1, eyeStyle: dot|simple|sparkle|sharp|realistic,
   line: { weight, taper, jitter, roughness: 0〜1 },
   hatching, crossHatch, black, tone: 0〜1, toneKind: dot|gradient|kakeami|none,
   detail, perspective, dynamism, sparkle, softness, grain: 0〜1, panelFrame: clean|rough|borderless|rounded,
@@ -52,7 +52,8 @@ ART_PARTIAL = ART の一部の項目だけ（line は項目ごとに上書き）
 ・コマで有効な絵柄 = mergeArt(script.art, panel.art)。作画モジュールには opts としてこれを渡す。
 
 ■ 3. 保存される作品（work）── db: data/users/<user.id()>/work_<id>
-{ id, script: SCRIPT, profile: PROFILE, feat: FEAT, artFeat: ARTFEAT, extras: EXTRAS|null,
+{ id, script: SCRIPT（完成稿）, nameScript: SCRIPT（作者の最初のネーム。編集前。ネームと完成の比較に使う）|null, meeting: MEETING|null,
+  profile: PROFILE, feat: FEAT, artFeat: ARTFEAT, extras: EXTRAS|null,
   meta: { createdAt: ms, mode: random|pref|sequel|sample, seed: SEED|null,
           aim: { kind: random|pref|sequel, target?: 0〜100(狙った好み度), fit?: 0〜100(できあがり予測), brief?: string } | null,
           editor: [ { stage: name|check, round?, verdict: ok|revise, notes: [string], originality: string, sparks?: [string], warnings?: number, artFix?: string } ],
@@ -66,13 +67,21 @@ ARTFEAT（絵柄から計算・0〜1）= { headRatio((h−2)/6), deform, eyeSize
          black, tone, detail, perspective, dynamism, sparkle, softness, grain, gap(物語と絵柄のズレ: 0=王道, 1=大きくズラした) }
   gap = PROFILE.axes から線形に予想した「王道の絵柄」（EXPECT）と、実際の art との平均絶対差 ÷ 0.4（0〜1に丸め）
 
+MEETING（企画会議。最初の工程。議事録とデザイン案をそのまま保存）
+  = { transcript: [ { who: 作者|編集者|作画, text } ], pitches: [ { title, logline, hook } ], chosen: 採用した案の番号, decision: string,
+      characters: [ { id, name, role, designs: [CHAR](2〜3通り), comments: [string](案ごとの一言), chosen: 採用した案の番号 } ],
+      art: ART|null（絵柄の仮決め）, raw: prompts.js の validateMeeting の結果（あれば。作者・裏話の指示に渡す） }
+  ・作者のネームでは、採用したデザイン（designs[chosen]）の見た目の値で characters を上書きする
 EXTRAS（裏話。作品と同じ文書 work.extras に保存。見本にも付けられる）
   = { characters: [ { id: CHAR.id, name, profile: string(≤400 設定資料の文), trivia: [string](≤5) } ],
       world: [ { title, body(≤500) } ],  authorNote: string(≤900 作者あとがき),  editorNote: string(≤800 編集後記),
-      foreshadowing: [ { setup, payoff } ](伏線の解説),  scrapped: [ { idea, why } ](没ネタ),  sequelHints: [string](続編につながるヒント) }
+      foreshadowing: [ { setup, payoff } ](伏線の解説),  scrapped: [ { idea, why } ](没ネタ),  sequelHints: [string](続編につながるヒント),
+      visual: { designs:[{id,label,comment}], nameVsFinal:[{panel:'ページ-コマ',comment}], expressions:[{id,expr,comment}] } | null }
+  ・characters[] には past / secret / designNote も入る。prompts.js の validateExtras の形（world{summary,rules,places}, authorAfterword, cutIdeas…）も受け付けて変換する
   ・キャラクター設定資料の絵は保存しない（表示のたびに CHAR と art から立ち絵を描く）
   ・続編を作るとき、前作の extras（characters / world / foreshadowing / sequelHints）を作者への指示に入れる
 meta.log（制作の各工程のログ。裏話の材料）= [
+  { stage:'meeting', t, pitches:[題], chosen, decision, characters:[ { name, designs, chosen } ], art },
   { stage:'writer', t, name:{ title, logline, pages, characters:[string], beats:[ページごとの一行] }, issues },
   { stage:'name', t, verdict, notes, originality, editedByEditor: DIFF|null, art:{aim,reason,direction}, panelArt:[…], sparks:[ { label, parts, used:bool } ] },
   { stage:'revise', t, after:'ネーム検討'|'仕上がりチェックN', notes, changes: DIFF },
@@ -105,14 +114,18 @@ window.Taste（taste.js）
   prefSeed(ANALYSIS, rand) → SEED の pref 部分（genre/setting/hero/relation/conflict/tone/ending/gimmick/motifs/pages/axes/likes/avoid/combo/craft/artHints/explore）
   predictFit(ANALYSIS, PROFILE, ART?) → 0〜100 | null
 window.MangaPrompts（prompts.js）── どれも Claude に渡す指示文（string）を返す
+  ※ prompts.js の名前と引数（drawSeed, artSparks, meetingPrompt, authorPrompt, authorRevisePrompt, editorPlanPrompt, editorReviewPrompt,
+    tasteNarrativePrompt, extrasPrompt, parseJSON, validateScript/Meeting/Plan/Review/Extras）でも、下の名前でも受ける（50_app の Mod が変換）
   randomSeed(rand) → SEED,  sparks(rand) → [ { label, parts:[string], art: ART_PARTIAL } ]（ひらめきの種）,
   writer(SEED, prevWork|undefined), editorName(SCRIPT, SEED, issues[string], sparks), editorCheck(SCRIPT, SEED, issues, warnings, hasImages, finalRound),
-  revise(SCRIPT, SEED, notes[string]), tasteWords(data) → string,
+  revise(SCRIPT, SEED, notes[string]), tasteWords(data) → string, meetingPrompt({ seed, sparks:[SEED](2〜3), prev?: WORK }) → string（返事は MEETING か prompts.js の minutes 形式）,
   extrasPrompt({ script: SCRIPT, art: ART, artIntent: { aim, reason, direction, panels }, history }) → string（返事は EXTRAS の形）,
   repair(text) → object|null（壊れたJSONの修復）, validate(kind:'script'|'editorName'|'editorCheck'|'extras', obj) → obj（検証・補完）
   返事の形：editorName → { verdict, notes, originality, script|null, art: ART, panelArt: [ { page(表紙=1), panel(1〜), art: ART_PARTIAL, note } ] }
            editorCheck → { verdict, notes, originality, script|null, artFix: ART_PARTIAL|null, profile: PROFILE }
 window.MangaSamples（samples/index.js）= [ { id?, script: SCRIPT(生の台本でよい), profile?: PROFILE, extras?: EXTRAS, createdAt? } ]
+画風モジュール（styles/）は <meta name="manga-styles" content="styles/index.js"> で読み込み、作画モジュールが drawCharacterSheet / drawExpressionSheet を
+持っていれば、裏話の設定資料・表情集に使う。ラフ（ネーム）描画では opts.sketch = true を渡す。
 window.MangaStyles.register(name, { drawCharacter(ctx, CHAR, pose, expr, box, opts), drawBackground(ctx, bgSpec, box, opts),
                                     drawEffect(ctx, effectSpec, box, opts), metrics?(CHAR, opts) })   ※詳しくは 35_art の説明
 ================================================================================
@@ -248,10 +261,10 @@ html.fs #tab-read:not([hidden]) .fs-hud{display:block}
 .fs-hud.show>*{opacity:.9;pointer-events:auto}
 .fs-hud .fs-close{top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));border:1.5px solid var(--fs-ink);color:var(--fs-ink);font-size:14px;padding:6px 14px}
 .fs-hud .fs-close:hover{background:var(--fs-veil)}
-.fs-hud .fs-num{bottom:calc(10px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);font-size:13px;padding:3px 12px;font-variant-numeric:tabular-nums}
+.fs-hud .fs-num{bottom:calc(10px + env(safe-area-inset-bottom,0px));left:0;right:0;margin:0 auto;width:fit-content;font-size:13px;padding:3px 12px;font-variant-numeric:tabular-nums}
 html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
-.fs-end{position:fixed;z-index:23;left:50%;transform:translateX(-50%);bottom:calc(44px + env(safe-area-inset-bottom,0px));gap:8px;flex-wrap:wrap;justify-content:center;
-  background:var(--fs-veil);padding:10px 12px;border-radius:16px;max-width:calc(100% - 24px)}
+.fs-end{position:fixed;z-index:23;left:12px;right:12px;margin:0 auto;width:fit-content;max-width:calc(100% - 24px);bottom:calc(40px + env(safe-area-inset-bottom,0px));gap:6px 8px;flex-wrap:wrap;justify-content:center;
+  background:var(--fs-veil);padding:8px 12px;border-radius:16px}
 .fs-end p{width:100%;margin:0;text-align:center;color:var(--fs-ink);font-weight:900;font-size:14px}
 .fs-end button{border-color:var(--fs-ink);color:var(--fs-ink);font-size:14px;padding:7px 14px}
 .fs-end button:hover{background:rgba(255,255,255,.12)}
@@ -270,6 +283,8 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
 @media (max-width:420px){.chcard{grid-template-columns:120px 1fr}}
 .sheetimgs{display:grid;gap:6px;min-width:0}
 .sheetimgs .stand{width:100%;height:auto;border-radius:6px;border:1px solid var(--rule)}
+.sheetimgs .stand.wide{grid-column:1/-1}
+.exsheet{width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;background:var(--paper)}
 .faces{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
 .faces canvas{width:100%;height:auto;border-radius:4px;border:1px solid var(--rule)}
 .chtext{min-width:0;font-size:14px}
@@ -459,7 +474,10 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 
+<meta name="manga-styles" content="styles/index.js">
 <script>window.MangaStyles = window.MangaStyles || { _queue: [], register(n, i) { this._queue.push([n, i]); return true; } };</script>
+<script src="taste.js"></script>
+<script src="prompts.js"></script>
 <script>
 (() => {
 'use strict';
@@ -3201,6 +3219,8 @@ function standFig(S, ch, Wd, Ht) {
   ART.drawCharacter(g, ch, 'stand', 'normal', { footX: Wd / 2, footY: Ht - 10, unit: u, facing: 0, back: false, panel: { x: 0, y: 0, w: Wd, h: Ht }, rand: rng(hashStr(JSON.stringify(ch))) });
   return c;
 }
+/* 作画モジュールが設定資料・表情集の描き方を持っていれば、それを使う */
+function moduleSheet(fn) { const m = typeof moduleFor === 'function' ? moduleFor(null) : null; return m && typeof m[fn] === 'function' ? m : null; }
 function faceCanvas(S, ch, ex, size) {
   const ART = artFor(S, null), m = ART.metrics(ch), f = el('canvas', { width: size, height: size, role: 'img', 'aria-label': `${ch.name}の表情` }), q = f.getContext('2d');
   q.fillStyle = '#fff'; q.fillRect(0, 0, size, size); const uu = size * 0.31 / m.R;
@@ -3229,6 +3249,8 @@ function nameCompare(w) {
   return box;
 }
 function charSheet(S, ch) {
+  const mod = moduleSheet('drawCharacterSheet');
+  if (mod) { try { const c = el('canvas', { width: 600, height: 400, class: 'stand wide', role: 'img', 'aria-label': `${ch.name}の設定資料` }); mod.drawCharacterSheet(c.getContext('2d'), ch, S.art || ART_DEFAULT, { x: 0, y: 0, w: 600, h: 400 }); return el('div', { class: 'sheetimgs' }, c); } catch (e) { console.warn('設定資料の描画', e); } }
   const ART = artFor(S, null), m = ART.metrics(ch);
   const c = el('canvas', { width: 300, height: 400, class: 'stand', role: 'img', 'aria-label': `${ch.name}の立ち絵` }), g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, 300, 400); g.strokeStyle = '#d3dce2'; g.lineWidth = 1; for (let y = 40; y < 400; y += 40) { g.beginPath(); g.moveTo(0, y); g.lineTo(300, y); g.stroke(); }
@@ -3256,13 +3278,21 @@ function renderExtras() {
     el('div', { class: 'chat' }, ...M.transcript.map(l => el('div', { class: 'msg ' + (l.who === '編集者' ? 'ed' : l.who === '作画' ? 'ar' : 'au') }, el('b', { text: l.who }), el('span', { text: l.text })))),
     M.decision ? el('p', { class: 'artaim', text: '決定：' + M.decision }) : ''));
   if (M && M.characters.some(c => c.designs.length > 1)) body.append(sec('キャラクターデザイン案の比較', el('div', { class: 'designs' }, ...M.characters.filter(c => c.designs.length).map(c => el('div', { class: 'drow' }, el('h4', { style: 'margin:0', text: `${c.name}（${c.role || ''}）` }),
-    el('div', { class: 'dcards' }, ...c.designs.map((d, k) => el('figure', { class: 'dcard ' + (k === c.chosen ? 'on' : 'off'), style: 'margin:0' }, standFig(S, d, 220, 300), k === c.chosen ? el('span', { class: 'stamp', text: '採用' }) : '', el('figcaption', { text: `案${'ABC'[k]}　${c.comments[k] || ''}` })))))))));
+    el('div', { class: 'dcards' }, ...c.designs.map((d, k) => el('figure', { class: 'dcard ' + (k === c.chosen ? 'on' : 'off'), style: 'margin:0' }, standFig(S, d, 220, 300), k === c.chosen ? el('span', { class: 'stamp', text: '採用' }) : '', el('figcaption', { text: `案${'ABC'[k]}　${c.comments[k] || ''}${(() => { const v = ex && ex.visual && ex.visual.designs.find(x => x.id === c.id && x.label === 'ABC'[k]); return v ? '／' + v.comment : ''; })()}` })))))))));
   body.append(sec('キャラクター設定資料', el('div', { class: 'chgrid' }, ...cards)));
   // 表情集（主要キャラクター）
   const counts = {}; S.pages.forEach(pg => pg.panels.forEach(p => p.cast.forEach(c => { counts[c.id] = (counts[c.id] || 0) + 1; })));
   const mains = S.characters.slice().sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0)).slice(0, 3);
   const EXP = [['normal', 'ふつう'], ['smile', 'ほほえみ'], ['laugh', '大笑い'], ['surprised', 'おどろき'], ['angry', '怒り'], ['sad', 'かなしい'], ['cry', '泣く'], ['embarrassed', '照れ']];
-  body.append(sec('表情集', el('div', { class: 'exprgrid' }, ...mains.map(ch => el('div', {}, el('h4', { style: 'margin:0 0 4px', text: ch.name }), el('div', { class: 'exprrow' }, ...EXP.map(([e, lab]) => el('div', { class: 'expr' }, faceCanvas(S, ch, e, 120), lab))))))));
+  const exMod = moduleSheet('drawExpressionSheet');
+  const exComments = ex && ex.visual ? ex.visual.expressions : [];
+  body.append(sec('表情集', el('div', { class: 'exprgrid' }, ...mains.map(ch => {
+    let grid = null;
+    if (exMod) { try { const c = el('canvas', { width: 640, height: 360, class: 'exsheet', role: 'img', 'aria-label': `${ch.name}の表情集` }); exMod.drawExpressionSheet(c.getContext('2d'), ch, S.art || ART_DEFAULT, { x: 0, y: 0, w: 640, h: 360 }, EXP.map(e => e[0])); grid = c; } catch (e) { console.warn('表情集の描画', e); } }
+    if (!grid) grid = el('div', { class: 'exprrow' }, ...EXP.map(([e, lab]) => el('div', { class: 'expr' }, faceCanvas(S, ch, e, 120), lab)));
+    const cm = exComments.filter(x => x.id === ch.id);
+    return el('div', {}, el('h4', { style: 'margin:0 0 4px', text: ch.name }), grid, cm.length ? el('ul', { class: 'sub' }, ...cm.map(x => el('li', { text: `${x.expr}：${x.comment}` }))) : '');
+  }))));
   // ネームと完成原稿
   if (w.nameScript) body.append(sec('ネームと完成原稿', nameCompare(w)));
   if (!ex) {
@@ -3471,6 +3501,7 @@ async function boot() {
   const ui = (() => { try { return JSON.parse(lsGet(Store.prefix + 'ui') || '{}'); } catch (e) { return {}; } })();
   const hashTab = (location.hash || '').slice(1);
   renderMake(); drawIcons();
+  loadRendererModules();
   // Claude の機能（sample）を確かめる。届かない環境では null になる
   const c = window.claude;
   const samplePromise = (c && typeof c.use === 'function') ? c.use('sample').catch(() => null) : Promise.resolve(null);

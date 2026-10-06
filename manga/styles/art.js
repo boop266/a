@@ -31,6 +31,7 @@
       detail: n01(a.detail, d.detail), perspective: n01(a.perspective, d.perspective), dynamism: n01(a.dynamism, d.dynamism),
       sparkle: n01(a.sparkle, d.sparkle), softness: n01(a.softness, d.softness), grain: n01(a.grain, d.grain),
       panelFrame: FRAMES.includes(a.panelFrame) ? a.panelFrame : d.panelFrame,
+      rough: !!a.rough,   // ネーム（ラフ）モード：ほかの値とは独立に効く
     };
   }
   // プリセット（出発点の例）
@@ -69,6 +70,11 @@
       R.hatch.push({ ang: -1.0, thr: lerp(0.5, 0.12, hat), sp, w: sp * 0.55, band: 0.35 });
       if (ch > 0.05) R.hatch.push({ ang: 0.45, thr: lerp(0.9, 0.36, ch), sp: sp * 1.05, w: sp * 0.5, band: 0.3 });
       if (ch > 0.5) R.hatch.push({ ang: -0.15, thr: lerp(0.95, 0.6, (ch - 0.5) * 2), sp: sp * 0.9, w: sp * 0.45, band: 0.25 });
+    }
+    if (a.rough) { // ネーム：鉛筆の揺れた線、トーン・ベタなし、黒い所は軽い塗りつぶし線だけ
+      Object.assign(line, { w: lerp(0.7, 1.0, a.line.weight) * sc, taper: 0.35, jitter: 1.5 * sc, rough: 0.85, soft: 0, grain: 0.5 });
+      Object.assign(R, { toneKind: 'none', toneMat: 0, toneShade: 0, betaM: 9, shadeBeta: false, shadeK: 0, hatchShade: 0, hatchMat: 1, grain: 0.45, rough: 0.8, grainTone: 0, pencil: true,
+        hatch: [{ ang: -0.9, thr: 0.62, sp: 3.4 * sc, w: 0.55 * sc, band: 0.25, wave: 0.8 }] });
     }
     return { art: a, line, R };
   }
