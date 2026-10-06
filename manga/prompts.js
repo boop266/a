@@ -48,23 +48,28 @@ const VOCAB = {
   sayType: ['speech', 'shout', 'think', 'whisper', 'electric', 'mono'],
   sfxSize: ['s', 'm', 'l'],
   fx: ['focus', 'speed', 'speedv', 'dark', 'spotlight', 'flashback', 'sparkle', 'hearts', 'gloom', 'shake', 'impact', 'explosion', 'fire', 'smoke', 'magic', 'question', 'exclaim', 'flowers', 'tone', 'sweat', 'wind', 'bubbles'],
-  eyeStyle: ['dot', 'simple', 'round', 'sparkle', 'sharp', 'realistic'],
-  toneKind: ['dot', 'gradient', 'line', 'sand', 'none'],
-  panelFrame: ['clean', 'rough', 'rounded', 'borderless', 'dynamic'],
+  // 絵柄の文字の項目は studio.html の schema v4（styles/art.js と共通の範囲）に合わせる
+  eyeStyle: ['dot', 'simple', 'sparkle', 'sharp', 'realistic'],
+  toneKind: ['dot', 'gradient', 'kakeami', 'none'],
+  panelFrame: ['clean', 'rough', 'borderless', 'rounded'],
 };
 const ART_NUM = [
-  ['headRatio', '頭の大きさ', 'リアルな頭身', '大きな頭'], ['deform', 'デフォルメ', '写実', '崩し'], ['eyeSize', '目の大きさ', '小さい', '大きい'],
+  ['headRatio', '頭身', '2頭身（デフォルメ）', '8頭身（リアル）'], ['deform', 'デフォルメ', '写実', '崩し'], ['eyeSize', '目の大きさ', '小さい', '大きい'],
   ['line.weight', '線の太さ', '細い', '太い'], ['line.taper', '線の入り抜き', '均一', '強弱'], ['line.jitter', '線の揺れ', 'まっすぐ', '揺れる'], ['line.roughness', '線の荒さ', 'きれい', 'ラフ'],
   ['hatching', '斜線', '少ない', '多い'], ['crossHatch', '網目の斜線', '少ない', '多い'], ['black', 'ベタ', '白っぽい', '黒っぽい'], ['tone', 'トーン', '少ない', '多い'],
   ['detail', '描き込み', 'あっさり', '描き込み'], ['perspective', 'パース', '平面的', '強いパース'], ['dynamism', '動き', '静か', '躍動'],
   ['sparkle', 'キラキラ', 'なし', '多い'], ['softness', 'やわらかさ', '硬い', 'やわらか'], ['grain', 'ざらつき', 'つるつる', 'ざらざら'],
 ];
+/* studio.html schema v4 の ART_DEFAULT と同じ。headRatio だけは「頭身」2〜8、ほかの数値は 0〜1 */
 const ART_DEFAULT = {
-  headRatio: 0.5, deform: 0.4, eyeSize: 0.5, eyeStyle: 'round',
-  line: { weight: 0.5, taper: 0.4, jitter: 0.1, roughness: 0.15 },
-  hatching: 0.15, crossHatch: 0.05, black: 0.3, tone: 0.5, toneKind: 'dot', detail: 0.5, perspective: 0.4,
-  dynamism: 0.4, sparkle: 0.2, softness: 0.4, grain: 0.05, panelFrame: 'clean',
+  headRatio: 6.5, deform: 0.3, eyeSize: 0.5, eyeStyle: 'simple',
+  line: { weight: 0.5, taper: 0.6, jitter: 0.15, roughness: 0.1 },
+  hatching: 0.2, crossHatch: 0.1, black: 0.4, tone: 0.4, toneKind: 'dot', detail: 0.5, perspective: 0.3,
+  dynamism: 0.4, sparkle: 0.2, softness: 0.3, grain: 0, panelFrame: 'clean',
 };
+const ART_ALIAS = { eyeStyle: { round: 'simple', big: 'sparkle', small: 'dot' }, toneKind: { line: 'kakeami', hatch: 'kakeami', sand: 'gradient' }, panelFrame: { dynamic: 'clean', none: 'borderless' } };
+/* 頭身：2〜8 はそのまま。0〜1 で来たら旧い「頭の大きさ」（1=大きな頭）とみなして 8−6×値 に直す（studio と同じ換算） */
+function headTall(v) { const x = Number(v); if (v == null || v === '' || !Number.isFinite(x)) return undefined; if (x >= 1.5) return Math.round(clamp(x, 2, 8) * 10) / 10; if (x >= 0 && x <= 1) return Math.round((8 - 6 * x) * 10) / 10; return undefined; }
 const AXES = [
   ['humor', 'シリアス', '笑い'], ['warmth', 'クール', '温かさ'], ['tension', 'ゆったり', '緊張感'], ['tempo', 'じっくり', 'テンポ'],
   ['dark', '明るい', 'ダーク'], ['fantasy', '現実的', 'ファンタジー'], ['romance', '恋愛なし', '恋愛'], ['action', '静か', 'アクション'],
@@ -250,7 +255,7 @@ function seedBrief(seed) {
 function axisWords(axes, th = 0.2) {
   return AXES.filter(([k]) => axes && Number.isFinite(Number(axes[k])) && Math.abs(axes[k] - 0.5) >= th)
     .sort((a, b) => Math.abs(axes[b[0]] - 0.5) - Math.abs(axes[a[0]] - 0.5))
-    .slice(0, 6).map(([k, l, r]) => { const v = Number(axes[k]); const s = Math.abs(v - 0.5) > 0.35 ? 'かなり' : 'やや'; return `${s}${v > 0.5 ? r : l}`; }).join('、');
+    .slice(0, 6).map(([k, l, r]) => { const v = Number(axes[k]); const s = Math.abs(v - 0.5) >= 0.3 ? 'かなり' : 'やや'; return `${s}${v > 0.5 ? r : l}`; }).join('、');
 }
 
 /* =========================================================
@@ -359,6 +364,8 @@ const CRAFT_DRAW = `【描けるものだけで書く】
 - ghost・cloud・star・slime には手が描かれず、持ち物（hold や手に持つ items）が見えない。物語に大事な小物は、手のある人物（human・動物・robot・alien・monster）に持たせる。
 - 体の色が dark の人物や、hairColor が black の動物（黒い毛）は、表情や小物が黒に埋もれる。表情で見せたい主人公は white / light / tone にし、黒は脇役や怖さの演出に使う。
 - 効果 spotlight は full か long のコマで（bust だと人物が光に埋もれる）。
+- 手に持つ物を characters の items に入れると、全部のコマで持ち続ける。持たせたいコマだけ cast の hold で持たせる（items は身につける物と、いつも持っている小物だけ）。
+- 大きな持ち物（umbrella・guitar・broom・staff・sword・fishingrod・shield）は、bust や up だと顔にかかる。full か long のコマで持たせる。
 - 動物（cat・dog・bear・frog など）も人のような体で描かれる。outfit を "none" にすると裸の人の体に見えるので、動物にも服を着せる（"none" は robot・ghost・cloud・star・slime だけ）。`;
 
 function targetBlock(target) {
@@ -459,12 +466,13 @@ ${JSON.stringify(script)}`;
    編集者の指示文
    ========================================================= */
 function artDoc() {
-  return `【絵柄 art の形】（数値はすべて 0〜1 の連続値。文字の項目は候補から）
-{"headRatio":頭の大きさ(0=リアルな頭身,1=大きな頭),"deform":デフォルメ(0=写実,1=崩し),"eyeSize":目の大きさ,"eyeStyle":"${VOCAB.eyeStyle.join('|')}",
+  return `【絵柄 art の形】（headRatio だけは「頭身」2〜8 の数。ほかの数値はすべて 0〜1 の連続値。文字の項目は候補から）
+headRatio の目安：2〜2.5頭身＝ちびキャラ、3〜4頭身＝絵本・ゆるキャラ、5〜6頭身＝ふつうの漫画、7頭身＝少年漫画、7.5〜8頭身＝劇画・リアル
+{"headRatio":頭身(2〜8),"deform":デフォルメ(0=写実,1=崩し),"eyeSize":目の大きさ,"eyeStyle":"${VOCAB.eyeStyle.join('|')}",
  "line":{"weight":線の太さ,"taper":入り抜きの強弱,"jitter":線の揺れ,"roughness":線の荒さ},
  "hatching":斜線の量,"crossHatch":網目の斜線,"black":ベタ(黒)の量,"tone":トーンの量,"toneKind":"${VOCAB.toneKind.join('|')}",
  "detail":描き込み,"perspective":パースの強さ,"dynamism":動き・躍動,"sparkle":キラキラ,"softness":やわらかさ,"grain":紙のざらつき,"panelFrame":"${VOCAB.panelFrame.join('|')}",
- "direction":"作画方針（作画担当への指示。60〜150字。素材のたとえを1つ入れる）","aim":"狙いを一言（30字以内。読者に見せる）","reason":"なぜこの絵柄にしたか（2〜3文）"}`;
+ "direction":"作画方針（作画担当への指示。60〜150字。素材のたとえを1つ入れる）","aim":"狙いを一言（30字以内。本棚と読む画面で読者に見せる）","reason":"なぜこの絵柄にしたか（2〜3文）"}`;
 }
 
 const ART_SENSE = `【絵柄の決め方】（いちばん大事。ここがあなたのセンスの見せどころ）
@@ -475,19 +483,19 @@ const ART_SENSE = `【絵柄の決め方】（いちばん大事。ここがあ�
    ・共鳴：物語と同じ方向に、絵を振り切って強める（ただし「その話のどの瞬間のために」振り切るのかを言えること）
    ・対位：逆の手触りの絵で、物語を浮かび上がらせる（ゆるい絵で描く静かな恐怖、重い劇画で描くくだらない事件）
    ・裏切り：作品全体は一つの絵柄で、山場かオチの1〜3コマだけ panelArt で絵柄を変える（ゆるい絵が最後の1コマだけ写実になる、など）
-3. 主役のつまみを2〜4個決めて、思い切って振る（0.15以下か0.85以上）。残りは控えめに。全部が0.4〜0.6の「無難な中間」は禁止。
+3. 主役のつまみを2〜4個決めて、思い切って振る（0.15以下か0.85以上。頭身なら3以下か7以上）。残りは控えめに。全部が中間（5〜6頭身で、ほかも0.4〜0.6）の「無難な絵」は禁止。
 4. 素材のたとえを1つ持つ（例：「鉛筆の落書き帳」「古い新聞の挿絵」「切り絵」）。direction に書き、数値をそのたとえに合わせる。
-5. 最後に、このジャンルの「ありがちな絵柄」を頭の中で一度思い浮かべ、あなたの案がそれと3項目以上で0.3以上違うか確かめる。違わないなら、王道がこの話に効く理由を reason に具体的に書く（「定番だから」は理由にならない）。
+5. 最後に、このジャンルの「ありがちな絵柄」を頭の中で一度思い浮かべ、あなたの案がそれと3項目以上で大きく違うか（0〜1の項目なら0.3以上、頭身なら2以上）確かめる。違わないなら、王道がこの話に効く理由を reason に具体的に書く（「定番だから」は理由にならない）。
 ■ 悪い例
 ×「ホラーなので black 0.9、hatching 0.8、roughness 0.7。怖さを出すため」→ ジャンルから決めている。
-×「全部0.5前後。バランスよく」→ 何も決めていない。
+×「6頭身、ほかは全部0.5前後。バランスよく」→ 何も決めていない。
 ×「ラブコメなので sparkle 0.9、eyeSize 0.9」→ 定番をなぞっただけ。
 ■ 良い例
-○ 祖母の家で毎日ひとつ物が消える静かなホラー → headRatio 0.8、deform 0.7、softness 0.9、black 0.05、tone 0.3、たとえは「寝る前の絵本」。最後のコマだけ panelArt で black 0.85、hatching 0.8、eyeStyle realistic。狙い「絵本のまま、最後のページで背筋だけ冷やす」。
-○ 市役所の苦情係が魔王の苦情を受け付けるギャグ → headRatio 0.15、deform 0.1、detail 0.9、hatching 0.7、line.taper 0.9、たとえは「銅版画」。狙い「重々しい絵ほど、くだらなさが光る」。
-○ 言えなかった気持ちの失恋もの → line.jitter 0.8、roughness 0.7、tone 0、grain 0.6、detail 0.25、たとえは「漫画の下描きのまま」。狙い「清書できなかった気持ちを、清書しない線で」。
+○ 祖母の家で毎日ひとつ物が消える静かなホラー → headRatio 3（絵本の頭身）、deform 0.7、softness 0.9、black 0.05、tone 0.3、たとえは「寝る前の絵本」。最後のコマだけ panelArt で headRatio 7.5、black 0.85、hatching 0.8、eyeStyle realistic。狙い「絵本のまま、最後のページで背筋だけ冷やす」。
+○ 市役所の苦情係が魔王の苦情を受け付けるギャグ → headRatio 7.8（劇画）、deform 0.1、detail 0.9、hatching 0.7、line.taper 0.9、たとえは「銅版画」。狙い「重々しい絵ほど、くだらなさが光る」。
+○ 言えなかった気持ちの失恋もの → headRatio 6、line.jitter 0.8、roughness 0.7、tone 0、grain 0.6、detail 0.25、たとえは「漫画の下描きのまま」。狙い「清書できなかった気持ちを、清書しない線で」。
 ○ 王道を選ぶ場合：決勝戦の最後の一球 → dynamism 0.95、perspective 0.9、speed の多用。ただし理由は「最後の一球の0.1秒を3ページに引き延ばすため」と、話の具体的な瞬間に結びつける。
-■ panelArt（コマだけの絵柄）は多くても3コマ。意図のある場所だけ。note に意図を書く。`;
+■ panelArt（コマだけの絵柄）は多くても3コマ。意図のある場所だけ。note に意図を書く。頭身を変える劇画オチ（2.5頭身の話で1コマだけ7.8頭身）もできる。`;
 
 function editorPlanPrompt({ script, inspiration, tasteHint } = {}) {
   const insp = inspiration || {};
@@ -585,8 +593,9 @@ function artSparks(rngIn, n = 3) {
     const k = 2 + (r() < 0.5 ? 1 : 0), used = new Set(), parts = [], art = {};
     while (parts.length < k) {
       const [path, name, l, rr] = pickR(ART_NUM, r); if (used.has(path)) continue; used.add(path);
-      const v = r() < 0.5 ? Math.round(r() * 20) / 100 : Math.round((0.8 + r() * 0.2) * 100) / 100;
-      parts.push(`${name}=${v}（${v > 0.5 ? rr : l}）`);
+      const lo = r() < 0.5;
+      const v = path === 'headRatio' ? (lo ? Math.round((2 + r() * 1.2) * 10) / 10 : Math.round((6.8 + r() * 1.2) * 10) / 10) : lo ? Math.round(r() * 20) / 100 : Math.round((0.8 + r() * 0.2) * 100) / 100;
+      parts.push(path === 'headRatio' ? `頭身=${v}（${lo ? 'デフォルメ' : 'リアル'}）` : `${name}=${v}（${lo ? l : rr}）`);
       if (path.startsWith('line.')) { art.line = art.line || {}; art.line[path.slice(5)] = v; } else art[path] = v;
     }
     if (r() < 0.35) { const f = pickR(VOCAB.panelFrame, r); parts.push(`枠=${f}`); art.panelFrame = f; }
@@ -706,7 +715,7 @@ ${historyBlock(history)}
    議事録はそのまま裏話として読者に見せる。盛らない
    ========================================================= */
 function charSpecDoc() {
-  return `charSpec の形（描ける値だけ）: {"species":"${VOCAB.species.join('|')}","age":"${VOCAB.age.join('|')}","body":"${VOCAB.body.join('|')}","hair":"${VOCAB.hair.join('|')}","hairColor":"${VOCAB.hairColor.join('|')}","eyes":"${VOCAB.eyes.join('|')}","outfit":"${VOCAB.outfit.join('|')}","pattern":"${VOCAB.pattern.join('|')}","items":["身につける: ${VOCAB.worn.join('|')} / 手に持つ: ${VOCAB.held.join('|')}"（4つまで）],"color":"${VOCAB.bodyColor.join('|')}（雲・おばけ・星・スライム・怪物の体の色。それ以外は省略）"}`;
+  return `charSpec の形（描ける値だけ。items は身につける物が中心。手に持つ物を入れると全コマで持ち続けるので、いつも持っている小物だけにする）: {"species":"${VOCAB.species.join('|')}","age":"${VOCAB.age.join('|')}","body":"${VOCAB.body.join('|')}","hair":"${VOCAB.hair.join('|')}","hairColor":"${VOCAB.hairColor.join('|')}","eyes":"${VOCAB.eyes.join('|')}","outfit":"${VOCAB.outfit.join('|')}","pattern":"${VOCAB.pattern.join('|')}","items":["身につける: ${VOCAB.worn.join('|')} / 手に持つ: ${VOCAB.held.join('|')}"（4つまで）],"color":"${VOCAB.bodyColor.join('|')}（雲・おばけ・星・スライム・怪物の体の色。それ以外は省略）"}`;
 }
 function meetingPrompt({ seeds, target, series, tasteHint } = {}) {
   const list = arr(seeds).slice(0, 3);
@@ -811,7 +820,7 @@ const SHAPES = {
   script: { title: 'string<=12', genre: 'string', logline: 'string', ending: 'end|continue', memo: 'object?', characters: '[character]', cover: '{bg,time,weather,cast[],catch<=16}', pages: '[{rows:int[],panels:[panel]}]', art: 'art?', episode: 'int?', seriesTitle: 'string?' },
   character: { id: '[a-z0-9_]+', name: 'string<=16', role: 'string', species: 'VOCAB.species', age: 'VOCAB.age', body: 'VOCAB.body', hair: 'VOCAB.hair', hairColor: 'VOCAB.hairColor', eyes: 'VOCAB.eyes', outfit: 'VOCAB.outfit', pattern: 'VOCAB.pattern', items: '[VOCAB.worn|VOCAB.held] <=4', color: 'VOCAB.bodyColor?', desc: 'string' },
   panel: { shot: 'VOCAB.shot', bg: 'VOCAB.bg', time: 'VOCAB.time', weather: 'VOCAB.weather', cast: '[{id,expr,pose,face?,hold?,rain?}] <=4', say: `[{who,type,text<=${BUBBLE_MAX}}] <=3`, narr: 'string<=40', sfx: '[{text<=6,size}] <=3', fx: '[VOCAB.fx] <=4', art: 'panelArt?' },
-  art: { headRatio: '0..1', deform: '0..1', eyeSize: '0..1', eyeStyle: 'VOCAB.eyeStyle', line: '{weight,taper,jitter,roughness: 0..1}', hatching: '0..1', crossHatch: '0..1', black: '0..1', tone: '0..1', toneKind: 'VOCAB.toneKind', detail: '0..1', perspective: '0..1', dynamism: '0..1', sparkle: '0..1', softness: '0..1', grain: '0..1', panelFrame: 'VOCAB.panelFrame', direction: 'string<=150', aim: 'string<=30', reason: 'string<=300' },
+  art: { headRatio: '2..8（頭身。0..1 は旧定義として 8−6×値 に換算）', deform: '0..1', eyeSize: '0..1', eyeStyle: 'VOCAB.eyeStyle', line: '{weight,taper,jitter,roughness: 0..1}', hatching: '0..1', crossHatch: '0..1', black: '0..1', tone: '0..1', toneKind: 'VOCAB.toneKind', detail: '0..1', perspective: '0..1', dynamism: '0..1', sparkle: '0..1', softness: '0..1', grain: '0..1', panelFrame: 'VOCAB.panelFrame', direction: 'string<=150', aim: 'string<=30', reason: 'string<=300' },
   profile: { axes: `{${AXIS_KEYS.join(',')}: 0..1}`, tags: `{${Object.keys(TAG_CATS).join(',')}: string[]<=3}` },
   plan: { verdict: 'ok|revise', notes: 'string[]<=6', originality: 'string', script: 'script|null', feeling: 'string', approach: '共鳴|対位|裏切り', aim: 'string<=30', art: 'art', panelArt: '[{page>=2,panel>=1,art:partial art,note}] <=3', profile: 'profile' },
   review: { verdict: 'ok|revise', mustFix: '[{where,problem,fix}]', notes: 'string[]<=4', originality: 'string', script: 'script|null', artFix: 'partial art|null', profile: 'profile|null' },
@@ -910,13 +919,14 @@ function validateArt(a, opts = {}) {
   const src = a && typeof a === 'object' ? a : {}; const partial = !!opts.partial; const base = partial ? null : ART_DEFAULT;
   const n = (v, d) => { let x = Number(v); if (!Number.isFinite(x)) return d; if (x > 1 && x <= 10) x /= 10; else if (x > 10 && x <= 100) x /= 100; return Math.round(clamp(x, 0, 1) * 100) / 100; };
   const out = partial ? {} : { line: {} };
-  for (const k of ['headRatio', 'deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) { const v = n(src[k], base ? base[k] : undefined); if (v !== undefined) out[k] = v; }
+  { const h = headTall(src.headRatio); const v = h !== undefined ? h : base ? base.headRatio : undefined; if (v !== undefined) out.headRatio = v; }
+  for (const k of ['deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) { const v = n(src[k], base ? base[k] : undefined); if (v !== undefined) out[k] = v; }
   const sl = src.line && typeof src.line === 'object' ? src.line : {};
   const line = {};
   for (const k of ['weight', 'taper', 'jitter', 'roughness']) { const v = n(sl[k] ?? src['line.' + k], base ? base.line[k] : undefined); if (v !== undefined) line[k] = v; }
   if (Object.keys(line).length) out.line = line;
-  for (const k of ['eyeStyle', 'toneKind', 'panelFrame']) { const v = snap(src[k], VOCAB[k], null, base ? base[k] : undefined); if (v !== undefined) out[k] = v; }
-  if (!partial) { out.direction = str(src.direction, 200); out.aim = str(src.aim, 40); out.reason = str(src.reason, 300); if (src.renderer) out.renderer = str(src.renderer, 30); }
+  for (const k of ['eyeStyle', 'toneKind', 'panelFrame']) { const v = snap(src[k], VOCAB[k], ART_ALIAS[k], base ? base[k] : undefined); if (v !== undefined) out[k] = v; }
+  if (!partial) { out.direction = str(src.direction, 200); out.aim = str(src.aim, 60); out.reason = str(src.reason, 300); if (src.renderer) out.renderer = str(src.renderer, 30); }
   else if (src.note) out.note = str(src.note, 40);
   return out;
 }
@@ -1070,7 +1080,7 @@ function validatePlan(raw, opts = {}) {
     originality: str(o.originality || '問題なし', 200), feeling: str(o.feeling, 20), approach: ['共鳴', '対位', '裏切り'].find(a => String(o.approach || '').includes(a)) || '',
     script: null, scriptIssues: [], art: validateArt(o.art), panelArt: [], profile: validateProfile(o.profile),
   };
-  out.aim = str(o.aim || out.art.aim, 40); if (!out.art.aim) out.art.aim = out.aim;
+  out.aim = str(o.aim || out.art.aim, 60); if (!out.art.aim) out.art.aim = out.aim;
   if (o.script && typeof o.script === 'object' && arr(o.script.pages).length) { const v = validateScript(o.script, opts); out.script = v.script; out.scriptIssues = v.issues; }
   const pagesN = opts.pages || (out.script ? out.script.pages.length : 99);
   for (const pa of arr(o.panelArt).slice(0, 3)) {
@@ -1158,6 +1168,8 @@ function craftReport(script) {
     if (say.length >= 2 && castIds.length >= 2) { const first = castIds.indexOf(say[0].who), second = castIds.indexOf(say[1].who); if (first > second && second >= 0) out.push(`${where}: 先にしゃべる人を cast の先頭（右側）に置くと読む順と合う`); }
     if (p.shot === lastShot) { sameShot++; if (sameShot === 3) out.push(`${where}: 同じ shot（${p.shot}）が3コマ続いています`); } else { sameShot = 1; lastShot = p.shot; }
     for (const c of arr(p.cast)) { const r = exprRun[c.id] || { e: null, n: 0 }; if (r.e === c.expr) r.n++; else { r.e = c.expr; r.n = 1; } exprRun[c.id] = r; if (r.n === 3) out.push(`${where}: ${c.id} の表情（${c.expr}）が3コマ続いています`); }
+    const BIG = ['umbrella', 'guitar', 'broom', 'staff', 'sword', 'fishingrod', 'shield'];
+    if (p.shot === 'bust' || p.shot === 'up') for (const c of arr(p.cast)) { const ch = arr(S.characters).find(x => x.id === c.id); const held = c.hold && c.hold !== 'none' ? c.hold : ch && arr(ch.items).find(x => VOCAB.held.includes(x)); if (BIG.includes(held)) out.push(`${where}: ${c.id} の ${held} は bust・up だと顔にかかる（full・long で持たせる）`); }
     if (arr(p.fx).includes('spotlight') && (p.shot === 'bust' || p.shot === 'up')) out.push(`${where}: spotlight は bust・up だと人物が光に埋もれる（full か long で）`);
     if (p.narr && visLen(p.narr) > 30) out.push(`${where}: ナレーションが長め（${visLen(p.narr)}字）`);
   }
@@ -1172,7 +1184,7 @@ function craftReport(script) {
 }
 
 const API = {
-  VERSION, VOCAB, SEEDS, AXES, AXIS_KEYS, TAG_CATS, ART_NUM, ART_DEFAULT, SHAPES, BUBBLE_MAX, ORIGINALITY,
+  headTall, ART_ALIAS, VERSION, VOCAB, SEEDS, AXES, AXIS_KEYS, TAG_CATS, ART_NUM, ART_DEFAULT, SHAPES, BUBBLE_MAX, ORIGINALITY,
   makeRng, drawSeed, seedBrief, seedStats, artSparks, setVocab, schemaDoc, artDoc,
   authorPrompt, authorRevisePrompt, editorPlanPrompt, editorReviewPrompt, tasteNarrativePrompt, extrasPrompt, meetingPrompt, validateMeeting, chosenCharacters,
   parseJSON, validateScript, validateArt, validateProfile, validatePlan, validateReview, validateExtras, craftReport, splitBubble,

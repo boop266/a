@@ -111,7 +111,7 @@
     m.legR = B * lerp(0.085, 0.045, r) * (1 + art.deform * 0.2) * (bw > 1 ? 1.35 : bw < 1 ? 0.85 : 1);
     m.hand = B * lerp(0.08, 0.072, r) * lerp(1, 0.9, art.deform); m.foot = B * lerp(0.13, 0.135, r);
     m.waist = m.shHalf * (fem ? 0.62 : 0.74) * (bw > 1 ? 1.45 : 1); m.depth = m.shHalf * lerp(0.75, 0.55, r) * (bw > 1 ? 1.4 : 1);
-    m.muscle = q * (1 - art.deform) * (fem ? 0.35 : 1) * (spec.age === 'child' ? 0.2 : 1);
+    m.muscle = (spec.species === 'robot' ? 0 : 1) * q * (1 - art.deform) * (fem ? 0.35 : 1) * (spec.age === 'child' ? 0.2 : 1);
     return m;
   }
 
@@ -227,7 +227,9 @@
 
   // 線の太さ（基準）
   const LWb = c => 1.5;
+  let ROBOT_RINGS = false;
   function part(ly, poly, mat, o = {}) {
+    if (ROBOT_RINGS && o.edges && o.edges.length === 2 && o.edges[0].length > 8) { const [A, B] = o.edges; const n = A.length - 1; o.lines = (o.lines || []).concat([0.3, 0.5, 0.7].map(t => ({ p: [A[Math.round(t * n)], B[Math.round(t * n)]], w: 0.7 }))); }
     let ha = o.ha; if (ha == null && o.edges && o.edges[0] && o.edges[0].length > 2) { const e = o.edges[0]; const a = Math.atan2(e[e.length - 1][1] - e[0][1], e[e.length - 1][0] - e[0][0]); ha = K.angBucket(a + Math.PI / 2); }
     ly.fill(poly, mat, { shade: o.shade ?? 0.85, off: o.off ?? 4, blur: o.blur ?? 0.8, ha });
     if (o.inner) o.inner();
@@ -241,15 +243,21 @@
   /* ---------- 人型 ---------- */
   function drawHumanoid(C) {
     const { ly, spec, art, m, rig } = C; const { J, proj } = rig;
+    const robot = spec.species === 'robot'; C.robot = robot;
     const outfit = OUTFIT[spec.outfit] || (spec.species === 'human' ? OUTFIT.tshirt : OUTFIT.none);
     const items = new Set(spec.items || []);
+    if (spec.species === 'monster') items.add('horns');
     const pat = spec.pattern || null;
     const topMat = outfit.mat != null && (!pat || pat === 'white') ? outfit.mat : (PAT_MAT[pat] ?? (outfit.mat ?? 0.0));
-    const skinMat = spec.color === 'dark' || spec.color === 'black' ? 0.55 : spec.color === 'gray' || spec.color === 'tone' ? 0.3 : 0;
+    const skinMat = robot ? (spec.color === 'white' ? 0.04 : spec.color === 'dark' || spec.color === 'black' ? 0.85 : spec.color === 'gray' || spec.color === 'tone' ? 0.4 : 0.18)
+      : spec.species === 'monster' ? (spec.color === 'white' ? 0.05 : spec.color === 'dark' || spec.color === 'black' ? 0.85 : 0.45)
+      : spec.species === 'alien' ? (spec.color === 'dark' ? 0.7 : 0.15)
+      : spec.color === 'dark' || spec.color === 'black' ? 0.55 : spec.color === 'gray' || spec.color === 'tone' ? 0.3 : 0;
     const furMat = ANIMAL_EARS[spec.species] ? (spec.color === 'white' ? 0 : spec.species === 'panda' ? 0 : spec.color ? (spec.color === 'dark' || spec.color === 'black' ? 0.9 : 0.35) : (HAIR_MAT[spec.hairColor] ?? 0.35)) : null;
     const bottomMat = outfit.skirtMat ?? (outfit.bottom === 'pants' ? (topMat > 0.6 ? topMat : 0.55) : outfit.bottom === 'shorts' ? 0.85 : topMat);
-    const shoeMat = 0.88;
-    C.mat = { skin: skinMat, top: topMat, bottom: bottomMat, hair: HAIR_MAT[spec.hairColor] ?? 0.96, shoe: shoeMat, fur: furMat };
+    const shoeMat = robot ? Math.min(0.9, skinMat + 0.35) : 0.88;
+    const capMat = v => v == null ? v : Math.min(v, (C.R.betaM ?? 0.9) - 0.12); // 肌がベタになると顔が消えるので、ベタの手前で止める
+    C.mat = { skin: capMat(skinMat), top: topMat, bottom: bottomMat, hair: HAIR_MAT[spec.hairColor] ?? 0.96, shoe: shoeMat, fur: capMat(furMat) };
     const W = m.Ht / 300; // 線の基準
     const parts = [];
     const P2 = p => proj(p);
@@ -283,6 +291,11 @@
         if (C.hold && k === 'n') drawHeld(C, [wr.x, wr.y], dir, wr.k);
         drawHand(C, [wr.x, wr.y], dir, m.hand * wr.k, (C.hold && k === 'n') ? 'grip' : J['hand' + k], k, armMat2 === topMat && !wide ? (C.mat.fur ?? skinMat) : (C.mat.fur ?? skinMat));
       } });
+      if (robot) { // 機械の関節（玉）
+        const ball = (p, r, z) => parts.push({ z, f: () => { const E = ellipsePts(p.x, p.y, r, r, 0, 18); part(ly, E, Math.min(0.9, skinMat + 0.4), { off: r * 0.5, w: 1.2, lines: [{ p: ellipsePts(p.x, p.y, r * 0.45, r * 0.45, 0, 10), w: 0.5, o: { closed: true } }] }); } });
+        ball(sh, m.armR * 1.25 * sh.k, zA + 0.02); ball(el, m.armR * 0.95 * el.k, Math.max(zA, zF) + 0.03);
+        ball(kn, m.legR * 0.95 * kn.k, Math.max((hp.z + kn.z) / 2 - 0.5, (kn.z + an.z) / 2 - 0.4) + 0.03);
+      }
       const zT = (hp.z + kn.z) / 2 - 0.5, zS = (kn.z + an.z) / 2 - 0.4;
       const legMat1 = pants === 'pants' || pants === 'shorts' ? bottomMat : (C.mat.fur ?? skinMat), legMat2 = pants === 'pants' ? bottomMat : (C.mat.fur ?? skinMat);
       const pk = pants === 'pants' ? 1.12 : 1;
@@ -307,7 +320,8 @@
     parts.push({ z: m.R * 0.2 + 1, f: () => drawHead(C, 'front') });
     // 腕が胴体の前にあるか（z の比較）を、胴の厚み分だけ補正
     parts.forEach(p => { if (p.z > -500 && p.z !== 0 && p.z < m.depth * 0.6 && p.z > -m.depth * 0.6 && Math.abs(p.z) < 1e2) { /* 体の横 */ } });
-    parts.sort((a, b) => a.z - b.z).forEach(p => p.f());
+    ROBOT_RINGS = robot;
+    try { parts.sort((a, b) => a.z - b.z).forEach(p => p.f()); } finally { ROBOT_RINGS = false; }
     if (items.has('cape') && rig.yaw > 120) drawCape(C, true);
     // 返り値
     const hc = proj(J.head);
@@ -418,6 +432,12 @@
       if (outfit.armor) { const pl = catmull([T(0.95, -0.7), T(0.95, 0.7), T(0.55, 0.75), T(0.45, 0), T(0.55, -0.75)], 3, true); ly.fill(pl, 0.3, { shade: 0.9, off: m.shHalf * 0.4 }); contour(l, pl, 1.5); ink(l, [T(0.9, 0), T(0.5, 0)], 0.9); for (const sd of [-1, 1]) { const sp = catmull([T(1.05, sd * 0.75), T(1.08, sd * 1.15), T(0.8, sd * 1.2), T(0.78, sd * 0.85)], 3, true); ly.fill(sp, 0.4, { shade: 0.9 }); contour(l, sp, 1.4); } }
       if (outfit.stripe) { ink(l, [T(0.95, -0.92), T(0.2, -0.95)], 1.2); ink(l, [T(0.95, 0.92), T(0.2, 0.95)], 1.2); }
       if (outfit.coat) { ink(l, [T(0.6, -0.02), T(-0.75, -0.08)], 1.0); }
+      if (C.robot && outfit.top === 'none') { // 胸の装甲板・コア・腹の蛇腹
+        const pl = catmull([T(0.92, -0.62), T(0.92, 0.62), T(0.6, 0.55), T(0.52, 0), T(0.6, -0.55)], 2, true); ly.fill(pl, Math.min(0.9, C.mat.skin + 0.15), { shade: 0.7, off: m.shHalf * 0.3 }); contour(l, pl, 1.3);
+        const cc = T(0.76, 0); const core = ellipsePts(cc[0], cc[1], m.shHalf * 0.16, m.shHalf * 0.16, 0, 16); ly.fill(core, 0.9, { shade: 0 }); contour(l, core, 1.0); ly.hi.beginPath(); ly.hi.arc(cc[0], cc[1], m.shHalf * 0.07, 0, TAU); ly.hi.fill();
+        for (let i = 0; i < 3; i++) { const t = 0.42 - i * 0.1; ink(l, [T(t, -0.7), T(t - 0.02, 0), T(t, 0.7)], 0.8); }
+        for (const sx of [-0.8, 0.8]) { const p = T(0.88, sx); l.beginPath(); l.arc(p[0], p[1], m.shHalf * 0.035, 0, TAU); l.fill(); }
+      }
       // 体の起伏（服の上から・描き込みに応じて）
       if (art.detail > 0.35 && m.q > 0.3) { if (m.fem) { ink(l, [T(0.66, -0.55), T(0.6, -0.3), T(0.64, -0.1)], 0.7); ink(l, [T(0.64, 0.1), T(0.6, 0.3), T(0.66, 0.55)], 0.7); } else if (outfit.top === 'none' || m.muscle > 0.6) { ink(l, [T(0.7, -0.6), T(0.66, -0.2), T(0.72, -0.02)], 0.8); ink(l, [T(0.72, 0.02), T(0.66, 0.2), T(0.7, 0.6)], 0.8); if (outfit.top === 'none') { for (let i = 0; i < 3; i++) { ink(l, [T(0.5 - i * 0.1, -0.15), T(0.5 - i * 0.1, 0.15)], 0.5); } ink(l, [T(0.62, 0), T(0.2, 0)], 0.6); } } }
       // しわ
@@ -527,6 +547,7 @@
     return { c, R, yaw, nod, tilt, q, sp, pt, faceOn, side: Math.sin(yaw) * rig.mir };
   }
   function drawHead(C, phase) {
+    if (C.robot) { if (phase !== 'back') drawRobotHead(C); return; }
     const { ly, m, art, spec } = C; const F = C.F || (C.F = headFrame(C));
     const { R, q, pt } = F;
     const items = new Set(spec.items || []);
@@ -560,7 +581,67 @@
     if (F.faceOn > -0.25) drawFace(C, F);
     drawHair(C, F, 'front');
     if (animal && animal !== 'none') drawAnimalEars(C, F, animal, 'front');
+    if (sp === 'alien') for (const sx of [-0.45, 0.45]) antenna(C, F.pt(sx, -0.85, 0.1), V.norm([sx * 0.8, -1]), R * 0.7);
     drawWorn(C, F, items);
+  }
+
+  function antenna(C, p, d, len) { const { ly } = C; const tip = [p.x + d[0] * len, p.y + d[1] * len]; ink(ly.l, [[p.x, p.y], tip], 1.1, { tin: 1, tout: 1 }); const E = ellipsePts(tip[0], tip[1], len * 0.16, len * 0.16, 0, 12); ly.fill(E, 0.6, { shade: 0.5 }); contour(ly.l, E, 1.0); }
+  // ロボットの頭：角を丸めた箱（3Dで向きが変わる）＋バイザー＋アンテナ
+  function drawRobotHead(C) {
+    const { ly, m, art, spec } = C; const F = C.F || (C.F = headFrame(C)); const { R, pt } = F; const l = ly.l;
+    const metal = C.mat.skin;
+    const { J, proj } = C.rig;
+    const nb = proj(J.neckB), nt = proj(J.neckT); const nw = m.R * 0.22 * nb.k;
+    if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y], nw, nw, [[0, 1, 1], [1, 1, 1]]); part(ly, nk.poly, Math.min(0.9, metal + 0.4), { edges: [nk.L, nk.R], w: 1.2 }); }
+    const hx = 0.92, y0 = -0.95, y1 = lerp(0.75, 0.9, F.q), hz = 0.85;
+    const faces = [
+      { c: [0, (y0 + y1) / 2, hz], n: [0, 0, 1], q: [[-hx, y0, hz], [hx, y0, hz], [hx, y1, hz], [-hx, y1, hz]], k: 'front' },
+      { c: [0, (y0 + y1) / 2, -hz], n: [0, 0, -1], q: [[hx, y0, -hz], [-hx, y0, -hz], [-hx, y1, -hz], [hx, y1, -hz]], k: 'back' },
+      { c: [hx, (y0 + y1) / 2, 0], n: [1, 0, 0], q: [[hx, y0, hz], [hx, y0, -hz], [hx, y1, -hz], [hx, y1, hz]], k: 'side' },
+      { c: [-hx, (y0 + y1) / 2, 0], n: [-1, 0, 0], q: [[-hx, y0, -hz], [-hx, y0, hz], [-hx, y1, hz], [-hx, y1, -hz]], k: 'side' },
+      { c: [0, y0, 0], n: [0, -1, 0], q: [[-hx, y0, -hz], [hx, y0, -hz], [hx, y0, hz], [-hx, y0, hz]], k: 'top' },
+    ];
+    const vis = faces.filter(f => pt(f.c[0] + f.n[0] * 0.1, f.c[1] + f.n[1] * 0.1, f.c[2] + f.n[2] * 0.1).z - pt(...f.c).z > 0.001 || (f.k === 'top' && pt(0, y0 - 0.1, 0).y < pt(0, y0, 0).y - R * 0.02 && F.nod > 0.05));
+    // 外形（丸い角）
+    const all = []; for (const f of faces) for (const v of f.q) { const p = pt(...v); all.push([p.x, p.y]); }
+    const hull = catmull(convexHull(all), 3, true);
+    // アンテナ（奥）
+    const ant = pt(0, y0, 0), antDir = V.norm(V.sub([pt(0, y0 - 1, 0).x, pt(0, y0 - 1, 0).y], [ant.x, ant.y]));
+    antenna(C, ant, antDir, R * 0.65);
+    ly.fill(hull, metal, { shade: 0.85, off: R * 0.3 }); C.headHull = hull;
+    const proj4 = q => q.map(v => { const p = pt(...v); return [p.x, p.y]; });
+    for (const f of vis) { if (f.k === 'side' || f.k === 'top') { const P = proj4(f.q); ly.fill(P, Math.min(0.92, metal + (f.k === 'top' ? 0.08 : 0.25)), { shade: 0.3, off: 0, knock: false }); ink(l, P.concat([P[0]]), 0.8, { dense: true, tin: 1, tout: 1 }); } }
+    contour(l, hull, 1.7);
+    // 耳のボルト
+    for (const sx of [-1, 1]) { const b = pt(sx * (hx + 0.02), 0, 0); const dz = pt(sx * (hx + 0.12), 0, 0).z - b.z; if (dz <= 0) continue; const E = ellipsePts(b.x, b.y, R * 0.2 * Math.min(1, dz * 12), R * 0.2, 0, 14); ly.fill(E, 0.75, { shade: 0.4 }); contour(l, E, 1.0); }
+    const front = vis.find(f => f.k === 'front');
+    if (front) {
+      const fs = clamp(pt(0, 0, hz + 0.1).z - pt(0, 0, hz).z, 0, 0.1) * 10;
+      // バイザー
+      const vz = hz + 0.01, va = -0.42, vb = 0.12;
+      const visor = proj4([[-hx * 0.82, va, vz], [hx * 0.82, va, vz], [hx * 0.82, vb, vz], [-hx * 0.82, vb, vz]]);
+      ly.fill(visor, 0.94, { shade: 0, knock: false }); ink(l, visor.concat([visor[0]]), 1.0, { dense: true });
+      // 目（光る）：表情と目の描き方に合わせる
+      const e = C.expr.e, st = art.eyeStyle; const ew = R * lerp(0.1, 0.2, art.eyeSize) * (st === 'sparkle' ? 1.3 : 1);
+      for (const sx of [-1, 1]) {
+        const c = pt(sx * 0.4, (va + vb) / 2, vz); const w = ew * Math.max(0.35, fs);
+        l.fillStyle = '#fff';
+        if (e === 'happy' || e === 'closed') { l.save(); l.fillStyle = '#fff'; ink(l, e === 'happy' ? [[c.x - w, c.y + ew * 0.3], [c.x, c.y - ew * 0.5], [c.x + w, c.y + ew * 0.3]] : [[c.x - w, c.y], [c.x + w, c.y]], 1.6, { noRough: true }); l.restore(); }
+        else if (e === 'glare' || st === 'sharp') { fillPoly(l, [[c.x - w * 1.2, c.y - ew * 0.25 * sx * (e === 'glare' ? 1 : 0.3)], [c.x + w * 1.2, c.y + ew * 0.25 * sx * (e === 'glare' ? 1 : 0.3)], [c.x + w * 1.2, c.y + ew * 0.45], [c.x - w * 1.2, c.y + ew * 0.45]]); }
+        else { const r = ew * (e === 'shock' || e === 'wide' ? 1.25 : st === 'dot' ? 0.55 : 0.9); l.beginPath(); l.ellipse(c.x, c.y, r * Math.max(0.35, fs), r, 0, 0, TAU); l.fill(); if (st !== 'dot' && e !== 'shock') { l.fillStyle = '#000'; l.beginPath(); l.arc(c.x, c.y, r * 0.35, 0, TAU); l.fill(); } if (st === 'sparkle') drawStar(l, c.x - r * 0.3, c.y - r * 0.3, r * 0.5, '#fff'); }
+        l.fillStyle = '#000';
+      }
+      // 口：表情の口＋格子
+      const mp = pt(0, 0.45, vz);
+      if (['line', 'firm', 'side'].includes(C.expr.m)) { const g = proj4([[-0.4, 0.38, vz], [0.4, 0.38, vz], [0.4, 0.58, vz], [-0.4, 0.58, vz]]); ly.fill(g, 0.5, { shade: 0, knock: false }); ink(l, g.concat([g[0]]), 0.8, { dense: true }); for (let i = -2; i <= 2; i++) { const a = pt(i * 0.13, 0.38, vz), b = pt(i * 0.13, 0.58, vz); ink(l, [[a.x, a.y], [b.x, b.y]], 0.5); } }
+      else drawMouth(C, F, [mp.x, mp.y], C.expr.m, art.deform > 0.7);
+      for (const x of C.expr.x || []) drawExtra(C, F, x, []);
+      // パネルの線・ねじ
+      if (art.detail > 0.3) { const a = pt(-hx, -0.62, vz), b = pt(hx, -0.62, vz); ink(l, [[a.x, a.y], [b.x, b.y]], 0.6); for (const sx of [-0.75, 0.75]) { const p = pt(sx, 0.62, vz); l.beginPath(); l.arc(p.x, p.y, R * 0.04, 0, TAU); l.fill(); } }
+    } else { // 後ろ：排気口
+      for (let i = 0; i < 3; i++) { const a = pt(-0.5, -0.3 + i * 0.2, -hz - 0.01), b = pt(0.5, -0.3 + i * 0.2, -hz - 0.01); if (a.z > 0) ink(l, [[a.x, a.y], [b.x, b.y]], 0.9); }
+    }
+    drawWorn(C, F, new Set(spec.items || []));
   }
 
   // ---- 顔のパーツ ----
@@ -752,7 +833,7 @@
     const { ly, spec, art, m } = C; const ha0 = ly.ha; ly.ha = 1; try { drawHair2(C, F, phase); } finally { ly.ha = ha0; } }
   function drawHair2(C, F, phase) {
     const { ly, spec, art, m } = C; const { pt, R, c } = F;
-    let hair = spec.hair || (ANIMAL_EARS[spec.species] || spec.species === 'robot' ? 'bald' : 'short');
+    let hair = spec.species === 'alien' || (ANIMAL_EARS[spec.species] && !spec.keepHair) ? 'bald' : spec.hair || (ANIMAL_EARS[spec.species] || spec.species === 'robot' ? 'bald' : 'short');
     const H = HAIR[hair];
     const mat = C.mat.hair; const q = F.q, dyn = art.dynamism;
     const vol = lerp(1.13, 1.07, q) * (H && H.curl ? 1.1 : 1);
@@ -876,6 +957,9 @@
     if (n.z < 0) return;
     if (sp === 'bird' || sp === 'penguin') { const P = [[n.x - R * 0.15, n.y - R * 0.05], [n.x + F.side * R * 0.45 + R * 0.05, n.y + R * 0.08], [n.x - R * 0.12, n.y + R * 0.22]]; ly.fill(P, 0.3, { shade: 0.5 }); contour(l, P, 1.2); return; }
     if (sp === 'frog') return;
+    // 鼻づら（白い楕円）・パンダとたぬきの目のまわり
+    if (['dog', 'fox', 'bear', 'lion', 'tanuki', 'panda', 'mouse', 'cat'].includes(sp)) { const mz = F.sp(0, 0.5, 1.05); const big = ['bear', 'panda', 'dog'].includes(sp) ? 1.25 : 1; const P2 = ellipsePts(mz.x + F.side * R * 0.04, mz.y, R * 0.3 * big * clamp(F.faceOn + 0.3, 0.55, 1.1), R * 0.22 * big, 0, 18); ly.fill(P2, 0, { shade: 0.3, knock: false }); ink(l, P2.slice(2, 16), 0.8, { dense: true }); }
+    if (sp === 'panda' || sp === 'tanuki') for (const sx of [-1, 1]) { const e = F.sp(sx * 0.42, 0.1); if (e.z < 0.1) continue; ly.matIn(C.headHull, ellipsePts(e.x, e.y + R * 0.03, R * 0.22 * clamp(e.z, 0.3, 1), R * 0.18, sx * 0.5, 14), 0.97); }
     const P = ellipsePts(n.x, n.y, R * 0.11, R * 0.08, 0, 12); l.fillStyle = '#000'; fillPoly(l, P);
     ink(l, [[n.x, n.y + R * 0.08], [n.x, n.y + R * 0.2]], 0.8);
     if (['cat', 'mouse', 'fox', 'tanuki', 'lion'].includes(sp)) for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) ink(l, [[n.x + sx * R * 0.2, n.y + R * 0.1 + i * R * 0.06], [n.x + sx * R * 0.65, n.y + R * (0.02 + i * 0.12)]], 0.6, { tin: 1, tout: 6 });

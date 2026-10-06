@@ -474,10 +474,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 
-<meta name="manga-styles" content="styles/index.js">
 <script>window.MangaStyles = window.MangaStyles || { _queue: [], register(n, i) { this._queue.push([n, i]); return true; } };</script>
-<script src="taste.js"></script>
-<script src="prompts.js"></script>
 <script>
 (() => {
 'use strict';
@@ -490,6 +487,22 @@ const FONT = '"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","IPAGothic",sans
 const DISP = '"Dela Gothic One","Hiragino Sans","Yu Gothic","IPAGothic",sans-serif';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
+/* 表示用の文字列に直す（オブジェクトや配列が来ても [object Object] を出さない） */
+const TXT_KEYS = { summary: '', title: '', logline: '', core: '芯', hook: 'つかみ', turn: '転', punch: 'オチ', climax: '山場', why: '決め手', reason: '理由', aim: '狙い', text: '', body: '', hint: '', idea: '', note: '', what: '', how: '' };
+function txt(v, max = 2000) {
+  let out;
+  if (v == null) out = '';
+  else if (typeof v === 'string') out = v;
+  else if (typeof v === 'number' || typeof v === 'boolean') out = String(v);
+  else if (Array.isArray(v)) out = v.map(x => txt(x)).filter(Boolean).join('、');
+  else if (typeof v === 'object') {
+    const parts = []; const seen = new Set();
+    for (const k of Object.keys(TXT_KEYS)) if (k in v) { const t = txt(v[k]); if (t) { parts.push(TXT_KEYS[k] ? `${TXT_KEYS[k]}：${t}` : t); seen.add(k); } }
+    if (!parts.length) for (const [k, x] of Object.entries(v)) { if (seen.has(k)) continue; const t = txt(x); if (t && (typeof x === 'string' || typeof x === 'number')) parts.push(t); }
+    out = parts.join(' ／ ');
+  } else out = '';
+  return out.length > max ? out.slice(0, max) : out;
+}
 function rng(seed) { let t = seed >>> 0; return () => { t += 0x6D2B79F5; let x = t; x = Math.imul(x ^ x >>> 15, x | 1); x ^= x + Math.imul(x ^ x >>> 7, x | 61); return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
 function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
@@ -577,7 +590,7 @@ const VMAP = { 'ー': '｜', '―': '｜', '—': '｜', '…': '︙', '‥': '�
 const SMALL = 'ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ';
 const NOHEAD = '、。！？!?…‥ーっゃゅょぁぃぅぇぉッャュョァィゥェォ」』）⁉‼';
 function normText(t) {
-  return String(t == null ? '' : t).replace(/\r/g, '').replace(/\\n/g, '\n').replace(/!\?|！？|\?!|？！/g, '⁉').replace(/!!|！！/g, '‼')
+  return txt(t).replace(/\r/g, '').replace(/\\n/g, '\n').replace(/!\?|！？|\?!|？！/g, '⁉').replace(/!!|！！/g, '‼')
     .replace(/!/g, '！').replace(/\?/g, '？').replace(/\.\.\.|・・・/g, '…').replace(/[ 　]+/g, '').trim();
 }
 function vglyph(ctx, ch, x, y, fs) {
@@ -1577,7 +1590,7 @@ function normalizeArt(a, base) {
   const src = a && typeof a === 'object' ? a : {}; const b = base || ART_DEFAULT;
   const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? clamp(x > 1 && x <= 10 ? x / 10 : x, 0, 1) : d; };
   const kit = window.MangaStylesKit;
-  if (!base && kit && typeof kit.normalizeArt === 'function') { try { const k = kit.normalizeArt({ ...src, headRatio: headTall(src.headRatio) ?? undefined, eyeStyle: enumOf(src.eyeStyle, EYE_STYLES, EYE_ALIAS, undefined), toneKind: enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, undefined), panelFrame: enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, undefined) }); if (k && k.line) return { ...k, direction: String(src.direction || '').slice(0, 200), aim: String(src.aim || '').slice(0, 60), reason: String(src.reason || '').slice(0, 300), ...(src.renderer ? { renderer: String(src.renderer).slice(0, 30) } : {}) }; } catch (e) {} }
+  if (!base && kit && typeof kit.normalizeArt === 'function') { try { const k = kit.normalizeArt({ ...src, headRatio: headTall(src.headRatio) ?? undefined, eyeStyle: enumOf(src.eyeStyle, EYE_STYLES, EYE_ALIAS, undefined), toneKind: enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, undefined), panelFrame: enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, undefined) }); if (k && k.line) return { ...k, direction: txt(src.direction, 200), aim: txt(src.aim, 60), reason: txt(src.reason, 300), ...(src.renderer ? { renderer: String(src.renderer).slice(0, 30) } : {}) }; } catch (e) {} }
   const out = { line: {} };
   { const h = headTall(src.headRatio); out.headRatio = h != null ? h : b.headRatio; }
   for (const k of ['deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) out[k] = n(src[k], b[k]);
@@ -1586,7 +1599,7 @@ function normalizeArt(a, base) {
   out.eyeStyle = enumOf(src.eyeStyle, EYE_STYLES, EYE_ALIAS, b.eyeStyle);
   out.toneKind = enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, b.toneKind);
   out.panelFrame = enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, b.panelFrame);
-  if (!base) { out.direction = String(src.direction || '').slice(0, 200); out.aim = String(src.aim || '').slice(0, 60); out.reason = String(src.reason || '').slice(0, 300); if (src.renderer) out.renderer = String(src.renderer).slice(0, 30); }
+  if (!base) { out.direction = txt(src.direction, 200); out.aim = txt(src.aim, 60); out.reason = txt(src.reason, 300); if (src.renderer) out.renderer = String(src.renderer).slice(0, 30); }
   return out;
 }
 /* コマ単位の部分的な上書き（書いてある項目だけを持つ） */
@@ -1597,7 +1610,7 @@ function normalizePanelArt(a) {
   for (const k of ['deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) { const x = Number(a[k]); if (Number.isFinite(x)) { out[k] = clamp(x, 0, 1); any = true; } }
   if (a.line && typeof a.line === 'object') { const l = {}; for (const k of ['weight', 'taper', 'jitter', 'roughness']) { const x = Number(a.line[k]); if (Number.isFinite(x)) { l[k] = clamp(x, 0, 1); any = true; } } if (Object.keys(l).length) out.line = l; }
   for (const [k, list, al] of [['eyeStyle', EYE_STYLES, EYE_ALIAS], ['toneKind', TONE_KINDS, TONE_ALIAS], ['panelFrame', FRAMES, FRAME_ALIAS]]) { const v = enumOf(a[k], list, al, null); if (v) { out[k] = v; any = true; } }
-  if (a.note) out.note = String(a.note).slice(0, 60);
+  if (a.note) out.note = txt(a.note, 60);
   return any ? out : null;
 }
 function mergeArt(base, over) { if (!over) return base; return { ...base, ...over, line: { ...base.line, ...(over.line || {}) } }; }
@@ -1686,14 +1699,14 @@ function defaultRows(n) { return { 1: [1], 2: [1, 1], 3: [1, 2], 4: [1, 2, 1], 5
 
 function normalizeCharacter(c, i, issues) {
   c = c && typeof c === 'object' ? c : {};
-  const id = String(c.id || c.name || 'c' + i).slice(0, 24);
+  const id = (txt(c.id || c.name) || 'c' + i).slice(0, 24);
   const h = rng(hashStr(id + (c.name || '')));
   const species = pick(c.species, SPECIES, SYN.species, 'human');
   const age = pick(c.age, ['child', 'teen', 'adult', 'elder'], SYN.age, species === 'human' ? 'teen' : 'child');
   const items = arr(c.items).map(x => String(x).toLowerCase().trim()).filter(x => WORN.includes(x) || HELD.includes(x)).slice(0, 4);
   const dropped = arr(c.items).length - items.length; if (dropped > 0) issues.push(`人物 ${id}: 知らない小物 ${dropped} 個を外しました`);
   return {
-    id, name: String(c.name || id).slice(0, 16), role: String(c.role || '').slice(0, 30), desc: String(c.desc || c.description || c.look || '').slice(0, 80),
+    id, name: (txt(c.name) || id).slice(0, 16), role: txt(c.role, 30), desc: txt(c.desc || c.description || c.look, 80),
     species, age, body: pick(c.body, ['slim', 'normal', 'round', 'tall'], null, 'normal'),
     hair: pick(c.hair, HAIRS, null, HAIRS[Math.floor(h() * HAIRS.length)]),
     hairColor: pick(c.hairColor || c.hair_color, ['black', 'white', 'tone', 'light'], { gray: 'tone', grey: 'tone', brown: 'tone', blonde: 'light', silver: 'white', red: 'tone', blue: 'tone' }, ['black', 'tone', 'white'][Math.floor(h() * 3)]),
@@ -1774,9 +1787,9 @@ function normalizeScript(raw, opts = {}) {
   };
   return {
     script: {
-      v: 1, title: String(s.title || '無題').slice(0, 24), genre: String(s.genre || '').slice(0, 40), logline: String(s.logline || s.synopsis || '').slice(0, 200),
+      v: 1, title: (txt(s.title) || '無題').slice(0, 24), genre: txt(s.genre, 40), logline: txt(s.logline || s.synopsis).slice(0, 200),
       ending: pick(s.ending, ['end', 'continue'], { tbc: 'continue', to_be_continued: 'continue', つづく: 'continue' }, 'end'),
-      characters: chars, cover, pages, art: normalizeArt(s.art), episode: Math.max(1, Math.round(num(s.episode, 1, 1, 99))), seriesTitle: s.seriesTitle ? String(s.seriesTitle).slice(0, 24) : '',
+      characters: chars, cover, pages, art: normalizeArt(s.art), episode: Math.max(1, Math.round(num(s.episode, 1, 1, 99))), seriesTitle: s.seriesTitle ? txt(s.seriesTitle, 24) : '',
     }, issues,
   };
 }
@@ -2669,7 +2682,7 @@ ${JSON.stringify(script)}`;
 function normalizeExtras(x, S) {
   if (!x || typeof x !== 'object') return null;
   if (x.extras && typeof x.extras === 'object') x = x.extras;
-  const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const str = (v, n) => txt(v, n);
   const pref = v => { const m = String(v || '').match(/^(\d+)-(\d+)$/); return m ? `${m[1]}ページ${m[2]}コマ目` : String(v || ''); };
   // prompts.js（validateExtras）の形を、この画面の形に寄せる
   if (x.world && !Array.isArray(x.world) && typeof x.world === 'object') { const w = x.world; x = { ...x, world: [w.summary ? { title: '世界観', body: w.summary } : null, arr(w.rules).length ? { title: 'この世界のルール', body: arr(w.rules).map(r => '・' + r).join('\n') } : null, ...arr(w.places).map(p => ({ title: p.name, body: p.note }))].filter(Boolean) }; }
@@ -2718,16 +2731,17 @@ ${ART_DOC}
 function normalizeMeeting(x) {
   if (!x || typeof x !== 'object') return null;
   const who = w => /作画|artist/.test(String(w)) ? '作画' : /編集|editor/.test(String(w)) ? '編集者' : '作者';
-  const transcript = arr(x.transcript || x.minutes).map(t => t && { who: who(t.who || t.speaker), text: String(t.text || t.line || '').slice(0, 200) }).filter(t => t && t.text).slice(0, 40);
-  const pitches = arr(x.pitches).filter(p => p && typeof p === 'object').map(p => ({ title: String(p.title || '').slice(0, 30), logline: String(p.logline || '').slice(0, 160), hook: String(p.hook || '').slice(0, 100) })).slice(0, 4);
+  const transcript = arr(x.transcript || x.minutes).map(t => t && (typeof t === 'string' ? { who: '作者', text: t.slice(0, 200) } : { who: who(t.who || t.speaker), text: txt(t.text ?? t.line, 200) })).filter(t => t && t.text).slice(0, 40);
+  const pitches = arr(x.pitches).filter(p => p && typeof p === 'object').map(p => ({ title: txt(p.title, 30), logline: txt(p.logline ?? p.pitch, 160), hook: txt(p.hook, 100) })).slice(0, 4);
   const issues = [];
   const characters = arr(x.characters).filter(c => c && typeof c === 'object').slice(0, 6).map((c, i) => {
     const id = String(c.id || (arr(c.designs)[0] || {}).id || 'c' + i).slice(0, 24);
-    const designs = arr(c.designs).slice(0, 3).map((d, k) => normalizeCharacter({ ...d, id, name: c.name || d.name, role: c.role || d.role }, k, issues));
-    return { id, name: String(c.name || (designs[0] && designs[0].name) || id).slice(0, 16), role: String(c.role || '').slice(0, 30), designs, comments: arr(c.comments).map(s => String(s).slice(0, 60)).slice(0, 3), chosen: clamp(Math.round(Number(c.chosen) || 0), 0, Math.max(0, designs.length - 1)) };
+    const designs = arr(c.designs).filter(d => d && typeof d === 'object').slice(0, 3).map((d, k) => normalizeCharacter({ ...(d.spec && typeof d.spec === 'object' ? d.spec : d), id, name: txt(c.name || d.name), role: txt(c.role || d.role) }, k, issues));
+    const ch0 = typeof c.chosen === 'string' && /^[A-C]$/i.test(c.chosen) ? 'ABC'.indexOf(c.chosen.toUpperCase()) : Math.round(Number(c.chosen) || 0);
+    return { id, name: txt(c.name || (designs[0] && designs[0].name) || id, 16), role: txt(c.role, 30), designs, comments: arr(c.comments).map(s => txt(s, 60)).slice(0, 3), chosen: clamp(ch0, 0, Math.max(0, designs.length - 1)) };
   }).filter(c => c.designs.length);
   if (!transcript.length && !characters.length) return null;
-  return { transcript, pitches, chosen: clamp(Math.round(Number(x.chosen) || 0), 0, Math.max(0, pitches.length - 1)), decision: String(x.decision || '').slice(0, 300), characters, art: x.art ? normalizeArt(x.art) : null, raw: x.raw || null };
+  return { transcript, pitches, chosen: clamp(Math.round(Number(x.chosen) || 0), 0, Math.max(0, pitches.length - 1)), decision: txt(x.decision, 300), characters, art: (x.art || x.artDraft) && typeof (x.art || x.artDraft) === 'object' ? normalizeArt(x.art || x.artDraft) : null, raw: x.raw || null };
 }
 function meetingBrief(m) {
   if (!m) return '';
@@ -2749,8 +2763,8 @@ function peekMeeting(text) {
 const $ = id => document.getElementById(id);
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (k === 'style') e.style.cssText = v; else e.setAttribute(k, v === true ? '' : v); }
-  for (const k of kids.flat()) if (k != null && k !== false) e.append(k.nodeType ? k : document.createTextNode(String(k)));
+  for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === 'class') e.className = v; else if (k === 'text') e.textContent = txt(v); else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (k === 'style') e.style.cssText = v; else e.setAttribute(k, v === true ? '' : v); }
+  for (const k of kids.flat()) if (k != null && k !== false) e.append(k.nodeType ? k : document.createTextNode(txt(k)));
   return e;
 }
 let toastTimer = 0;
@@ -3086,10 +3100,10 @@ async function runMake(mode, src) {
     if (edN && edN.script && typeof edN.script === 'object') adopt(edN.script, false);
     S.art = normalizeArt(edN && edN.art);
     for (const pa of arr(edN && edN.panelArt)) { const pg = S.pages[(Number(pa.page) || 0) - 2], pn = pg && pg.panels[(Number(pa.panel) || 0) - 1]; const art = normalizePanelArt({ ...(pa.art || {}), note: pa.note }); if (pn && art) pn.art = art; }
-    editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(String).slice(0, 8), originality: String((edN && edN.originality) || ''), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}${sparkUsed(x, S.art) ? '（採用）' : ''}`) });
+    editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(x => txt(x)).slice(0, 8), originality: txt(edN && edN.originality), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}${sparkUsed(x, S.art) ? '（採用）' : ''}`) });
     log.push({ stage: 'name', t: Date.now(), verdict: editor[0].verdict, notes: editor[0].notes, originality: editor[0].originality, editedByEditor: preN !== S ? diffScripts(preN, S) : null,
       art: { aim: S.art.aim, reason: S.art.reason, direction: S.art.direction }, panelArt: arr(edN && edN.panelArt).slice(0, 8), sparks: sparks.map(x => ({ label: x.label, parts: x.parts, used: sparkUsed(x, S.art) })) });
-    if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(String), 'ネーム検討');
+    if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(x => txt(x)), 'ネーム検討');
     /* (2) 作画 → 編集者：仕上がりチェック（直しは合わせて最大2往復） */
     for (let round = 1; ; round++) {
       setStep('draw'); $('ticker').textContent = `「${S.art.aim || '今回の絵柄'}」で作画しています…`; $('roundInfo').textContent = `仕上がりチェック ${round} 回目`;
@@ -3102,10 +3116,10 @@ async function runMake(mode, src) {
       const p = normalizeProfile(ed && ed.profile); if (p) profile = p;
       if (ed && ed.script && typeof ed.script === 'object') adopt(ed.script, true);
       if (ed && ed.artFix && typeof ed.artFix === 'object') { const fix = normalizePanelArt(ed.artFix); if (fix) { const { note, ...f } = fix; S.art = { ...mergeArt(S.art, f), direction: S.art.direction, aim: S.art.aim, reason: S.art.reason }; } }
-      editor.push({ stage: 'check', round, verdict: ed && ed.verdict === 'revise' && !finalRound ? 'revise' : 'ok', notes: arr(ed && ed.notes).map(String).slice(0, 8), originality: String((ed && ed.originality) || ''), warnings: warnings.length, artFix: ed && ed.artFix ? Object.keys(ed.artFix).join('、') : '' });
+      editor.push({ stage: 'check', round, verdict: ed && ed.verdict === 'revise' && !finalRound ? 'revise' : 'ok', notes: arr(ed && ed.notes).map(x => txt(x)).slice(0, 8), originality: txt(ed && ed.originality), warnings: warnings.length, artFix: ed && ed.artFix ? Object.keys(ed.artFix).join('、') : '' });
       const ce = editor[editor.length - 1]; log.push({ stage: 'check', t: Date.now(), round, verdict: ce.verdict, notes: ce.notes, originality: ce.originality, warnings: warnings.slice(0, 10), artFix: ed && ed.artFix ? ed.artFix : null, images: images ? images.length : 0 });
       if (!(ed && ed.verdict === 'revise') || finalRound) break;
-      await writerFix(arr(ed.notes).map(String), `仕上がりチェック${round}`);
+      await writerFix(arr(ed.notes).map(x => txt(x)), `仕上がりチェック${round}`);
     }
     setStep('finish'); $('ticker').textContent = '原稿に仕上げています…';
     await new Promise(res => setTimeout(res, 30));
@@ -3212,6 +3226,14 @@ function setLike(kind) {
 /* ---------- 裏話 ---------- */
 const spoilOK = {};
 function openExtras(id) { if (!state.works[id]) return; commitDwell(); state.exId = id; setTab('extras'); }
+function meetingDecision(M) {
+  const box = el('div', { class: 'decision' });
+  if (txt(M.decision)) box.append(el('p', { class: 'artaim', text: '決定：' + txt(M.decision) }));
+  const mains = arr(M.characters).map(c => { const d = c.designs[c.chosen] || {}; return `${txt(c.name)}（${txt(c.role) || txt(d.species)}）`; }).filter(Boolean);
+  if (mains.length) box.append(el('p', { class: 'sub', text: '主要キャラ：' + mains.join('、') }));
+  if (M.art && (M.art.aim || M.art.direction)) box.append(el('p', { class: 'sub', text: '絵柄の仮決め：' + (txt(M.art.aim) || txt(M.art.direction)) }));
+  return box;
+}
 function standFig(S, ch, Wd, Ht) {
   const ART = artFor(S, null), m = ART.metrics(ch), c = el('canvas', { width: Wd, height: Ht, role: 'img', 'aria-label': `${ch.name || ''}の立ち絵` }), g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, Wd, Ht);
@@ -3276,7 +3298,7 @@ function renderExtras() {
   if (M && M.transcript.length) body.append(sec('企画会議の議事録',
     M.pitches.length ? el('div', { class: 'pitches' }, ...M.pitches.map((p, i) => el('div', { class: 'pitch' + (i === M.chosen ? ' on' : '') }, el('b', { text: `${i === M.chosen ? '採用：' : `案${i + 1}：`}${p.title}` }), el('div', { text: p.logline }), p.hook ? el('div', { class: 'sub', text: '見せ場：' + p.hook }) : ''))) : '',
     el('div', { class: 'chat' }, ...M.transcript.map(l => el('div', { class: 'msg ' + (l.who === '編集者' ? 'ed' : l.who === '作画' ? 'ar' : 'au') }, el('b', { text: l.who }), el('span', { text: l.text })))),
-    M.decision ? el('p', { class: 'artaim', text: '決定：' + M.decision }) : ''));
+    meetingDecision(M)));
   if (M && M.characters.some(c => c.designs.length > 1)) body.append(sec('キャラクターデザイン案の比較', el('div', { class: 'designs' }, ...M.characters.filter(c => c.designs.length).map(c => el('div', { class: 'drow' }, el('h4', { style: 'margin:0', text: `${c.name}（${c.role || ''}）` }),
     el('div', { class: 'dcards' }, ...c.designs.map((d, k) => el('figure', { class: 'dcard ' + (k === c.chosen ? 'on' : 'off'), style: 'margin:0' }, standFig(S, d, 220, 300), k === c.chosen ? el('span', { class: 'stamp', text: '採用' }) : '', el('figcaption', { text: `案${'ABC'[k]}　${c.comments[k] || ''}${(() => { const v = ex && ex.visual && ex.visual.designs.find(x => x.id === c.id && x.label === 'ABC'[k]); return v ? '／' + v.comment : ''; })()}` })))))))));
   body.append(sec('キャラクター設定資料', el('div', { class: 'chgrid' }, ...cards)));

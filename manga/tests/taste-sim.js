@@ -11,6 +11,7 @@ const SEED = Number(ARGS.seed || 1);
 const ONLY = ARGS.only ? new Set(String(ARGS.only).split(',')) : null;
 const want = k => !ONLY || ONLY.has(k);
 if (ARGS.sig) Taste.configure({ SIGNALS: JSON.parse(ARGS.sig) }); // 実験用：信号の重みを差し替える
+const MEXP = Object.assign({}, ARGS.explore != null ? { explore: Number(ARGS.explore) } : {}, ARGS.lambda != null ? { lambda: Number(ARGS.lambda) } : {}); // 実験用：探索の強さ
 const MOPTS = ARGS.opts ? JSON.parse(ARGS.opts) : {}; // 実験用：analyze に渡す追加の設定
 const an = (W, F, H, o) => Taste.analyze(W, F, H, Object.assign({ now: 1e15 }, MOPTS, o || {}));
 const AX = Taste.schema.AXES.map(a => a[0]);
@@ -187,7 +188,7 @@ if (want('gen') && RESULTS.main) {
       const acc = (key, U, rate) => { const k = key + ':' + n; (rows[k] = rows[k] || { U: [], like: [], top: [], rate: [] }); rows[k].U.push(U); rows[k].like.push(pLikeOf(P.R, U)); rows[k].top.push(U > 0.8416 ? 1 : 0); if (rate != null) rows[k].rate.push(rate); };
       for (let i = 0; i < per; i++) {
         const tN = n - 1 + 0.5;
-        const ts = Taste.prefSeed(A, r).aim; acc('ts', P.R.uAt(realize(r, ts, 'g'), tN), ts.explore.rate);
+        const ts = Taste.prefSeed(A, r, MEXP).aim; acc('ts', P.R.uAt(realize(r, ts, 'g'), tN), ts.explore.rate);
         const gr = Taste.target(A.model, { rng: r, mode: 'greedy' }); acc('greedy', P.R.uAt(realize(r, gr, 'g'), tN), gr.explore.rate);
         const rw = makeWork(r, 'rnd'); acc('random', P.R.uAt(rw, tN));
         // 旧方式：好きな作品の軸の平均を狙う（タグはランダム）
@@ -218,7 +219,7 @@ if (want('online')) {
     const W = {}, F = {}, H = []; let A = null; const got = [];
     for (let t = 0; t < 60; t++) {
       let w; const usePref = t >= 5 && r() < 0.7;
-      if (usePref) { if (!A || t % 3 === 0) A = an(W, F, H, { samples: 20 }); w = realize(r, Taste.prefSeed(A, r).aim, P.id + 'o' + t); }
+      if (usePref) { if (!A || t % 3 === 0) A = an(W, F, H, { samples: 20 }); w = realize(r, Taste.prefSeed(A, r, MEXP).aim, P.id + 'o' + t); }
       else w = makeWork(r, P.id + 'o' + t);
       const x = react(R, w, t, r); W[w.id] = w; F[w.id] = x.fb; H.push({ id: w.id, t: t * 600000 });
       got.push({ t, pref: usePref, U: x.U, like: x.fb.liked });

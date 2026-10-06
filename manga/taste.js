@@ -652,22 +652,27 @@
   /* 「あなたの好みを一言で」：ルールで作る短い日本語 */
   function oneLiner(sm) {
     if (sm.n < 3) return `まだ好みを探っている途中です（あと${Math.max(1, 3 - sm.n)}作ほど読むと見えてきます）`;
-    const parts = [];
-    const cmb = sm.combos.find(c => c.syn > 0 && c.conf > 0.75);
-    if (cmb) parts.push(`「${AXL[cmb.a].r}×${AXL[cmb.b].r}」に弱い`);
-    const strong = sm.axes.filter(a => a.shape !== 'flat' && a.shapeConf > 0.55 && a.importance > 0.3 && (a.shape === 'peak' || Math.abs(2 * a.pPos - 1) > 0.7)).sort((x, y) => y.importance - x.importance);
-    for (const a of strong) {
-      if (parts.length >= 3) break; if (cmb && (a.k === cmb.a || a.k === cmb.b) && a.shape !== 'peak') continue;
-      const L = a.label;
-      if (a.shape === 'peak') parts.push(`${L.r}は${a.ideal < 0.42 ? 'ひかえめ' : a.ideal > 0.58 ? '強め' : 'ほどほど'}派`);
-      else if (a.shape === 'valley') parts.push(`${L.l}か${L.r}か、振り切った作品が好き`);
-      else if (a.shape === 'up') parts.push(`${L.r}${/[いさ]$/.test(L.r) ? '' : '多め'}好き`);
-      else parts.push(`${L.l}寄りが好き`);
+    // 候補を「強さ」で並べて上位3つを言葉にする（組み合わせ・軸・絵柄のズレを同じ物差しで比べる）
+    const cand = [];
+    for (const c of sm.combos) if (c.syn > 0 && c.conf > 0.9) cand.push({ w: c.syn * 2.5, k: [c.a, c.b], s: `「${AXL[c.a].r}×${AXL[c.b].r}」に弱い` });
+    for (const a of sm.axes) {
+      if (a.shape === 'flat' || a.importance < 0.35 || a.shapeConf < 0.6) continue;
+      if (a.shape !== 'peak' && Math.abs(2 * a.pPos - 1) < 0.8) continue;
+      const L = a.label; let t;
+      if (a.shape === 'peak') t = `${L.r}は${a.ideal < 0.42 ? 'ひかえめ' : a.ideal > 0.58 ? '強め' : 'ほどほど'}派`;
+      else if (a.shape === 'valley') t = `${L.l}か${L.r}か、振り切った作品が好き`;
+      else if (a.shape === 'up') t = `${L.r}好き`;
+      else t = `${L.l}派`;
+      cand.push({ w: a.importance, k: [a.k], s: t });
     }
-    if (sm.gap && sm.gap.conf > 0.7 && sm.gap.shape !== 'flat') parts.push(sm.gap.effect > 0 ? '絵と話のギャップ好き' : '王道の絵柄好き');
-    const tl = sm.tags.filter(t => t.lo > 0.35 && t.conf > 0.35)[0], td = sm.tags.filter(t => t.lo < -0.35 && t.conf > 0.35).slice(-1)[0];
-    let s = parts.slice(0, 3).join('、');
-    const tagBits = []; if (tl) tagBits.push(`${tl.v}が好き`); if (td) tagBits.push(`${td.v}は苦手`);
+    if (sm.gap && sm.gap.conf > 0.8 && sm.gap.shape !== 'flat' && Math.abs(sm.gap.effect) > 0.35) cand.push({ w: Math.abs(sm.gap.effect), k: ['gap'], s: sm.gap.effect > 0 ? '絵と話のギャップ好き' : '王道の絵柄好き' });
+    cand.sort((x, y) => y.w - x.w);
+    const used = new Set(), parts = [];
+    for (const c of cand) { if (parts.length >= 3) break; if (c.k.length === 1 && used.has(c.k[0])) continue; c.k.forEach(k => used.add(k)); parts.push(c.s); }
+    const word = t => (t.v === 'なし' ? `${S.TAG_CATS[t.cat] || t.cat}なし` : t.v);
+    const tl = sm.tags.filter(t => t.lo > 0.35 && t.conf > 0.5 && t.n >= 3)[0], td = sm.tags.filter(t => t.lo < -0.35 && t.conf > 0.5 && t.n >= 3).slice(-1)[0];
+    let s = parts.join('、');
+    const tagBits = []; if (tl) tagBits.push(`${word(tl)}が好き`); if (td) tagBits.push(`${word(td)}は苦手`);
     if (tagBits.length) s += (s ? '。' : '') + tagBits.join('、');
     if (!s) return 'いろいろな作品を楽しめる、好みの幅が広い読み手です（まだ強い傾向は出ていません）';
     return s + '。';
@@ -676,8 +681,10 @@
   /* ---------------------------------------------------------------------------
      11. 次に作る作品の狙い（トンプソン抽出で「当てに行く」と「探しに行く」を両立）
      --------------------------------------------------------------------------- */
+  const EXPLORE = 0.3;
   const LAMBDA = 0.05; // 軸を極端に振りすぎないための弱い罰則（効かない軸は 0.5＝おまかせ に残る）
-  function optimizeAxes(th, fix, rng) {
+  function optimizeAxes(th, fix, rng, lam) {
+    const LAM = lam != null ? lam : LAMBDA;
     const z = new Float64Array(K); const fixed = new Array(K).fill(false);
     if (fix) AX.forEach((k, i) => { if (fix[k] != null) { z[i] = 2 * (clamp(fix[k], 0, 1) - 0.5); fixed[i] = true; } });
     const vals = []; for (let g = 0.05; g <= 0.951; g += 0.05) vals.push(2 * (g - 0.5));
@@ -690,7 +697,7 @@
         const b = th[OFF.lin + k], c = th[OFF.quad + k]; let cross = 0;
         for (let q = 0; q < NI; q++) { const [i, j] = PAIRS[q]; if (i === k) cross += th[OFF.inter + q] * z[j]; else if (j === k) cross += th[OFF.inter + q] * z[i]; }
         let best = z[k], bv = -Infinity;
-        for (const v of vals) { const u = b * v + c * (v * v - 1 / 3) + cross * v - LAMBDA * v * v; if (u > bv + 1e-12) { bv = u; best = v; } }
+        for (const v of vals) { const u = b * v + c * (v * v - 1 / 3) + cross * v - LAM * v * v; if (u > bv + 1e-12) { bv = u; best = v; } }
         if (best !== z[k]) { z[k] = best; moved = true; }
       }
       if (!moved) break;
@@ -718,10 +725,10 @@
   }
   function target(M, opts) {
     opts = opts || {};
-    const rng = opts.rng || Math.random; const mode = opts.mode || 'ts'; const explore = opts.explore != null ? opts.explore : 1;
+    const rng = opts.rng || Math.random; const mode = opts.mode || 'ts'; const explore = opts.explore != null ? opts.explore : EXPLORE; // 事後の広がりを何倍で使うか（検証で 0.3 が最良：1 だと探索しすぎ）
     const mix = th => { if (explore === 1) return th; const o = new Float64Array(M.p); for (let j = 0; j < M.p; j++) o[j] = M.mu[j] + explore * (th[j] - M.mu[j]); return o; };
     const th = mode === 'greedy' ? M.mu : mix(sampleTheta(M, rng));
-    const z = optimizeAxes(th, opts.fixAxes, rng), zg = optimizeAxes(M.mu, opts.fixAxes, null);
+    const z = optimizeAxes(th, opts.fixAxes, rng, opts.lambda), zg = optimizeAxes(M.mu, opts.fixAxes, null, opts.lambda);
     const tg = chooseTags(M, th, rng, mode, explore);
     // 各軸の大事さ：その軸を 0.5 に戻すと（平均の好みで）どれだけ損するか
     const u0 = axisUtility(M.mu, z);

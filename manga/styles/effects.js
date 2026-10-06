@@ -22,7 +22,8 @@
     const f = spec.focus ? [spec.focus.x, spec.focus.y] : [box.x + box.w / 2, box.y + box.h * 0.45];
     const heads = spec.heads || [];
     const R = Math.hypot(box.w, box.h);
-    ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); ctx.fillStyle = '#000'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const INK = (spec.dark ?? isDark(ctx, box)) ? '#fff' : '#000'; // 暗いコマ（dark）では白い線
+    ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); ctx.fillStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const pencil = art.rough;
     if (pencil) ctx.globalAlpha = 0.75;
     let done = true;
@@ -33,10 +34,12 @@
     }
     switch (name) {
       case 'focus': { // 集中線
-        const n = Math.round(lerp(60, 260, dyn) * sc * (pencil ? 0.3 : 1)); const r0 = Math.min(box.w, box.h) * lerp(0.42, 0.28, dyn);
-        for (let i = 0; i < n; i++) { const a = rand() * TAU, ri = r0 * rr(0.9, 1.5); const d = [Math.cos(a), Math.sin(a) * 0.85]; const p0 = [f[0] + d[0] * ri, f[1] + d[1] * ri], p1 = [f[0] + d[0] * R, f[1] + d[1] * R]; penPath(ctx, [p0, V.lerp(p0, p1, 0.5), p1], line.w * rr(0.4, 2.2), { tin: V.dist(p0, p1) * 0.75, tout: 1, wob: 0, taper: 1, jit: 0 }); }
+        ctx.fillStyle = INK;
+        const wk = INK === '#fff' ? 0.55 : 1; const n = Math.round(lerp(60, 260, dyn) * sc * (pencil ? 0.3 : 1) * wk); const r0 = Math.min(box.w, box.h) * lerp(0.42, 0.28, dyn);
+        for (let i = 0; i < n; i++) { const a = rand() * TAU, ri = r0 * rr(0.9, 1.5); const d = [Math.cos(a), Math.sin(a) * 0.85]; const p0 = [f[0] + d[0] * ri, f[1] + d[1] * ri], p1 = [f[0] + d[0] * R, f[1] + d[1] * R]; penPath(ctx, [p0, V.lerp(p0, p1, 0.5), p1], line.w * rr(0.4, 2.2) * wk, { tin: V.dist(p0, p1) * 0.75, tout: 1, wob: 0, taper: 1, jit: 0 }); }
         break; }
       case 'speed': case 'speedv': { // 流線
+        ctx.fillStyle = INK;
         const ang = spec.angle ?? (name === 'speedv' ? Math.PI / 2 : 0) + (dyn > 0.6 ? rr(-0.15, 0.15) : 0); const d = [Math.cos(ang), Math.sin(ang)], n = [-d[1], d[0]];
         const cnt = Math.round(lerp(30, 160, dyn) * sc * (pencil ? 0.3 : 1)); const c = [box.x + box.w / 2, box.y + box.h / 2];
         for (let i = 0; i < cnt; i++) { const off = rr(-R / 2, R / 2); if (heads.some(h => Math.abs((h.x - c[0]) * n[0] + (h.y - c[1]) * n[1] - off) < h.r * 1.2)) continue; const len = rr(0.3, 1.1) * R * 0.6, st = rr(-R / 2, R / 2 - len * 0.3); const p0 = [c[0] + n[0] * off + d[0] * st, c[1] + n[1] * off + d[1] * st], p1 = V.add(p0, V.mul(d, len)); penPath(ctx, [p0, p1], line.w * rr(0.3, 1.6), { tin: len * 0.4, tout: len * 0.4, wob: 0, taper: 1, jit: 0 }); }
@@ -64,7 +67,7 @@
         break; }
       case 'flowers': { const n = Math.round(lerp(4, 22, spk) * sc); for (let i = 0; i < n; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h; if (heads.some(h => Math.hypot(h.x - x, h.y - y) < h.r * 1.5)) continue; flower(ctx, x, y, rr(8, 22) * sc, rand() < 0.5 ? 5 : 8, line); } break; }
       case 'hearts': for (let i = 0; i < 4 + spk * 6; i++) { const h0 = heads[0] || { x: f[0], y: f[1], r: 30 }; const x = h0.x + rr(-1.6, 1.6) * h0.r * 2, y = h0.y - h0.r * rr(0.8, 2.2); heart(ctx, x, y, rr(6, 14) * sc); } break;
-      case 'gloom': { const h0 = heads[0]; ctx.fillStyle = '#000'; const x0 = h0 ? h0.x - h0.r * 1.4 : box.x, w = h0 ? h0.r * 2.8 : box.w; for (let x = x0; x < x0 + w; x += 4 * sc) { const y1 = (h0 ? h0.y - h0.r * 0.2 : box.y + box.h * 0.5) + rr(-10, 10); penPath(ctx, [[x, box.y], [x, y1]], line.w * 0.8, { tin: 1, tout: (y1 - box.y) * 0.5, taper: 1, wob: 0 }); } break; }
+      case 'gloom': { const h0 = heads[0]; ctx.fillStyle = INK; const x0 = h0 ? h0.x - h0.r * 1.4 : box.x, w = h0 ? h0.r * 2.8 : box.w; for (let x = x0; x < x0 + w; x += 4 * sc) { const y1 = (h0 ? h0.y - h0.r * 0.2 : box.y + box.h * 0.5) + rr(-10, 10); penPath(ctx, [[x, box.y], [x, y1]], line.w * 0.8, { tin: 1, tout: (y1 - box.y) * 0.5, taper: 1, wob: 0 }); } break; }
       case 'dark': ctx.fillRect(box.x, box.y, box.w, box.h); break;
       case 'spotlight': { ctx.fillRect(box.x, box.y, box.w, box.h); const g = ctx.createRadialGradient(f[0], f[1] + box.h * 0.2, 0, f[0], f[1] + box.h * 0.2, box.h * 0.6); g.addColorStop(0, '#fff'); g.addColorStop(0.7, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.fillRect(box.x, box.y, box.w, box.h); break; }
       case 'flashback': case 'tone': { // 回想：周りを網点でぼかす
@@ -72,7 +75,7 @@
       case 'shake': { const h0 = heads[0] || { x: f[0], y: f[1], r: 30 }; for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { const x = h0.x + sd * h0.r * (1.3 + i * 0.25), y0 = h0.y - h0.r * 0.6, y1 = h0.y + h0.r * 0.6; ink(ctx, [[x, y0], [x + sd * 3, (y0 + y1) / 2], [x, y1]], 1.2); } break; }
       case 'sweat': { const h0 = heads[0] || { x: f[0], y: f[1], r: 30 }; for (let i = 0; i < 3; i++) { const x = h0.x + h0.r * rr(-1.4, 1.4), y = h0.y - h0.r * rr(0.6, 1.3); drop(ctx, x, y, h0.r * 0.18); } break; }
       case 'question': case 'exclaim': { const h0 = heads[0] || { x: f[0], y: f[1], r: 30 }; const x = h0.x + h0.r * 1.2, y = h0.y - h0.r * 1.4; K.sfxText(ctx, name === 'question' ? '?' : '!', x, y, h0.r * 1.1, art, { outline: true }); break; }
-      case 'wind': for (let i = 0; i < 6 + dyn * 10; i++) { const y = box.y + rand() * box.h, x = box.x + rand() * box.w * 0.6, w = box.w * rr(0.15, 0.4); ink(ctx, catmull([[x, y], [x + w * 0.5, y - 6], [x + w, y], [x + w * 1.1, y - 10], [x + w, y - 14]], 5), 0.9, { dense: true }); } break;
+      case 'wind': ctx.fillStyle = INK; for (let i = 0; i < 6 + dyn * 10; i++) { const y = box.y + rand() * box.h, x = box.x + rand() * box.w * 0.6, w = box.w * rr(0.15, 0.4); ink(ctx, catmull([[x, y], [x + w * 0.5, y - 6], [x + w, y], [x + w * 1.1, y - 10], [x + w, y - 14]], 5), 0.9, { dense: true }); } break;
       case 'bubbles': for (let i = 0; i < 14; i++) { const x = box.x + rand() * box.w, y = box.y + rand() * box.h, r = rr(3, 10) * sc; const P = ellipsePts(x, y, r, r, 0, 16); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 0.8, { dense: true }); } break;
       case 'smoke': case 'fire': case 'magic': { const n = name === 'magic' ? 10 : 7; for (let i = 0; i < n; i++) { const c = [f[0] + rr(-0.4, 0.4) * box.w, f[1] + rr(-0.1, 0.4) * box.h], r = rr(15, 40) * sc; if (name === 'fire') { const P = catmull([[c[0] - r * 0.6, c[1] + r], [c[0] - r * 0.4, c[1]], [c[0] + rr(-r, r) * 0.3, c[1] - r * 1.6], [c[0] + r * 0.45, c[1] - r * 0.2], [c[0] + r * 0.6, c[1] + r]], 5, true); ctx.fillStyle = '#fff'; fillPoly(ctx, P); ctx.fillStyle = '#000'; ink(ctx, P.concat([P[0]]), 1.2, { dense: true }); } else if (name === 'magic') star(ctx, c[0], c[1], r * 0.5, 1); else { const P = []; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; P.push([c[0] + Math.cos(a) * r * rr(0.8, 1.1), c[1] + Math.sin(a) * r * 0.75]); } const PP = catmull(P, 4, true); ctx.fillStyle = '#fff'; fillPoly(ctx, PP); ctx.fillStyle = '#000'; ink(ctx, PP.concat([PP[0]]), 0.9, { dense: true }); } } break; }
       case 'rain': { const n = Math.round(box.w * box.h / 900 * (spec.amount || 1)); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; const a = 1.72 + (dyn - 0.5) * 0.15; const d = [Math.cos(a), Math.sin(a)]; for (let i = 0; i < n; i++) { const p = [box.x + rr(-0.1, 1.05) * box.w, box.y + rr(-0.1, 1) * box.h], L = rr(8, 36) * sc, q = V.add(p, V.mul(d, L)); penPath(ctx, [p, q], rr(0.35, 1.0) * sc, { tin: L * 0.4, tout: L * 0.4, wob: 0, taper: 1, jit: 0 }); } break; }
@@ -82,6 +85,10 @@
     }
     ctx.restore();
     return done;
+  }
+  // 下地が暗いか（dark が渡されないときの保険）：コマの中を数点しらべる
+  function isDark(ctx, box) {
+    try { const m = ctx.getTransform(); let sum = 0, n = 0; for (let i = 1; i <= 3; i++) for (let j = 1; j <= 3; j++) { const x = box.x + box.w * i / 4, y = box.y + box.h * j / 4; const px = Math.round(m.a * x + m.c * y + m.e), py = Math.round(m.b * x + m.d * y + m.f); const d = ctx.getImageData(px, py, 1, 1).data; sum += d[0]; n++; } return sum / n < 70; } catch (e) { return false; }
   }
   function star(ctx, x, y, s, spk) {
     // 4方向の光＋十字（甘いほど細く長い）
@@ -101,25 +108,50 @@
   function sfxText(ctx, text, x, y, size, art, o = {}) {
     art = K.normalizeArt(art);
     const font = o.font ?? (art.softness > 0.6 ? '"Zen Maru Gothic","Dela Gothic One","IPAGothic",sans-serif' : '"Dela Gothic One","IPAGothic",sans-serif');
-    const chars = [...text]; let cx = x, cy = y; const ang = o.ang ?? (art.dynamism > 0.5 ? -0.12 : 0), step = size * 0.85;
+    const chars = [...text.normalize('NFC')]; let cx = x, cy = y; const marks = []; const ang = o.ang ?? (art.dynamism > 0.5 ? -0.12 : 0), step = size * 0.85;
     const S = K.ctxScale(ctx);
     const warp = lerp(0.0, 0.05, Math.max(art.dynamism, art.line.roughness)), shear = lerp(0, 0.16, art.dynamism);
-    chars.forEach((ch, i) => {
+    chars.forEach((ch0, i) => {
+      // 濁点・半濁点は、文字から外して自分で描く（太いフチでつぶれないように）
+      const dec = ch0.normalize('NFD'); const mark = dec.includes('\u309A') ? 'han' : dec.includes('\u3099') ? 'daku' : null;
+      const ch = mark ? dec.replace(/[\u3099\u309A]/g, '') : ch0;
+      const small = 'ァィゥェォッャュョヮぁぃぅぇぉっゃゅょゎ'.includes(ch);
       const sz = size * (o.grow ? Math.pow(o.grow, i) : 1) * rr(0.92, 1.08);
       const c = K.mkCanvas(sz * 1.8 * S, sz * 1.8 * S), g = c.getContext('2d');
       g.scale(S, S); g.translate(sz * 0.9, sz * 0.9); g.font = `${sz}px ${font}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
       // 外側の黒フチ → 白フチ → 文字（黒）。soft な絵柄では白抜き文字
       const whiteIn = art.softness > 0.6 && !art.rough;
-      if (o.outline !== false) { g.strokeStyle = '#000'; g.lineWidth = sz * lerp(0.22, 0.3, art.line.weight); g.strokeText(ch, 0, 0); g.strokeStyle = '#fff'; g.lineWidth = sz * 0.17; g.strokeText(ch, 0, 0); }
+      if (o.outline !== false) { const ok = small ? 0.7 : 1; g.strokeStyle = '#000'; g.lineWidth = sz * lerp(0.22, 0.3, art.line.weight) * ok; g.strokeText(ch, 0, 0); g.strokeStyle = '#fff'; g.lineWidth = sz * 0.17 * ok; g.strokeText(ch, 0, 0); }
       g.fillStyle = whiteIn ? '#fff' : '#000'; g.fillText(ch, 0, 0);
       if (whiteIn) { g.strokeStyle = '#000'; g.lineWidth = sz * 0.03; g.strokeText(ch, 0, 0); }
       const d = K.mkCanvas(c.width, c.height), h = d.getContext('2d'); const band = 3 * S, ph = rand() * 9, amp = warp * sz * S;
       for (let yy = 0; yy < c.height; yy += band) { const dx = Math.sin(yy / c.height * Math.PI * 1.3 + ph) * amp + (yy / c.height - 0.5) * shear * sz * S; h.drawImage(c, 0, yy, c.width, band, dx, yy, c.width, band); }
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang + rr(-0.15, 0.15) * (0.3 + art.dynamism)); if (art.rough) ctx.globalAlpha = 0.7; ctx.drawImage(d, -sz * 0.9, -sz * 0.9, sz * 1.8, sz * 1.8); ctx.restore();
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang + rr(-0.15, 0.15) * (0.3 + art.dynamism)); if (art.rough) ctx.globalAlpha = 0.7; ctx.drawImage(d, -sz * 0.9, -sz * 0.9, sz * 1.8, sz * 1.8);
+      ctx.restore();
+      if (mark) marks.push([ctx.getTransform ? null : null, cx, cy, ang + 0, mark, sz, whiteIn]);
       cx += Math.cos(ang) * step; cy += Math.sin(ang) * step + (o.vertical ? step : 0);
     });
+    // 濁点・半濁点は最後に、いちばん上へ（次の字に隠れないように）
+    for (const [, mx, my, ma, mk, msz, wi] of marks) { ctx.save(); ctx.translate(mx, my); ctx.rotate(ma); if (art.rough) ctx.globalAlpha = 0.8; drawMark(ctx, mk, msz, wi); ctx.restore(); }
   }
 
+  // 濁点・半濁点：白フチ→黒。半濁点は輪の中を必ず白く空ける
+  function drawMark(ctx, kind, sz, whiteIn) {
+    const fg = whiteIn ? '#fff' : '#000', bg = whiteIn ? '#000' : '#fff';
+    if (kind === 'han') {
+      const cx = sz * 0.38, cy = -sz * 0.4, r = sz * 0.16;
+      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(cx, cy, r + sz * 0.11, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, r + sz * 0.065, 0, TAU); ctx.fill();
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+      ctx.fillStyle = bg === '#fff' ? '#fff' : '#fff'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.48, 0, TAU); ctx.fill();
+      if (whiteIn) { ctx.strokeStyle = '#000'; ctx.lineWidth = sz * 0.03; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, r * 0.48, 0, TAU); ctx.stroke(); }
+    } else {
+      const seg = [[sz * 0.22, -sz * 0.6, sz * 0.31, -sz * 0.3], [sz * 0.43, -sz * 0.64, sz * 0.52, -sz * 0.34]];
+      ctx.lineCap = 'round';
+      for (const [w, c] of [[sz * 0.32, '#000'], [sz * 0.22, '#fff'], [sz * 0.13, fg]]) { ctx.strokeStyle = c; ctx.lineWidth = w; for (const [a, b, c2, d] of seg) { ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c2, d); ctx.stroke(); } }
+      if (whiteIn) { ctx.strokeStyle = '#000'; ctx.lineWidth = sz * 0.02; }
+    }
+  }
   // コマ枠：panelFrame・線・ネームで変わる
   function drawFrame(ctx, b, opts) {
     const art = K.normalizeArt(opts && (opts.art || opts));
