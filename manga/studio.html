@@ -2,7 +2,7 @@
 <!--
 ================================================================================
  漫画工房（studio.html）── データの形のまとめ  ※スキーマを変えたら、ここも必ず更新する
- 版: schema v2（2026-10-06）
+ 版: schema v3（2026-10-06）裏話 extras・制作ログ meta.log を追加
 ================================================================================
 
 ■ 1. 台本（script）── 正規化後の形（normalizeScript の出力。Claude の出力はこの形に寄せて検証・補完される）
@@ -52,11 +52,11 @@ ART_PARTIAL = ART の一部の項目だけ（line は項目ごとに上書き）
 ・コマで有効な絵柄 = mergeArt(script.art, panel.art)。作画モジュールには opts としてこれを渡す。
 
 ■ 3. 保存される作品（work）── db: data/users/<user.id()>/work_<id>
-{ id, script: SCRIPT, profile: PROFILE, feat: FEAT, artFeat: ARTFEAT,
+{ id, script: SCRIPT, profile: PROFILE, feat: FEAT, artFeat: ARTFEAT, extras: EXTRAS|null,
   meta: { createdAt: ms, mode: random|pref|sequel|sample, seed: SEED|null,
           aim: { kind: random|pref|sequel, target?: 0〜100(狙った好み度), fit?: 0〜100(できあがり予測), brief?: string } | null,
           editor: [ { stage: name|check, round?, verdict: ok|revise, notes: [string], originality: string, sparks?: [string], warnings?: number, artFix?: string } ],
-          warnings: [string](自動チェックの残り), seriesId: 第1話の id | null, bundled?: true(見本) } }
+          warnings: [string](自動チェックの残り), log: [LOG](下), extrasError?: エラーコード, seriesId: 第1話の id | null, bundled?: true(見本) } }
 PROFILE（編集者の仕上がりチェックが付ける。無ければ台本から推定 source:'heuristic'）
   = { axes: { humor, warmth, tension, tempo, dark, fantasy, romance, action, mystery, tearjerk, absurd, charDriven,
               talky, growth, everyday, scale, twist, afterglow, cute, smart: 0〜1 }（意味は AXES。物語の味であって絵柄ではない）,
@@ -65,6 +65,22 @@ FEAT（台本から計算・0〜1）= { dialog, sfx, closeup, cast, narr, pages,
 ARTFEAT（絵柄から計算・0〜1）= { headRatio((h−2)/6), deform, eyeSize, line.weight, line.taper, line.jitter, line.roughness, hatching, crossHatch,
          black, tone, detail, perspective, dynamism, sparkle, softness, grain, gap(物語と絵柄のズレ: 0=王道, 1=大きくズラした) }
   gap = PROFILE.axes から線形に予想した「王道の絵柄」（EXPECT）と、実際の art との平均絶対差 ÷ 0.4（0〜1に丸め）
+
+EXTRAS（裏話。作品と同じ文書 work.extras に保存。見本にも付けられる）
+  = { characters: [ { id: CHAR.id, name, profile: string(≤400 設定資料の文), trivia: [string](≤5) } ],
+      world: [ { title, body(≤500) } ],  authorNote: string(≤900 作者あとがき),  editorNote: string(≤800 編集後記),
+      foreshadowing: [ { setup, payoff } ](伏線の解説),  scrapped: [ { idea, why } ](没ネタ),  sequelHints: [string](続編につながるヒント) }
+  ・キャラクター設定資料の絵は保存しない（表示のたびに CHAR と art から立ち絵を描く）
+  ・続編を作るとき、前作の extras（characters / world / foreshadowing / sequelHints）を作者への指示に入れる
+meta.log（制作の各工程のログ。裏話の材料）= [
+  { stage:'writer', t, name:{ title, logline, pages, characters:[string], beats:[ページごとの一行] }, issues },
+  { stage:'name', t, verdict, notes, originality, editedByEditor: DIFF|null, art:{aim,reason,direction}, panelArt:[…], sparks:[ { label, parts, used:bool } ] },
+  { stage:'revise', t, after:'ネーム検討'|'仕上がりチェックN', notes, changes: DIFF },
+  { stage:'check', t, round, verdict, notes, originality, warnings, artFix, images },
+  { stage:'extras', t, ok } ]
+  DIFF = { title:[前,後]|null, pages:[前,後]|null, linesRemoved, linesAdded, examples:[ { before, after } ], characters:[前,後]|null }
+  extrasPrompt に渡す history = { firstName, editorNotes:[ { stage, verdict, notes, originality } ], revisions:[ { after, notes, changes } ],
+                                  artIntent:{ aim, reason, direction, fixes, panels:[ { page, panel, note } ] }, unusedSparks:[string], usedSparks:[string] }
 
 ■ 4. 反応ログ ── db: data/users/<id>/fb_<workId>、data/users/<id>/history
 FB = { liked: bool, disliked: bool（いまいち）, opens: number, finished: bool（最後のページまで）, maxPage: number(0=表紙),
@@ -92,10 +108,11 @@ window.MangaPrompts（prompts.js）── どれも Claude に渡す指示文（
   randomSeed(rand) → SEED,  sparks(rand) → [ { label, parts:[string], art: ART_PARTIAL } ]（ひらめきの種）,
   writer(SEED, prevWork|undefined), editorName(SCRIPT, SEED, issues[string], sparks), editorCheck(SCRIPT, SEED, issues, warnings, hasImages, finalRound),
   revise(SCRIPT, SEED, notes[string]), tasteWords(data) → string,
-  repair(text) → object|null（壊れたJSONの修復）, validate(kind:'script'|'editorName'|'editorCheck', obj) → obj（検証・補完）
+  extrasPrompt({ script: SCRIPT, art: ART, artIntent: { aim, reason, direction, panels }, history }) → string（返事は EXTRAS の形）,
+  repair(text) → object|null（壊れたJSONの修復）, validate(kind:'script'|'editorName'|'editorCheck'|'extras', obj) → obj（検証・補完）
   返事の形：editorName → { verdict, notes, originality, script|null, art: ART, panelArt: [ { page(表紙=1), panel(1〜), art: ART_PARTIAL, note } ] }
            editorCheck → { verdict, notes, originality, script|null, artFix: ART_PARTIAL|null, profile: PROFILE }
-window.MangaSamples（samples/index.js）= [ { id?, script: SCRIPT(生の台本でよい), profile?: PROFILE, createdAt? } ]
+window.MangaSamples（samples/index.js）= [ { id?, script: SCRIPT(生の台本でよい), profile?: PROFILE, extras?: EXTRAS, createdAt? } ]
 window.MangaStyles.register(name, { drawCharacter(ctx, CHAR, pose, expr, box, opts), drawBackground(ctx, bgSpec, box, opts),
                                     drawEffect(ctx, effectSpec, box, opts), metrics?(CHAR, opts) })   ※詳しくは 35_art の説明
 ================================================================================
@@ -216,6 +233,35 @@ details.memo ul{margin:6px 0;padding-left:1.2em;font-size:13.5px}
 .minibar i{display:block;height:6px;border-radius:4px;background:var(--rule);position:relative;overflow:hidden}
 .minibar i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--v);background:var(--accent);border-radius:4px}
 
+#exBtn.glow{border-color:var(--accent);background:var(--accent-soft);font-weight:900}
+.endnote{margin:0;font-size:14px;border:1.5px solid var(--accent);background:var(--accent-soft);border-radius:999px;padding:4px 14px}
+/* ---- 裏話 ---- */
+.extras{display:grid;gap:16px}
+.gate{border:2px dashed var(--ink);border-radius:16px;padding:22px;background:var(--card);display:grid;gap:8px;justify-items:start}
+.gate b{font-family:var(--display);font-weight:400;font-size:24px}
+.gate p{margin:0;color:var(--sub)}
+.exsec{border-top:2px solid var(--ink);padding-top:10px;display:grid;gap:10px}
+.exsec h3{font-size:17px}
+.chgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+@media (max-width:420px){.chgrid{grid-template-columns:1fr}}
+.chcard{display:grid;grid-template-columns:150px 1fr;gap:12px;border:1.5px solid var(--rule-strong);border-radius:12px;padding:10px;background:var(--card);min-width:0}
+@media (max-width:420px){.chcard{grid-template-columns:120px 1fr}}
+.sheetimgs{display:grid;gap:6px;min-width:0}
+.sheetimgs .stand{width:100%;height:auto;border-radius:6px;border:1px solid var(--rule)}
+.faces{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.faces canvas{width:100%;height:auto;border-radius:4px;border:1px solid var(--rule)}
+.chtext{min-width:0;font-size:14px}
+.chtext h4{margin:0 0 4px;font-size:16px}
+.chtext p{margin:0 0 6px} .chtext ul{margin:0 0 6px;padding-left:1.2em;font-size:13.5px}
+.spec{font-size:11.5px;overflow-wrap:anywhere}
+.exitem p{margin:2px 0 0}
+.fs{margin:0;padding-left:1.4em;display:grid;gap:6px;font-size:14px}
+.fs .arrow{display:block;color:var(--sub)}
+.note{white-space:pre-wrap;margin:0;font-size:14.5px;line-height:1.85;border-left:4px solid var(--ink);padding:6px 12px;background:var(--card)}
+.note.ed{border-left-color:var(--accent)}
+.scrap{margin:0;padding-left:1.2em;display:grid;gap:4px;font-size:14px}
+.bookwrap{display:grid;gap:4px;min-width:0}
+.exlink{font-size:12px;padding:3px 10px;border-color:var(--rule-strong);justify-self:start}
 /* ---- 本棚 ---- */
 .shelf{display:grid;gap:14px}
 .filters{display:flex;gap:6px;flex-wrap:wrap}
@@ -319,10 +365,18 @@ details.memo ul{margin:6px 0;padding-left:1.2em;font-size:13.5px}
     <div class="acts">
       <button id="likeBtn" aria-pressed="false">♥ いいね</button>
       <button id="mehBtn" aria-pressed="false">いまいち</button>
+      <button id="exBtn">裏話・設定資料</button>
       <button id="seqBtn">続編を作る</button>
     </div>
+    <p class="endnote" id="endNote" hidden>読み終わりました。<b>裏話・設定資料</b>が開けます。</p>
     <p class="keys"><kbd>←</kbd> 次のページ　<kbd>→</kbd> 前のページ　／ ページの左側をタップ・左へスワイプでも進めます</p>
     <details class="memo" id="memo"><summary>制作メモ（企画の種・編集者のチェック）</summary><div id="memoBody"></div></details>
+  </section>
+
+  <section id="tab-extras" class="extras" aria-labelledby="exTitle" hidden>
+    <div class="row"><button id="exBack">← 本編に戻る</button></div>
+    <h2 id="exTitle"></h2>
+    <div id="exBody"></div>
   </section>
 
   <section id="tab-shelf" class="shelf" role="tabpanel" aria-labelledby="tb-shelf" hidden>
@@ -2389,6 +2443,7 @@ function writerPrompt(seed, prev) {
   if (seed.mode === 'sequel' && prev) {
     body = `【続編の依頼】前作『${prev.script.seriesTitle || prev.script.title}』の第${seed.episode}話を書いてください。前作の登場人物をそのまま使い（id と見た目の値は変えない）、前作の結末からつながる新しい話にする。新しい人物を1〜2人足してもよい。この話だけでも読めて、完結すること（ending は "end"。ただし次も続きそうなら "continue" でもよい）。\n` +
       `前作のあらすじ: ${prev.script.logline}\n前作の結末: ${seed.prevEnding}\n前作の登場人物（このまま使う）:\n${JSON.stringify(prev.script.characters.map(c => { const { desc, ...rest } = c; return { ...rest, desc }; }))}\n` +
+      (prev.extras ? `前作の裏設定（本編では明かしていないこと。続きの話の土台にしてよい）:\n${JSON.stringify({ characters: prev.extras.characters, world: prev.extras.world, foreshadowing: prev.extras.foreshadowing, sequelHints: prev.extras.sequelHints })}\n` : '') +
       `今回の企画の種:\n${seedBrief(seed)}\n`;
   } else body = `【今回の企画の種】（ページ側でランダムに選んだもの。すべてを素直に使い、「よくある無難な話」にしない）\n${seedBrief(seed)}\n`;
   return head + body + `
@@ -2498,6 +2553,45 @@ function peekStream(text) {
   const nm = [...text.matchAll(/"notes"\s*:\s*\[\s*"((?:[^"\\]|\\.){1,80})"/g)]; if (nm.length) out.note = nm[0][1];
   return out;
 }
+/* ---------- 裏話（完成後の最後の工程）。prompts.js の extrasPrompt が無いときの暫定版 ---------- */
+const EXTRAS_DOC = `{"characters":[{"id":"台本の人物id","name":"名前","profile":"設定資料の文（年齢・性格・口ぐせ・好きなもの・秘密など。80〜160字）","trivia":["小ネタ（1つ30字以内、2〜3個）"]}],
+ "world":[{"title":"見出し","body":"世界観の裏設定（100〜200字）"}],
+ "authorNote":"作者あとがき（作者として、200〜350字。制作の記録にある実際の迷いや直しにふれる）",
+ "editorNote":"編集後記（編集者として、150〜300字。絵柄の狙いと、なぜそうしたか）",
+ "foreshadowing":[{"setup":"どこで何をしかけたか（ページ番号つき）","payoff":"どこでどう回収したか"}],
+ "scrapped":[{"idea":"没になったネタ","why":"なぜ没にしたか"}],
+ "sequelHints":["続編につながるヒント（1つ40字以内、2〜4個）"]}`;
+function extrasPromptBuiltin({ script, art, artIntent, history }) {
+  return `あなたはこの漫画を作った作者と編集者です。完成した作品の「裏話」と「裏設定」を書いてください。読者はもう本編を読み終えています。
+- 本編と矛盾しないこと。本編に描かれていないことは「裏設定」として自由に足してよい。
+- 作者あとがき・編集後記・没ネタは、下の「制作の記録」に実際にあったこと（最初のネーム、編集者の指摘、直したところ、絵柄の狙い、採用しなかったひらめきの種）をもとに書く。記録にない出来事を作り話にしない。
+- 既存の作品・実在の人物の名前は出さない。
+${ORIGINALITY}
+【返事】次のJSONだけを返す:
+${EXTRAS_DOC}
+【絵柄】${JSON.stringify({ aim: art && art.aim, reason: art && art.reason, direction: art && art.direction })}
+【絵柄の狙い（コマごとの演出を含む）】${JSON.stringify(artIntent)}
+【制作の記録】
+${JSON.stringify(history)}
+【完成した台本】
+${JSON.stringify(script)}`;
+}
+function normalizeExtras(x, S) {
+  if (!x || typeof x !== 'object') return null;
+  const str = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const ids = new Set(S ? S.characters.map(c => c.id) : []);
+  const out = {
+    characters: arr(x.characters).filter(c => c && typeof c === 'object').map(c => { const ch = S && (S.characters.find(k => k.id === c.id) || S.characters.find(k => k.name === c.name)); return { id: ch ? ch.id : str(c.id, 24), name: str(c.name || (ch && ch.name), 16), profile: str(c.profile || c.desc, 400), trivia: arr(c.trivia).map(t => str(t, 60)).slice(0, 5) }; }).slice(0, 10),
+    world: (Array.isArray(x.world) ? x.world : x.world ? [{ title: '世界観', body: x.world }] : []).map(w => typeof w === 'string' ? { title: '', body: str(w, 500) } : { title: str(w.title, 30), body: str(w.body, 500) }).filter(w => w.body).slice(0, 6),
+    authorNote: str(x.authorNote, 900), editorNote: str(x.editorNote, 800),
+    foreshadowing: arr(x.foreshadowing).map(f => typeof f === 'string' ? { setup: str(f, 120), payoff: '' } : { setup: str(f.setup, 120), payoff: str(f.payoff, 120) }).filter(f => f.setup).slice(0, 8),
+    scrapped: arr(x.scrapped).map(f => typeof f === 'string' ? { idea: str(f, 120), why: '' } : { idea: str(f.idea, 120), why: str(f.why, 120) }).filter(f => f.idea).slice(0, 8),
+    sequelHints: arr(x.sequelHints).map(t => str(t, 80)).filter(Boolean).slice(0, 6),
+  };
+  if (!out.characters.length && !out.world.length && !out.authorNote && !out.editorNote) return null;
+  if (ids.size) out.characters = out.characters.filter(c => ids.has(c.id)).concat(out.characters.filter(c => !ids.has(c.id)).slice(0, 2));
+  return out;
+}
 /* =========================================================
    アプリ：保存・制作パイプライン・画面
    ========================================================= */
@@ -2540,6 +2634,7 @@ const Mod = {
   editorCheck: viaModule('MangaPrompts', 'editorCheck', (S, seed, issues, warnings, img, fin) => editorCheckPrompt(S, seed, issues, warnings, img, fin), isStr),
   revise: viaModule('MangaPrompts', 'revise', (S, seed, notes) => revisePrompt(S, seed, notes), isStr),
   tasteWords: viaModule('MangaPrompts', 'tasteWords', data => tasteWordsPrompt(data), isStr),
+  extras: viaModule('MangaPrompts', 'extrasPrompt', arg => extrasPromptBuiltin(arg), isStr),
   repair: viaModule('MangaPrompts', 'repair', text => repairJSON(text), v => v == null || typeof v === 'object'),
   validate: viaModule('MangaPrompts', 'validate', (kind, obj) => obj, v => v && typeof v === 'object'),
 };
@@ -2586,12 +2681,12 @@ const Store = {
 };
 
 /* ---------- 状態 ---------- */
-const S0 = {"script": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "あの\n一日十個の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "冷蔵庫\nみたいだ…"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "探偵は\nこわがらない。"}], "fx": ["sweat"], "art": {"headRatio": 7.8, "deform": 0.1, "black": 0.9, "hatching": 0.85, "crossHatch": 0.6, "line": {"weight": 0.95, "roughness": 0.5}, "eyeStyle": "realistic", "panelFrame": "rough", "note": "劇画オチ"}}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "それなら、\nおばけ用の席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2, 1], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "happy"}], "say": [{"who": "tencho", "text": "プリンは\n毎日十一個\n作ることに\nしました。"}]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}], "art": {"headRatio": 3.0, "deform": 0.55, "eyeSize": 0.62, "eyeStyle": "simple", "line": {"weight": 0.45, "taper": 0.5, "jitter": 0.15, "roughness": 0.1}, "hatching": 0.1, "crossHatch": 0.0, "black": 0.35, "tone": 0.6, "toneKind": "dot", "detail": 0.42, "perspective": 0.35, "dynamism": 0.35, "sparkle": 0.3, "softness": 0.75, "grain": 0.05, "panelFrame": "rounded", "direction": "ぬいぐるみのように丸い頭身で、こわい場面もやわらかい線のまま描く。夜のカフェだけはトーンを重ねて静けさを出す。", "aim": "謎解きを、ぬいぐるみの丸さで「小さな事件」に", "reason": "おばけの正体は寂しさなので、こわさより愛嬌が先に伝わる絵にした。探偵が強がる1コマだけ劇画にして、笑いに変える。"}}, "profile": {"axes": {"humor": 0.62, "warmth": 0.85, "tension": 0.35, "tempo": 0.6, "dark": 0.2, "fantasy": 0.55, "romance": 0.0, "action": 0.25, "mystery": 0.6, "tearjerk": 0.45, "absurd": 0.3, "charDriven": 0.65, "talky": 0.55, "growth": 0.3, "everyday": 0.6, "scale": 0.1, "twist": 0.55, "afterglow": 0.35, "cute": 0.8, "smart": 0.45}, "tags": {"genre": ["ミステリー", "ほのぼの"], "setting": ["カフェ", "商店街"], "protagonist": ["猫"], "age": ["大人"], "relation": ["師弟", "友情"], "ending": ["ハッピーエンド"], "humor": ["ほっこり"], "motif": ["食べ物", "おばけ"]}}};
+const S0 = {"script": {"title": "ミケ探偵と消えたプリン", "genre": "ほのぼのミステリー", "logline": "商店街のカフェから一日十個の限定プリンが消えた。猫の探偵ミケと助手のコウタが夜のカフェで見つけた犯人は、百年前から住むさみしがりのおばけだった。", "ending": "end", "characters": [{"id": "mike", "name": "ミケ", "role": "猫の探偵", "species": "cat", "age": "adult", "hairColor": "tone", "outfit": "suit", "pattern": "check", "eyes": "sharp", "items": ["fedora", "cape"]}, {"id": "kota", "name": "コウタ", "role": "助手の小学生", "species": "human", "age": "child", "hair": "short", "hairColor": "black", "outfit": "tshirt", "pattern": "stripe", "eyes": "round", "items": ["bag"]}, {"id": "tencho", "name": "店長", "role": "カフェ「ほしの木」の店長", "species": "human", "age": "elder", "hair": "bald", "hairColor": "white", "outfit": "apron", "pattern": "tone", "eyes": "narrow", "items": ["glasses", "mustache"]}, {"id": "shiro", "name": "シロ", "role": "カフェに住むおばけ", "species": "ghost", "age": "child", "color": "white", "eyes": "round", "items": ["hairflower"]}], "cover": {"bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "point", "expr": "smug"}, {"id": "kota", "pose": "surprise", "expr": "surprised"}, {"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "happy"}], "catch": "犯人は、甘いものが好き。"}, "pages": [{"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "cast": [{"id": "tencho", "pose": "surprise", "expr": "shock"}, {"id": "kota", "pose": "stand", "expr": "surprised"}], "narr": "商店街のカフェ\n「ほしの木」。", "say": [{"who": "tencho", "type": "shout", "text": "た、大変だ！"}]}, {"shot": "up", "bg": "cafe", "cast": [{"id": "tencho", "expr": "shock"}], "say": [{"who": "tencho", "type": "shout", "text": "限定プリンが\n消えた！"}], "fx": ["focus"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "kota", "expr": "surprised"}], "say": [{"who": "kota", "text": "あの\n一日十個の！？"}]}, {"shot": "full", "bg": "cafe", "cast": [{"id": "mike", "pose": "walk", "expr": "smug", "face": "left"}, {"id": "kota", "pose": "cheer", "expr": "happy"}], "sfx": [{"text": "カラン", "size": "s"}], "say": [{"who": "mike", "text": "その事件、\nわたしが\n引き受けよう。"}, {"who": "kota", "text": "ミケ探偵！"}]}]}, {"rows": [2, 2], "panels": [{"shot": "up", "bg": "cafe", "cast": [{"id": "mike", "expr": "think", "look": "down"}], "say": [{"who": "mike", "type": "think", "text": "ふむ……"}]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "mike", "pose": "point", "expr": "determined"}], "say": [{"who": "mike", "text": "皿に残った\n小さな手形。"}], "fx": ["sparkle"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "nervous"}], "say": [{"who": "tencho", "text": "手形？\nうちの店に\n子どもは…"}]}, {"shot": "full", "bg": "kitchen", "cast": [{"id": "mike", "pose": "think", "expr": "think"}, {"id": "kota", "pose": "hide", "expr": "scared"}], "say": [{"who": "mike", "text": "それに\nこの冷たさ。"}, {"who": "kota", "type": "whisper", "text": "冷蔵庫\nみたいだ…"}], "fx": ["question"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "long", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "pose": "kneel", "expr": "determined"}, {"id": "kota", "pose": "kneel", "expr": "nervous"}], "narr": "その夜。", "say": [{"who": "mike", "type": "whisper", "text": "しっ。\n来るぞ。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "scared"}], "say": [{"who": "kota", "type": "think", "text": "こわい…"}], "fx": ["gloom"]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "type": "whisper", "text": "探偵は\nこわがらない。"}], "fx": ["sweat"], "art": {"headRatio": 7.8, "deform": 0.1, "black": 0.9, "hatching": 0.85, "crossHatch": 0.6, "line": {"weight": 0.95, "roughness": 0.5}, "eyeStyle": "realistic", "panelFrame": "rough", "note": "劇画オチ"}}, {"shot": "bg", "bg": "kitchen", "time": "night", "sfx": [{"text": "ヒュ〜", "size": "m"}, {"text": "カタッ", "size": "s"}], "fx": ["gloom"]}]}, {"rows": [1, 2, 1], "panels": [{"shot": "full", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "pose": "hold", "hold": "sweets", "expr": "love"}], "fx": ["sparkle"], "say": [{"who": "shiro", "text": "いただき\nまーす。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "shock"}], "fx": ["focus"], "say": [{"who": "kota", "type": "shout", "text": "おばけ！？"}]}, {"shot": "up", "bg": "kitchen", "time": "night", "cast": [{"id": "shiro", "expr": "shock"}], "say": [{"who": "shiro", "type": "shout", "text": "ひゃっ！"}], "fx": ["shake"]}, {"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "pose": "float", "expr": "scared", "face": "left"}, {"id": "mike", "pose": "run", "expr": "determined", "face": "left"}], "sfx": [{"text": "ドタバタ", "size": "m"}], "fx": ["speed"], "say": [{"who": "mike", "type": "shout", "text": "待て！"}]}]}, {"rows": [2, 1, 2], "panels": [{"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "cry"}], "say": [{"who": "shiro", "text": "ごめんなさい…"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "normal", "pose": "armscross"}], "say": [{"who": "mike", "text": "わけを\n聞こう。"}]}, {"shot": "long", "bg": "cafe", "fx": ["flashback"], "cast": [{"id": "shiro", "pose": "float", "expr": "sad"}], "narr": "百年前から、\nこの場所に住んでいる。", "say": [{"who": "shiro", "type": "think", "text": "みんな\nおいしそうに\n食べるから…"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "sad"}], "say": [{"who": "shiro", "text": "一度でいいから\n食べて\nみたかったの。"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "kota", "expr": "sad"}], "say": [{"who": "kota", "text": "そっか…"}]}]}, {"rows": [1, 2], "panels": [{"shot": "full", "bg": "cafe", "time": "night", "cast": [{"id": "tencho", "pose": "hold", "hold": "cup", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "surprised"}], "say": [{"who": "tencho", "text": "それなら、\nおばけ用の席を\n作りましょう。"}]}, {"shot": "up", "bg": "cafe", "time": "night", "cast": [{"id": "shiro", "expr": "happy"}], "fx": ["sparkle"], "say": [{"who": "shiro", "type": "shout", "text": "いいの！？"}]}, {"shot": "bust", "bg": "cafe", "time": "night", "cast": [{"id": "mike", "expr": "smug"}], "say": [{"who": "mike", "text": "事件解決、\nだな。"}]}]}, {"rows": [2, 1], "panels": [{"shot": "bust", "bg": "cafe", "cast": [{"id": "shiro", "expr": "love", "hold": "sweets", "pose": "hold"}], "narr": "それから。", "fx": ["hearts"]}, {"shot": "bust", "bg": "cafe", "cast": [{"id": "tencho", "expr": "happy"}], "say": [{"who": "tencho", "text": "プリンは\n毎日十一個\n作ることに\nしました。"}]}, {"shot": "long", "bg": "cafe", "cast": [{"id": "mike", "pose": "stand", "expr": "smile"}, {"id": "shiro", "pose": "float", "expr": "laugh"}, {"id": "kota", "pose": "cheer", "expr": "laugh"}], "say": [{"who": "mike", "text": "おかわりは\nなしだぞ。"}, {"who": "shiro", "text": "はーい！"}]}]}], "art": {"headRatio": 3.0, "deform": 0.55, "eyeSize": 0.62, "eyeStyle": "simple", "line": {"weight": 0.45, "taper": 0.5, "jitter": 0.15, "roughness": 0.1}, "hatching": 0.1, "crossHatch": 0.0, "black": 0.35, "tone": 0.6, "toneKind": "dot", "detail": 0.42, "perspective": 0.35, "dynamism": 0.35, "sparkle": 0.3, "softness": 0.75, "grain": 0.05, "panelFrame": "rounded", "direction": "ぬいぐるみのように丸い頭身で、こわい場面もやわらかい線のまま描く。夜のカフェだけはトーンを重ねて静けさを出す。", "aim": "謎解きを、ぬいぐるみの丸さで「小さな事件」に", "reason": "おばけの正体は寂しさなので、こわさより愛嬌が先に伝わる絵にした。探偵が強がる1コマだけ劇画にして、笑いに変える。"}}, "profile": {"axes": {"humor": 0.62, "warmth": 0.85, "tension": 0.35, "tempo": 0.6, "dark": 0.2, "fantasy": 0.55, "romance": 0.0, "action": 0.25, "mystery": 0.6, "tearjerk": 0.45, "absurd": 0.3, "charDriven": 0.65, "talky": 0.55, "growth": 0.3, "everyday": 0.6, "scale": 0.1, "twist": 0.55, "afterglow": 0.35, "cute": 0.8, "smart": 0.45}, "tags": {"genre": ["ミステリー", "ほのぼの"], "setting": ["カフェ", "商店街"], "protagonist": ["猫"], "age": ["大人"], "relation": ["師弟", "友情"], "ending": ["ハッピーエンド"], "humor": ["ほっこり"], "motif": ["食べ物", "おばけ"]}}, "extras": {"characters": [{"id": "mike", "name": "ミケ", "profile": "商店街の二階に事務所をかまえる猫の探偵。三十代くらい（猫なので本人も覚えていない）。帽子とマントは、先代の探偵からゆずられたもの。こわいものは無いと言いはるが、夜の台所と掃除機だけは苦手。", "trivia": ["好物はプリンの「カラメルだけ」", "事件のメモは肉球のスタンプで書く", "チェックの服は三着同じものを持っている"]}, {"id": "kota", "name": "コウタ", "profile": "ほしの木の向かいの文房具屋の息子で、小学三年生。ミケの「助手」を自称しているが、ミケからはまだ「見習い」と呼ばれている。こわがりだけど、気づくのは誰より早い。", "trivia": ["かばんの中身は虫めがねと、のりと、あめ玉", "おばけの手形に最初に気づいたのは、実はコウタ"]}, {"id": "tencho", "name": "店長", "profile": "カフェ「ほしの木」の二代目。プリンのレシピは先代の店長だった母親ゆずり。口数は少ないが、店に来る誰のことも覚えている。", "trivia": ["ひげは毎朝ていねいにそろえる", "「十一個目」のプリンは、毎日いちばん形のいいものを選んで出している"]}, {"id": "shiro", "name": "シロ", "profile": "百年前、この場所が小さな菓子屋だったころからいるおばけ。人をおどかしたことは一度もない。冷たい手でさわったものは、少しだけ冷える。", "trivia": ["頭の花は、最初のお客さんがくれたもの", "好きな席は窓ぎわの二番テーブル"]}], "world": [{"title": "カフェ「ほしの木」", "body": "商店街のいちばん奥にある、木の看板のカフェ。建物は百年前の菓子屋をそのまま使っていて、台所の床の一部は当時の石だたみのまま。シロが冷蔵庫の近くにいるのは、そこがいちばん古い場所だから。"}, {"title": "商店街のおばけたち", "body": "この商店街には、ほかにも古い店に住むおばけが何人かいるらしい。みんな人の暮らしを見るのが好きで、悪さはしない。ミケはそのことに、うすうす気づいている。"}], "authorNote": "最初のネームでは、犯人は「プリンが大好きな近所の子ども」でした。でも、それだと謎がすぐ解けてしまうので、手形が「冷たい」ことを入れて、おばけに変えました。いちばん迷ったのは、ミケが犯人をしかるかどうかです。しからずに「わけを聞こう」と言わせたところで、この話の形が決まった気がします。", "editorNote": "絵柄は、あえて丸くてやわらかい頭身にしました。夜のカフェの場面は本当はこわく描けるのですが、この話でいちばん伝えたいのは「さみしさ」なので、おばけが出てくる前から読者が少し安心していられる絵にしたかったのです。そのかわり、探偵が強がる1コマだけを劇画にして、笑いに変えています。", "foreshadowing": [{"setup": "3ページ：皿に残った「小さな手形」", "payoff": "5ページ：手形はシロの手だった"}, {"setup": "3ページ：冷蔵庫のような「冷たさ」", "payoff": "6ページ：シロがさわったものは冷える"}, {"setup": "2ページ：「一日十個」の限定プリン", "payoff": "8ページ：十一個目はシロのぶん"}], "scrapped": [{"idea": "ミケが変装してカフェの店員になる", "why": "ページが足りず、謎解きの時間がなくなるため"}, {"idea": "シロが実は先代の店長だった", "why": "話が重くなりすぎるので、裏設定に回した"}], "sequelHints": ["商店街のほかのおばけたち", "先代の探偵から受けついだマントの秘密", "コウタが「見習い」を卒業する日"]}};
 const SAMPLE_ID = 'sample-mike';
 const state = { works: {}, fb: {}, history: [], cur: null, page: 0, tab: 'make', filter: 'all', sample: null, sampleWhy: 'checking', imgOK: false, busy: false, ctl: null, A: null };
 function sampleWork() {
   const n = normalizeScript(S0.script);
-  return { id: SAMPLE_ID, script: n.script, profile: normalizeProfile(S0.profile), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse('2026-10-01T09:00:00Z'), mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } };
+  return { id: SAMPLE_ID, script: n.script, profile: normalizeProfile(S0.profile), extras: normalizeExtras(S0.extras, n.script), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse('2026-10-01T09:00:00Z'), mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } };
 }
 const fbOf = id => (state.fb[id] = state.fb[id] || { liked: false, disliked: false, opens: 0, finished: false, maxPage: 0, dwell: [], rereads: 0, sequel: false, lastRead: 0 });
 const fbTimers = {};
@@ -2618,14 +2713,15 @@ function aimText(w) {
 /* ---------- タブ ---------- */
 function setTab(t) {
   state.tab = t;
-  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === t));
-  for (const id of ['make', 'read', 'shelf', 'taste']) $('tab-' + id).hidden = id !== t;
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === (t === 'extras' ? 'read' : t)));
+  for (const id of ['make', 'read', 'shelf', 'taste', 'extras']) $('tab-' + id).hidden = id !== t;
+  if (t === 'extras') { renderExtras(); window.scrollTo(0, 0); }
   if (t !== 'read') commitDwell();
   if (t === 'read') { if (!state.cur) openWork(SAMPLE_ID, 0, false); else markStart(); }
   if (t === 'shelf') renderShelf();
   if (t === 'taste') renderTaste();
   if (t === 'make') renderMake();
-  try { history.replaceState(null, '', '#' + t); } catch (e) {}
+  try { history.replaceState(null, '', '#' + (t === 'extras' ? 'read' : t)); } catch (e) {}
   lsSet(Store.prefix + 'ui', JSON.stringify({ tab: t, cur: state.cur }));
 }
 
@@ -2702,6 +2798,50 @@ function keepSeries(S, prev) {
   S.episode = (prev.script.episode || 1) + 1; S.seriesTitle = prev.script.seriesTitle || prev.script.title;
   return S;
 }
+/* ---------- 制作ログ（裏話に使う） ---------- */
+function nameSummary(S) {
+  return { title: S.title, logline: S.logline, pages: S.pages.length + 1, characters: S.characters.map(c => `${c.name}（${c.role || c.species}）`),
+    beats: S.pages.map((pg, i) => { const p = pg.panels.find(x => x.narr || x.say.length) || pg.panels[0]; return `${i + 2}p: ${(p.narr || (p.say[0] && p.say[0].text) || '').replace(/\n/g, '')}`.slice(0, 50); }) };
+}
+function diffScripts(A, B) {
+  const lines = S => S.pages.flatMap(pg => pg.panels.flatMap(p => [p.narr, ...p.say.map(x => x.text)])).filter(Boolean).map(t => t.replace(/\n/g, ''));
+  const a = lines(A), b = lines(B), sa = new Set(a), sb = new Set(b);
+  const removed = a.filter(t => !sb.has(t)), added = b.filter(t => !sa.has(t));
+  return { title: A.title !== B.title ? [A.title, B.title] : null, pages: A.pages.length !== B.pages.length ? [A.pages.length + 1, B.pages.length + 1] : null,
+    linesRemoved: removed.length, linesAdded: added.length, examples: removed.slice(0, 3).map((t, i) => ({ before: t, after: added[i] || '' })),
+    characters: A.characters.map(c => c.name).join('、') !== B.characters.map(c => c.name).join('、') ? [A.characters.map(c => c.name), B.characters.map(c => c.name)] : null };
+}
+function sparkUsed(sp, art) { const keys = Object.keys(sp.art || {}); if (!keys.length) return false; let hit = 0, n = 0; for (const k of keys) { if (k === 'line') { for (const q in sp.art.line) { n++; if (Math.abs((art.line[q] ?? 0.5) - sp.art.line[q]) < 0.15) hit++; } } else if (typeof sp.art[k] === 'number') { n++; const tol = k === 'headRatio' ? 0.9 : 0.15; if (Math.abs((art[k] ?? 0) - sp.art[k]) < tol) hit++; } else { n++; if (art[k] === sp.art[k]) hit++; } } return n > 0 && hit / n >= 0.67; }
+function extrasHistory(w) {
+  const L = w.meta.log || [];
+  return {
+    firstName: (L.find(x => x.stage === 'writer') || {}).name || null,
+    editorNotes: L.filter(x => x.stage === 'name' || x.stage === 'check').map(x => ({ stage: x.stage === 'name' ? 'ネーム検討' : `仕上がりチェック${x.round || ''}`, verdict: x.verdict, notes: x.notes, originality: x.originality })),
+    revisions: L.filter(x => x.stage === 'revise').map(x => ({ after: x.after, notes: x.notes, changes: x.changes })),
+    artIntent: { aim: w.script.art.aim, reason: w.script.art.reason, direction: w.script.art.direction, fixes: L.filter(x => x.artFix).map(x => x.artFix), panels: w.script.pages.flatMap((pg, i) => pg.panels.map((p, k) => p.art ? { page: i + 2, panel: k + 1, note: p.art.note || '' } : null)).filter(Boolean) },
+    unusedSparks: ((L.find(x => x.stage === 'name') || {}).sparks || []).filter(x => !x.used).map(x => `${x.label}: ${x.parts.join('、')}`),
+    usedSparks: ((L.find(x => x.stage === 'name') || {}).sparks || []).filter(x => x.used).map(x => `${x.label}: ${x.parts.join('、')}`),
+  };
+}
+const extrasBusy = {};
+async function makeExtras(w, fromClick) {
+  if (extrasBusy[w.id] || !canMake()) return;
+  extrasBusy[w.id] = true; if (state.tab === 'extras') renderExtras();
+  try {
+    const S = w.script, art = S.art || {};
+    const artIntent = { aim: art.aim, reason: art.reason, direction: art.direction, panels: S.pages.flatMap((pg, i) => pg.panels.map((p, k) => p.art ? { page: i + 2, panel: k + 1, note: p.art.note || '', override: Object.keys(p.art).filter(x => x !== 'note') } : null)).filter(Boolean) };
+    const raw = await callJSON(Mod.extras({ script: S, art, artIntent, history: extrasHistory(w) }), { onText: () => {} });
+    const ex = normalizeExtras(Mod.validate('extras', raw), S);
+    if (!ex) throw { code: 'invalid_json' };
+    w.extras = ex; w.meta.log = [...(w.meta.log || []), { stage: 'extras', t: Date.now(), ok: true }]; delete w.meta.extrasError;
+    if (!w.meta.bundled) await Store.put('work_' + w.id, w);
+    toast(`『${w.script.title}』の裏話ができました`);
+  } catch (e) {
+    const code = e && e.code ? e.code : 'upstream_error'; w.meta.extrasError = code;
+    if (HIDE_CODES.includes(code)) state.sampleWhy = 'denied';
+    if (fromClick) toast(ERR_TEXT[code] || ERR_TEXT.upstream_error);
+  } finally { extrasBusy[w.id] = false; if (state.tab === 'extras' && state.exId === w.id) renderExtras(); if (state.cur === w.id) renderReadHead(); }
+}
 function seedTags(seed) { return { genre: [seed.genre], setting: [seed.setting], relation: [seed.relation], ending: [seed.ending], motif: seed.motifs || [] }; }
 
 async function runMake(mode, src) {
@@ -2727,18 +2867,22 @@ async function runMake(mode, src) {
     let { script: S, issues } = normalizeScript(Mod.validate('script', raw));
     if (mode === 'sequel') keepSeries(S, src);
     const editor = []; let profile = null, trips = 0;
+    const log = [{ stage: 'writer', t: Date.now(), name: nameSummary(S), issues: issues.slice(0, 12) }];
     const MAX_TRIPS = 2;
     const adopt = (obj, keepArt) => { const n = normalizeScript(obj); if (n.script.pages.length < Math.min(5, S.pages.length)) return false; const art = S.art, pa = S.pages.map(pg => pg.panels.map(p => p.art)); S = n.script; issues = n.issues; if (keepArt) { if (!(obj.art && typeof obj.art === 'object')) S.art = art; S.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (!p.art && pa[i] && pa[i][k]) p.art = pa[i][k]; })); } if (mode === 'sequel') keepSeries(S, src); return true; };
-    const writerFix = async notes => { state.revised = true; setStep('revise'); $('ticker').textContent = '作者が赤ペンを見て直しています…'; trips++; const rv = await callJSON(Mod.revise(S, seed, notes), { signal: ctl.signal, onText: ticker('作者') }); adopt(Mod.validate('script', rv), true); };
+    const writerFix = async (notes, after) => { state.revised = true; setStep('revise'); $('ticker').textContent = '作者が赤ペンを見て直しています…'; trips++; const before = S; const rv = await callJSON(Mod.revise(S, seed, notes), { signal: ctl.signal, onText: ticker('作者') }); adopt(Mod.validate('script', rv), true); log.push({ stage: 'revise', t: Date.now(), after, notes, changes: diffScripts(before, S) }); };
     /* (1) 編集者：ネームの検討と、今回の絵柄の決定 */
     setStep('name'); $('ticker').textContent = '編集者がネームを読んで、今回の絵柄を考えています…';
     const sparks = Mod.sparks(r);
     const edN = Mod.validate('editorName', await callJSON(Mod.editorName(S, seed, issues, sparks), { signal: ctl.signal, onText: ticker('編集者') }));
+    const preN = S;
     if (edN && edN.script && typeof edN.script === 'object') adopt(edN.script, false);
     S.art = normalizeArt(edN && edN.art);
     for (const pa of arr(edN && edN.panelArt)) { const pg = S.pages[(Number(pa.page) || 0) - 2], pn = pg && pg.panels[(Number(pa.panel) || 0) - 1]; const art = normalizePanelArt({ ...(pa.art || {}), note: pa.note }); if (pn && art) pn.art = art; }
-    editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(String).slice(0, 8), originality: String((edN && edN.originality) || ''), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}`) });
-    if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(String));
+    editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(String).slice(0, 8), originality: String((edN && edN.originality) || ''), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}${sparkUsed(x, S.art) ? '（採用）' : ''}`) });
+    log.push({ stage: 'name', t: Date.now(), verdict: editor[0].verdict, notes: editor[0].notes, originality: editor[0].originality, editedByEditor: preN !== S ? diffScripts(preN, S) : null,
+      art: { aim: S.art.aim, reason: S.art.reason, direction: S.art.direction }, panelArt: arr(edN && edN.panelArt).slice(0, 8), sparks: sparks.map(x => ({ label: x.label, parts: x.parts, used: sparkUsed(x, S.art) })) });
+    if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(String), 'ネーム検討');
     /* (2) 作画 → 編集者：仕上がりチェック（直しは合わせて最大2往復） */
     for (let round = 1; ; round++) {
       setStep('draw'); $('ticker').textContent = `「${S.art.aim || '今回の絵柄'}」で作画しています…`; $('roundInfo').textContent = `仕上がりチェック ${round} 回目`;
@@ -2752,21 +2896,23 @@ async function runMake(mode, src) {
       if (ed && ed.script && typeof ed.script === 'object') adopt(ed.script, true);
       if (ed && ed.artFix && typeof ed.artFix === 'object') { const fix = normalizePanelArt(ed.artFix); if (fix) { const { note, ...f } = fix; S.art = { ...mergeArt(S.art, f), direction: S.art.direction, aim: S.art.aim, reason: S.art.reason }; } }
       editor.push({ stage: 'check', round, verdict: ed && ed.verdict === 'revise' && !finalRound ? 'revise' : 'ok', notes: arr(ed && ed.notes).map(String).slice(0, 8), originality: String((ed && ed.originality) || ''), warnings: warnings.length, artFix: ed && ed.artFix ? Object.keys(ed.artFix).join('、') : '' });
+      const ce = editor[editor.length - 1]; log.push({ stage: 'check', t: Date.now(), round, verdict: ce.verdict, notes: ce.notes, originality: ce.originality, warnings: warnings.slice(0, 10), artFix: ed && ed.artFix ? ed.artFix : null, images: images ? images.length : 0 });
       if (!(ed && ed.verdict === 'revise') || finalRound) break;
-      await writerFix(arr(ed.notes).map(String));
+      await writerFix(arr(ed.notes).map(String), `仕上がりチェック${round}`);
     }
     setStep('finish'); $('ticker').textContent = '原稿に仕上げています…';
     await new Promise(res => setTimeout(res, 30));
     if (!profile) profile = heuristicProfile(S);
     const id = newId();
-    const w = { id, script: S, profile, feat: scriptFeatures(S), artFeat: artFeatures(S, profile), meta: { createdAt: Date.now(), mode, seed, aim, editor, warnings: checkScript(S).slice(0, 30), seriesId: mode === 'sequel' ? (src.meta.seriesId || src.id) : null } };
+    const w = { id, script: S, profile, feat: scriptFeatures(S), artFeat: artFeatures(S, profile), meta: { createdAt: Date.now(), mode, seed, aim, editor, warnings: checkScript(S).slice(0, 30), log, seriesId: mode === 'sequel' ? (src.meta.seriesId || src.id) : null } };
     if (mode === 'pref' && A.n) w.meta.aim.fit = Mod.predictFit(A, profile, S.art);
     if (mode === 'sequel') { fbOf(src.id).sequel = true; saveFb(src.id, true); if (!src.meta.seriesId) { src.meta.seriesId = src.id; if (!src.meta.bundled) Store.put('work_' + src.id, src); else state.sampleSeries = true; } }
     state.works[id] = w; await Store.put('work_' + id, w);
     $('progress').hidden = true; $('wish').value = '';
     state.busy = false; renderMake();
     openWork(id, 0, true);
-    toast(`『${fullTitle(S)}』ができました`);
+    toast(`『${fullTitle(S)}』ができました。裏話は読んでいる間に書いておきます`, 3600);
+    makeExtras(w, false);
   } catch (e) {
     state.busy = false; $('progress').hidden = true;
     const code = e && e.code ? e.code : 'upstream_error';
@@ -2799,6 +2945,7 @@ function renderReadHead() {
   const at = aimText(w); $('rAim').hidden = !at; $('rAim').textContent = at || '';
   const aa = S.art && S.art.aim; $('rArt').hidden = !aa; $('rArt').textContent = aa ? '絵柄の狙い：' + aa : '';
   $('likeBtn').setAttribute('aria-pressed', String(!!f.liked)); $('mehBtn').setAttribute('aria-pressed', String(!!f.disliked));
+  $('exBtn').textContent = w.extras ? '裏話・設定資料' : extrasBusy[w.id] ? '裏話（いま書いています）' : '裏話・設定資料';
   $('seqBtn').disabled = state.busy; $('seqBtn').title = canMake() ? `第${(S.episode || 1) + 1}話を作ります` : 'Claude.ai で開くと続編を作れます';
   renderMemo();
 }
@@ -2810,6 +2957,7 @@ function showPage(i, dir) {
   $('nombre').innerHTML = ''; $('nombre').append(el('b', { text: String(state.page + 1) }), ` / ${N}`);
   $('barFill').style.width = `${(state.page + 1) / N * 100}%`;
   $('nextBtn').disabled = state.page >= N - 1; $('prevBtn').disabled = state.page <= 0;
+  $('exBtn').classList.toggle('glow', state.page === N - 1); $('endNote').hidden = state.page !== N - 1;
   const f = fbOf(w.id); if (state.page > f.maxPage) f.maxPage = state.page; if (state.page === N - 1 && !f.finished) { f.finished = true; } saveFb(w.id);
   markStart();
   lsSet(Store.prefix + 'ui', JSON.stringify({ tab: state.tab, cur: state.cur, page: state.page }));
@@ -2852,15 +3000,55 @@ function setLike(kind) {
   saveFb(w.id, true); analysisNow(); renderReadHead();
 }
 
+/* ---------- 裏話 ---------- */
+const spoilOK = {};
+function openExtras(id) { if (!state.works[id]) return; commitDwell(); state.exId = id; setTab('extras'); }
+function charSheet(S, ch) {
+  const ART = artFor(S, null), m = ART.metrics(ch);
+  const c = el('canvas', { width: 300, height: 400, class: 'stand', role: 'img', 'aria-label': `${ch.name}の立ち絵` }), g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, 300, 400); g.strokeStyle = '#d3dce2'; g.lineWidth = 1; for (let y = 40; y < 400; y += 40) { g.beginPath(); g.moveTo(0, y); g.lineTo(300, y); g.stroke(); }
+  const u = Math.min(350 / m.top, 250 / (m.widthRatio * m.top + 1e-6)) * 0.95;
+  ART.drawCharacter(g, ch, 'stand', 'normal', { footX: 150, footY: 388, unit: u, facing: 0, back: false, panel: { x: 0, y: 0, w: 300, h: 400 }, rand: rng(hashStr(ch.id)) });
+  const faces = el('div', { class: 'faces' }, ...['smile', 'surprised', 'angry', 'cry'].map(ex => { const f = el('canvas', { width: 96, height: 96, role: 'img', 'aria-label': `${ch.name}の表情` }), q = f.getContext('2d'); q.fillStyle = '#fff'; q.fillRect(0, 0, 96, 96); const uu = 30 / m.R; ART.drawCharacter(q, ch, 'stand', ex, { footX: 48, footY: 52 - m.hc * uu, unit: uu, facing: 0, back: false, panel: { x: 0, y: 0, w: 96, h: 96 }, rand: rng(3) }); return f; }));
+  return el('div', { class: 'sheetimgs' }, c, faces);
+}
+function renderExtras() {
+  const w = state.works[state.exId], body = $('exBody'); body.innerHTML = ''; if (!w) return;
+  const S = w.script, f = fbOf(w.id), ex = w.extras;
+  $('exTitle').textContent = `『${fullTitle(S)}』の裏話`;
+  if (!f.finished && !spoilOK[w.id]) {
+    body.append(el('div', { class: 'gate' }, el('b', { text: '読み終わったら開けます' }), el('p', { text: 'キャラクターの設定資料、世界の裏設定、伏線の解説など、結末にふれる話がのっています。' }),
+      el('div', { class: 'row' }, el('button', { class: 'big', onclick: () => openWork(w.id, f.maxPage || 0) }, '本編を読む'), el('button', { onclick: () => { spoilOK[w.id] = true; renderExtras(); } }, 'ネタバレでもいいので先に開く'))));
+    return;
+  }
+  if (S.art && S.art.aim) body.append(el('p', { class: 'artaim', text: '絵柄の狙い：' + S.art.aim }));
+  const sec = (title, ...kids) => el('section', { class: 'exsec' }, el('h3', { text: title }), ...kids);
+  // キャラクター設定資料（立ち絵は描画エンジンで描く）
+  const cards = S.characters.map(ch => { const info = ex && ex.characters.find(c => c.id === ch.id); return el('article', { class: 'chcard' }, charSheet(S, ch), el('div', { class: 'chtext' }, el('h4', {}, ch.name, el('span', { class: 'sub', text: '　' + (ch.role || '') })), info && info.profile ? el('p', { text: info.profile }) : el('p', { class: 'sub', text: ch.desc || '' }), info && info.trivia.length ? el('ul', {}, ...info.trivia.map(t => el('li', { text: t }))) : '', el('p', { class: 'sub spec', text: `${ch.species}・${ch.age}・${ch.hair}/${ch.hairColor}・${ch.outfit}${ch.items.length ? '・' + ch.items.join('/') : ''}` }))); });
+  body.append(sec('キャラクター設定資料', el('div', { class: 'chgrid' }, ...cards)));
+  if (!ex) {
+    const msg = extrasBusy[w.id] ? '作者と編集者が、いま裏話を書いています…' : w.meta.bundled ? 'この作品の裏話はまだありません。' : w.meta.extrasError ? '裏話を作る途中で止まりました。' : 'この作品の裏話はまだありません。';
+    body.append(el('div', { class: 'notice' }, el('b', { text: msg }), !w.meta.bundled && !extrasBusy[w.id] ? (canMake() ? el('button', { onclick: () => makeExtras(w, true), style: 'margin-top:8px' }, '裏話を作る') : el('span', { class: 'sub', text: 'Claude.ai で開くと作れます。' })) : ''));
+    return;
+  }
+  if (ex.world.length) body.append(sec('世界観の裏設定', ...ex.world.map(x => el('div', { class: 'exitem' }, x.title ? el('b', { text: x.title }) : '', el('p', { text: x.body })))));
+  if (ex.foreshadowing.length) body.append(sec('伏線の解説', el('ol', { class: 'fs' }, ...ex.foreshadowing.map(x => el('li', {}, el('span', { text: x.setup }), x.payoff ? el('span', { class: 'arrow', text: '→ ' + x.payoff }) : '')))));
+  if (ex.authorNote) body.append(sec('作者あとがき', el('p', { class: 'note', text: ex.authorNote })));
+  if (ex.editorNote) body.append(sec('編集後記', el('p', { class: 'note ed', text: ex.editorNote })));
+  if (ex.scrapped.length) body.append(sec('没ネタ', el('ul', { class: 'scrap' }, ...ex.scrapped.map(x => el('li', {}, el('b', { text: x.idea }), x.why ? el('span', { class: 'sub', text: '　' + x.why }) : '')))));
+  if (ex.sequelHints.length) body.append(sec('続編につながるヒント', el('ul', {}, ...ex.sequelHints.map(t => el('li', { text: t }))), el('button', { id: 'exSeq', onclick: () => { if (!canMake()) { toast('続編は Claude.ai で開くと作れます'); return; } setTab('make'); runMake('sequel', w); } }, `第${(S.episode || 1) + 1}話を作る（この裏設定も作者に渡します）`)));
+}
+
 /* ---------- 本棚 ---------- */
 function bookCard(w) {
   const f = state.fb[w.id] || {}; const N = w.script.pages.length + 1;
   const status = f.finished ? '読了' : f.opens ? `${(f.maxPage || 0) + 1}/${N}まで` : '未読';
-  return el('button', { class: 'book', onclick: () => openWork(w.id, f.finished || !f.opens ? 0 : f.maxPage || 0), 'aria-label': `${fullTitle(w.script)}を読む` },
+  return el('div', { class: 'bookwrap' }, el('button', { class: 'book', onclick: () => openWork(w.id, f.finished || !f.opens ? 0 : f.maxPage || 0), 'aria-label': `${fullTitle(w.script)}を読む` },
     el('span', { class: 'cv' }, thumb(w), w.script.episode > 1 ? el('span', { class: 'badge', text: `第${w.script.episode}話` }) : w.meta.mode === 'sample' ? el('span', { class: 'badge', text: '見本' }) : '', f.liked ? el('span', { class: 'badge like', text: '♥' }) : ''),
     el('span', { class: 't', text: w.script.episode > 1 ? `第${w.script.episode}話 ${w.script.title}` : w.script.title }),
     el('span', { class: 'm', text: `${w.script.genre || ''}　${status}` }),
-    w.script.art && w.script.art.aim ? el('span', { class: 'm artline', text: '絵柄：' + w.script.art.aim }) : '');
+    w.script.art && w.script.art.aim ? el('span', { class: 'm artline', text: '絵柄：' + w.script.art.aim }) : ''),
+    el('button', { class: 'exlink', onclick: () => openExtras(w.id), 'aria-label': `${w.script.title}の裏話` }, f.finished ? '裏話を読む' : '裏話（読後に開けます）'));
 }
 function renderShelf() {
   for (const b of $('filters').children) b.setAttribute('aria-pressed', String(b.dataset.f === state.filter));
@@ -2994,6 +3182,8 @@ async function boot() {
   $('nextBtn').addEventListener('click', () => showPage(state.page + 1, 1));
   $('prevBtn').addEventListener('click', () => showPage(state.page - 1, -1));
   $('likeBtn').addEventListener('click', () => setLike('like'));
+  $('exBtn').addEventListener('click', () => openExtras(state.cur));
+  $('exBack').addEventListener('click', () => { if (state.exId) openWork(state.exId, Math.min(state.page, state.works[state.exId].script.pages.length), false); setTab('read'); });
   $('mehBtn').addEventListener('click', () => setLike('meh'));
   $('seqBtn').addEventListener('click', () => { const w = state.works[state.cur]; if (!canMake()) { toast('続編は Claude.ai で開くと作れます'); return; } setTab('make'); runMake('sequel', w); });
   for (const b of $('filters').children) b.addEventListener('click', () => { state.filter = b.dataset.f; renderShelf(); });
@@ -3006,7 +3196,7 @@ async function boot() {
   window.addEventListener('pagehide', commitDwell);
 
   state.works[SAMPLE_ID] = sampleWork();
-  if (Array.isArray(window.MangaSamples)) window.MangaSamples.forEach((x, i) => { try { const raw = x && x.script ? x.script : x; const n = normalizeScript(raw); const id = 'sample-' + (x.id || i); state.works[id] = { id, script: n.script, profile: normalizeProfile(x.profile) || heuristicProfile(n.script), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse(x.createdAt || '2026-10-01T09:00:00Z') - i, mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } }; } catch (e) { console.warn('見本を読み込めませんでした', i, e); } });
+  if (Array.isArray(window.MangaSamples)) window.MangaSamples.forEach((x, i) => { try { const raw = x && x.script ? x.script : x; const n = normalizeScript(raw); const id = 'sample-' + (x.id || i); state.works[id] = { id, script: n.script, profile: normalizeProfile(x.profile) || heuristicProfile(n.script), extras: normalizeExtras(x.extras, n.script), feat: scriptFeatures(n.script), meta: { createdAt: Date.parse(x.createdAt || '2026-10-01T09:00:00Z') - i, mode: 'sample', seed: null, aim: null, editor: [], warnings: [], bundled: true } }; } catch (e) { console.warn('見本を読み込めませんでした', i, e); } });
   const fontsReady = document.fonts && document.fonts.ready ? Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]) : Promise.resolve();
   const ui = (() => { try { return JSON.parse(lsGet(Store.prefix + 'ui') || '{}'); } catch (e) { return {}; } })();
   const hashTab = (location.hash || '').slice(1);
