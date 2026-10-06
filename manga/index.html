@@ -26,11 +26,11 @@ html,body{margin:0}
 body{background:var(--desk);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6;padding:0 16px}
 .wrap{max-width:900px;margin:0 auto;padding-block:18px 36px;display:flex;flex-direction:column;align-items:center;gap:14px}
 header{text-align:center;display:flex;flex-direction:column;gap:2px}
-h1{font-family:var(--display);font-weight:400;font-size:clamp(22px,5vw,34px);line-height:1.15;margin:0;letter-spacing:.02em}
+h1{font-family:var(--body);font-weight:900;font-size:clamp(22px,5vw,34px);line-height:1.15;margin:0;letter-spacing:.02em}
 .lead{margin:0;color:var(--tone);font-size:13px;letter-spacing:.08em}
 .sheet{position:relative;background:#fff;box-shadow:var(--shadow);line-height:0;max-width:100%;border-radius:2px;
   outline:1px solid rgba(0,0,0,.06);cursor:pointer;touch-action:manipulation}
-.sheet canvas{display:block;max-width:100%;max-height:calc(100vh - 190px);min-height:240px;width:auto;height:auto}
+.sheet canvas{display:block;max-width:100%;max-height:calc(100vh - 240px);min-height:240px;width:auto;height:auto}
 .sheet.flip{animation:flip .36s cubic-bezier(.2,.8,.2,1)}
 .sheet.flipb{animation:flipb .36s cubic-bezier(.2,.8,.2,1)}
 @keyframes flip{from{transform:perspective(1400px) rotateY(-24deg) translateX(-5%);opacity:.25;transform-origin:right center}to{transform:none;opacity:1}}
@@ -46,6 +46,10 @@ button:disabled{opacity:.3;cursor:default;background:transparent}
 .big:hover{background:var(--ink);transform:translateY(-1px)}
 .nombre{font-variant-numeric:tabular-nums;color:var(--tone);font-size:14px;letter-spacing:.06em;min-width:6.5em;text-align:center}
 .nombre b{color:var(--ink);font-size:17px}
+.nombre .cv{font-size:13px;color:var(--tone);font-weight:400}
+.sheet.zoom{overflow:auto;max-height:calc(100vh - 200px);cursor:zoom-out;touch-action:auto;width:100%}
+.sheet.zoom canvas{max-width:none;max-height:none;width:200%;height:auto}
+@media (min-width:700px){.sheet.zoom canvas{width:1260px}}
 .bar{width:min(480px,100%);height:5px;border-radius:9px;background:var(--rule);overflow:hidden;direction:rtl}
 .bar i{display:block;height:100%;background:var(--blue);transition:width .25s}
 .keys{font-size:12px;color:var(--tone);margin:0;text-align:center}
@@ -68,9 +72,10 @@ kbd{font-family:var(--body);font-size:11px;border:1px solid var(--rule);border-b
   </div>
   <div class="controls">
     <button class="sub" id="firstBtn">表紙へ</button>
+    <button class="sub" id="zoomBtn" aria-pressed="false">大きく見る</button>
     <button class="sub" id="randBtn">ランダムに1ページ開く</button>
   </div>
-  <p class="keys"><kbd>←</kbd> 次のページ　<kbd>→</kbd> 前のページ　／ ページの左側をタップでも進めます</p>
+  <p class="keys"><kbd>←</kbd> 次のページ　<kbd>→</kbd> 前のページ　／ ページの左側をタップ・左へスワイプでも進めます</p>
 </div>
 
 <script>
@@ -192,8 +197,9 @@ function armPose(pose, s, F, g) {
     case 'hang': return rel([F * .85 + s * .3, -.55], [F * 1.45 + s * .32, -1.35]);
     case 'wide': return rel([s * .95, -.2], [s * 1.9, -.5]);
     case 'dance': return s === F ? up() : rel([s * 1.0, .1], [s * 1.75, -.55]);
-    case 'cheeks': { const hx = s * g.R * 0.92, hy = g.hc + g.R * 0.3; return [[S[0] + s * L * 1.1, S[1] + L * .15], [hx, hy]]; }
-    case 'chin': if (s === F) return [[S[0] + s * L * .75, S[1] + L * .9], [F * g.R * 0.25, g.hc + g.R * 1.0]]; return rel([s * 1.0, .75], [s * .25, 1.45]);
+    case 'cheeks': { const hx = s * g.R * 0.95, hy = g.hc + g.R * 0.35; return [[s * g.R * 1.3, g.hc + g.R * 1.25], [hx, hy]]; }
+    case 'chin': if (s === F) return [[S[0] + s * L * .75, S[1] + L * .9], [F * g.R * 0.32, g.hc + g.R * 0.9]]; return rel([s * 1.0, .75], [s * .25, 1.45]);
+    case 'fan': if (s === F) return [[S[0] + s * L * 1.0, S[1] + L * .35], [s * g.R * 1.45, g.hc + g.R * 0.25]]; return rel([s * 1.0, .75], [s * .25, 1.45]);
     case 'brow': if (s === F) return [[S[0] + s * L * .9, S[1] + L * .2], [s * g.R * 0.45, g.hc - g.R * 0.85]]; return down();
     default: return down();
   }
@@ -214,11 +220,11 @@ function drawPerson(ctx, X, Y, h, id, o, r) {
   } else for (const s of [-1, 1]) {
     let pts;
     const front = s === fw;
-    if (legs === 'run') pts = front ? [[s * g.legX, hip], [fw * 7, hip * 0.55], [fw * 12, -5]] : [[s * g.legX, hip], [-fw * 2, hip * 0.42], [-fw * 10, -9]];
+    if (legs === 'run') pts = front ? [[s * g.legX * 0.6, hip], [fw * 8, hip * 0.5], [fw * 9, -3]] : [[s * g.legX * 0.6, hip], [-fw * 3, hip * 0.45], [-fw * 9, hip * 0.35]];
     else if (legs === 'jump') pts = [[s * g.legX, hip], [s * (g.legX + 4), hip * 0.45], [s * g.legX - fw * 5, -6]];
     else pts = [[s * g.legX, hip], [s * (g.legX + 0.6), -3]];
     limb(ctx, pts, g.legW, '#fff', lw);
-    const f = pts[pts.length - 1]; blob(ctx, f[0] + fw * (F ? 2 : 0), f[1] + 1.2, A ? 4.5 : 5.2, A ? 2.4 : 2.9, '#000', lw);
+    const f = pts[pts.length - 1]; blob(ctx, f[0] + fw * (F ? 1.5 : 0), f[1] + 0.6, A ? 4.3 : 5.0, A ? 2.4 : 2.9, '#000', lw);
   }
   ctx.translate(0, dy);
   /* --- 胴 --- */
@@ -239,7 +245,7 @@ function drawPerson(ctx, X, Y, h, id, o, r) {
   } else {
     ctx.beginPath(); ctx.moveTo(-11.5, -38); ctx.lineTo(11.5, -38); ctx.lineTo(12.5, -26); ctx.lineTo(1.2, -26); ctx.lineTo(0, -31); ctx.lineTo(-1.2, -26); ctx.lineTo(-12.5, -26); ctx.closePath(); ctx.fillStyle = '#111'; ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-5, -60); ctx.lineTo(5, -60); ctx.lineTo(10.5, -56); ctx.lineTo(12, -36); ctx.lineTo(-12, -36); ctx.lineTo(-10.5, -56); ctx.closePath();
-    ctx.save(); ctx.fillStyle = '#fff'; ctx.fill(); ctx.clip(); ctx.fillStyle = '#000'; for (let y = -55.5; y < -36; y += 4.6) ctx.fillRect(-14, y, 28, 2); ctx.restore(); ctx.stroke();
+    ctx.save(); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke(); ctx.clip(); const dots = new Path2D(); for (let y = -55, row = 0; y < -35; y += 5.2, row++) for (let x = -13 + (row % 2) * 3.2; x < 14; x += 6.4) { dots.moveTo(x + 1.35, y); dots.arc(x, y, 1.35, 0, TAU); } ctx.fillStyle = '#000'; ctx.fill(dots); ctx.restore();
   }
   /* --- 腕 --- */
   const armsAfterHead = ['cheeks', 'chin', 'brow'].includes(pose);
@@ -250,7 +256,8 @@ function drawPerson(ctx, X, Y, h, id, o, r) {
       const mid = [S[0] + (E[0] - S[0]) * 0.55, S[1] + (E[1] - S[1]) * 0.55];
       limb(ctx, [S, E, Hh], g.armW, '#fff', lw);
       if (A) { limb(ctx, [S, E], g.armW + 1.6, MID(ctx, u), lw); limb(ctx, [[E[0] + (S[0] - E[0]) * .18, E[1] + (S[1] - E[1]) * .18], [E[0] + (S[0] - E[0]) * .02, E[1] + (S[1] - E[1]) * .02]], g.armW + 2.4, '#fff', lw); }
-      else { limb(ctx, [S, mid], g.armW + 2.2, '#fff', lw); ctx.strokeStyle = '#000'; ctx.lineWidth = 1.8; ctx.beginPath(); const q = [S[0] + (mid[0] - S[0]) * .5, S[1] + (mid[1] - S[1]) * .5]; const nx = -(mid[1] - S[1]), ny = mid[0] - S[0], nl = Math.hypot(nx, ny) || 1; ctx.moveTo(q[0] - nx / nl * 3.6, q[1] - ny / nl * 3.6); ctx.lineTo(q[0] + nx / nl * 3.6, q[1] + ny / nl * 3.6); ctx.stroke(); }
+      else { limb(ctx, [S, mid], g.armW + 2.2, '#fff', lw); ctx.fillStyle = '#000'; const q = [S[0] + (mid[0] - S[0]) * .5, S[1] + (mid[1] - S[1]) * .5]; ctx.beginPath(); ctx.arc(q[0], q[1], 1.35, 0, TAU); ctx.fill(); }
+      if ((pose === 'point' || pose === 'pointup') && s === fw) { const dx = Hh[0] - E[0], dy = Hh[1] - E[1], dl = Math.hypot(dx, dy) || 1; limb(ctx, [Hh, [Hh[0] + dx / dl * 6.5, Hh[1] + dy / dl * 6.5]], 2.2, '#fff', lw * 0.9); limb(ctx, [[Hh[0] - dy / dl * 1.5, Hh[1] + dx / dl * 1.5], [Hh[0] - dy / dl * 2.6 + dx / dl * 2.5, Hh[1] + dx / dl * 2.6 + dy / dl * 2.5]], 1.8, '#fff', lw * 0.8); }
       blob(ctx, Hh[0], Hh[1], A ? 3 : 3.4, A ? 3 : 3.4, '#fff', lw);
       hands.push(Hh);
     }
@@ -269,14 +276,16 @@ function drawPerson(ctx, X, Y, h, id, o, r) {
     if (o.hold === 'towel') { ctx.fillStyle = '#fff'; ctx.lineWidth = lw; ctx.beginPath(); ctx.rect(cx - 10, cy - 3, 20, 12); ctx.fill(); ctx.stroke(); ctx.fillStyle = LIGHT(ctx, u); ctx.fillRect(cx - 10, cy + 3, 20, 3); }
     if (o.hold === 'broom') {
       const down = pose === 'broomdown', hand = down ? hands[s2i(fw)] : (hands[0][1] < hands[1][1] ? hands[1] : hands[0]);
-      let ux = down ? fw * 0.18 : fw * 0.6, uy = down ? 1 : -1; const l2 = Math.hypot(ux, uy); ux /= l2; uy /= l2;
-      const st = [hand[0] - ux * (down ? 6 : 10), hand[1] - uy * (down ? 6 : 10)], len = down ? Math.max(20, -hand[1] - 14) : 44, en = [hand[0] + ux * len, hand[1] + uy * len];
+      let ux = down ? fw * 0.18 : fw * 0.85, uy = down ? 1 : -1; const l2 = Math.hypot(ux, uy); ux /= l2; uy /= l2;
+      const st = [hand[0] - ux * (down ? 6 : 10), hand[1] - uy * (down ? 6 : 10)], len = down ? Math.max(18, -hand[1] - 26) : 34, en = [hand[0] + ux * len, hand[1] + uy * len];
       if (!down) limb(ctx, [st, en], 2.6, '#fff', lw * 0.8);
       else limb(ctx, [st, en], 2.6, '#fff', lw * 0.8);
       ctx.save(); ctx.translate(en[0], en[1]); ctx.rotate(Math.atan2(uy, ux) - Math.PI / 2);
-      ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(9, 16); ctx.lineTo(-9, 16); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = lw; ctx.stroke();
-      ctx.lineWidth = lw * 0.6; for (let i = -6; i <= 6; i += 3) { ctx.beginPath(); ctx.moveTo(i * 0.6, 4); ctx.lineTo(i, 15); ctx.stroke(); }
-      ctx.beginPath(); ctx.moveTo(-5, 4); ctx.lineTo(5, 4); ctx.lineWidth = lw; ctx.stroke();
+      // 布団たたき（うずまき形の頭）
+      const ring = (path) => { ctx.lineWidth = 2.4 + lw * 2; ctx.strokeStyle = '#000'; path(); ctx.stroke(); ctx.lineWidth = 2.4; ctx.strokeStyle = '#fff'; path(); ctx.stroke(); };
+      ring(() => { ctx.beginPath(); ctx.moveTo(0, -2); ctx.bezierCurveTo(-16, 6, -14, 26, 0, 24); ctx.bezierCurveTo(14, 26, 16, 6, 0, -2); });
+      ring(() => { ctx.beginPath(); ctx.moveTo(0, 2); ctx.bezierCurveTo(-8, 8, -8, 18, 0, 17); ctx.bezierCurveTo(8, 18, 8, 8, 0, 2); });
+      ring(() => { ctx.beginPath(); ctx.moveTo(0, 6); ctx.lineTo(0, 12); });
       ctx.restore();
       blob(ctx, hand[0], hand[1], A ? 3 : 3.4, A ? 3 : 3.4, '#fff', lw);
     }
@@ -355,7 +364,7 @@ function face(ctx, R, hc, mood, fx, A, lw, look, F, o) {
     normal: ['open', 'normal', 'line'], smile: ['open', 'normal', 'smile'], happy: ['arc', 'normal', 'open'], laugh: ['x', 'up', 'big'],
     shock: ['shock', 'up', 'o'], surprised: ['open', 'up', 'o'], angry: ['sharp', 'angry', 'shout'], sad: ['open', 'sad', 'wavy'], cry: ['cry', 'sad', 'cryopen'],
     worried: ['open', 'sad', 'wavy'], think: ['open', 'normal', 'dot'], determined: ['sharp', 'angry', 'smirk'], sweat: ['dot', 'normal', 'line'],
-    sigh: ['line', 'sad', 'o'], gentle: ['arc', 'normal', 'smile'], puff: ['cross', 'up', 'puff'], funny: ['funny', 'none', 'tongue'], grin: ['open', 'normal', 'open'], shout: ['open', 'up', 'shout'], idea: ['open', 'up', 'open'],
+    sigh: ['line', 'sad', 'o'], gentle: ['arc', 'normal', 'smile'], puff: ['cross', 'up', 'puff'], funny: ['funny', 'funny', 'tongue'], grin: ['open', 'normal', 'open'], shout: ['open', 'up', 'shout'], idea: ['open', 'up', 'open'],
   }[mood] || ['open', 'normal', 'line'];
   const [eye, brow, mouth] = M;
   for (const s of [-1, 1]) {
@@ -366,7 +375,6 @@ function face(ctx, R, hc, mood, fx, A, lw, look, F, o) {
         const ox = look === 'side' ? (F || 1) * ew * 0.25 : 0, oy = look === 'up' ? -eh * 0.1 : 0;
         ctx.ellipse(x + ox, ey + oy, ew, eh, 0, 0, TAU); ctx.fill();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + ox - ew * 0.3, ey + oy - eh * 0.38, ew * 0.42, 0, TAU); ctx.fill();
-        if (A) { ctx.beginPath(); ctx.arc(x + ox, ey + oy + eh * 0.15, ew * 1.55, Math.PI * 1.2, Math.PI * 1.8); ctx.lineWidth = lw * 1.3; ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + ox + s * ew * 1.35, ey + oy - eh * 0.55); ctx.lineTo(x + ox + s * ew * 1.9, ey + oy - eh * 0.85); ctx.stroke(); }
         break; }
       case 'arc': ctx.arc(x, ey + eh * 0.45, ew * 1.35, Math.PI * 1.12, Math.PI * 1.88); ctx.lineWidth = lw * 1.4; ctx.stroke(); break;
       case 'line': ctx.moveTo(x - ew * 1.3, ey); ctx.quadraticCurveTo(x, ey + eh * 0.35, x + ew * 1.3, ey); ctx.lineWidth = lw * 1.3; ctx.stroke(); break;
@@ -378,18 +386,17 @@ function face(ctx, R, hc, mood, fx, A, lw, look, F, o) {
         ctx.beginPath(); ctx.moveTo(x + s * ew * 1.8, ey - eh * 0.95); ctx.lineTo(x - s * ew * 1.5, ey - eh * 0.45); ctx.lineWidth = lw * 1.8; ctx.stroke(); break;
       case 'dot': ctx.arc(x, ey, ew * 0.5, 0, TAU); ctx.fill(); break;
       case 'cross': ctx.ellipse(x, ey, ew * 1.2, eh * 0.9, 0, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - s * ew * 0.6, ey + eh * 0.1, ew * 0.5, 0, TAU); ctx.fill(); break;
-      case 'funny':
-        if (s === -1) { // あっかんべー
-          ctx.ellipse(x, ey, ew * 1.9, eh * 1.4, 0, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
-          ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x + ew * 0.9, ey - eh * 0.2, ew * 0.75, 0, TAU); ctx.fill();
-        } else { ctx.moveTo(x + ew * 1.6, ey - eh * 0.9); ctx.lineTo(x - ew * 1.0, ey); ctx.lineTo(x + ew * 1.6, ey + eh * 0.9); ctx.lineWidth = lw * 1.6; ctx.stroke(); }
-        break;
+      case 'funny': { // 寄り目の大きな目
+        const yy = ey + (s < 0 ? -eh * 0.25 : eh * 0.2), k = s < 0 ? 1.2 : 0.95;
+        ctx.ellipse(x, yy, ew * 1.9 * k, eh * 1.3 * k, 0, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - s * ew * 1.0, yy + eh * 0.2, ew * 0.7, 0, TAU); ctx.fill(); break; }
     }
     // 眉
     ctx.beginPath(); ctx.lineWidth = lw * 1.15; const bw = R * 0.15, bx = x;
     if (brow === 'angry') { ctx.moveTo(bx + s * bw, by - R * 0.06); ctx.lineTo(bx - s * bw, by + R * 0.07); }
     else if (brow === 'sad') { ctx.moveTo(bx + s * bw, by + R * 0.06); ctx.lineTo(bx - s * bw, by - R * 0.06); }
     else if (brow === 'up') { ctx.moveTo(bx - bw, by - R * 0.06); ctx.quadraticCurveTo(bx, by - R * 0.16, bx + bw, by - R * 0.06); }
+    else if (brow === 'funny') { if (s < 0) { ctx.moveTo(bx - bw, by - R * 0.2); ctx.quadraticCurveTo(bx, by - R * 0.42, bx + bw, by - R * 0.22); } else { ctx.moveTo(bx - bw, by + R * 0.12); ctx.lineTo(bx + bw * 1.2, by - R * 0.02); } }
     else if (brow === 'normal') { ctx.moveTo(bx - bw, by); ctx.quadraticCurveTo(bx, by - R * 0.07, bx + bw, by); }
     if (brow !== 'none') ctx.stroke();
   }
@@ -409,7 +416,9 @@ function face(ctx, R, hc, mood, fx, A, lw, look, F, o) {
     case 'smirk': ctx.moveTo(mx - R * 0.14, my + R * 0.02); ctx.quadraticCurveTo(mx + R * 0.02, my + R * 0.06, mx + R * 0.16, my - R * 0.06); ctx.stroke(); break;
     case 'puff': ctx.moveTo(mx - R * 0.04, my - R * 0.06); ctx.quadraticCurveTo(mx + R * 0.09, my - R * 0.02, mx - R * 0.02, my); ctx.quadraticCurveTo(mx + R * 0.09, my + R * 0.03, mx - R * 0.04, my + R * 0.07); ctx.stroke();
       for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(mx + s * R * 0.62, my - R * 0.05, R * 0.2, s < 0 ? Math.PI * 0.6 : Math.PI * 1.6, s < 0 ? Math.PI * 1.4 : Math.PI * 2.4, false); ctx.stroke(); } break;
-    case 'tongue': ctx.moveTo(mx - R * 0.26, my - R * 0.08); ctx.quadraticCurveTo(mx, my + R * 0.42, mx + R * 0.26, my - R * 0.08); ctx.closePath(); ctx.fill();
+    case 'tongue':
+      ctx.fillStyle = '#000'; for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(mx + d * R * 0.1, my - R * 0.2, R * 0.065, R * 0.09, d * 0.3, 0, TAU); ctx.fill(); } // ひろがった鼻の穴
+      ctx.beginPath(); ctx.moveTo(mx - R * 0.42, my - R * 0.02); ctx.quadraticCurveTo(mx, my + R * 0.4, mx + R * 0.42, my - R * 0.02); ctx.quadraticCurveTo(mx, my + R * 0.1, mx - R * 0.42, my - R * 0.02); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(mx - R * 0.13, my + R * 0.1); ctx.lineTo(mx - R * 0.13, my + R * 0.42); ctx.quadraticCurveTo(mx, my + R * 0.62, mx + R * 0.13, my + R * 0.42); ctx.lineTo(mx + R * 0.13, my + R * 0.1); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(mx, my + R * 0.18); ctx.lineTo(mx, my + R * 0.38); ctx.stroke(); break;
   }
@@ -515,7 +524,8 @@ function dripLines(ctx, x, y, w, lw) { ctx.lineWidth = lw * 0.8; for (let i = -1
 function drawBasket(ctx, x, y, s, lw) {
   ctx.save(); ctx.lineWidth = lw; ctx.strokeStyle = '#000';
   // 中の洗濯物
-  blob(ctx, x - s * 0.18, y - s * 0.1, s * 0.25, s * 0.16, '#fff', lw); blob(ctx, x + s * 0.2, y - s * 0.12, s * 0.24, s * 0.15, LIGHT(ctx), lw);
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - s * 0.4, y - s * 0.22, s * 0.42, s * 0.2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - s * 0.4, y - s * 0.12); ctx.lineTo(x + s * 0.02, y - s * 0.12); ctx.stroke();
+  ctx.fillStyle = LIGHT(ctx); ctx.beginPath(); ctx.rect(x + s * 0.0, y - s * 0.28, s * 0.4, s * 0.26); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#000'; ctx.fillRect(x, y - s * 0.12, s * 0.4, s * 0.04);
   ctx.beginPath(); ctx.moveTo(x - s * 0.5, y - s * 0.05); ctx.lineTo(x + s * 0.5, y - s * 0.05); ctx.lineTo(x + s * 0.4, y + s * 0.38); ctx.lineTo(x - s * 0.4, y + s * 0.38); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
   ctx.lineWidth = lw * 0.6; for (let i = 1; i < 6; i++) { const t = i / 6; ctx.beginPath(); ctx.moveTo(x - s * 0.5 + s * t, y - s * 0.05); ctx.lineTo(x - s * 0.4 + s * 0.8 * t, y + s * 0.38); ctx.stroke(); }
   ctx.beginPath(); ctx.moveTo(x - s * 0.46, y + s * 0.13); ctx.lineTo(x + s * 0.46, y + s * 0.13); ctx.stroke();
@@ -639,10 +649,14 @@ function bgTown(ctx, b, o, r) {
 
 /* ---------- 吹き出し・ナレーション・効果音 ---------- */
 function bubbleGeom(B, b) {
-  const fs = B.fs || (B.type === 'small' ? 19 : 23), lh = fs * 1.32, cols = vcols(B.t, B.rows || 7);
+  const fs = Math.round((B.fs || (B.type === 'small' ? 19 : 23)) * 1.08), lh = fs * 1.32, cols = vcols(B.t, B.rows || 7);
   const rows = Math.max(...cols.map(c => c.length)), tw = (cols.length - 1) * lh + fs, th = rows * fs;
   const rx = tw / 2 * 1.32 + fs * 0.55, ry = th / 2 * 1.2 + fs * 0.62;
-  return { fs, lh, cols, rx, ry, cx: b.x + B.x * b.w, cy: b.y + B.y * b.h };
+  const g = B.type === 'shout' ? 1.2 : B.type === 'think' ? 1.14 : 1, m = 6;
+  // コマの内側に収まるように中心を寄せる
+  let cx = b.x + B.x * b.w, cy = b.y + B.y * b.h;
+  cx = clamp(cx, b.x + rx * g + m, b.x + b.w - rx * g - m); cy = clamp(cy, b.y + ry * g + m, b.y + b.h - ry * g - m);
+  return { fs, lh, cols, rx, ry, cx, cy };
 }
 function ellipseEdge(rx, ry, dx, dy) { const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L; return 1 / Math.sqrt((ux / rx) ** 2 + (uy / ry) ** 2); }
 function drawBubble(ctx, B, b, heads) {
@@ -690,16 +704,30 @@ function drawNar(ctx, N, b) {
   ctx.fillStyle = N.dark ? '#fff' : '#000'; ctx.font = `700 ${fs}px ${FONT}`; drawV(ctx, cols, x + w / 2, y + h / 2, fs, lh); ctx.restore();
   return { x, y, w, h };
 }
+function drawDash(ctx, px, py, fs, horiz, ow, inv) {
+  // 長音：先がすぼまる、少し波打つ線（太い棒に見えないように）
+  const n = 14, L = fs * 0.95, w0 = fs * 0.15, pts = [];
+  for (let k = 0; k <= n; k++) { const t = k / n, c = Math.sin(t * Math.PI * 1.6) * fs * 0.07, w = w0 * (1 - t * 0.92); pts.push([t, c, w]); }
+  const P = (t, c) => horiz ? [px - fs * 0.45 + t * L, py + c] : [px + c, py - fs * 0.5 + t * L];
+  ctx.beginPath();
+  pts.forEach(([t, c, w], k) => { const [x, y] = P(t, c - w); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  for (let k = pts.length - 1; k >= 0; k--) { const [t, c, w] = pts[k]; const [x, y] = P(t, c + w); ctx.lineTo(x, y); }
+  ctx.closePath();
+  ctx.lineWidth = ow; ctx.strokeStyle = inv ? '#000' : '#fff'; ctx.stroke();
+  ctx.fillStyle = inv ? '#fff' : '#000'; ctx.fill();
+}
 function drawSfx(ctx, S, b) {
-  const fs = S.s || 48, x = b.x + S.x * b.w, y = b.y + S.y * b.h, chars = [...S.t];
+  const fs = S.s || 48, x = b.x + S.x * b.w, y = b.y + S.y * b.h, chars = [...S.t], small = fs < 34;
   ctx.save(); ctx.translate(x, y); ctx.rotate(S.r || 0);
-  ctx.font = `900 ${fs}px ${DISP}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.font = small ? `900 ${fs}px ${FONT}` : `900 ${fs}px ${DISP}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const ow = small ? fs * 0.17 : fs * 0.22, step = fs * (small ? 0.98 : 0.95);
   chars.forEach((ch, i) => {
-    const px = S.h ? (i - (chars.length - 1) / 2) * fs * 0.95 : 0, py = S.h ? 0 : (i - (chars.length - 1) / 2) * fs * 0.95;
+    const px = S.h ? (i - (chars.length - 1) / 2) * step : 0, py = S.h ? 0 : (i - (chars.length - 1) / 2) * step;
+    if ('ー〜～'.includes(ch)) { drawDash(ctx, px, py, fs, !!S.h, ow, S.inv); return; }
     const g = S.h ? ch : (VMAP[ch] || ch);
-    ctx.lineWidth = fs * 0.24; ctx.strokeStyle = S.inv ? '#000' : '#fff'; ctx.strokeText(g, px, py);
-    ctx.lineWidth = fs * 0.06; ctx.strokeStyle = '#000'; if (!S.inv) ctx.strokeText(g, px, py);
-    ctx.fillStyle = S.inv ? '#fff' : (S.tone ? '#fff' : '#000'); ctx.fillText(g, px, py);
+    const sx = !S.h && SMALL.includes(ch) ? fs * 0.12 : 0, sy = !S.h && SMALL.includes(ch) ? -fs * 0.08 : 0;
+    ctx.lineWidth = ow; ctx.strokeStyle = S.inv ? '#000' : '#fff'; ctx.strokeText(g, px + sx, py + sy);
+    ctx.fillStyle = S.inv ? '#fff' : '#000'; ctx.fillText(g, px + sx, py + sy);
   });
   ctx.restore();
 }
@@ -743,6 +771,8 @@ function drawPanel(ctx, b, P, r, tag) {
     if (f.t === 'sparkle') for (const [x, y, s] of f.at) star4(ctx, b.x + x * b.w, b.y + y * b.h, s);
     if (f.t === 'rain') { ctx.strokeStyle = '#000'; for (let i = 0; i < (f.n || 60); i++) { const x = b.x + (f.x1 + r() * (f.x2 - f.x1)) * b.w, y = b.y + (f.y1 + r() * (f.y2 - f.y1)) * b.h; ctx.lineWidth = 1 + r(); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 16 + r() * 12); ctx.stroke(); } }
     if (f.t === 'lines') { ctx.strokeStyle = '#000'; ctx.lineWidth = 2.2; for (const [x1, y1, x2, y2] of f.at) { ctx.beginPath(); ctx.moveTo(b.x + x1 * b.w, b.y + y1 * b.h); ctx.lineTo(b.x + x2 * b.w, b.y + y2 * b.h); ctx.stroke(); } }
+    if (f.t === 'dots') { ctx.fillStyle = '#000'; const x = b.x + f.x * b.w; for (let y = b.y + f.y1 * b.h; y < b.y + f.y2 * b.h; y += 14) { ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill(); }
+      const ya = b.y + f.y1 * b.h, yb = b.y + f.y2 * b.h; ctx.strokeStyle = '#000'; ctx.lineWidth = 2.4; for (const [yy, d] of [[ya - 4, -1], [yb + 4, 1]]) { ctx.beginPath(); ctx.moveTo(x - 9, yy - d * 10); ctx.lineTo(x, yy); ctx.lineTo(x + 9, yy - d * 10); ctx.stroke(); } }
     if (f.t === 'puffs') for (const [x, y, s] of f.at) blob(ctx, b.x + x * b.w, b.y + y * b.h, s, s * 0.7, '#fff', 2);
     if (f.t === 'idea') { const x = b.x + f.x * b.w, y = b.y + f.y * b.h, s = f.s || 22; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; for (let i = 0; i < 7; i++) { const a = Math.PI * (1.05 + i * 0.15); ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * s, y + Math.sin(a) * s); ctx.lineTo(x + Math.cos(a) * s * 1.9, y + Math.sin(a) * s * 1.9); ctx.stroke(); } }
     if (f.t === 'gloom') { ctx.strokeStyle = '#000'; ctx.lineWidth = 1.6; const x = b.x + f.x * b.w, y = b.y + f.y * b.h, w = f.w * b.w; for (let i = 0; i < 12; i++) { const xx = x - w / 2 + w * i / 11; ctx.beginPath(); ctx.moveTo(xx, y); ctx.lineTo(xx, y + f.h * b.h * (0.6 + (i % 3) * 0.2)); ctx.stroke(); } }
@@ -803,6 +833,19 @@ function renderPageSync(i) {
   ctx.fillStyle = '#000'; ctx.font = `700 17px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(String(i + 1), W / 2, H - 36);
   return c;
 }
+// 題字：かなは太いデザイン書体、画数の多い漢字は読みやすいゴシックの極太で
+function titleLine(ctx, text, cx, y, size) {
+  const chars = [...text], fonts = chars.map(ch => /[\u4e00-\u9fff]/.test(ch) ? `900 ${size * 0.98}px ${FONT}` : `900 ${size}px ${DISP}`);
+  const gap = size * 0.06, ws = chars.map((ch, i) => { ctx.font = fonts[i]; return ctx.measureText(ch).width; });
+  const total = ws.reduce((a, b) => a + b, 0) + gap * (chars.length - 1);
+  ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  for (const pass of [0, 1]) { let x = cx - total / 2;
+    chars.forEach((ch, i) => { ctx.font = fonts[i];
+      if (pass === 0) { ctx.lineWidth = size * 0.2; ctx.strokeStyle = '#fff'; ctx.strokeText(ch, x, y); }
+      else { ctx.fillStyle = '#000'; ctx.fillText(ch, x, y); }
+      x += ws[i] + gap; }); }
+  ctx.restore();
+}
 function drawCover(ctx, r) {
   const b = { x: 0, y: 0, w: W, h: H };
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
@@ -815,9 +858,9 @@ function drawCover(ctx, r) {
   ctx.restore();
   // タイトル
   ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-  ctx.font = `900 58px ${DISP}`; ctx.lineWidth = 16; ctx.strokeStyle = '#fff'; ctx.strokeText('うちの物干しに', W / 2, 120); ctx.fillStyle = '#000'; ctx.fillText('うちの物干しに', W / 2, 120);
-  ctx.font = `900 112px ${DISP}`; ctx.lineWidth = 22; ctx.strokeText('雲がいる', W / 2, 238); ctx.fillText('雲がいる', W / 2, 238);
-  ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 130, 310, 260, 38); ctx.fillStyle = '#fff'; ctx.font = `700 21px ${FONT}`; ctx.fillText('読み切り　全15ページ', W / 2, 330);
+  titleLine(ctx, 'うちの物干しに', W / 2, 120, 60);
+  titleLine(ctx, '雲がいる', W / 2, 240, 116);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#000'; ctx.fillRect(W / 2 - 130, 314, 260, 38); ctx.fillStyle = '#fff'; ctx.font = `700 21px ${FONT}`; ctx.fillText(`読み切り　全${STORY.length}ページ`, W / 2, 334);
   ctx.restore();
 }
 
@@ -859,25 +902,27 @@ const STORY = [
       b: [{ t: 'うちの\n洗濯物だけ…', x: 0.69, y: 0.42, w: 1, fs: 20 }, { t: 'ピンポイント\nだね', x: 0.28, y: 0.42, w: 2, fs: 20 }] },
   ] },
   /* 4 ── こらーっ！ */
-  { rows: [[1.05, [1.1, 1]], [1.25, [1]], [1, [1, 1]]], panels: [
-    { bg: 'plain', conc: [0.55, 0.5, 0.25], chars: [{ id: 'mom', x: 0.6, y: 1.25, s: 1.1, m: 'angry', f: -1, p: 'broom', hold: 'broom' }],
-      b: [{ t: 'こらーっ！', x: 0.18, y: 0.33, w: 0, type: 'shout' }] },
+  { rows: [[0.95, [1.1, 1]], [1.15, [1]], [1.1, [1.25, 1, 1]]], panels: [
+    { bg: 'plain', conc: [0.55, 0.5, 0.25], chars: [{ id: 'mom', x: 0.55, y: 1.25, s: 1.1, m: 'angry', f: -1, p: 'broom', hold: 'broom' }],
+      b: [{ t: 'こらーっ！', x: 0.18, y: 0.36, w: 0, type: 'shout' }] },
     { bg: 'tone', speed: 'h', chars: [{ id: 'moku', x: 0.58, y: 0.55, s: 0.5, m: 'shock', gray: true }],
-      sfx: [{ t: 'ブンッ', x: 0.18, y: 0.66, s: 42 }], b: [{ t: 'ひゃっ', x: 0.22, y: 0.2, w: 0, type: 'small' }] },
+      sfx: [{ t: 'ブンッ', x: 0.15, y: 0.68, s: 40 }], b: [{ t: 'ひゃっ', x: 0.2, y: 0.22, w: 0, type: 'small' }] },
     { ...YARD({ pole: [0.2, 0.8, 0.28], laundry: ['shirt', 'towel', 'shirt', 'towel'], wet: true, gy: 0.78 }),
       chars: [{ id: 'moku', x: 0.2, y: 0.3, s: 0.24, m: 'cry', gray: true, rain: 3 }, { id: 'mom', x: 0.55, y: 0.98, s: 0.85, m: 'angry', f: -1, p: 'broom', hold: 'broom', legs: 'run' }, { id: 'haru', x: 0.9, y: 0.99, s: 0.58, m: 'shock', f: -1 }],
-      fx: [{ t: 'lines', at: [[0.7, 0.4, 0.82, 0.4], [0.7, 0.5, 0.85, 0.5], [0.72, 0.6, 0.84, 0.6]] }],
-      sfx: [{ t: 'ザザーッ', x: 0.07, y: 0.62, s: 40, r: 0.08 }], b: [{ t: 'どきなさーい！', x: 0.36, y: 0.32, w: 1, type: 'shout', fs: 20 }] },
-    { ...YARD({ gy: 0.8, noRoofs: true }), chars: [{ id: 'mom', x: 0.3, y: 1.02, s: 0.95, m: 'shock', f: 1, p: 'broom', hold: 'broom' }, { id: 'haru', x: 0.68, y: 1.0, s: 0.63, m: 'worried', f: -1, p: 'grab' }],
-      b: [{ t: '待って！', x: 0.85, y: 0.25, w: 1 }] },
-    { bg: 'tone', chars: [{ id: 'haru', x: 0.6, hy: 0.62, hr: 0.23, m: 'sad', f: -1, look: 'up' }],
-      b: [{ t: 'この子、\n泣いてる', x: 0.2, y: 0.36, w: 0 }] },
+      fx: [{ t: 'lines', at: [[0.7, 0.42, 0.82, 0.42], [0.7, 0.52, 0.85, 0.52], [0.72, 0.62, 0.84, 0.62]] }],
+      sfx: [{ t: 'ザザアッ', x: 0.07, y: 0.62, s: 40, r: 0.08 }], b: [{ t: 'どきなさーい！', x: 0.37, y: 0.34, w: 1, type: 'shout', fs: 20 }] },
+    { ...YARD({ gy: 0.8, noRoofs: true }), chars: [{ id: 'mom', x: 0.24, y: 1.02, s: 0.95, m: 'shock', f: 1, p: 'broomdown', hold: 'broom' }, { id: 'haru', x: 0.6, y: 1.0, s: 0.6, m: 'worried', f: -1, p: 'grab' }],
+      b: [{ t: '待って！', x: 0.9, y: 0.25, w: 1 }] },
+    { bg: 'plain', fx: [{ t: 'gloom', x: 0.5, y: 0.02, w: 0.8, h: 0.18 }], chars: [{ id: 'moku', x: 0.5, y: 0.55, s: 0.6, m: 'cry', gray: true }],
+      under: [{ t: 'drop', x: 0.2, y: 0.88, s: 10 }, { t: 'drop', x: 0.8, y: 0.9, s: 9 }], sfx: [{ t: 'ぽろぽろ', x: 0.5, y: 0.9, s: 26, h: true }] },
+    { bg: 'tone', chars: [{ id: 'haru', x: 0.58, hy: 0.64, hr: 0.27, m: 'sad', f: -1, look: 'up' }],
+      b: [{ t: 'この子、\n泣いてる', x: 0.22, y: 0.3, w: 0 }] },
   ] },
   /* 5 ── まいご */
   { rows: [[1.3, [1]], [1.05, [1.1, 1]], [1, [1, 1]]], panels: [
     { ...YARD({ pole: [0.1, 0.9, 0.32], laundry: ['shirt', 'towel', '', 'towel', 'shirt'], wet: true, gy: 0.8, noRoofs: true }),
       chars: [{ id: 'moku', x: 0.5, y: 0.26, s: 0.26, m: 'sad', gray: true, rain: 1 }, { id: 'haru', x: 0.62, y: 0.99, s: 0.6, m: 'normal', f: -1, look: 'up' }],
-      b: [{ t: 'どうしたの？', x: 0.86, y: 0.55, w: 1 }, { t: '…はぐれたの', x: 0.2, y: 0.42, w: 0, type: 'small' }] },
+      b: [{ t: 'どうしたの？', x: 0.86, y: 0.55, w: 1 }, { t: '…はぐれたの', x: 0.22, y: 0.3, w: 0, type: 'small' }] },
     { bg: 'plain', fx: [{ t: 'gloom', x: 0.4, y: 0.02, w: 0.6, h: 0.2 }], chars: [{ id: 'moku', x: 0.38, y: 0.6, s: 0.46, m: 'cry', gray: true }],
       b: [{ t: '風が\nはやくて', x: 0.86, y: 0.27, w: 0, type: 'small' }, { t: 'みんなに\nおいてかれた', x: 0.83, y: 0.72, w: 0, type: 'small', fs: 18 }] },
     { bg: 'plain', chars: [{ id: 'haru', x: 0.56, hy: 0.6, hr: 0.22, m: 'sad', f: -1 }],
@@ -885,7 +930,7 @@ const STORY = [
     { ...YARD({ gy: 0.85, noRoofs: true }), chars: [{ id: 'mom', x: 0.5, y: 1.12, s: 1.05, m: 'sigh', f: -1, p: 'broomdown', hold: 'broom' }],
       b: [{ t: '……はぁ', x: 0.18, y: 0.3, w: 0 }] },
     { bg: 'plain', chars: [{ id: 'mom', x: 0.72, hy: 0.6, hr: 0.19, m: 'smile', f: -1 }, { id: 'haru', x: 0.15, y: 1.04, s: 0.55, m: 'happy', f: 1, p: 'up', legs: 'jump' }],
-      b: [{ t: '雨がやむまで\nだからね', x: 0.47, y: 0.33, w: 0, fs: 20 }, { t: 'やった！', x: 0.36, y: 0.74, w: 1, fs: 20 }] },
+      b: [{ t: '雨がやむまで\nだからね', x: 0.5, y: 0.3, w: 0, fs: 19 }, { t: 'やった！', x: 0.32, y: 0.85, w: 1, fs: 19 }] },
   ] },
   /* 6 ── にらめっこ */
   { rows: [[1, [1.15, 1]], [1.2, [1]], [1.1, [1, 1.15]]], panels: [
@@ -893,16 +938,15 @@ const STORY = [
       b: [{ t: 'わたし、ハル', x: 0.88, y: 0.38, w: 0, fs: 21 }, { t: 'きみは？', x: 0.2, y: 0.32, w: 0 }] },
     { bg: 'plain', chars: [{ id: 'moku', x: 0.55, y: 0.6, s: 0.5, m: 'normal', gray: true, blush: true }],
       b: [{ t: '…モク', x: 0.16, y: 0.24, w: 0, type: 'small' }] },
-    { bg: 'plain', conc: [0.4, 0.55, 0.32], chars: [{ id: 'haru', x: 0.4, hy: 0.6, hr: 0.3, m: 'puff', f: 0, p: 'cheeks' }, { id: 'moku', x: 0.86, y: 0.72, s: 0.34, m: 'shock', gray: true }],
-      b: [{ t: 'にらめっこ\nしよう', x: 0.9, y: 0.3, w: 0, fs: 21 }, { t: 'あっぷっぷ', x: 0.1, y: 0.38, w: 0, type: 'shout', fs: 21 }] },
+    { bg: 'plain', conc: [0.4, 0.55, 0.32], chars: [{ id: 'haru', x: 0.4, hy: 0.6, hr: 0.3, m: 'puff', f: 0, p: 'cheeks' }, { id: 'moku', x: 0.88, y: 0.74, s: 0.3, m: 'shock', gray: true }],
+      b: [{ t: 'にらめっこ\nしよう', x: 0.67, y: 0.3, w: 0, fs: 21 }, { t: 'あっぷっぷ', x: 0.1, y: 0.4, w: 0, type: 'shout', fs: 20 }] },
     { bg: 'plain', conc: [0.5, 0.58, 0.32], chars: [{ id: 'moku', x: 0.5, y: 0.6, s: 0.48, m: 'laugh', sparkle: true }],
-      b: [{ t: 'ぷふっ', x: 0.84, y: 0.16, w: 0, type: 'small' }], sfx: [{ t: 'ふわっ', x: 0.12, y: 0.68, s: 34 }] },
-    { ...YARD({ sun: [0.75, 0.2], sunR: 0.11, gy: 0.82, noRoofs: true }), chars: [{ id: 'mom', x: 0.38, y: 1.15, s: 1.0, m: 'shock', f: 1, look: 'up', p: 'broomdown', hold: 'broom' }],
-      fx: [{ t: 'lines', at: [[0.6, 0.18, 0.5, 0.12], [0.62, 0.33, 0.5, 0.38], [0.75, 0.42, 0.75, 0.5]] }],
+      b: [{ t: 'ぷふっ', x: 0.84, y: 0.2, w: 0, type: 'small' }], sfx: [{ t: 'ふわっ', x: 0.1, y: 0.22, s: 34 }] },
+    { ...YARD({ sun: [0.75, 0.2], sunR: 0.11, gy: 0.82, noRoofs: true }), chars: [{ id: 'mom', x: 0.48, y: 1.15, s: 1.0, m: 'shock', f: 1, look: 'up', p: 'broomdown', hold: 'broom' }],
       b: [{ t: '雨が\nやんだ！', x: 0.15, y: 0.3, w: 0 }] },
   ] },
   /* 7 ── 笑うと晴れる */
-  { rows: [[1.25, [1]], [1, [1, 1.1]], [0.95, [1, 1, 1]]], panels: [
+  { rows: [[1.1, [1]], [1, [1, 1.1]], [1.2, [1, 1]]], panels: [
     { ...YARD({ sun: [0.92, 0.15], pole: [0.05, 0.95, 0.42], laundry: ['shirt', 'towel', 'shirt', 'towel', 'shirt'], gy: 0.8 }),
       chars: [{ id: 'moku', x: 0.38, y: 0.24, s: 0.3, m: 'happy', sparkle: true }, { id: 'haru', x: 0.7, y: 0.98, s: 0.56, m: 'happy', f: -1, p: 'up', legs: 'jump' }],
       b: [{ t: '笑うと\n晴れるんだ！', x: 0.88, y: 0.48, w: 1 }, { t: 'えへへ', x: 0.12, y: 0.25, w: 0, type: 'small' }] },
@@ -910,17 +954,15 @@ const STORY = [
       fx: [{ t: 'sparkle', at: [[0.3, 0.55, 12]] }], b: [{ t: 'ハル', x: 0.86, y: 0.25, w: 0 }] },
     { bg: 'plain', conc: [0.6, 0.5, 0.3], chars: [{ id: 'mom', x: 0.65, y: 1.2, s: 1.1, m: 'determined', f: -1, p: 'point' }],
       b: [{ t: 'その子を\n笑わせ続けて！', x: 0.18, y: 0.4, w: 0, fs: 21 }] },
-    { bg: 'plain', chars: [{ id: 'haru', x: 0.72, y: 1.08, s: 0.85, m: 'happy', f: -1, p: 'tickle' }, { id: 'moku', x: 0.32, y: 0.58, s: 0.36, m: 'laugh' }],
-      sfx: [{ t: 'こちょこちょ', x: 0.5, y: 0.13, s: 20, h: true }] },
-    { bg: 'plain', chars: [{ id: 'haru', x: 0.5, y: 1.0, s: 0.9, m: 'laugh', f: 1, p: 'dance', legs: 'jump' }],
-      sfx: [{ t: 'くねくね', x: 0.15, y: 0.4, s: 24 }] },
-    { ...YARD({ sun: [0.2, 0.16], sunR: 0.12, pole: [0.1, 0.9, 0.48], laundry: ['shirt', 'towel', 'shirt'], gy: 0.86, noRoofs: true }),
-      sfx: [{ t: 'ポカポカ', x: 0.5, y: 0.2, s: 22, h: true }] },
+    { bg: 'plain', chars: [{ id: 'haru', x: 0.76, y: 1.08, s: 0.85, m: 'happy', f: -1, p: 'tickle' }, { id: 'moku', x: 0.3, y: 0.56, s: 0.34, m: 'laugh' }],
+      sfx: [{ t: 'こちょこちょ', x: 0.42, y: 0.13, s: 32, h: true }] },
+    { bg: 'plain', conc: [0.6, 0.38, 0.38], chars: [{ id: 'moku', x: 0.62, y: 0.3, s: 0.4, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.14, y: 1.06, s: 0.48, m: 'surprised', f: 1, look: 'up' }],
+      sfx: [{ t: 'ぷくっ', x: 0.9, y: 0.78, s: 40 }], b: [{ t: 'ふくらんだ？', x: 0.42, y: 0.8, w: 1, fs: 19 }] },
   ] },
   /* 8 ── あら便利 */
   { rows: [[1.3, [1]], [1, [1, 1]], [1, [1, 1]]], panels: [
     { ...YARD({ sun: [0.5, 0.15], sunR: 0.1, flowers: [0.04, 0.42], wilt: true, gy: 0.74, flowerS: 0.18, flowerY: 0.15 }), nar: { t: 'お昼すぎ' },
-      chars: [{ id: 'mom', x: 0.7, y: 0.99, s: 0.85, m: 'sweat', f: -1, p: 'brow' }, { id: 'haru', x: 0.48, y: 1.0, s: 0.55, m: 'worried', f: -1 }, { id: 'moku', x: 0.18, y: 0.25, s: 0.2, m: 'normal' }],
+      chars: [{ id: 'mom', x: 0.7, y: 0.99, s: 0.85, m: 'sweat', f: -1, p: 'fan' }, { id: 'haru', x: 0.48, y: 1.0, s: 0.55, m: 'worried', f: -1 }, { id: 'moku', x: 0.18, y: 0.25, s: 0.2, m: 'normal' }],
       b: [{ t: 'あっつい\nわねぇ', x: 0.88, y: 0.62, w: 0 }, { t: 'お花が\nしおれてる', x: 0.34, y: 0.42, w: 1 }] },
     { ...YARD({ flowers: [0.05, 0.95], wilt: true, gy: 0.82, flowerS: 0.32, flowerY: 0.15, noRoofs: true, fenceH: 0.3 }),
       chars: [{ id: 'moku', x: 0.6, y: 0.25, s: 0.32, m: 'think' }], b: [{ t: 'お花、\nのどが\nかわいてる？', x: 0.17, y: 0.36, w: 0, type: 'small', fs: 18 }] },
@@ -929,15 +971,16 @@ const STORY = [
     { ...YARD({ gy: 0.85, noRoofs: true }), under: [{ t: 'shadow', x: 0.45, y: 0.95, rx: 0.4, ry: 0.06 }],
       chars: [{ id: 'moku', x: 0.42, y: 0.14, s: 0.22, m: 'happy' }, { id: 'mom', x: 0.42, y: 1.15, s: 0.82, m: 'gentle', f: 1, look: 'up' }],
       b: [{ t: 'あら、\nすずしい', x: 0.85, y: 0.5, w: 1 }] },
-    { bg: 'plain', chars: [{ id: 'mom', x: 0.6, y: 1.25, s: 1.15, m: 'happy', f: -1, p: 'chin' }, { id: 'haru', x: 0.15, y: 1.04, s: 0.6, m: 'sweat', f: 1 }],
-      b: [{ t: 'あんた、\n便利ねぇ', x: 0.86, y: 0.3, w: 0 }, { t: 'お母さん…', x: 0.33, y: 0.25, w: 1, type: 'small' }] },
+    { bg: 'plain', chars: [{ id: 'mom', x: 0.55, y: 1.25, s: 1.1, m: 'happy', f: -1, p: 'chin' }, { id: 'haru', x: 0.15, y: 1.04, s: 0.6, m: 'sweat', f: 1 }],
+      b: [{ t: 'あんた、\n便利ねぇ', x: 0.9, y: 0.38, w: 0, fs: 21 }, { t: 'お母さん…', x: 0.33, y: 0.25, w: 1, type: 'small' }] },
   ] },
   /* 9 ── 夕方 */
   { rows: [[1.3, [1]], [1, [1.1, 1]], [0.9, [1]]], panels: [
     { ...YARD({ sunset: true, pole: [0.05, 0.6, 0.35], laundry: [], gy: 0.76 }), nar: { t: '夕方' },
       chars: [{ id: 'mom', x: 0.72, y: 0.99, s: 0.85, m: 'gentle', f: 1, p: 'hold', hold: 'basket' }, { id: 'moku', x: 0.32, y: 0.3, s: 0.22, m: 'happy', blush: true }],
       b: [{ t: 'ありがとね、\nモク', x: 0.52, y: 0.45, w: 0 }, { t: 'えへへ', x: 0.1, y: 0.45, w: 1, type: 'small' }] },
-    { bg: 'sunset', chars: [{ id: 'far', x: 0.3, y: 0.25, s: 0.35 }, { id: 'far', x: 0.68, y: 0.18, s: 0.28 }, { id: 'moku', x: 0.55, y: 0.75, s: 0.35, m: 'think', look: 'up' }] },
+    { bg: 'sunset', chars: [{ id: 'papa', x: 0.28, y: 0.2, s: 0.26, m: 'normal' }, { id: 'mama', x: 0.62, y: 0.15, s: 0.2, m: 'normal' }, { id: 'moku', x: 0.55, y: 0.75, s: 0.32, m: 'think', look: 'up' }],
+      fx: [{ t: 'lines', at: [[0.82, 0.15, 0.95, 0.15], [0.84, 0.25, 0.97, 0.25], [0.48, 0.3, 0.6, 0.3]] }] },
     { bg: 'plain', chars: [{ id: 'moku', x: 0.4, y: 0.65, s: 0.48, m: 'sad' }],
       b: [{ t: '…みんな', x: 0.8, y: 0.28, w: 0, type: 'think' }] },
     { ...YARD({ sunset: true, gy: 0.82, noRoofs: true }),
@@ -960,53 +1003,66 @@ const STORY = [
       b: [{ t: '高く、\nねぇ…', x: 0.53, y: 0.3, w: 0, type: 'think' }] },
   ] },
   /* 11 ── 次の朝 */
-  { rows: [[1.6, [1]], [1, [1, 1]], [1, [1, 1.1]]], panels: [
-    { ...YARD({ pole: [0.2, 0.8, 0.75], laundry: [], gy: 0.88, fenceH: 0.06, noRoofs: true, birds: [[0.5, 0.45]] }), nar: { t: '次の朝' },
-      chars: [{ id: 'papa', x: 0.32, y: 0.24, s: 0.42, m: 'worried' }, { id: 'mama', x: 0.66, y: 0.3, s: 0.34, m: 'worried', look: 'down' }, { id: 'moku', x: 0.5, y: 0.7, s: 0.13, m: 'shock' }],
-      b: [{ t: 'モクー', x: 0.1, y: 0.15, w: 0, type: 'small' }, { t: 'どこー？', x: 0.88, y: 0.55, w: 1, type: 'small' }, { t: 'みんなだ！', x: 0.25, y: 0.67, w: 2, type: 'shout', fs: 21 }] },
-    { bg: 'plain', speed: 'v', chars: [{ id: 'moku', x: 0.5, y: 0.45, s: 0.45, m: 'jump' }],
-      sfx: [{ t: 'ぴょん', x: 0.14, y: 0.7, s: 32 }], b: [{ t: 'えいっ', x: 0.84, y: 0.25, w: 0 }] },
+  { rows: [[1.75, [1.45, 1]], [1, [1, 1]], [1.05, [1]]], panels: [
+    { ...YARD({ pole: [0.1, 0.9, 0.86], laundry: [], gy: 0.93, fenceH: 0.04, noRoofs: true, birds: [[0.4, 0.42], [0.47, 0.46], [0.75, 0.55]] }), nar: { t: '次の朝' },
+      chars: [{ id: 'papa', x: 0.3, y: 0.1, s: 0.15, m: 'worried' }, { id: 'mama', x: 0.58, y: 0.08, s: 0.12, m: 'worried' }, { id: 'moku', x: 0.5, y: 0.83, s: 0.14, m: 'shock', look: 'up' }],
+      fx: [{ t: 'dots', x: 0.5, y1: 0.22, y2: 0.72 }],
+      b: [{ t: 'モクー', x: 0.1, y: 0.26, w: 0, type: 'small' }, { t: 'どこー？', x: 0.8, y: 0.3, w: 1, type: 'small' }, { t: 'みんなだ！', x: 0.2, y: 0.64, w: 2, type: 'shout', fs: 20 }] },
+    { bg: 'plain', speed: 'v', chars: [{ id: 'papa', x: 0.35, y: 0.06, s: 0.18, m: 'worried' }, { id: 'moku', x: 0.5, y: 0.6, s: 0.55, m: 'jump' }],
+      sfx: [{ t: 'ぴょん', x: 0.15, y: 0.88, s: 32 }], b: [{ t: 'えいっ', x: 0.82, y: 0.3, w: 1 }] },
     { ...YARD({ gy: 0.78, noRoofs: true, fenceH: 0.3 }), chars: [{ id: 'moku', x: 0.5, y: 0.6, s: 0.4, m: 'cry', gray: true }],
-      sfx: [{ t: 'ぽふっ', x: 0.12, y: 0.82, s: 28 }], b: [{ t: 'とどかない…', x: 0.84, y: 0.36, w: 0, type: 'small', fs: 18 }] },
+      sfx: [{ t: 'ぽふっ', x: 0.12, y: 0.82, s: 30 }], b: [{ t: 'とどかない…', x: 0.84, y: 0.36, w: 0, type: 'small', fs: 18 }] },
     { bg: 'plain', chars: [{ id: 'haru', x: 0.5, hy: 0.62, hr: 0.25, m: 'idea', f: -1 }],
       fx: [{ t: 'idea', x: 0.5, y: 0.25, s: 26 }], b: [{ t: 'そうだ！', x: 0.15, y: 0.3, w: 0 }] },
-    { bg: 'plain', conc: [0.3, 0.55, 0.35], chars: [{ id: 'haru', x: 0.3, y: 1.12, s: 1.0, m: 'grin', f: 1, p: 'pointup' }],
-      b: [{ t: 'うんと笑えば\nふくらむよ！', x: 0.83, y: 0.33, w: 0, fs: 20 }, { t: 'とべる\nかも！', x: 0.6, y: 0.76, w: 0, fs: 20 }] },
+    { bg: 'plain', conc: [0.22, 0.55, 0.35], chars: [{ id: 'haru', x: 0.22, y: 1.15, s: 1.05, m: 'grin', f: 1, p: 'pointup' }, { id: 'moku', x: 0.88, y: 0.6, s: 0.3, m: 'shock', gray: true }],
+      b: [{ t: 'うんと笑えば\nふくらむよ！', x: 0.62, y: 0.32, w: 0, fs: 20 }, { t: 'ふくらめば\nとべるかも！', x: 0.43, y: 0.7, w: 0, fs: 20 }] },
   ] },
   /* 12 ── 笑えない */
   { rows: [[1, [1, 1]], [1, [1, 1]], [1.25, [1]]], panels: [
     { bg: 'plain', conc: [0.45, 0.6, 0.3], chars: [{ id: 'haru', x: 0.45, hy: 0.6, hr: 0.27, m: 'puff', f: 0, p: 'cheeks' }],
-      sfx: [{ t: 'あっぷっぷ', x: 0.88, y: 0.5, s: 28 }] },
-    { bg: 'plain', chars: [{ id: 'moku', x: 0.55, y: 0.55, s: 0.42, m: 'smile', sparkle: true }], b: [{ t: 'ふふ…', x: 0.16, y: 0.22, w: 0, type: 'small' }] },
+      sfx: [{ t: 'あっぷっぷ', x: 0.88, y: 0.5, s: 30 }] },
+    { bg: 'plain', chars: [{ id: 'moku', x: 0.55, y: 0.58, s: 0.42, m: 'worried', gray: true }], b: [{ t: '…ふ', x: 0.15, y: 0.22, w: 0, type: 'small' }] },
     { bg: 'plain', chars: [{ id: 'haru', x: 0.5, y: 1.02, s: 0.9, m: 'sweat', f: 1, p: 'dance', legs: 'jump' }],
-      sfx: [{ t: 'くねくね', x: 0.85, y: 0.35, s: 28 }, { t: 'くねっ', x: 0.12, y: 0.65, s: 24 }] },
+      sfx: [{ t: 'くねくね', x: 0.86, y: 0.38, s: 32 }] },
     { bg: 'tone', bgo: { mid: true }, chars: [{ id: 'moku', x: 0.55, y: 0.62, s: 0.45, m: 'sad', gray: true }],
       b: [{ t: 'ごめん…\n笑えないよ', x: 0.15, y: 0.35, w: 0, type: 'small' }] },
-    { ...YARD({ gy: 0.85, noRoofs: true, fenceH: 0.12 }),
-      chars: [{ id: 'papa', x: 0.14, y: 0.13, s: 0.28, m: 'worried' }, { id: 'mama', x: 0.32, y: 0.1, s: 0.2, m: 'worried' },
-        { id: 'haru', x: 0.47, y: 1.0, s: 0.6, m: 'cry', f: 1, look: 'up' }, { id: 'mom', x: 0.82, y: 1.0, s: 0.85, m: 'determined', f: -1, p: 'hips' }],
-      sfx: [{ t: 'ゴォォ', x: 0.08, y: 0.5, s: 32 }],
-      b: [{ t: '行っちゃう！', x: 0.32, y: 0.48, w: 2, fs: 21 }, { t: 'どいて、\nハル', x: 0.63, y: 0.32, w: 3 }] },
+    { ...YARD({ gy: 0.85, noRoofs: true, fenceH: 0.12, birds: [[0.6, 0.2]] }),
+      chars: [{ id: 'papa', x: 0.1, y: 0.1, s: 0.13, m: 'worried' }, { id: 'mama', x: 0.24, y: 0.07, s: 0.1, m: 'worried' },
+        { id: 'haru', x: 0.72, y: 1.0, s: 0.6, m: 'cry', f: -1, look: 'up' }, { id: 'mom', x: 0.27, y: 1.0, s: 0.85, m: 'determined', f: 1, p: 'hips' }],
+      fx: [{ t: 'lines', at: [[0.02, 0.32, 0.12, 0.32], [0.05, 0.4, 0.16, 0.4], [0.3, 0.24, 0.38, 0.24]] }],
+      sfx: [{ t: 'ゴォォ', x: 0.53, y: 0.25, s: 36 }],
+      b: [{ t: '行っちゃう！', x: 0.9, y: 0.32, w: 2, fs: 21 }, { t: 'どいて、\nハル', x: 0.5, y: 0.6, w: 3 }] },
   ] },
   /* 13 ── お母さんの本気 */
   { rows: [[1, [1, 1]], [1.85, [1]], [0.95, [1, 1]]], panels: [
-    { bg: 'plain', conc: [0.5, 0.45, 0.25], chars: [{ id: 'mom', x: 0.5, y: 1.15, s: 1.05, f: 0, back: true, p: 'down' }],
-      b: [{ t: 'お母さんの\n本気を', x: 0.18, y: 0.36, w: 0, fs: 21 }] },
-    { bg: 'black', chars: [{ id: 'mom', x: 0.5, hy: 0.62, hr: 0.27, m: 'determined', f: 0 }],
-      fx: [{ t: 'sparkle', at: [[0.3, 0.6, 12], [0.7, 0.58, 10]] }], b: [{ t: '見せて\nあげる', x: 0.85, y: 0.3, w: 0 }] },
-    { bg: 'plain', conc: [0.5, 0.5, 0.3], chars: [{ id: 'mom', x: 0.5, hy: 0.52, hr: 0.27, m: 'funny', f: 0, p: 'cheeks' }, { id: 'haru', x: 0.1, y: 1.03, s: 0.32, m: 'shock', f: 1 }],
-      sfx: [{ t: 'ドーン', x: 0.9, y: 0.75, s: 52, r: 0.1 }],
-      b: [{ t: 'べろべろ\nばあ〜っ！', x: 0.86, y: 0.25, w: 0, type: 'shout', fs: 26 }] },
+    { bg: 'plain', conc: [0.5, 0.45, 0.25], chars: [{ id: 'mom', x: 0.5, y: 1.15, s: 1.05, f: 0, back: true, p: 'hips' }],
+      b: [{ t: '笑いが\n足りないのよ', x: 0.15, y: 0.36, w: 0, fs: 21 }] },
+    { bg: 'black', chars: [{ id: 'mom', x: 0.42, hy: 0.62, hr: 0.27, m: 'determined', f: 0 }],
+      fx: [{ t: 'sparkle', at: [[0.22, 0.6, 12], [0.62, 0.58, 10]] }], b: [{ t: 'お母さんの\n本気、\n見せてあげる', x: 0.83, y: 0.42, w: 0, fs: 20 }] },
+    { bg: 'plain', conc: [0.5, 0.5, 0.3], chars: [{ id: 'mom', x: 0.5, hy: 0.5, hr: 0.29, m: 'funny', f: 0, p: 'cheeks' }, { id: 'haru', x: 0.11, y: 1.04, s: 0.5, m: 'shock', f: 1 }],
+      sfx: [{ t: 'ドーン', x: 0.9, y: 0.74, s: 54, r: 0.1 }],
+      b: [{ t: 'べろべろ\nばあ〜っ！', x: 0.86, y: 0.26, w: 0, type: 'shout', fs: 26 }] },
     { bg: 'plain', conc: [0.5, 0.55, 0.3], chars: [{ id: 'moku', x: 0.57, y: 0.6, s: 0.46, m: 'burst' }],
       b: [{ t: 'ぶはっ', x: 0.17, y: 0.32, w: 0, type: 'shout' }] },
     { bg: 'plain', conc: [0.5, 0.55, 0.3], chars: [{ id: 'moku', x: 0.48, y: 0.55, s: 0.5, m: 'laugh', sparkle: true }],
       b: [{ t: 'あはは\nははっ！', x: 0.86, y: 0.36, w: 0 }] },
   ] },
-  /* 14 ── とんだ！ */
+  /* 14 ── ぷくーっ */
+  { rows: [[1, [1, 1, 1]], [1.9, [1]]], panels: [
+    { bg: 'plain', chars: [{ id: 'moku', x: 0.5, y: 0.66, s: 0.36, m: 'laugh' }], sfx: [{ t: 'ぷく', x: 0.5, y: 0.17, s: 40 }] },
+    { bg: 'plain', chars: [{ id: 'moku', x: 0.5, y: 0.6, s: 0.5, m: 'laugh' }], sfx: [{ t: 'ぷくぷく', x: 0.5, y: 0.12, s: 38, h: true }] },
+    { bg: 'plain', conc: [0.5, 0.56, 0.36], chars: [{ id: 'moku', x: 0.5, y: 0.56, s: 0.66, m: 'laugh', sparkle: true }], sfx: [{ t: 'ぷくーっ', x: 0.5, y: 0.1, s: 38, h: true }] },
+    { ...YARD({ pole: [0.08, 0.92, 0.8], laundry: [], gy: 0.92, fenceH: 0.05, noRoofs: true }),
+      chars: [{ id: 'moku', x: 0.5, y: 0.36, s: 0.4, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.8, y: 1.0, s: 0.3, m: 'shock', f: -1, look: 'up' }, { id: 'mom', x: 0.2, y: 1.0, s: 0.4, m: 'happy', f: 1, look: 'up', p: 'hips' }],
+      fx: [{ t: 'lines', at: [[0.3, 0.62, 0.3, 0.76], [0.38, 0.66, 0.38, 0.84], [0.5, 0.67, 0.5, 0.88], [0.62, 0.66, 0.62, 0.84], [0.7, 0.62, 0.7, 0.76]] }],
+      sfx: [{ t: 'ふわぁっ', x: 0.88, y: 0.24, s: 52, r: 0.08 }],
+      b: [{ t: 'うかんだ！', x: 0.93, y: 0.68, w: 1, fs: 20 }, { t: 'その調子！', x: 0.07, y: 0.62, w: 2, fs: 20 }] },
+  ] },
+  /* 15 ── とんだ！ */
   { rows: [[1.6, [1]], [0.9, [1, 1]], [1.3, [1]]], panels: [
     { ...YARD({ pole: [0.55, 0.95, 0.75], laundry: [], gy: 0.88, fenceH: 0.07, noRoofs: true }),
       chars: [{ id: 'moku', x: 0.45, y: 0.32, s: 0.42, m: 'laugh', sparkle: true }, { id: 'haru', x: 0.2, y: 1.0, s: 0.3, m: 'happy', f: 1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.78, y: 1.0, s: 0.4, m: 'laugh', f: -1, p: 'up', look: 'up' }],
-      fx: [{ t: 'puffs', at: [[0.4, 0.66, 14], [0.47, 0.74, 10], [0.43, 0.82, 7]] }],
+      fx: [{ t: 'lines', at: [[0.35, 0.66, 0.35, 0.8], [0.45, 0.7, 0.45, 0.88], [0.55, 0.66, 0.55, 0.8]] }],
       sfx: [{ t: 'ぶわっ', x: 0.88, y: 0.2, s: 50, r: 0.1 }],
       b: [{ t: 'とんでる！', x: 0.15, y: 0.24, w: 0 }, { t: 'いけーっ！', x: 0.1, y: 0.62, w: 1, type: 'shout', fs: 19 }] },
     { bg: 'sky', chars: [{ id: 'mama', x: 0.7, y: 0.4, s: 0.5, m: 'happy' }, { id: 'moku', x: 0.25, y: 0.7, s: 0.28, m: 'happy' }],
@@ -1018,7 +1074,7 @@ const STORY = [
       fx: [{ t: 'sparkle', at: [[0.15, 0.18, 10], [0.84, 0.2, 12], [0.7, 0.08, 8], [0.3, 0.1, 8]] }, { t: 'rain', x1: 0.0, x2: 1.0, y1: 0.0, y2: 0.5, n: 30 }],
       b: [{ t: 'にじだ…', x: 0.12, y: 0.55, w: 0 }, { t: 'うれし泣き\nかしらね', x: 0.88, y: 0.52, w: 1 }] },
   ] },
-  /* 15 ── それから */
+  /* 16 ── それから */
   { rows: [[1.15, [1]], [0.95, [1, 1]], [1.5, [1]]], panels: [
     { ...YARD({ sun: [0.1, 0.18], pole: [0.15, 0.85, 0.3], laundry: ['shirt', 'towel', 'shirt', 'sheet', 'sock'], gy: 0.72, flowers: [0.62, 0.98], flowerS: 0.14, flowerY: 0.2 }), nar: { t: 'それから' },
       chars: [{ id: 'mom', x: 0.42, y: 0.99, s: 0.86, m: 'happy', f: -1, p: 'hang', hold: 'towel' }, { id: 'haru', x: 0.16, y: 0.99, s: 0.55, m: 'smile', f: 1, p: 'hold', hold: 'basket' }],
@@ -1026,10 +1082,10 @@ const STORY = [
     { ...YARD({ flowers: [0.05, 0.95], gy: 0.82, flowerS: 0.3, flowerY: 0.15, noRoofs: true, fenceH: 0.3 }),
       fx: [{ t: 'rain', x1: 0.15, x2: 0.85, y1: 0.0, y2: 0.55, n: 40 }], sfx: [{ t: 'サァ…', x: 0.88, y: 0.25, s: 28 }] },
     { bg: 'plain', chars: [{ id: 'haru', x: 0.5, hy: 0.62, hr: 0.24, m: 'surprised', f: 1, look: 'up' }], b: [{ t: 'あっ！', x: 0.85, y: 0.25, w: 0 }] },
-    { ...YARD({ pole: [-0.1, 0.35, 0.55], laundry: ['shirt', 'towel'], gy: 0.86, fenceH: 0.08, noRoofs: true, sun: [0.9, 0.1] }),
-      chars: [{ id: 'papa', x: 0.4, y: 0.16, s: 0.24, m: 'happy' }, { id: 'mama', x: 0.6, y: 0.14, s: 0.2, m: 'happy' }, { id: 'moku', x: 0.75, y: 0.32, s: 0.13, m: 'happy' },
-        { id: 'haru', x: 0.53, y: 1.0, s: 0.38, m: 'happy', f: 1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.73, y: 1.0, s: 0.52, m: 'smile', f: -1, p: 'hips', look: 'up' }],
-      b: [{ t: 'モクー！', x: 0.36, y: 0.55, w: 3 }, { t: '洗濯物には\n降らないでよー！', x: 0.89, y: 0.62, w: 4, fs: 20, rows: 8 }, { t: 'はーい', x: 0.56, y: 0.42, w: 2, type: 'small' }],
+    { ...YARD({ gy: 0.86, fenceH: 0.08, noRoofs: true, sun: [0.92, 0.1] }),
+      chars: [{ id: 'papa', x: 0.14, y: 0.15, s: 0.22, m: 'happy' }, { id: 'mama', x: 0.36, y: 0.12, s: 0.18, m: 'happy' }, { id: 'moku', x: 0.27, y: 0.38, s: 0.13, m: 'happy' },
+        { id: 'haru', x: 0.8, y: 1.0, s: 0.38, m: 'happy', f: -1, p: 'wave', look: 'up' }, { id: 'mom', x: 0.55, y: 1.0, s: 0.52, m: 'smile', f: -1, p: 'hips', look: 'up' }],
+      b: [{ t: 'モクー！', x: 0.93, y: 0.42, w: 3 }, { t: '洗濯物には\n降らないでよー！', x: 0.7, y: 0.32, w: 4, fs: 20, rows: 8 }, { t: 'はーい', x: 0.42, y: 0.5, w: 2, type: 'small' }],
       end: [0.08, 0.68] },
   ] },
 ];
@@ -1060,7 +1116,7 @@ async function show(i, dir = 1) {
   cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', i === 0 ? '表紙' : `${i + 1}ページ`);
   sh.replaceChildren(cv);
   sh.classList.remove('flip', 'flipb'); void sh.offsetWidth; sh.classList.add(dir >= 0 ? 'flip' : 'flipb');
-  $('nombre').innerHTML = i === 0 ? '<b>表紙</b>' : `<b>${i + 1}</b> / ${N}`;
+  $('nombre').innerHTML = i === 0 ? '<span class="cv">表紙</span>' : `<b>${i + 1}</b> / ${N}`;
   $('nextBtn').disabled = i >= N - 1; $('prevBtn').disabled = i <= 0;
   $('nextBtn').textContent = i >= N - 1 ? 'おしまい' : (i === 0 ? '← 読む' : '← 次');
   $('barFill').style.width = `${(i + 1) / N * 100}%`;
@@ -1071,7 +1127,21 @@ $('nextBtn').onclick = () => show(cur + 1, 1);
 $('prevBtn').onclick = () => show(cur - 1, -1);
 $('firstBtn').onclick = () => show(0, -1);
 $('randBtn').onclick = () => { let k = Math.floor(Math.random() * N); if (k === cur && N > 1) k = (k + 1 + Math.floor(Math.random() * (N - 1))) % N; show(k, k >= cur ? 1 : -1); };
-$('sheet').addEventListener('click', e => { const rc = $('sheet').getBoundingClientRect(); if (e.clientX < rc.left + rc.width / 2) show(cur + 1, 1); else show(cur - 1, -1); });
+let swiped = false;
+let clickTimer = 0;
+$('sheet').addEventListener('click', e => { if (swiped || $('sheet').classList.contains('zoom')) { swiped = false; return; } if (e.detail > 1) return; const rc = $('sheet').getBoundingClientRect(), left = e.clientX < rc.left + rc.width / 2;
+  clearTimeout(clickTimer); clickTimer = setTimeout(() => { if (left) show(cur + 1, 1); else show(cur - 1, -1); }, 230); });
+// スワイプ：左へ払うと次のページ（漫画は左へ進む）
+let tx = 0, ty = 0;
+$('sheet').addEventListener('touchstart', e => { const t = e.changedTouches[0]; tx = t.clientX; ty = t.clientY; }, { passive: true });
+$('sheet').addEventListener('touchend', e => {
+  if ($('sheet').classList.contains('zoom')) return;
+  const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) { swiped = true; setTimeout(() => { swiped = false; }, 400); if (dx < 0) show(cur + 1, 1); else show(cur - 1, -1); }
+});
+function setZoom(on) { $('sheet').classList.toggle('zoom', on); $('zoomBtn').setAttribute('aria-pressed', on); $('zoomBtn').textContent = on ? 'もとの大きさ' : '大きく見る'; }
+$('zoomBtn').onclick = () => setZoom(!$('sheet').classList.contains('zoom'));
+$('sheet').addEventListener('dblclick', e => { e.preventDefault(); clearTimeout(clickTimer); setZoom(!$('sheet').classList.contains('zoom')); });
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'ArrowLeft') { e.preventDefault(); show(cur + 1, 1); }
