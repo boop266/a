@@ -113,7 +113,7 @@
     m.neck = B * lerp(0.02, 0.05, r); m.footH = B * 0.035;
     m.torso = B * lerp(0.43, 0.38, r);
     m.leg = B - m.neck - m.torso - m.footH; m.thigh = m.leg * 0.5; m.shin = m.leg * 0.5;
-    m.shHalf = B * lerp(0.27, 0.16, r) * ag.build * (fem ? 0.86 : 1) * (bw > 1 ? 1.12 : 1);
+    m.shHalf = B * lerp(0.27, 0.15, r) * ag.build * (fem ? 0.86 : 1) * (bw > 1 ? 1.12 : 1);
     m.hipHalf = B * lerp(0.17, 0.095, r) * (fem ? 1.12 : 1) * (bw > 1 ? 1.25 : 1);
     m.upper = B * lerp(0.2, 0.205, r); m.fore = B * lerp(0.17, 0.185, r);
     m.armR = B * lerp(0.07, 0.03, r) * (1 + art.deform * 0.25) * (bw > 1 ? 1.3 : bw < 1 ? 0.85 : 1) * (fem ? 0.88 : 1);
@@ -825,9 +825,11 @@
     const yaw = (byaw + J.headTurn) * D, nod = J.headNod * D, tilt = J.headTilt * D * rig.mir;
     const q = m.q;
     // 顔の上の点 (u: 横の角度, v: 縦 -1..1.2) → 画面
+    // 頭蓋：写実度が高いほど横幅の狭い卵形、後頭部は後ろへ張り出す（デフォルメが強いと丸い球のまま）
+    const ax = lerp(1, 0.82, q), back = lerp(1, 1.18, q);
     const sp = (u, v, rad = 1, zOff = 0) => {
       const cv = Math.sqrt(Math.max(0, 1 - Math.min(1, v * v)));
-      let x = Math.sin(u) * cv * rad, y = v * rad, z = Math.cos(u) * cv * rad + zOff;
+      let x = Math.sin(u) * cv * rad * ax, y = v * rad, z = Math.cos(u) * cv * rad; z = (z < 0 ? z * back : z) + zOff;
       // うなずき
       const y2 = y * Math.cos(nod) - z * Math.sin(nod), z2 = y * Math.sin(nod) + z * Math.cos(nod); y = y2; z = z2;
       // 向き
@@ -843,7 +845,9 @@
       return { x: c.x + tx * R, y: c.y + ty * R, z: Z };
     };
     const faceOn = Math.cos(yaw); // 1=正面, 0=横, -1=後ろ
-    return { c, R, yaw, nod, tilt, q, sp, pt, faceOn, side: Math.sin(yaw) * rig.mir };
+    // 頭蓋（半径 rad）の画面上の外形：楕円体の点を投影した凸包
+    const hullAt = (rad = 1, lift = 0) => { const P = []; for (let i = 0; i < 14; i++) for (let j = 0; j < 24; j++) { const v = -0.98 + i / 13 * 1.6, u = j / 24 * TAU; const p = sp(u, v, rad); P.push([p.x, p.y - (v < -0.2 ? lift * R * (-v - 0.2) : 0)]); } return convexHull(P); };
+    return { c, R, yaw, nod, tilt, q, sp, pt, faceOn, side: Math.sin(yaw) * rig.mir, ax, hullAt };
   }
   function drawHead(C, phase) {
     if (C.robot) { if (phase !== 'back') drawRobotHead(C); return; }
@@ -854,18 +858,24 @@
     // 首
     const { J, proj } = C.rig;
     const nb = proj(J.neckB), nt = proj(C.rig.add3(J.neckT, [0, 0, 0]));
-    const nw = m.R * lerp(0.28, 0.32, q) * nb.k;
-    if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 }); if (C.clean > 0.3) C.ly.matIn(nk.poly, ellipsePts(nt.x, nt.y - R * 0.05, nw * 1.4, R * 0.32, 0, 18), 0.28); }
+    const nw = m.R * lerp(0.28, 0.36, q) * nb.k; // 写実寄りは首を太く（頭の幅の4割強）
+    if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 });
+      if (q > 0.5 && F.faceOn > 0.3 && art.deform < 0.5) { // 胸鎖乳突筋：耳の下から鎖骨のくぼみへ、V字に
+        for (const sx of [-1, 1]) { const top = F.pt(sx * 0.55 * F.ax, 0.55, -0.1), bot = [nb.x + sx * nw * 0.25, nb.y - R * 0.02]; if (top.z < -0.2) continue; ink(C.ly.l, [[top.x, top.y], V.lerp([top.x, top.y], bot, 0.55), bot], 0.6, { tin: 2, tout: 3 }); }
+        ink(C.ly.l, [[nb.x - nw * 0.9, nb.y + R * 0.06], [nb.x - nw * 0.2, nb.y + R * 0.01]], 0.55); ink(C.ly.l, [[nb.x + nw * 0.2, nb.y + R * 0.01], [nb.x + nw * 0.9, nb.y + R * 0.06]], 0.55); } // 鎖骨
+      if (C.clean > 0.3) C.ly.matIn(nk.poly, ellipsePts(nt.x, nt.y - R * 0.05, nw * 1.4, R * 0.32, 0, 18), 0.28); }
     // 頭の形：頭蓋（球）＋あご
     const frog = spec.species === 'frog';
     const chinY = frog ? 0.72 : lerp(0.82, 1.12, q), jawW = frog ? 1.08 : lerp(0.8, 0.68, q), jawY = frog ? 0.45 : lerp(0.55, 0.7, q), chinZ = lerp(0.35, 0.45, q), chinW = frog ? 0.7 : lerp(0.42, 0.24, q);
     const pts = [];
-    // 頭蓋は球なので、どの向きでも画面上では円
-    for (let i = 0; i < 36; i++) { const a = i / 36 * TAU; pts.push([F.c.x + Math.cos(a) * R * 0.98, F.c.y + Math.sin(a) * R * 0.98]); }
+    // 頭蓋：写実寄りは卵形、デフォルメは球（どちらも向きに合わせて投影）
+    for (const p of F.hullAt(0.98)) pts.push(p);
     for (const sx of [-1, 1]) { const j = pt(sx * jawW, jawY, lerp(0.1, 0.0, q)); pts.push([j.x, j.y]); const cw = pt(sx * chinW, chinY * 0.97, chinZ); pts.push([cw.x, cw.y]); }
     const ch = pt(0, chinY, chinZ); pts.push([ch.x, ch.y]);
     if (C.funnyLevel >= 0 && !frog) { const k = [1.1, 1.06, 1.14][C.funnyLevel]; for (const sx of [-1, 1]) { const pf = pt(sx * k, 0.48, 0.3); pts.push([pf.x, pf.y]); const pf2 = pt(sx * 0.92, 0.72, 0.45); pts.push([pf2.x, pf2.y]); } }
-    if (!frog) for (const sx of [-1, 1]) { const cb = pt(sx * 0.84, 0.28, 0.42); pts.push([cb.x, cb.y]); const cj = pt(sx * lerp(0.62, 0.5, q), lerp(0.7, 0.92, q), lerp(0.4, 0.38, q)); pts.push([cj.x, cj.y]); }
+    if (!frog && !ANIMAL_EARS[spec.species] && q > 0.35 && Math.abs(F.side) > 0.2) { // 3/4・横：鼻が頬の線から突き出る、眉の張り
+      const nt = pt(0, lerp(0.5, 0.42, q), lerp(0.98, 1.12, q)); pts.push([nt.x, nt.y]); const br = pt(0, -0.12, 0.98); pts.push([br.x, br.y]); }
+    if (!frog) for (const sx of [-1, 1]) { const cb = pt(sx * 0.84 * F.ax, 0.28, 0.42); pts.push([cb.x, cb.y]); const cj = pt(sx * lerp(0.62, 0.5, q), lerp(0.7, 0.92, q), lerp(0.4, 0.38, q)); pts.push([cj.x, cj.y]); }
     // 動物の鼻先
     const sp = spec.species, animal = ANIMAL_EARS[sp];
     // 鼻づらの長さ（横顔・3/4で輪郭から突き出る）
@@ -879,7 +889,7 @@
     if (!animal || sp === 'bird') for (const sx of [-1, 1]) { const e = F.sp(sx * Math.PI / 2 * 0.98, lerp(0.25, 0.12, q)); if (e.z > -0.6) ears.push({ sx, e }); }
     // 動物の耳（頭の上）
     if (animal && animal !== 'none') drawAnimalEars(C, F, animal, 'back');
-    part(ly, hull, skin, { w: 1.7, off: R * 0.25, blur: R * 0.04 });
+    part(ly, hull, skin, { w: 1.7, off: R * lerp(0.25, 0.14, q), blur: R * lerp(0.04, 0.09, q), shade: lerp(0.85, 0.6, q) }); // 写実寄りの顔は、影を細く柔らかく（ひげに見えないように）
     for (const { sx, e } of ears) { if (e.z <= -0.15) continue; const ex = e.x, ey = e.y, er = R * lerp(0.2, 0.17, q); const P = ellipsePts(ex + F.side * 0, ey, er * 0.62, er, F.tilt, 16); part(ly, P, skin, { w: 1.2, off: er * 0.3, lines: [{ p: [[ex - er * 0.1, ey - er * 0.5], [ex - er * 0.3 * Math.sign(sx * C.rig.mir), ey], [ex - er * 0.05, ey + er * 0.5]], w: 0.6 }] }); }
     C.headHull = hull;
     if (sp === 'penguin') { ly.matIn(hull, hull, 0.9); if (F.faceOn > -0.25) { const fc = F.sp(0, 0.25, 0.6); ly.matIn(hull, ellipsePts(fc.x, fc.y, R * 0.7 * clamp(F.faceOn + 0.2, 0.4, 1), R * 0.62, 0, 24), 0.0, R * 0.05); } }
@@ -967,7 +977,10 @@
       const p = F.sp(sx * eyeU, eyeV);
       if (p.z < 0.12) continue;
       const fs = clamp(p.z * 1.1, 0.25, 1);
-      eyes.push({ sx, x: p.x, y: p.y, w: ew * fs, h: eh, fs, scr: Math.sign((p.x - F.c.x) || sx) });
+      // 3/4：奥の目は小さく、鼻筋へ寄る
+      const far = p.z < 0.75 && Math.abs(F.side) > 0.15, nb2 = F.sp(0, eyeV); const fk = far ? lerp(1, 0.82, q) : 1;
+      const ex = far ? lerp(p.x, nb2.x, 0.12 * q) : p.x;
+      eyes.push({ sx, x: ex, y: p.y, w: ew * fs * fk, h: eh * fk, fs, scr: Math.sign((p.x - F.c.x) || sx) });
     }
     const lk = look === 'up' ? [0, -0.3] : look === 'down' ? [0, 0.3] : [F.side * 0.35, 0];
     // 眉
@@ -1009,6 +1022,10 @@
     for (const x of e.x || []) drawExtra(C, F, x, eyes);
     if (C.clean > 0.5 && !(e.x || []).includes('blush') && ['smile', 'happy', 'laugh', 'love', 'normal', 'embarrassed'].includes(C.exprName)) drawExtra(C, F, 'blush', eyes); // 頬の細い斜線
     // 頬・あごの線（写実寄り）
+    if (q > 0.4 && Math.abs(F.side) > 0.15 && art.deform < 0.6) { // 3/4：手前側のあごの線（耳の下 → えら → あご先）
+      const sx = F.side > 0 ? -1 : 1; const jawW = lerp(0.8, 0.68, q) * F.ax, jawY = lerp(0.55, 0.7, q), chinY = lerp(0.82, 1.12, q);
+      const p0 = F.pt(sx * jawW * 1.02, jawY - 0.25, -0.05), p1 = F.pt(sx * jawW, jawY, 0.12), p2 = F.pt(sx * 0.3, chinY * 0.95, lerp(0.35, 0.45, q));
+      if (p1.z > -0.2) ink(l, [[p0.x, p0.y], [p1.x, p1.y], [p2.x, p2.y]], 0.7, { tin: 2, tout: R * 0.3 }); }
     if (!C.expr.quiet && q > 0.55 && art.detail > 0.4 && F.faceOn < 0.92) { const ck = F.sp(-F.side * 0.0 + Math.sign(F.side) * 0.75, 0.45); if (ck.z > 0) ink(l, [[ck.x, ck.y - R * 0.12], [ck.x - F.side * R * 0.03, ck.y + R * 0.06]], 0.6); }
     if (spec.species === 'robot') { const vp = F.sp(0, eyeV); ink(l, [[vp.x - R * 0.75, vp.y - eh * 1.2], [vp.x + R * 0.75, vp.y - eh * 1.2]], 1.0); ink(l, [[vp.x - R * 0.75, vp.y + eh * 1.2], [vp.x + R * 0.75, vp.y + eh * 1.2]], 1.0); }
   }
@@ -1280,12 +1297,15 @@
     const sharp = (C.clean || 0) > 0.3 || hair === 'spiky';
     const eyeTopV = lerp(0.3, 0.06, q) - ({ sparkle: 0.42, simple: 0.3, sharp: 0.17, realistic: 0.15, dot: 0.2 }[art.eyeStyle === 'round' ? 'simple' : art.eyeStyle] || 0.3) * lerp(0.55, 1.45, art.eyeSize) * 0.55 - 0.04;
     const locks = [];
+    // 分け目：人物ごとに決まった位置（左・まん中・右）
+    const partU = [-0.32, 0, 0.3][hashStr((C.spec.id || C.spec.name || '') + 'part') % 3] * (H.even ? 0.3 : 1);
+    if (H.bang > 0.05 && art.deform < 0.85) { const a0 = F.sp(partU * 0.4, -0.95, vol * 1.02), a1 = F.sp(partU, vOf(partU) - 0.12, vol * 1.03); if (a1.z > 0.1) ink(mat > 0.6 ? ly.hi : l, [[a0.x, a0.y], [lerp(a0.x, a1.x, 0.5), lerp(a0.y, a1.y, 0.5)], [a1.x, a1.y]], 0.7, { tin: 2, tout: 3 }); }
     // 前髪の房
     const nb = H.bang > 0.05 ? Math.round(lerp(3, 6, q * 0.6 + art.detail * 0.4)) + (hair === 'messy' ? 1 : 0) : 0;
     const span = H.even ? 1.05 : 0.9;
     for (let i = 0; i < nb; i++) {
       const t = nb === 1 ? 0.5 : i / (nb - 1), u = lerp(-span, span, t) + rr(-0.06, 0.06);
-      const part = (H.even ? 0 : 0.18) * Math.sign(u || 1); // 分け目から外へ流れる
+      const part = (H.even ? 0 : 0.18) * Math.sign((u - partU) || 1); // 分け目から外へ流れる
       const rootV = vOf(u) - 0.42, len = H.bang * (H.even ? 1 : rr(0.8, 1.15)) * (1 - Math.abs(u) * 0.2);
       const tipV = Math.min(vOf(u) + len, Math.abs(u) < 0.8 ? Math.max(vOf(u) + 0.1, eyeTopV) : 0.6);
       const r = F.sp(u * 0.6, rootV, vol * 1.0), m2 = F.sp(u * 0.85 + part * 0.6, lerp(rootV, tipV, 0.55), vol * 1.07), tp = F.sp(u + part + rr(-0.05, 0.05), tipV, vol * 1.03);
@@ -1386,6 +1406,10 @@
       if (tailRootZ < 0.1) tails();
       return;
     }
+    // 髪のかたまりの外形（頭蓋＋厚み、上へ持ち上がる）。方向 a への中心からの距離
+    const hairHull = F.hullAt ? F.hullAt(vol, lerp(0.04, 0.14, q)) : null;
+    const rayR = a => { if (!hairHull) return vol * R; const d = [Math.cos(a), Math.sin(a)]; let best = 0; for (let i = 0; i < hairHull.length; i++) { const p = hairHull[i], q2 = hairHull[(i + 1) % hairHull.length]; const e = V.sub(q2, p), w = V.sub(p, [c.x, c.y]); const den = d[0] * e[1] - d[1] * e[0]; if (Math.abs(den) < 1e-9) continue; const t = (w[0] * e[1] - w[1] * e[0]) / den, u = (w[0] * d[1] - w[1] * d[0]) / den; if (t > 0 && u >= 0 && u <= 1) best = Math.max(best, t); } return best || vol * R; };
+    const softH = Math.max(art.softness, art.deform * 0.9) > 0.55 && (C.clean || 0) < 0.4;
     // ---- 前：生え際の線（球の上）＋ 頭の外形の円弧 ----
     const vOf = u => { const a = Math.abs(u); return a <= Math.PI / 2 ? lerp(H.f, H.s, Math.pow(a / (Math.PI / 2), 1.6)) : lerp(H.s, H.b, (a - Math.PI / 2) / (Math.PI / 2)); };
     const N = 72, line = [];
@@ -1397,7 +1421,7 @@
     else for (let k = 1; k <= N; k++) { const o = line[(start + k) % N]; if (o.p.z > 0) vis.push(o); else break; }
     let P;
     if (vis.length < 2) {
-      const all = []; for (let i = 0; i < 40; i++) { const a = i / 40 * TAU; all.push([c.x + Math.cos(a) * vol * R, c.y + Math.sin(a) * vol * R]); } P = all;
+      const all = []; for (let i = 0; i < 40; i++) { const a = i / 40 * TAU; const r0 = rayR(a); all.push([c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0]); } P = all;
     } else {
       // 前髪：おでこ側（|u|<1.1）をギザギザの房に
       const nb = Math.round(lerp(4, 9, (1 - art.deform) * 0.6 + q * 0.4)) + (hair === 'messy' || hair === 'spiky' ? 2 : 0);
@@ -1422,7 +1446,9 @@
       }
       const e1 = edge[0], e2 = edge[edge.length - 1];
       const ang = p => Math.atan2(p[1] - c.y, p[0] - c.x);
-      const arcPts = (a0, a1, dir) => { const o = []; let d = a1 - a0; if (dir > 0 && d < 0) d += TAU; if (dir < 0 && d > 0) d -= TAU; for (let i = 1; i < 24; i++) { const a = a0 + d * i / 24; o.push([c.x + Math.cos(a) * vol * R, c.y + Math.sin(a) * vol * R]); } return o; };
+      // 髪の外形：頭蓋より一回り大きく、上へ盛り上がる（髪の厚み）。外形は房の切れ目で波打つ
+      const notch = (i, n) => { const ph = (i / n) * lerp(5, 9, art.detail) ; const f = ph - Math.floor(ph); return softH ? -Math.pow(2 * f - 1, 2) * 0.04 + 0.02 : (f < 0.7 ? f / 0.7 : (1 - f) / 0.3) * 0.055 - 0.02; };
+      const arcPts = (a0, a1, dir) => { const o = []; let d = a1 - a0; if (dir > 0 && d < 0) d += TAU; if (dir < 0 && d > 0) d -= TAU; for (let i = 1; i < 36; i++) { const a = a0 + d * i / 36; const r0 = rayR(a) * (1 + (q > 0.2 || !softH ? notch(i, 36) : 0)); o.push([c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0]); } return o; };
       const A = arcPts(ang(e2), ang(e1), 1), B = arcPts(ang(e2), ang(e1), -1);
       const avgY = Q => Q.reduce((s2, p) => s2 + p[1], 0) / Q.length;
       P = edge.concat(avgY(A) < avgY(B) ? A : B);
