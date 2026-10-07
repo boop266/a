@@ -14824,7 +14824,7 @@ function normalizeArt(a, base) {
   const src = a && typeof a === 'object' ? a : {}; const b = base || ART_DEFAULT;
   const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? clamp(x > 1 && x <= 10 ? x / 10 : x, 0, 1) : d; };
   const kit = window.MangaStylesKit;
-  if (!base && kit && typeof kit.normalizeArt === 'function') { try { const k = kit.normalizeArt({ ...src, headRatio: headTall(src.headRatio) ?? undefined, eyeStyle: enumOf(src.eyeStyle, EYE_STYLES, EYE_ALIAS, undefined), toneKind: enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, undefined), panelFrame: enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, undefined) }); if (k && k.line) return { ...k, direction: txt(src.direction, 200), aim: txt(src.aim, 60), reason: txt(src.reason, 300), ...(src.renderer ? { renderer: String(src.renderer).slice(0, 30) } : {}) }; } catch (e) {} }
+  if (!base && kit && typeof kit.normalizeArt === 'function') { try { const k = kit.normalizeArt({ ...src, headRatio: headTall(src.headRatio) ?? undefined, eyeStyle: enumOf(src.eyeStyle, EYE_STYLES, EYE_ALIAS, undefined), toneKind: enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, undefined), panelFrame: enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, undefined) }); if (k && k.line) return { ...k, direction: txt(src.direction, 200), aim: txt(src.aim, 60), reason: txt(src.reason, 300), ...(src.renderer ? { renderer: String(src.renderer).slice(0, 30) } : {}), ...(typeof src.use3d === 'boolean' ? { use3d: src.use3d } : {}) }; } catch (e) {} }
   const out = { line: {} };
   { const h = headTall(src.headRatio); out.headRatio = h != null ? h : b.headRatio; }
   for (const k of ['deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) out[k] = n(src[k], b[k]);
@@ -14834,6 +14834,7 @@ function normalizeArt(a, base) {
   out.toneKind = enumOf(src.toneKind, TONE_KINDS, TONE_ALIAS, b.toneKind);
   out.panelFrame = enumOf(src.panelFrame, FRAMES, FRAME_ALIAS, b.panelFrame);
   if (!base) { out.direction = txt(src.direction, 200); out.aim = txt(src.aim, 60); out.reason = txt(src.reason, 300); if (src.renderer) out.renderer = String(src.renderer).slice(0, 30); }
+  if (typeof src.use3d === 'boolean') out.use3d = src.use3d;
   return out;
 }
 /* コマ単位の部分的な上書き（書いてある項目だけを持つ） */
@@ -14844,6 +14845,7 @@ function normalizePanelArt(a) {
   for (const k of ['deform', 'eyeSize', 'hatching', 'crossHatch', 'black', 'tone', 'detail', 'perspective', 'dynamism', 'sparkle', 'softness', 'grain']) { const x = Number(a[k]); if (Number.isFinite(x)) { out[k] = clamp(x, 0, 1); any = true; } }
   if (a.line && typeof a.line === 'object') { const l = {}; for (const k of ['weight', 'taper', 'jitter', 'roughness']) { const x = Number(a.line[k]); if (Number.isFinite(x)) { l[k] = clamp(x, 0, 1); any = true; } } if (Object.keys(l).length) out.line = l; }
   for (const [k, list, al] of [['eyeStyle', EYE_STYLES, EYE_ALIAS], ['toneKind', TONE_KINDS, TONE_ALIAS], ['panelFrame', FRAMES, FRAME_ALIAS]]) { const v = enumOf(a[k], list, al, null); if (v) { out[k] = v; any = true; } }
+  if (typeof a.use3d === 'boolean') { out.use3d = a.use3d; any = true; }
   if (a.note) out.note = txt(a.note, 60);
   return any ? out : null;
 }
@@ -14891,6 +14893,18 @@ window.MangaStyles3D = {
   list: () => Object.keys(STYLES3D),
 };
 for (const [n, impl] of _queued3d) window.MangaStyles3D.register(n, impl);
+/* 3D作画担当の window.MangaInk3D（styles3d/api.js）を、この受け入れ口につなぐ。
+   作りかけの間は、art.use3d === true の作品・コマだけで使う（それ以外は false を返して 2D に任せる） */
+function adoptInk3D() {
+  const A3 = window.MangaInk3D; if (!A3 || STYLES3D.ink3d) return false;
+  const on = opts => !!(opts && (opts.use3d === true || (opts.art && opts.art.use3d === true)));
+  const call = fn => (...a) => { const opts = a[a.length - 1]; if (!on(opts) || typeof A3[fn] !== 'function') return false; return A3[fn](...a); };
+  return window.MangaStyles3D.register('ink3d', {
+    supports: { bg: Array.isArray(A3.SCENES) ? A3.SCENES.slice() : [], species: [], props: [], objects: typeof A3.drawObject === 'function' ? '*' : [] },
+    drawBackground: call('drawBackground'), drawCharacter: call('drawCharacter'), drawObject: call('drawObject'),
+  });
+}
+adoptInk3D() || window.addEventListener('manga3d-ready', adoptInk3D, { once: true });
 const supports3d = (impl, kind, name) => { const s = impl.supports && impl.supports[kind]; return s === '*' || (Array.isArray(s) && s.includes(name)); };
 function try3d(kind, name, fn, opts, args) {
   if (opts && opts.use3d === false) return null;

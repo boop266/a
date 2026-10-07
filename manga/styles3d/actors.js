@@ -91,10 +91,6 @@
     if (!o.noHead) {
       add(ell(0.095, 0.118, 0.108).translate(0, 0.1, 0.0), J.head, M([0, 0, 0], [0, 0, 0], s));
       add(ell(0.072, 0.06, 0.08).translate(0, 0.035, 0.03), J.head, M([0, 0, 0], [0.25, 0, 0], s));
-      if (o.face !== false) { // 鼻すじと眉の張り（陰影の手がかり）
-        add(box(0.022, 0.05, 0.03).translate(0, 0.085, 0.105), J.head, M([0, 0, 0], [-0.15, 0, 0], s));
-        add(box(0.15, 0.022, 0.03).translate(0, 0.12, 0.095), J.head, M([0, 0, 0], [0, 0, 0], s));
-      }
     }
     add(limb(0.16, [[0, 0.055], [0.5, 0.05 * k], [1, 0.06]]), J.neck, M([0, 0.13 * s, 0], [0, 0, 0], s));
     // 胴：胸郭、腹、骨盤
@@ -125,7 +121,7 @@
       const shin = limb(0.44, [[0, 0.05], [0.25, 0.058 * k], [0.55, 0.045], [1, 0.032]], 1.0, 1.0);
       displace(shin, v => (v.z < 0 && v.y < -0.05 && v.y > -0.25) ? V3(0, 0, -0.015 * k * Math.sin((-v.y - 0.05) / 0.2 * PI)) : null);
       add(shin, J['kn' + sd], M([0, 0, 0], [0, 0, 0], s));
-      add(box(0.09, 0.07, 0.24).translate(0, -0.035, 0.06), J['an' + sd], M([0, 0, 0], [0, 0, 0], s));
+      add(lathe([[0.0001, 0], [0.045, 0.02], [0.05, 0.1], [0.04, 0.2], [0.0001, 0.25]], 10, 1.0, 0.65).rotateX(PI / 2).translate(0, -0.04, -0.03), J['an' + sd], M([0, 0, 0], [0, 0, 0], s));
       if (o.joints !== false) { add(ell(0.052, 0.052, 0.052), J['kn' + sd], M([0, 0, 0], [0, 0, 0], s), { tone: tone + 0.15 }); add(ell(0.035, 0.035, 0.035), J['an' + sd], M([0, 0, 0], [0, 0, 0], s), { tone: tone + 0.15 }); }
     }
     return id;
@@ -134,15 +130,15 @@
   // ---------- 甲冑（オリジナル：とがった前立ての兜、三枚重ねの肩当て、竜骨の胸当て） ----------
   function armor(B, R, o = {}) {
     const { J, s } = R, tone = o.tone ?? 0.85, pat = 'metal';
-    const add = (g, j, m, op = {}) => B.add(g, W(j).multiply(m || new T.Matrix4()), Object.assign({ tone, pat, id: o.id ?? B.newId() }, op));
+    const add = (g, j, m, op = {}) => B.add(g, W(j).multiply(m || new T.Matrix4()), Object.assign({ tone, pat, id: o.id ?? B.newId(), double: true }, op));
     const S = s;
     // 兜：丸い鉢＋前へ突き出た面頬＋横一文字の覗き穴＋背の高いひれ（前立て）
     const hid = B.newId();
     add(lathe([[0.0001, 0.27], [0.06, 0.262], [0.1, 0.235], [0.122, 0.19], [0.13, 0.12], [0.128, 0.04], [0.118, -0.01]], 20, 1, 1.08), J.head, M([0, 0, 0], [0, 0, 0], S), { id: hid });
     const vis = lathe([[0.0001, 0.0], [0.05, 0.02], [0.085, 0.07], [0.1, 0.11], [0.098, 0.14]], 12, 1, 1); vis.rotateX(-PI / 2);
-    add(vis, J.head, M([0, 0.085 * S, 0.24 * S], [0.12, 0, 0], [S * 1.15, S * 0.95, S * 1.25]), { id: hid });
-    add(box(0.17, 0.016, 0.06), J.head, M([0, 0.135 * S, 0.12 * S], [0, 0, 0], S), { tone: 1.0, pat: 'plain', id: hid });   // 覗き穴
-    add(box(0.012, 0.03, 0.05), J.head, M([0, 0.105 * S, 0.21 * S], [0, 0, 0], S), { tone: 1, pat: 'plain', id: hid });  // 息穴
+    add(vis, J.head, M([0, 0.075 * S, 0.19 * S], [0.08, 0, 0], [S * 0.95, S * 0.85, S * 0.75]), { id: hid, tone: Math.max(tone, 0.55) });
+    add(box(0.2, 0.02, 0.07), J.head, M([0, 0.14 * S, 0.12 * S], [0, 0, 0], S), { tone: 1.0, pat: 'plain', id: hid });   // 覗き穴
+    for (let i = 0; i < 3; i++) add(box(0.05, 0.008, 0.06), J.head, M([0, (0.07 + i * 0.022) * S, 0.2 * S], [0, 0, 0], S), { tone: 1, pat: 'plain', id: hid });  // 息穴
     const fin = new T.Shape(); fin.moveTo(-0.16, 0); fin.quadraticCurveTo(-0.05, 0.08, 0.02, 0.24); fin.lineTo(0.06, 0.2); fin.quadraticCurveTo(0.05, 0.08, 0.17, 0.0); fin.lineTo(-0.16, 0);
     const fg = new T.ExtrudeGeometry(fin, { depth: 0.012, bevelEnabled: false }); fg.translate(0, 0, -0.006); fg.rotateY(PI / 2);
     add(fg, J.head, M([0, 0.24 * S, -0.02 * S], [0, 0, 0], S), { id: hid });
@@ -214,7 +210,7 @@
     const cut = []; for (let i = 0; i < NX; i++) cut.push(NY - Math.floor(rand() * rand() * NY * 0.45));
     for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { if (j >= cut[i]) continue; const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
-    B.add(g, null, { tone: o.tone ?? 0.9, pat: 'cloth', id });
+    B.add(g, null, { tone: o.tone ?? 0.9, pat: 'cloth', id, double: true });
     return id;
   }
 
@@ -222,7 +218,7 @@
   // 剣：m は柄頭（ポンメル）→刃先が +Y の行列
   function sword(B, m, o = {}) {
     const id = o.id ?? B.newId(), L = o.len ?? 1.05, bw = o.width ?? 0.055;
-    const add = (g, mm, op = {}) => B.add(g, m.clone().multiply(mm), Object.assign({ tone: 0.15, pat: 'metal', id }, op));
+    const add = (g, mm, op = {}) => B.add(g, m.clone().multiply(mm), Object.assign({ tone: 0.15, pat: 'metal', id, double: true }, op));
     add(ell(0.03, 0.03, 0.03), M([0, 0, 0]));                                  // 柄頭
     add(limb(0.2, [[0, 0.016], [0.5, 0.019], [1, 0.016]]), M([0, 0.22, 0], [0, 0, 0]), { tone: 0.8, pat: 'cloth' });  // 握り
     // 鍔：下向きに曲がった腕＋中央の菱形
@@ -266,7 +262,7 @@
     const kind = o.kind || 'mannequin';
     const knight = kind === 'knight';
     body(B, R, { tone: knight ? 0.7 : (o.tone ?? 0.05), pat: knight ? 'cloth' : 'skin', build: o.build ?? (knight ? 0.8 : 0.6), noHead: knight, joints: !knight && o.joints !== false, female: o.female });
-    if (knight) armor(B, R, { tone: o.tone ?? 0.85 });
+    if (knight) armor(B, R, { tone: o.tone ?? 0.4 });
     if (o.cape ?? knight) cape(B, R, Object.assign({ tone: knight ? 0.92 : 0.8 }, o.capeOpts || {}));
     const P = R.J;
     const wpn = o.weapon ?? (knight ? 'sword' : null);
@@ -289,15 +285,15 @@
     const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m), Object.assign({ tone, pat: 'hide', id }, op));
     const gait = o.gait ?? 'stand'; // stand | gallop | rear
     const rear = gait === 'rear' ? 0.6 : 0;
-    const bodyM = M([0, 1.45 + rear * 0.5, 0], [-rear, 0, 0]);
+    const bodyM = M([0, 1.38 + rear * 0.5, 0], [-rear, 0, 0]);
     const BM = (m) => bodyM.clone().multiply(m);
     // 胴：胸・腹・尻
-    add(ell(0.32, 0.36, 0.55), BM(M([0, 0, 0])));
-    add(ell(0.34, 0.4, 0.3), BM(M([0, 0.04, 0.48])));
-    add(ell(0.33, 0.38, 0.32), BM(M([0, 0.06, -0.5])));
+    add(ell(0.4, 0.42, 0.7), BM(M([0, 0, 0])));
+    add(ell(0.4, 0.46, 0.38), BM(M([0, 0.04, 0.55])));
+    add(ell(0.42, 0.44, 0.42), BM(M([0, 0.08, -0.55])));
     // 首と頭
     const neck = [[0, 0.15, 0.62], [0, 0.55, 0.85], [0, 0.85, 0.98]];
-    add(tube(neck.map(p => p), [0.2, 0.15, 0.11], 12), BM(M()));
+    add(tube(neck.map(p => p), [0.3, 0.2, 0.13], 12), BM(M()));
     const head = lathe([[0.0001, 0], [0.09, 0.03], [0.11, 0.18], [0.085, 0.4], [0.065, 0.55], [0.0001, 0.58]], 12, 0.85, 1.15);
     add(head, BM(M([0, 0.95, 1.0], [2.3, 0, 0])));
     for (const sd of [-1, 1]) add(new T.ConeGeometry(0.03, 0.13, 5), BM(M([sd * 0.06, 1.05, 0.98], [-0.4, 0, sd * 0.2])));
@@ -310,11 +306,11 @@
     L.forEach((p, i) => {
       const [a1, a2] = legs[i]; const front = i < 2;
       const hip = V3(...p), up = M([0, 0, 0], [a1 * D2R, 0, 0]);
-      const k1 = hip.clone().add(V3(0, -0.6, 0).applyMatrix4(up));
+      const k1 = hip.clone().add(V3(0, -0.55, 0).applyMatrix4(up));
       const lo = M([0, 0, 0], [(a1 + (front ? a2 : -Math.abs(a2))) * D2R, 0, 0]);
-      const k2 = k1.clone().add(V3(0, -0.5, 0).applyMatrix4(lo));
-      const k3 = k2.clone().add(V3(0, -0.25, 0.04).applyMatrix4(lo));
-      add(tube([hip.toArray(), V3().lerpVectors(hip, k1, 0.5).toArray(), k1.toArray()], [front ? 0.16 : 0.2, 0.12, 0.07], 10), BM(M()));
+      const k2 = k1.clone().add(V3(0, -0.42, 0).applyMatrix4(lo));
+      const k3 = k2.clone().add(V3(0, -0.2, 0.04).applyMatrix4(lo));
+      add(tube([hip.toArray(), V3().lerpVectors(hip, k1, 0.5).toArray(), k1.toArray()], [front ? 0.2 : 0.26, 0.14, 0.075], 10), BM(M()));
       add(tube([k1.toArray(), k2.toArray(), k3.toArray()], [0.065, 0.045, 0.05], 8), BM(M()));
       add(lathe([[0.065, 0], [0.07, 0.07], [0.05, 0.1]], 8), BM(M(k3.toArray(), [0, 0, 0]).multiply(M([0, -0.08, 0]))), { tone: 0.3, pat: 'plain' });
     });
@@ -324,72 +320,79 @@
     return { id, saddle: V3(0, 1.85 + rear * 0.6, 0).applyMatrix4(base).toArray() };
   }
 
-  // ---------- 巨大な獣（オリジナル：背中にとげ、四本の角、長い前腕で体を支える） ----------
+  // ---------- 巨大な獣（オリジナル：猫背で前腕が太く、頭は肩の間に低く。前へ曲がる四本の角、背にとげの列） ----------
+  // o: { pos, yaw, scale, pose: 'roar'(片腕を振り上げる) | 'crouch'(両腕をつく), tone }
   function beast(B, o = {}) {
-    const id = B.newId(), tone = o.tone ?? 0.62, s = o.scale ?? 1;
+    const id = B.newId(), tone = o.tone ?? 0.55, s = o.scale ?? 1;
     const base = M(o.pos || [0, 0, 0], [0, (o.yaw ?? 0) * D2R, 0], s);
-    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m), Object.assign({ tone, pat: 'hide', id }, op));
-    const lump = (rx, ry, rz, amp = 0.12, f = 1.4) => { const g = ell(rx, ry, rz, 30, 22); const s0 = rr(0, 50); displaceWelded(g, (v, n) => fbm3(v.x * f + s0, v.y * f, v.z * f, 4) * amp * Math.max(rx, ry, rz)); return g; };
-    const pose = o.pose ?? 'roar'; // roar（吠える：上体を起こす） | crouch
-    const up = pose === 'roar' ? 0.5 : 0.15;
-    const torso = M([0, 3.0 + up, 0], [-up * 0.9, 0, 0]);
-    const TM = m => torso.clone().multiply(m);
-    // 胴：分厚い胸、盛り上がった肩、細い腰
-    add(lump(1.5, 1.4, 1.3, 0.12), TM(M([0, 0.4, 0.7])));
-    add(lump(1.9, 1.1, 1.2, 0.14), TM(M([0, 1.1, 0.4])));     // 肩のこぶ
-    add(lump(1.0, 1.0, 1.4, 0.1), TM(M([0, -0.1, -0.9])));
-    add(lump(1.05, 0.9, 0.9, 0.1), TM(M([0, -0.4, -2.0])));
-    // 背のとげ
-    for (let i = 0; i < 9; i++) { const t = i / 8; const c = new T.ConeGeometry(0.14 - t * 0.06, 0.9 - t * 0.4, 5); add(c, TM(M([rr(-0.05, 0.05), 1.85 - t * 1.6 + Math.sin(t * PI) * 0.4, 0.8 - t * 3.2], [-0.6 - t * 0.5, 0, rr(-0.15, 0.15)])), { tone: 0.3, pat: 'bone', flat: true }); }
-    // 頭：低く突き出た平たい頭、裂けたあご
-    const HM = TM(M([0, 1.0, 2.0], [0.25 - up * 0.6, 0, 0]));
-    const Hd = m => HM.clone().multiply(m);
-    add(lump(0.7, 0.55, 0.9, 0.1, 2), Hd(M([0, 0.1, 0.3])));
-    add(lump(0.55, 0.3, 0.75, 0.08, 2.5), Hd(M([0, 0.05, 1.05])));        // 上あご
-    const jaw = Hd(M([0, -0.25, 0.4], [0.55, 0, 0]));
-    add(lump(0.5, 0.22, 0.85, 0.08, 2.5), jaw.clone().multiply(M([0, -0.1, 0.6])));   // 下あご（開く）
-    for (let i = 0; i < 9; i++) { const a = (i / 8 - 0.5) * 2.2; const r = 0.45; // 歯
-      add(new T.ConeGeometry(0.05, rr(0.18, 0.3), 4), Hd(M([Math.sin(a) * r, -0.18, 0.95 + Math.cos(a) * r * 0.5 - 0.1], [PI, 0, 0])), { tone: 0.0, pat: 'bone', flat: true });
-      add(new T.ConeGeometry(0.045, rr(0.15, 0.26), 4), jaw.clone().multiply(M([Math.sin(a) * r * 0.9, 0.05, 0.6 + Math.cos(a) * r * 0.5])), { tone: 0.0, pat: 'bone', flat: true });
+    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m || new T.Matrix4()), Object.assign({ tone, pat: 'hide', id }, op));
+    const s0 = rr(0, 50);
+    const lumpy = (g, amp, f) => displaceWelded(g, (v, n) => (fbm3(v.x * f + s0, v.y * f, v.z * f, 4) * 0.7 + Math.abs(noise3(v.x * f * 2.3, v.y * f * 2.3 + s0, v.z * f * 2.3)) * 0.5) * amp);
+    const flesh = (pts, rad, seg = 16, amp = 0.12, f = 1.3) => lumpy(tube(pts, rad, seg), amp, f);
+    const roar = (o.pose ?? 'roar') === 'roar';
+    // 背骨：尻(後ろ・低い) → 背のこぶ(高い) → 首の付け根(前・低め)
+    const spine = [[0, 2.6, -3.2], [0, 3.4, -2.0], [0, 4.4, -0.6], [0, 4.9, 0.6], [0, 4.5, 1.6], [0, 4.0, 2.3]];
+    add(flesh(spine, [0.9, 1.25, 1.55, 1.75, 1.45, 1.0], 22, 0.14, 0.9));
+    // 胸の厚み（下へふくらむ）と腹
+    add(lumpy(ell(1.5, 1.35, 1.2, 30, 22), 0.12, 1.2), M([0, 3.6, 1.0]));
+    add(lumpy(ell(1.1, 1.0, 1.3, 26, 18), 0.1, 1.4), M([0, 2.9, -0.9]));
+    // 肩の盛り上がり（左右）
+    for (const sd of [-1, 1]) add(lumpy(ell(1.0, 0.9, 1.0, 24, 18), 0.12, 1.5), M([sd * 1.45, 4.6, 1.2]));
+    // 背のとげ：背骨に沿って、後ろへ寝る
+    for (let i = 0; i < 11; i++) { const t = i / 10; const p = [rr(-0.08, 0.08), lerp(5.2, 3.0, t) + Math.sin(t * PI) * 1.2, lerp(1.6, -3.0, t)]; const h = lerp(1.3, 0.5, Math.abs(t - 0.35) * 1.5);
+      const c = new T.ConeGeometry(0.16 * h, h, 5); add(c, M(p, [-0.9 - t * 0.4, 0, rr(-0.2, 0.2)]), { tone: 0.25, pat: 'bone', flat: true }); }
+    // 頭：肩の間から前へ突き出す。平たい額、裂けたあご
+    const HM = M([0, 4.05, 3.0], [roar ? -0.35 : 0.25, 0, 0]);
+    const Hd = m => HM.clone().multiply(m || new T.Matrix4());
+    add(lumpy(ell(0.75, 0.6, 0.85, 24, 18), 0.1, 2.2), Hd(M([0, 0.15, 0])));
+    const snout = lathe([[0.0001, 0], [0.42, 0.05], [0.5, 0.35], [0.42, 0.8], [0.25, 1.05], [0.0001, 1.1]], 14, 1.15, 0.6); snout.rotateX(PI / 2);
+    add(lumpy(snout, 0.06, 3), Hd(M([0, 0.12, 0.55], [0.08, 0, 0])));
+    const jaw = Hd(M([0, -0.25, 0.35], [0.75, 0, 0]));
+    const jg = lathe([[0.0001, 0], [0.38, 0.05], [0.4, 0.4], [0.28, 0.85], [0.0001, 0.95]], 12, 1.1, 0.45); jg.rotateX(PI / 2);
+    add(lumpy(jg, 0.05, 3), jaw.clone().multiply(M([0, -0.05, 0.1])));
+    add(ell(0.36, 0.16, 0.55), Hd(M([0, -0.12, 0.9], [0.4, 0, 0])), { tone: 1.0, pat: 'plain' });   // 口の奥（黒）
+    for (let i = 0; i < 12; i++) { const t = i / 11, a = (t - 0.5) * 2.4, r = 0.44;   // 上下の牙
+      add(new T.ConeGeometry(0.055, rr(0.22, 0.38) * (Math.abs(a) > 0.9 ? 1.4 : 1), 4), Hd(M([Math.sin(a) * r * 1.05, 0.0, 0.62 + Math.cos(a) * 0.5], [PI, 0, 0])), { tone: 0.0, pat: 'bone', flat: true });
+      add(new T.ConeGeometry(0.05, rr(0.18, 0.3), 4), jaw.clone().multiply(M([Math.sin(a) * r, 0.1, 0.18 + Math.cos(a) * 0.55])), { tone: 0.0, pat: 'bone', flat: true }); }
+    for (const sd of [-1, 1]) { // 目（深い眼窩に白い点）と眉の骨
+      add(ell(0.2, 0.09, 0.14), Hd(M([sd * 0.42, 0.42, 0.55], [0.2, sd * 0.3, sd * 0.35])), { tone });
+      add(ell(0.07, 0.04, 0.04), Hd(M([sd * 0.4, 0.3, 0.68], [0, sd * 0.4, 0])), { tone: 0.0, pat: 'plain' });
     }
-    add(ell(0.35, 0.12, 0.5), Hd(M([0, -0.15, 0.85])), { tone: 1.0, pat: 'plain' });    // 口の中（黒）
-    // 目：小さく光る（白）
-    for (const sd of [-1, 1]) { add(ell(0.09, 0.05, 0.05), Hd(M([sd * 0.4, 0.28, 0.85], [0, sd * 0.4, sd * 0.3])), { tone: 0.0, pat: 'plain' }); add(ell(0.16, 0.06, 0.12), Hd(M([sd * 0.4, 0.36, 0.8], [0, 0, sd * 0.4])), { tone }); }
-    // 角：前へ二本、後ろへ二本（ねじれ）
-    for (const sd of [-1, 1]) for (const [k, ln] of [[0, 1.6], [1, 1.1]]) {
-      const pts = []; const rad = [];
-      for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([sd * (0.45 + t * (k ? 0.5 : 1.0)), 0.35 + t * (k ? 0.4 : 0.8) - t * t * (k ? 0 : 0.6), (k ? -0.1 : 0.2) + t * (k ? -1.0 : 0.9)]); rad.push(lerp(0.17, 0.01, t) * (k ? 0.8 : 1)); }
-      add(tube(pts, rad, 8), Hd(M()), { tone: 0.35, pat: 'bone' });
+    // 角：前へ曲がる二本（太い）と、横へねじれる二本
+    for (const sd of [-1, 1]) for (const k of [0, 1]) {
+      const pts = [], rad = [];
+      for (let i = 0; i <= 10; i++) { const t = i / 10;
+        pts.push(k === 0 ? [sd * (0.45 + t * 0.9), 0.45 + t * 1.2 - t * t * 0.7, 0.1 + t * t * 1.4] : [sd * (0.6 + t * 1.3), 0.25 + Math.sin(t * PI) * 0.35, -0.2 - t * 0.6 + Math.sin(t * 5) * 0.12]);
+        rad.push(lerp(k ? 0.17 : 0.22, 0.012, Math.pow(t, 0.8))); }
+      add(tube(pts, rad, 9), Hd(), { tone: 0.3, pat: 'bone' });
+      for (let i = 1; i < 8; i++) { const t = i / 10; const p = V3(...pts[i]); add(new T.TorusGeometry(rad[i] * 1.02, 0.012, 4, 10), Hd(M(p.toArray(), [0, 0, 0])).multiply(Mab([0, 0, 0], V3(...pts[i + 1]).sub(p).toArray()).multiply(M([0, 0, 0], [PI / 2, 0, 0]))), { tone: 0.6, pat: 'bone' }); }
     }
-    // 前脚：長く太い腕、こぶしで地面をつく／振り上げる
-    const armPose = pose === 'roar' ? [[-1.2, 0.3], [0.4, 0]] : [[0.2, 0.2], [0.2, 0.2]];
+    // 前腕：肩→ひじ→手首（太い前腕）。片方は振り上げて爪を開く
     for (const sd of [-1, 1]) {
-      const sh = V3(sd * 1.65, 1.2, 0.9);
-      const raise = sd > 0 && pose === 'roar';
-      const el = sh.clone().add(raise ? V3(sd * 0.9, 1.3, 1.0) : V3(sd * 0.6, -1.7, 0.6));
-      const wr = el.clone().add(raise ? V3(sd * 0.1, 1.6, 0.6) : V3(sd * 0.1, -1.9, 0.8));
-      const shW = sh.clone().applyMatrix4(torso), elW = el.clone().applyMatrix4(torso), wrW = wr.clone().applyMatrix4(torso);
-      if (!raise) { const dy = wrW.y - 0.35; elW.y -= dy * 0.5; wrW.y -= dy; }
-      add(tube([shW.toArray(), V3().lerpVectors(shW, elW, 0.45).add(V3(0, 0.1, 0)).toArray(), elW.toArray()], [0.75, 0.62, 0.42], 14), M());
-      add(tube([elW.toArray(), V3().lerpVectors(elW, wrW, 0.35).toArray(), wrW.toArray()], [0.45, 0.48, 0.3], 12), M());
-      add(lump(0.42, 0.32, 0.45, 0.1, 3), M(wrW.toArray()));
-      for (let f = 0; f < 4; f++) { // かぎ爪
-        const a = (f / 3 - 0.5) * 1.3; const base2 = wrW.clone().add(V3(Math.sin(a) * 0.35, raise ? 0.2 : -0.15, 0.3 + Math.cos(a) * 0.15));
-        add(tube([base2.toArray(), base2.clone().add(V3(Math.sin(a) * 0.15, raise ? 0.25 : -0.2, 0.3)).toArray(), base2.clone().add(V3(Math.sin(a) * 0.2, raise ? 0.15 : -0.32, 0.55)).toArray()], [0.09, 0.06, 0.005], 6), M(), { tone: 0.2, pat: 'bone' });
-      }
+      const up = roar && sd > 0;
+      const sh = V3(sd * 1.7, 4.5, 1.4);
+      const el = up ? V3(sd * 3.2, 4.6, 2.6) : V3(sd * 2.5, 2.4, 2.2);
+      const wr = up ? V3(sd * 2.6, 6.4, 3.9) : V3(sd * 2.3, 0.55, 3.2);
+      add(flesh([sh.toArray(), V3().lerpVectors(sh, el, 0.4).add(V3(sd * 0.25, 0.1, 0)).toArray(), el.toArray()], [0.9, 0.85, 0.55], 16, 0.12, 1.6));
+      add(flesh([el.toArray(), V3().lerpVectors(el, wr, 0.3).add(V3(sd * 0.15, 0, 0.1)).toArray(), wr.toArray()], [0.6, 0.72, 0.42], 16, 0.12, 1.8));
+      const hand = up ? M(wr.toArray(), [-0.9, 0, 0]) : M(wr.toArray(), [0.1, 0, 0]);
+      add(lumpy(ell(0.55, 0.38, 0.55, 18, 14), 0.08, 3), hand);
+      for (let f = 0; f < 4; f++) { const a = (f / 3 - 0.5) * 1.5;   // 指とかぎ爪
+        const p0 = V3(Math.sin(a) * 0.4, -0.1, 0.3 + Math.cos(a) * 0.1), p1 = p0.clone().add(V3(Math.sin(a) * 0.25, up ? 0.1 : -0.25, 0.45)), p2 = p1.clone().add(V3(Math.sin(a) * 0.1, up ? 0.3 : -0.3, 0.3));
+        add(tube([p0.toArray(), p1.toArray()], [0.14, 0.11], 7), hand);
+        add(tube([p1.toArray(), V3().lerpVectors(p1, p2, 0.5).add(V3(0, 0.05, 0.05)).toArray(), p2.toArray()], [0.1, 0.06, 0.004], 6), hand, { tone: 0.15, pat: 'bone' }); }
     }
-    // 後ろ脚：曲げてしゃがむ
+    // 後ろ脚：太いもも、しゃがんだひざ、つま先立ちのかかと
     for (const sd of [-1, 1]) {
-      const hp = V3(sd * 0.95, -0.4, -2.0).applyMatrix4(torso);
-      const kn = hp.clone().add(V3(sd * 0.3, -0.9, 1.0)); const an = V3(kn.x, 0.9, kn.z - 1.1); const ft = V3(an.x, 0.2, an.z + 0.4);
-      add(tube([hp.toArray(), V3().lerpVectors(hp, kn, 0.5).toArray(), kn.toArray()], [0.8, 0.65, 0.42], 12), M());
-      add(tube([kn.toArray(), an.toArray(), ft.toArray()], [0.4, 0.28, 0.25], 10), M());
-      add(lump(0.4, 0.2, 0.55, 0.1, 3), M([ft.x, 0.2, ft.z + 0.3]));
+      const hp = V3(sd * 1.0, 2.8, -2.4), kn = V3(sd * 1.5, 1.9, -0.6), an = V3(sd * 1.35, 0.9, -2.2), ft = V3(sd * 1.35, 0.3, -1.3);
+      add(flesh([hp.toArray(), V3().lerpVectors(hp, kn, 0.5).add(V3(sd * 0.2, 0.2, 0)).toArray(), kn.toArray()], [1.05, 0.95, 0.5], 16, 0.12, 1.4));
+      add(flesh([kn.toArray(), V3().lerpVectors(kn, an, 0.5).toArray(), an.toArray(), ft.toArray()], [0.5, 0.42, 0.3, 0.32], 12, 0.1, 2));
+      for (let f = 0; f < 3; f++) add(tube([[ft.x + (f - 1) * 0.22, 0.25, ft.z + 0.2], [ft.x + (f - 1) * 0.3, 0.12, ft.z + 0.7]], [0.12, 0.02], 6), M(), { tone: 0.15, pat: 'bone' });
     }
-    // 尾
-    const tp = []; const tr = []; for (let i = 0; i <= 10; i++) { const t = i / 10; tp.push([Math.sin(t * 3) * 0.8 * t, -0.5 - t * 1.2 + t * t * 0.8, -2.6 - t * 3.0]); tr.push(lerp(0.55, 0.05, t)); }
-    add(tube(tp, tr, 10), torso);
-    return { id, head: V3(0, 0.3, 1.0).applyMatrix4(HM).applyMatrix4(base).toArray() };
+    // 尾：太く、地面を這う
+    const tp = [], tr = []; for (let i = 0; i <= 12; i++) { const t = i / 12; tp.push([Math.sin(t * 2.6 + s0) * 1.2 * t, lerp(2.4, 0.35, Math.min(1, t * 1.6)), -3.3 - t * 4.5]); tr.push(lerp(0.75, 0.04, t)); }
+    add(flesh(tp, tr, 12, 0.06, 2));
+    return { id, head: V3(0, 0.3, 0.8).applyMatrix4(HM).applyMatrix4(base).toArray(), top: 7.5 * s };
   }
 
   // ---------- 骨 ----------

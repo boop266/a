@@ -45,7 +45,7 @@
       const s0 = rr(0, 99);
       displace(g, v => { const k = (1 - v.y) * 0.35; return V3(fbm3(v.x * 3 + s0, v.y * 3, v.z * 3) * k, fbm3(v.x * 2, v.y * 4 + s0, v.z * 2) * 0.12, fbm3(v.z * 3, s0, v.x * 3) * k); });
       const hh = rr(25, 60) * (o.hk ?? 1), w = hh * rr(1.4, 2.4);
-      B.add(g, M([Math.sin(a) * R, -2, Math.cos(a) * R], [0, rr(0, 6), 0], [w, hh, w * 0.7]), { tone: 0.35, pat: 'stone', flat: true });
+      B.add(g, M([Math.sin(a) * R, -2, Math.cos(a) * R], [0, rr(0, 6), 0], [w, hh, w * 0.7]), { tone: 0.35, pat: 'stone', flat: true, double: true });
     }
   }
 
@@ -69,7 +69,7 @@
             const top = y + ch > lim; // 崩れぎわ
             if (!(top && rand() < 0.45)) {
               const tilt = top ? rr(-0.25, 0.25) : rr(-0.02, 0.02), sink = top ? rr(-0.15, 0.05) : 0;
-              put(stone(L - 0.04, ch - 0.04, rr(0.38, 0.5), { amp: top ? 0.1 : 0.05 }), M([xc, y + ch / 2 + sink, zf + rr(-0.03, 0.03)], [rr(-0.03, 0.03), rr(-0.04, 0.04), tilt]), { tone: rr(0.12, 0.32), pat: 'stone', id });
+              put(stone(L - 0.04, ch - 0.04, rr(0.38, 0.5), { amp: top ? 0.1 : 0.05, seg: top ? 2 : 1 }), M([xc, y + ch / 2 + sink, zf + rr(-0.03, 0.03)], [rr(-0.03, 0.03), rr(-0.04, 0.04), tilt]), { tone: rr(0.12, 0.32), pat: 'stone', id });
             }
           }
           x += L;
@@ -127,11 +127,11 @@
         // 矢狭間（縦長の窓）
         if (slits.some(s => Math.abs(((a - s + PI * 3) % (PI * 2)) - PI) < 0.09) && (r % 9) > 3 && (r % 9) < 8) continue;
         const L = 2 * PI * R / n;
-        B.add(stone(L - 0.05, ch - 0.04, 0.6, { amp: 0.05 }), M([cx + Math.sin(a) * R, y + ch / 2, cz + Math.cos(a) * R], [0, a, rr(-0.03, 0.03)]), { tone: rr(0.12, 0.32), pat: 'stone', id });
+        B.add(stone(L - 0.05, ch - 0.04, 0.6, { amp: 0.05, seg: 1 }), M([cx + Math.sin(a) * R, y + ch / 2, cz + Math.cos(a) * R], [0, a, rr(-0.03, 0.03)]), { tone: rr(0.12, 0.32), pat: 'stone', id });
       }
     }
     // 中は暗い
-    B.add(new T.CylinderGeometry(R - 0.35, R - 0.35, H * 0.7, 20, 1, true), M([cx, cy + H * 0.35, cz]), { tone: 0.9, pat: 'stone', id });
+    B.add(new T.CylinderGeometry(R - 0.35, R - 0.35, H * 0.7, 20, 1, true), M([cx, cy + H * 0.35, cz]), { tone: 0.9, pat: 'stone', id, double: true });
     // 胸壁の張り出し（持ち送り）
     if (o.corbel !== false) for (let k = 0; k < n; k += 2) { const a = k / n * 2 * PI; if (top(a) < H - 1.5) continue; B.add(stone(0.4, 0.5, 0.9), M([cx + Math.sin(a) * (R + 0.2), cy + H - 2.4, cz + Math.cos(a) * (R + 0.2)], [0, a, 0]), { tone: 0.3, pat: 'stone', id }); }
     rubble(B, { pos: [cx + R * 1.2, cy, cz + R * 0.5], r: R * 1.4, n: 25, id });
@@ -223,7 +223,7 @@
     }
     // 妻壁（三角）
     const tri = new T.BufferGeometry(); tri.setAttribute('position', new T.Float32BufferAttribute([-W2 / 2, 0, 0, W2 / 2, 0, 0, 0, rh - 0.2, 0], 3)); tri.computeVertexNormals();
-    for (const s of [-1, 1]) put(tri, M([0, h1 + h2, s * (D2 / 2)], [0, s > 0 ? 0 : PI, 0]), { tone: 0.06 });
+    for (const s of [-1, 1]) put(tri, M([0, h1 + h2, s * (D2 / 2)], [0, s > 0 ? 0 : PI, 0]), { tone: 0.06, double: true });
     // 煙突
     if (rand() < 0.7) put(stone(0.8, rh + 1.5, 0.8, { amp: 0.04 }), M([rr(-1, 1) * w * 0.25, h1 + h2 + (rh + 1.5) / 2, rr(-1, 1) * d * 0.25]), { tone: 0.3, pat: 'stone' });
   }
@@ -267,7 +267,6 @@
     wallBox(0.2, H, D / 2 - 1.2, [-W / 2, H / 2, zw - D / 4 - 0.6]); wallBox(0.2, H, D / 2 - 1.2, [-W / 2, H / 2, zw + D / 4 + 0.6]);
     B.add(new T.BoxGeometry(0.08, 1.4, 0.08), M([-W / 2, 1.6, zw]), { tone: 0.5, pat: 'wood', id });
     wallBox(0.2, H, D, [W / 2, H / 2, zw]);
-    B.add(new T.BoxGeometry(W, 0.1, D), M([0, H + 0.05, zw]), { tone: 0.05, id });
     // 家具：机・いす・本棚・ベッド
     const fid = B.newId();
     B.add(new T.BoxGeometry(1.6, 0.06, 0.8), M([1.2, 0.74, -2.5]), { tone: 0.35, pat: 'wood', id: fid });
@@ -291,7 +290,7 @@
     const s0 = rr(0, 50);
     displace(g, v => { const n = fbm3(v.x * 0.25 + s0, v.y * 0.25, v.z * 0.12, 4); const k = 1 + n * 0.55; const out = V3(v.x * k * 1.3, Math.max(v.y * k, -2.2 + n * 0.5), v.z); return out.sub(v); }, false);
     g.computeVertexNormals();
-    B.add(g, M([0, 2, -L / 2 + 4]), { tone: 0.35, pat: 'stone', id, flat: true });
+    B.add(g, M([0, 2, -L / 2 + 4]), { tone: 0.35, pat: 'stone', id, flat: true, double: true });
     for (let i = 0; i < 40; i++) { // 鍾乳石
       const h = rr(0.6, 2.6), up = rand() < 0.35;
       const c = new T.ConeGeometry(rr(0.12, 0.4), h, 6, 3); const s1 = rr(0, 9); displace(c, v => V3(noise3(v.y * 2 + s1, 0, 0) * 0.08, 0, noise3(0, v.y * 2 + s1, 0) * 0.08), false);
@@ -342,7 +341,7 @@
     const cam = new T.PerspectiveCamera(fov, aspect, 0.1, 1500);
     const pos = V3(tgt.x + Math.sin(yaw) * Math.cos(elev) * dist, tgt.y + Math.sin(elev) * dist, tgt.z + Math.cos(yaw) * Math.cos(elev) * dist);
     if (o.height != null) pos.y = o.height;
-    pos.y = Math.max(pos.y, (o.minY ?? 0.15));
+    pos.y = Math.max(pos.y, (o.minY ?? 0.5));
     cam.position.copy(pos); cam.lookAt(tgt);
     if (o.roll) cam.rotateZ(o.roll * PI / 180);
     if (o.shift) { cam.setViewOffset(1000, 1000 / aspect, 0, -o.shift * 1000 / aspect, 1000, 1000 / aspect); }
@@ -419,30 +418,30 @@
     },
     cave(B, env) {
       cave(B, {});
-      return { sky: 'white', light: { dir: [0.2, 0.35, 0.9], ambient: 0.05 }, fog: { near: 6, far: 34, tone: 1 }, bounds: { c: [0, 2, -12], r: 26 }, cam: { target: [0, 1.4, 0] } };
+      return { sky: 'white', lightMode: 'fixed', light: { dir: [0.2, 0.35, 0.9], ambient: 0.12 }, fog: { near: 8, far: 34, tone: 1 }, bounds: { c: [0, 2, -12], r: 26 }, cam: { target: [0, 1.4, 0] } };
     },
     town(B, env) {
       const id = B.newId();
       for (let z = 6; z > -70; z -= 7) for (const s of [-1, 1]) house(B, { pos: [s * rr(6.8, 7.4), 0, z], w: rr(5.5, 7), d: 6.4, h1: rr(2.8, 3.4), h2: rr(2.6, 3.4), ang: s > 0 ? -PI / 2 : PI / 2 });
       // 石畳
-      const g = new T.PlaneGeometry(12, 90); g.rotateX(-PI / 2); B.add(g, M([0, 0.0, -30]), { tone: 0.12, pat: 'cobble', id });
+      const g = new T.PlaneGeometry(12, 90); g.rotateX(-PI / 2); B.add(g, M([0, 0.03, -30]), { tone: 0.12, pat: 'cobble', id });
       ground(B, { size: 600, seg: 60, tone: 0.15 });
       tower(B, { pos: [4, 0, -95], r: 4, h: 34, broken: 0, slits: [0, 1.5, 3, 4.5], corbel: true });
-      return { sky: env.time === 'night' ? 'night' : 'day', moon: env.time === 'night', light: { dir: [-0.5, 0.7, 0.3] }, bounds: { c: [0, 3, -16], r: 32 }, cam: { target: [0, 1.5, 0], lens: 'wide' } };
+      return { sky: env.time === 'night' ? 'night' : 'day', moon: env.time === 'night', light: { high: 2.0, front: 0.5 }, bounds: { c: [0, 3, -16], r: 32 }, cam: { target: [0, 1.5, 0], lens: 'wide' } };
     },
     city(B, env) {
       const id = B.newId();
       for (let z = 0; z > -160; z -= rr(14, 20)) for (const s of [-1, 1]) building(B, { pos: [s * rr(14, 16), 0, z], w: 12, d: rr(11, 16), h: rr(15, 70) });
-      const g = new T.PlaneGeometry(14, 200); g.rotateX(-PI / 2); B.add(g, M([0, 0.0, -70]), { tone: 0.35, pat: 'ground', id });
+      const g = new T.PlaneGeometry(14, 200); g.rotateX(-PI / 2); B.add(g, M([0, 0.03, -70]), { tone: 0.18, pat: 'plain', id });
       for (const s of [-1, 1]) B.add(new T.BoxGeometry(4, 0.18, 200), M([s * 8.5, 0.09, -70]), { tone: 0.08, pat: 'cobble', id: B.newId() });
       for (let z = 4; z > -150; z -= 18) for (const s of [-1, 1]) { B.add(new T.CylinderGeometry(0.08, 0.1, 7, 6), M([s * 7, 3.5, z]), { tone: 0.6, pat: 'metal' }); B.add(new T.BoxGeometry(1.6, 0.12, 0.3), M([s * 6.3, 7, z]), { tone: 0.6, pat: 'metal' }); }
-      for (let z = 4; z > -150; z -= 1.6) B.add(new T.BoxGeometry(0.15, 0.01, 0.8), M([0, 0.01, z]), { tone: 0.0, noLine: true });
+      for (let z = 4; z > -150; z -= 1.6) B.add(new T.BoxGeometry(0.15, 0.01, 0.8), M([0, 0.04, z]), { tone: 0.0, noLine: true });
       ground(B, { size: 800, seg: 40, tone: 0.2 });
-      return { sky: env.time === 'night' ? 'night' : 'day', light: { dir: [0.5, 0.75, 0.35] }, bounds: { c: [0, 10, -30], r: 45 }, cam: { target: [0, 1.5, 0], lens: 'wide' } };
+      return { sky: env.time === 'night' ? 'night' : 'day', light: { high: 2.4, front: 0.6 }, bounds: { c: [0, 10, -30], r: 45 }, cam: { target: [0, 1.5, 0], lens: 'wide' } };
     },
     room(B, env) {
       room(B, {});
-      return { sky: 'white', light: { dir: [-0.9, 0.45, 0.1] }, fog: { near: 50, far: 200 }, bounds: { c: [0, 1.5, -2.5], r: 8 }, cam: { target: [0, 1.2, 0], lens: 'wide' } };
+      return { sky: 'white', lightMode: 'fixed', light: { dir: [-0.9, 0.5, 0.15], ambient: 0.45, strength: 0.6 }, fog: { near: 50, far: 200 }, bounds: { c: [0, 1.5, -2.5], r: 8 }, cam: { target: [0, 1.2, 0], lens: 'wide' } };
     },
     sky(B, env) {
       return { sky: env.time === 'night' ? 'night' : 'storm', moon: env.time === 'night', light: { dir: [0, 1, 0] }, bounds: { c: [0, 0, 0], r: 10 }, cam: { target: [0, 6, 0], angle: 'worm', lens: 'wide' } };

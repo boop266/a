@@ -94,10 +94,10 @@
         pos.push(P[i].x + nrm.x * c + bin.x * s, P[i].y + nrm.y * c + bin.y * s, P[i].z + nrm.z * c + bin.z * s);
       }
     }
-    for (let i = 0; i < N - 1; i++) for (let k = 0; k < seg; k++) { const a = i * seg + k, b = i * seg + (k + 1) % seg, c = a + seg, d = b + seg; idx.push(a, c, b, b, c, d); }
+    for (let i = 0; i < N - 1; i++) for (let k = 0; k < seg; k++) { const a = i * seg + k, b = i * seg + (k + 1) % seg, c = a + seg, d = b + seg; idx.push(a, b, c, b, d, c); }
     if (o.cap !== false) { // 端をふさぐ
       const c0 = pos.length / 3; pos.push(P[0].x, P[0].y, P[0].z); const c1 = c0 + 1; pos.push(P[N - 1].x, P[N - 1].y, P[N - 1].z);
-      for (let k = 0; k < seg; k++) { idx.push(c0, k, (k + 1) % seg); idx.push(c1, (N - 1) * seg + (k + 1) % seg, (N - 1) * seg + k); }
+      for (let k = 0; k < seg; k++) { idx.push(c0, (k + 1) % seg, k); idx.push(c1, (N - 1) * seg + k, (N - 1) * seg + (k + 1) % seg); }
     }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
   }
@@ -157,10 +157,11 @@
         if (tri.length === 3) {
           if (det < 0) tri.reverse();
           for (const t of tri) { this.P.push(t[0], t[1], t[2]); this.N.push(t[3], t[4], t[5]); this.A.push(tone, pat, id % 251); }
+          if (o.double) for (let k = 2; k >= 0; k--) { const t = tri[k]; this.P.push(t[0], t[1], t[2]); this.N.push(-t[3], -t[4], -t[5]); this.A.push(tone, pat, id % 251); }
           tri.length = 0;
         }
       }
-      this.count += p.count / 3;
+      this.count += p.count / 3 * (o.double ? 2 : 1);
       return id;
     }
     newId() { return _idc++; }
@@ -184,6 +185,7 @@
     float vn2(vec2 x){ vec2 i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
       return mix(mix(h12(i),h12(i+vec2(1,0)),f.x),mix(h12(i+vec2(0,1)),h12(i+vec2(1,1)),f.x),f.y)*2.0-1.0; }
     float fbm3(vec3 p){ float s=0.0, a=0.5; for(int i=0;i<4;i++){ s+=a*vn3(p); p*=2.03; a*=0.5; } return s; }
+    float fbm3b(vec3 p){ return vn3(p) * 0.65 + vn3(p * 2.03 + 5.1) * 0.35; }
     float fbm2(vec2 p){ float s=0.0, a=0.5; for(int i=0;i<5;i++){ s+=a*vn2(p); p=p*2.03+vec2(1.7,9.2); a*=0.5; } return s; }
     // 画面の網点
     float dots(vec2 fc, float cov, float cell){
@@ -250,10 +252,10 @@
     ${GLSL_NOISE}
     // 1本の平行線の束（ワールドの平面 dot(P,a) の等高線）。画面上の間隔 spPx を保つよう、距離で2つの細かさを混ぜる
     float hatch(vec3 P, vec3 a, float spPx, float hw, float wob){
-      float wpp = vZ / uFocal;                 // 1px が何 m か
+      float s = dot(P, a);
+      float wpp = max(fwidth(s), vZ / uFocal * 0.15);   // 画面の 1px で s がいくら変わるか（斜めの面ほど大きい）
       float sp = spPx * uPx * wpp;
       float l = log2(sp / 0.004); float l0 = floor(l); float t = l - l0;
-      float s = dot(P, a);
       float c = 0.0;
       for (int k = 0; k < 2; k++){
         float fk = float(k);
@@ -286,52 +288,51 @@
       L += rim; L += uL2.z * (0.4 + 0.6 * wrap);
       L = clamp(L, 0.0, 1.0);
       // --- 質感（濃さに足す） ---
-      float tex = 0.0; float line2 = 0.0;
-      float nz = fbm3(vW * 1.7);
+      float tex = 0.0; float line2 = 0.0; float dBaseG = 1.0 - L * (1.0 - tone * 0.75);
       if (pat == 1.0 || pat == 13.0) { // 石：ひび・欠け・しみ
-        float cr = abs(fbm3(vW * 2.3 + 7.0));
+        float cr = abs(fbm3b(vW * 2.3 + 7.0));
         float fw = fwidth(cr) * 1.2;
-        line2 = max(line2, (1.0 - smoothstep(0.012, 0.012 + fw, cr)) * smoothstep(0.1, 0.5, det) * smoothstep(0.0, 0.3, vn3(vW * 0.7)));
-        tex += (fbm3(vW * 6.0) * 0.1 + nz * 0.1) * det;
-        float pv = vn3(vW * 9.0 + 3.0); float pit = 1.0 - smoothstep(0.0, fwidth(pv) * 1.5, abs(pv - 0.62)); line2 = max(line2, pit * 0.8 * det * smoothstep(0.3, 0.6, vn3(vW * 1.3)));
+        line2 = max(line2, (1.0 - smoothstep(0.008, 0.008 + fw, cr)) * smoothstep(0.1, 0.5, det) * smoothstep(0.35, 0.6, vn3(vW * 0.5 + 9.0)));
+        tex += fbm3b(vW * 3.0) * 0.14 * det;
+        float pv = vn3(vW * 9.0 + 3.0); float pit = 1.0 - smoothstep(0.0, fwidth(pv) * 1.5, abs(pv - 0.62)); line2 = max(line2, pit * 0.8 * det * smoothstep(0.5, 0.7, vn3(vW * 1.3)));
       } else if (pat == 5.0) { // 木：たての木目
         vec3 q = vW * vec3(4.0, 0.35, 4.0);
         float g = abs(fract((vW.x + vW.z) * 3.5 + fbm3(q) * 2.5) - 0.5);
         float fw = fwidth((vW.x + vW.z) * 3.5 + fbm3(q) * 2.5);
         line2 = max(line2, (1.0 - smoothstep(0.08, 0.08 + fw * 1.5, g)) * det * 0.9);
-        tex += fbm3(vW * 3.0) * 0.15 * det;
+        tex += vn3(vW * 3.0) * 0.12 * det;
       } else if (pat == 6.0) { // 獣の皮：こぶとしわ
         tex += (fbm3(vW * 3.0) * 0.12 + abs(fbm3(vW * 8.0)) * 0.12) * det;
         float wr = abs(fbm3(vW * vec3(5.0, 1.5, 5.0) + 2.0)); float fw = fwidth(wr);
         line2 = max(line2, (1.0 - smoothstep(0.02, 0.02 + fw * 1.4, wr)) * det * 0.8 * (1.0 - L * 0.6));
       } else if (pat == 7.0) { // 地面：小石・草のつぶ
-        tex += fbm3(vW * 0.6) * 0.12;
+        tex += vn3(vW * 0.6) * 0.1;
         float pv = vn3(vW * vec3(5.0, 5.0, 9.0)); float near = 1.0 - smoothstep(8.0, 30.0, vZ);
-        line2 = max(line2, (1.0 - smoothstep(0.0, fwidth(pv) * 1.2, abs(pv - 0.7))) * det * near);   // 小石の輪郭
+        line2 = max(line2, (1.0 - smoothstep(0.0, fwidth(pv) * 1.2, abs(pv - 0.7))) * det * near * smoothstep(0.2, 0.5, vn3(vW * 0.4 + 2.0)) * smoothstep(0.15, 0.4, dBaseG));   // 小石の輪郭（明るい地面には出さない）
         float cr = abs(fbm3(vW * 0.9 + 4.0)); line2 = max(line2, (1.0 - smoothstep(0.008, 0.008 + fwidth(cr) * 1.2, cr)) * det * 0.9 * near * smoothstep(0.1, 0.4, vn3(vW * 0.15)));  // ひび
       } else if (pat == 12.0) { // 毛・たてがみ
         float u = (vW.x * 13.0 + vW.z * 7.0 + fbm3(vW * 2.0) * 3.0); float fw = fwidth(u);
         line2 = max(line2, (1.0 - smoothstep(0.1, 0.1 + fw, abs(fract(u) - 0.5))) * 0.8);
       } else if (pat == 9.0) { // 骨：小さな穴としみ
-        tex += fbm3(vW * 4.0) * 0.08; float pv = vn3(vW * 18.0); line2 = max(line2, (1.0 - smoothstep(0.0, fwidth(pv) * 1.5, abs(pv - 0.65))) * 0.6 * det);
+        tex += vn3(vW * 4.0) * 0.06; float pv = vn3(vW * 18.0); line2 = max(line2, (1.0 - smoothstep(0.0, fwidth(pv) * 1.5, abs(pv - 0.65))) * 0.6 * det);
       } else if (pat == 15.0) { // 石畳・敷石：石の輪郭（ボロノイ）
         vec2 q = vW.xz * 2.6; vec2 ip = floor(q), fp = fract(q); float f1 = 9.0, f2 = 9.0;
         for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 g = vec2(float(i), float(j)); vec2 o = vec2(h12(ip + g), h12(ip + g + 17.0)) * 0.8 + 0.1; float dd = length(g + o - fp); if (dd < f1) { f2 = f1; f1 = dd; } else if (dd < f2) f2 = dd; }
         float e = f2 - f1; float fw = fwidth(e);
         float near = 1.0 - smoothstep(10.0, 40.0, vZ);
         line2 = max(line2, (1.0 - smoothstep(0.06, 0.06 + fw * 1.5, e)) * near * 0.95);
-        tex += fbm3(vW * 3.0) * 0.08;
+        tex += vn3(vW * 3.0) * 0.06;
       } else if (pat == 10.0) { // ガラス：斜めの映り込み
         float u = (gl_FragCoord.x + gl_FragCoord.y * 0.6) / (14.0 * uPx); float f = abs(fract(u) - 0.5);
         tex -= (1.0 - smoothstep(0.08, 0.12, f)) * step(0.5, vn3(vW * 0.7 + 2.0)) * 0.6;
       } else if (pat == 3.0) { // 布：ゆるいしわ
-        tex += fbm3(vW * vec3(2.0, 6.0, 2.0)) * 0.12 * det;
+        tex += vn3(vW * vec3(2.0, 6.0, 2.0)) * 0.1 * det;
       }
       // --- 金属：映り込み（空は白、地面は黒）と鋭いハイライト ---
       float spec = 0.0; float metalD = -1.0;
       if (pat == 2.0) {
         vec3 R = reflect(-V, n);
-        float env = smoothstep(-0.08, 0.06, R.y + 0.15 * fbm3(R * 3.0));
+        float env = smoothstep(-0.08, 0.06, R.y + 0.15 * vn3(R * 3.0));
         float hl = pow(max(dot(R, uL), 0.0), 24.0) * sh;
         spec = smoothstep(0.35, 0.6, hl);
         metalD = 1.0 - (0.2 + 0.55 * env * (0.35 + 0.65 * L) + 0.25 * key);
@@ -347,8 +348,8 @@
       float fog = smoothstep(uF.x, uF.y, vZ) * uF.w;
       d = mix(d, uF.z, fog);
       // --- 黒ベタ ---
-      float betaT = mix(1.08, 0.5, uH.z);
-      float black = smoothstep(betaT - 0.02, betaT + 0.02, mix(dBase, uF.z, fog)) * (1.0 - fog * 0.9);
+      float betaT = mix(1.1, 0.7, uH.z);
+      float black = smoothstep(betaT - 0.02, betaT + 0.02, mix(dBase, uF.z, fog)) * (1.0 - fog * 0.9 * (1.0 - step(0.5, uF.z)));
       // 黒い物（固有色が黒）：影も光もベタ。光の当たる所は白抜きの線
       float darkMat = smoothstep(0.78, 0.86, mat) * (1.0 - fog * 0.85);
       // --- ハッチング（表面の向きに沿う） ---
@@ -366,7 +367,7 @@
       // 光の届き方に沿った向き：照らされた面と影の境目の近くでは、線を光の向きにそろえる
       if (hat > 0.02) {
         float w1 = smoothstep(t1, t1 + 0.3, d);
-        if (w1 > 0.0) ink = max(ink, hatch(vW, a1, spPx, 0.06 + 0.32 * w1, wob) * smoothstep(t1 - 0.01, t1 + 0.06, d));
+        if (w1 > 0.0) ink = max(ink, hatch(vW, a1, spPx, (0.06 + 0.32 * w1) * mix(1.0, 0.55, flatK), wob) * smoothstep(t1 - 0.01, t1 + 0.06, d));
         if (ch > 0.04) { float t2 = t1 + gap; float w2 = smoothstep(t2, t2 + 0.3, d); if (w2 > 0.0) ink = max(ink, hatch(vW, a2, spPx * 1.05, 0.05 + 0.3 * w2, wob * 0.8) * smoothstep(t2 - 0.01, t2 + 0.06, d)); }
         if (ch > 0.35) { float t3 = t1 + gap * 2.0; float w3 = smoothstep(t3, t3 + 0.25, d); if (w3 > 0.0) ink = max(ink, hatch(vW, a3, spPx * 0.95, 0.05 + 0.3 * w3, wob * 0.7) * smoothstep(t3 - 0.01, t3 + 0.05, d)); }
         if (ch > 0.65) { float t4 = t1 + gap * 3.0; float w4 = smoothstep(t4, t4 + 0.2, d); if (w4 > 0.0) ink = max(ink, hatch(vW, a4, spPx * 0.8, 0.05 + 0.35 * w4, wob * 0.5) * smoothstep(t4 - 0.01, t4 + 0.05, d)); }
@@ -467,7 +468,7 @@
       w *= mix(1.0, mix(1.35, 0.6, smoothstep(0.3, 0.75, lit)) * near, uLine.y);
       float fog = smoothstep(uFogNear, uLine.w, zc);
       w *= 1.0 - fog * 0.6; e *= 1.0 - fog * 0.85; e = smoothstep(0.15, 0.55, e);
-      gl_FragColor = vec4(e, w / 8.0, darkMat, 1.0);
+      gl_FragColor = vec4(e, w / 8.0, max(darkMat, step(0.6, sil) * 0.5), 1.0);
     }`;
 
   // 太らせ（主線）＋空＋雨＋霧＋効果線 → 最終画
@@ -522,7 +523,8 @@
           cloudD -= rimLight * 0.35 * smoothstep(0.4, 0.6, c);
           cloudD = clamp(cloudD, 0.0, 1.0);
         } else if (uSky.z > 0.05) {
-          cloudD = cl * 0.25 * (1.0 - c2);
+          // 昼：雲の腹にだけ横線。地平線の近くは薄く
+          cloudD = cl * smoothstep(0.55, 0.85, c2) * 0.35 * smoothstep(0.02, 0.12, alt);
         }
         // 空は横線で描く（劇画の空）。線の太さが濃さ
         float sp1 = 6.0 * uPx;
@@ -533,7 +535,7 @@
         if (uLine.w > 0.3 && cloudD > 0.7) skyInk = max(skyInk, lineCov((fc.x * 0.5 + fc.y) / (sp1 * 1.3), clamp((cloudD - 0.7) * 1.5, 0.0, 0.5)));
         // 雲の輪郭線
         float edgeC = abs(c - (0.66 - uSky.z * 0.3)); float fwC = fwidth(c);
-        float cline = (1.0 - smoothstep(fwC * 0.6, fwC * 1.6, edgeC)) * step(0.5, uSky.z + float(k >= 1.0));
+        float cline = (1.0 - smoothstep(fwC * 0.6, fwC * 1.6, edgeC)) * step(0.5, uSky.z + float(k >= 1.0)) * step(k, 3.5) * step(0.5, k) * smoothstep(0.01, 0.06, alt) * (uMoonP.x > 0.5 ? smoothstep(0.15, 0.6, rimLight) : 0.4);
         if (k >= 1.0) skyInk = mix(skyInk, 1.0 - skyInk * 0.0, 0.0);
         skyInk = max(skyInk * (1.0 - cline * step(0.5, base)), cline * (1.0 - step(0.5, base)));
         if (base > 0.5) skyInk = min(skyInk, 1.0 - cline);   // 暗い空では雲の縁が白く抜ける
@@ -571,21 +573,24 @@
         ink = mix(ink, uMist.z, m);
       }
       // ---- 主線：太らせる ----
-      float lineInk = 0.0; float onDark = 0.0;
+      float lineInk = 0.0; float onDark = 0.0; float lineW = 0.0;
       vec2 jit = vec2(vn2(fc / (14.0 * uPx)), vn2(fc / (14.0 * uPx) + 7.3)) * uLine.x * 1.6 * uPx;
       for (int y = -4; y <= 4; y++) for (int x = -4; x <= 4; x++) {
         vec2 off = vec2(float(x), float(y));
-        float r = length(off); if (r > 4.2) continue;
+        float r = length(off); if (r > 4.2) continue; if (r > 2.5 && mod(float(x + y), 2.0) > 0.5) continue;
         vec4 e = texture2D(tEdge, (fc + off + jit) / uRes);
         float w = max(e.g * 8.0 * 0.5, 0.55);
         float cov = e.r * (1.0 - smoothstep(w - 0.5, w + 0.5, r));
-        if (cov > lineInk) { lineInk = cov; onDark = e.b; }
+        if (cov > lineInk) { lineInk = cov; onDark = e.b; lineW = w; }
       }
       // 線のかすれ
       float br = vn2(fc / (9.0 * uPx) + 11.0) * 0.5 + 0.5;
       lineInk *= 1.0 - uLine.y * smoothstep(0.62, 0.8, br) * 0.9;
       // 黒い物の輪郭は、黒の上では白い線（ふち取り）にしない＝そのまま黒
+      // 黒い物の上の輪郭は白く抜く（白フチ）。背景も黒いときにシルエットが溶けないように
+      float whiteRim = max(step(0.75, onDark), step(0.25, onDark) * step(0.9, 1.0 - shade)) * step(0.75, ink) * lineInk * step(1.2, lineW);
       ink = max(ink, lineInk);
+      ink = mix(ink, 0.0, whiteRim * 0.95);
       // ---- 雨 ----
       if (uRain.x > 0.0) {
         float a = uRain.y; vec2 dir = vec2(sin(a), -cos(a)); vec2 nrm = vec2(dir.y, -dir.x);
@@ -596,9 +601,9 @@
           float u = dot(fc, nrm) / sc; float id = floor(u);
           float len = uRain.z * uPx * (0.6 + fl * 0.5);
           float v = dot(fc, dir) / len + h12(vec2(id, fl + uRain.w)) * 17.0;
-          float seg = fract(v); float on = step(1.0 - uRain.x * (0.35 - fl * 0.08), h12(vec2(id, floor(v) + fl * 31.0)));
+          float seg = fract(v); float on = step(1.0 - uRain.x * (0.14 - fl * 0.03), h12(vec2(id, floor(v) + fl * 31.0)));
           float off = (h12(vec2(id, floor(v) + 5.0)) - 0.5) * 0.6;
-          float lw = (0.35 + fl * 0.25) * uPx / sc;                 // 線の半幅（列の間隔に対する割合）
+          float lw = (0.25 + fl * 0.2) * uPx / sc;                 // 線の半幅（列の間隔に対する割合）
           float c = (1.0 - smoothstep(lw, lw + fwidth(u) * 1.0, abs(fract(u) - 0.5 - off))) * smoothstep(0.0, 0.5, seg) * (1.0 - smoothstep(0.5, 1.0, seg)) * on;
           rainInk = max(rainInk, c);
         }
@@ -630,7 +635,7 @@
       }
       if (uFlash > 0.0) ink *= 1.0 - uFlash * bg;
       float alpha = mix(1.0, max(1.0 - bg, lineInk), uAlphaBg);
-      gl_FragColor = vec4(vec3(1.0 - ink), alpha);
+      gl_FragColor = vec4(vec3(1.0 - ink) * alpha, alpha);
       if (uDebug > 3.5) gl_FragColor = vec4(vec3(1.0 - lineInk), 1.0); else if (uDebug > 0.5) { vec4 e = texture2D(tEdge, vUv); gl_FragColor = uDebug < 1.5 ? vec4(e.rgb, 1.0) : uDebug < 2.5 ? texture2D(tShade, vUv) : vec4(vec3(fract(zg * 0.1)), 1.0); }
     }`;
 
@@ -649,9 +654,9 @@
         uL: { value: V3(0, 1, 0) }, uCam: { value: V3() }, uRight: { value: V3(1, 0, 0) }, uUp: { value: V3(0, 1, 0) }, uFwdH: { value: V3(0, 0, -1) },
         uFocal: { value: 500 }, uPx: { value: 1 }, uH: { value: new T.Vector4() }, uA: { value: new T.Vector4() }, uF: { value: new T.Vector4() }, uL2: { value: new T.Vector4() }, uJit: { value: 0 }, uRimDir: { value: V3(0, 1, 0) },
       }]),
-      vertexShader: INK_VS, fragmentShader: INK_FS, lights: true, side: T.DoubleSide, extensions: { derivatives: true },
+      vertexShader: INK_VS, fragmentShader: INK_FS, lights: true, side: T.FrontSide, extensions: { derivatives: true },
     });
-    const geoMat = new T.ShaderMaterial({ uniforms: { uL: { value: V3(0, 1, 0) } }, vertexShader: GEO_VS, fragmentShader: GEO_FS, side: T.DoubleSide });
+    const geoMat = new T.ShaderMaterial({ uniforms: { uL: { value: V3(0, 1, 0) } }, vertexShader: GEO_VS, fragmentShader: GEO_FS, side: T.FrontSide });
     const quad = new T.Mesh(new T.PlaneGeometry(2, 2));
     const qScene = new T.Scene(); qScene.add(quad); const qCam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const edgeMat = new T.ShaderMaterial({ uniforms: { tGeo: { value: null }, uRes: { value: new T.Vector2() }, uPx: { value: 1 }, uLine: { value: new T.Vector4() }, uFogNear: { value: 50 } }, vertexShader: QUAD_VS, fragmentShader: EDGE_FS, depthTest: false, depthWrite: false });
@@ -670,7 +675,10 @@
     if (R.rt && R.w === w && R.h === h) return R.rt;
     if (R.rt) Object.values(R.rt).forEach(t => t.dispose());
     const mk = (fl) => new T.WebGLRenderTarget(w, h, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, type: fl ? T.FloatType : T.UnsignedByteType, depthBuffer: true });
-    R.rt = { shade: mk(false), geo: mk(true), edge: mk(false) }; R.w = w; R.h = h;
+    R.rt = { shade: mk(false), geo: mk(true), edge: mk(false) };
+    // 深度を共有：先に法線パスで深度を作り、陰影パスは見えている面だけを塗る（重なりの多い場面で速い）
+    const dt = new T.DepthTexture(w, h); dt.type = T.UnsignedIntType;
+    R.rt.geo.depthTexture = dt; R.rt.shade.depthTexture = dt; R.w = w; R.h = h;
     return R.rt;
   }
 
@@ -728,20 +736,26 @@
     U.uL2.value.set(L.strength ?? 0.95, L.rim ?? 0.0, L.flash ?? 0, art.softness);
     U.uJit.value = art.line.jitter; U.uRimDir.value.set(...(L.rimDir || [-ldir.x, Math.max(0.2, ldir.y), -ldir.z])).normalize();
     r.geoMat.uniforms.uL.value.copy(ldir);
-    // 1) 陰影＋ハッチ（影の計算もここで）
+    const prof = opts.profile ? [] : null; const _px = new Uint8Array(4); const mark = (n) => { if (!prof) return; gl.readRenderTargetPixels(rt.edge, 0, 0, 1, 1, _px); prof.push([n, performance.now()]); };
+    mark('start');
+    // 1) 法線・部品番号・距離（深度もここで作る）
     const meshes = []; scene.traverse(o => { if (o.isMesh) meshes.push(o); });
-    meshes.forEach(m => { m.material = r.inkMat; m.castShadow = m.userData.noShadow ? false : true; m.receiveShadow = true; m.frustumCulled = false; });
+    meshes.forEach(m => { m.material = r.geoMat; m.castShadow = m.userData.noShadow ? false : true; m.receiveShadow = true; m.frustumCulled = false; });
     gl.shadowMap.needsUpdate = true;
-    gl.setClearColor(0xffffff, 1);
-    gl.setRenderTarget(rt.shade); gl.clear(); gl.render(scene, cam);
-    // 2) 法線・部品番号・深度
-    meshes.forEach(m => { m.material = r.geoMat; });
     gl.setClearColor(0x000000, 0); gl.setRenderTarget(rt.geo); gl.clear(); gl.render(scene, cam);
+    mark('shadow+geo');
+    // 2) 陰影＋ハッチ：深度はそのまま（LessEqual で、見えている面だけ塗る）
+    meshes.forEach(m => { m.material = r.inkMat; });
+    gl.autoClear = false;
+    gl.setClearColor(0xffffff, 1); gl.setRenderTarget(rt.shade); gl.clear(true, false, false); gl.render(scene, cam);
+    gl.autoClear = true;
+    mark('ink');
     // 3) 輪郭
     const EU = r.edgeMat.uniforms;
     EU.tGeo.value = rt.geo.texture; EU.uRes.value.set(W, H); EU.uPx.value = px;
     EU.uLine.value.set(rough ? 0.35 : art.line.weight, art.line.taper, art.detail, fog.far ?? 160); EU.uFogNear.value = fog.near ?? 40;
     r.quad.material = r.edgeMat; gl.setRenderTarget(rt.edge); gl.render(r.qScene, r.qCam);
+    mark('edge');
     // 4) 仕上げ
     const CU = r.compMat.uniforms;
     CU.tShade.value = rt.shade.texture; CU.tEdge.value = rt.edge.texture; CU.tGeo.value = rt.geo.texture;
@@ -756,7 +770,9 @@
     const mist = S.mist; CU.uMist.value.set(mist ? (mist.amount ?? 0.6) : 0, mist ? (mist.falloff ?? 0.25) : 0, mist ? (mist.tone ?? 0) : 0, mist ? (mist.seed ?? 3) : 0);
     CU.uAlphaBg.value = S.transparent ? 1 : 0; CU.uDebug.value = opts.debug || 0; CU.uFlash.value = S.flash ?? 0;
     r.quad.material = r.compMat; gl.setRenderTarget(null); gl.setClearColor(0xffffff, 0); gl.clear(); gl.render(r.qScene, r.qCam);
+    mark('comp');
     ctx.drawImage(r.canvas, 0, 0, W, H, box.x, box.y, box.w, box.h);
+    if (prof) { opts.profile.length = 0; for (let i = 1; i < prof.length; i++) opts.profile.push(prof[i][0] + ':' + Math.round(prof[i][1] - prof[i - 1][1])); }
     return { W, H, px };
   }
 

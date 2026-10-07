@@ -26,11 +26,19 @@
     const info = M3.SCENES[name](B, env) || {};
     const geo = B.geometry();
     const res = { name, info, geo, tris: B.count };
-    CACHE.set(key, res); if (CACHE.size > CACHE_MAX) CACHE.delete(CACHE.keys().next().value);
+    CACHE.set(key, res); if (CACHE.size > CACHE_MAX) { const k = CACHE.keys().next().value; CACHE.get(k).geo.dispose(); CACHE.delete(k); }
     return res;
   }
   // 人物・獣など（毎回つくる。軽い）
+  const ACACHE = new Map();
   function buildActors(list, floorY, sd) {
+    const key = JSON.stringify(list || []) + '|' + floorY;
+    if (ACACHE.has(key)) return ACACHE.get(key);
+    const r = buildActors0(list, floorY, sd);
+    ACACHE.set(key, r); if (ACACHE.size > 8) { const k = ACACHE.keys().next().value; const o = ACACHE.get(k); if (o.geo) o.geo.dispose(); ACACHE.delete(k); }
+    return r;
+  }
+  function buildActors0(list, floorY, sd) {
     const B = new Builder(); const out = [];
     seed(sd || 7);
     for (const a of list || []) {
@@ -55,16 +63,16 @@
   function atmosphere(bg, info, art) {
     const night = bg.time === 'night', eve = bg.time === 'evening', w = bg.weather || '';
     const sky = { kind: info.sky || 'day', dark: 0.85, clouds: 0.5, seed: (bg.seed ?? 0) * 3.1 + 1 };
-    if (info.sky === 'white') sky.kind = 'white';
+    if (info.sky === 'white') { sky.kind = 'white'; sky.clouds = 0; }
     else if (night) { sky.kind = w === 'storm' || w === 'rain' || info.sky === 'storm' ? 'storm' : 'night'; sky.dark = lerp(0.7, 0.98, art.black); sky.clouds = sky.kind === 'storm' ? 0.65 : 0.25; }
     else if (eve) { sky.kind = 'dusk'; sky.dark = lerp(0.5, 0.9, art.black); }
     else if (w === 'storm' || w === 'rain') { sky.kind = 'storm'; sky.dark = lerp(0.45, 0.85, art.black); }
     else if (w === 'cloudy') { sky.kind = 'day'; sky.clouds = 0.8; }
     else if (sky.kind === 'storm' && !night) sky.dark = lerp(0.4, 0.8, art.black);
     else if (sky.kind === 'day') { sky.clouds = 0.35; }
-    const L = Object.assign({ dir: [-0.5, 0.75, 0.4], strength: 0.95, ambient: 0.18, rim: 0 }, info.light || {});
-    if (night) { L.ambient = 0.12; L.rim = 0.9; L.strength = 0.95; L.front = 0.1; L.high = 0.6; }
-    if (eve) { L.dir = [L.dir[0], 0.25, L.dir[2]]; L.rim = 0.3; }
+    const L = Object.assign({ dir: [-0.5, 0.75, 0.4], strength: 0.85, ambient: 0.32, rim: 0 }, info.light || {});
+    if (night) { L.ambient = Math.min(L.ambient, 0.14); L.rim = 0.9; L.strength = 1.0; L.front = 0.3; L.high = 0.95; }
+    if (eve) { L.high = 0.3; L.rim = 0.5; L.strength = 0.75; L.ambient = 0.2; }
     if (bg.light) Object.assign(L, bg.light);
     const moon = (info.moon || night) && sky.kind !== 'white' ? { dir: bg.moonDir || [L.dir[0] * 0.8, 0.35, Math.min(-0.5, L.dir[2])], size: 0.075, halo: 0.6 } : null;
     const rain = (w === 'rain' || w === 'storm') ? { amount: w === 'storm' ? 0.85 : 0.6, angle: w === 'storm' ? 0.32 : 0.12, length: w === 'storm' ? 55 : 35, seed: bg.seed ?? 1 } : null;
@@ -127,8 +135,6 @@
     const t1 = performance.now();
     const r = M3.render(ctx, S, box, opts);
     const t2 = performance.now();
-    // 後片付け（人物のジオメトリ）
-    if (act.geo) act.geo.dispose();
     const res = { ok: !!r, ms: Math.round(t2 - t0), buildMs: Math.round(t1 - t0), renderMs: Math.round(t2 - t1), tris: back.tris + act.tris, camera, actors: act.out };
     res.project = p => M3.project(S, box, p);
     if (bg.weather === 'storm' && spec.lightning !== false && bg.lightning !== false) lightning(ctx, box, art, hashStr(bg.name + (bg.seed ?? 0)));
@@ -229,7 +235,7 @@
     name: 'ink3d',
     drawBackground, drawEffect, drawCharacter, drawScene,
     metrics: (spec, opts) => (window.MangaInk && window.MangaInk.metrics) ? window.MangaInk.metrics(spec, opts) : { top: 100, hc: -88, R: 12, widthRatio: 0.4, size: 1 },
-    POSES: Object.keys(A.POSES), SCENES: Object.keys(M3.SCENES), clearCache: () => CACHE.clear(),
+    POSES: Object.keys(A.POSES), SCENES: Object.keys(M3.SCENES), clearCache: () => { CACHE.forEach(c => c.geo.dispose()); CACHE.clear(); ACACHE.forEach(c => c.geo && c.geo.dispose()); ACACHE.clear(); },
     // 組み込み用：studio の画風として登録する（背景・効果・人物を 3D に）。
     // only: ['drawBackground'] のように一部だけ 3D にして、残りは base（既定 window.MangaInk）に任せられる
     register(name = 'ink3d', o = {}) {

@@ -8,7 +8,7 @@
   const FILES = ['core.js', 'kit.js', 'actors.js', 'api.js'];
   const me = document.currentScript && document.currentScript.src;
   const base = me ? me.slice(0, me.lastIndexOf('/') + 1) : 'styles3d/';
-  const load = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ng(new Error('styles3d: 読み込み失敗 ' + src)); document.head.appendChild(s); });
+  const load = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.charset = 'utf-8'; s.src = src; s.onload = ok; s.onerror = () => ng(new Error('styles3d: 読み込み失敗 ' + src)); document.head.appendChild(s); });
   (async () => {
     try {
       if (!window.THREE) await load(THREE_URL);
