@@ -655,16 +655,19 @@
     if (outfit.top === 'knee') { // 白衣のすそ
       // 長いコート：裾は重く、動くと大きな弧を描いて遅れてついてくる（回転では外へ広がる）。腰から下に縦の大きなひだ
       const P0 = rig.P, moving = (P0.air || P0.spin || (P0.lean || 0) > 10) ? 1 : 0.15, lag = art.dynamism * moving;
-      const back = -rig.mir, bot = -0.9 - lag * 0.15;
-      const trail = (p, t, x) => { const d = clamp(-t / 0.95); if (d <= 0) return p; const swing = P0.spin ? [Math.sign(x || 1) * lag * d * m.leg * 0.45, -lag * d * m.leg * 0.2] : [back * lag * d * d * m.leg * 0.8, -lag * d * d * m.leg * 0.35]; return [p[0] + swing[0], p[1] + swing[1]]; };
-      const side = [[0.95, -0.98], [0.5, -1.08], [0.05, -1.15], [-0.45, -1.2]];
-      const hemN = 9, hemPts = []; for (let i = 0; i <= hemN; i++) { const x = lerp(-1.25, 1.25, i / hemN); const t = bot + Math.sin(i * 1.7) * 0.03; hemPts.push(trail(T(t, x), t, x)); }
-      const L1 = side.map(([t, x]) => trail(T(t, x), t, x)), R1 = side.map(([t, x]) => trail(T(t, -x), t, -x));
-      const hp = catmull(L1.concat(hemPts.slice().reverse(), R1.slice().reverse()), 3, true);
+      const back = -rig.mir;
+      // 画面上で作る：腰の左右から、膝の高さの裾へ広がる台形。動くと裾が後ろへ遅れ、回転では外へ広がる
+      const wl = T(0.12, -1.08), wr = T(0.12, 1.08), pv = proj(J.pelvis), kA = proj(J.knn), kB = proj(J.knf), knM = [(kA.x + kB.x) / 2, (kA.y + kB.y) / 2];
+      const ww = V.dist(wl, wr), down = Math.max(m.leg * 0.45, knM[1] - pv.y + m.leg * 0.05);
+      const hw = ww * (0.62 + (P0.spin ? lag * 0.9 : lag * 0.25)) + Math.abs(kA.x - kB.x) * 0.5;
+      const cx0 = (wl[0] + wr[0]) / 2 + back * lag * m.leg * 0.55 * (P0.spin ? 0 : 1), by = pv.y + down - lag * m.leg * 0.18;
+      const hemPts = []; const nH = 8; for (let i = 0; i <= nH; i++) { const t = i / nH; const x = cx0 + (t - 0.5) * 2 * hw; const lagT = back * (t - 0.5) * 2 > 0 ? 1 : 0.35; hemPts.push([x + back * lag * m.leg * 0.25 * lagT * (P0.spin ? 0 : 1), by + Math.sin(i * 1.9) * m.leg * 0.03 - lagT * lag * m.leg * 0.12]); }
+      const L1 = [wl, V.lerp(wl, hemPts[0], 0.5)], R1 = [wr, V.lerp(wr, hemPts[nH], 0.5)];
+      const hp = catmull(L1.concat(hemPts, R1.slice().reverse()), 3, true);
       const darkC = C.mat.top >= (C.R.betaM ?? 0.9) - 0.02;
       ly.fill(hp, C.mat.top, { shade: 0.7, off: m.shHalf * 0.5 }); contour(l, hp, 1.6);
-      const fl = darkC ? ly.hi : l; ink(fl, [T(0.6, 0), trail(T(bot, 0.05), bot, 0.05)], 1.0);
-      for (const x of [-0.75, -0.35, 0.35, 0.75]) { const top = T(-0.05, x * 0.8), b2 = trail(T(bot + 0.02, x), bot, x); ink(fl, [top, V.lerp(top, b2, 0.55), b2], 0.75, { tin: m.leg * 0.15, tout: 2 }); } // 縦の大きなひだ
+      const fl = darkC ? ly.hi : l; ink(fl, [T(0.6, 0), hemPts[Math.round(nH / 2)]], 1.0);
+      for (const i of [1, 3, 5, 7]) { const top = V.lerp(wl, wr, i / nH), b2 = hemPts[i]; ink(fl, [top, V.lerp(top, b2, 0.55), b2], 0.75, { tin: m.leg * 0.15, tout: 2 }); } // 縦の大きなひだ
       // ベルトでくびれる
       ink(l, [T(0.12, -1.05), T(0.1, 0), T(0.12, 1.05)], 1.0);
     }
