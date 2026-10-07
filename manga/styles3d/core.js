@@ -258,7 +258,7 @@
     uniform vec4 uA;            // x detail, y grain, z toneKind(0 none,1 dot,2 gradient,3 kakeami,4 line,5 sand), w ambient
     uniform vec4 uF;            // x fogNear, y fogFar, z fogTone(0..1), w fogAmt
     uniform vec4 uL2;           // x key strength, y rim, z lightning flash, w softness
-    uniform float uJit; uniform vec3 uRimDir; uniform float uNight;
+    uniform float uJit; uniform vec3 uRimDir; uniform float uNight; uniform vec4 uShC;
     varying vec3 vW; varying vec3 vN; varying vec3 vInk; varying float vZ; varying vec2 vU;
     #include <common>
     #include <packing>
@@ -289,6 +289,9 @@
     float strokes(vec3 P, float dens, float hwPx){
       vec2 q = vec2(dot(P, uRight), dot(P, uFwdH));
       vec2 fq = max(fwidth(q), vec2(1e-6));
+      float aniso = fq.y / fq.x;                       // かすめ角ほど大きい（縦に潰れる）
+      float keep = 1.0 - smoothstep(3.0, 7.0, aniso);
+      if (keep <= 0.0) return 0.0;
       float cs = mix(30.0, 9.0, smoothstep(4.0, 70.0, vZ)) * uPx * fq.x;
       float l = log2(cs / 0.05); float l0 = floor(l); float t = l - l0;
       float c = 0.0;
@@ -308,7 +311,7 @@
           else if (sh < 0.75) dd = segPx(g, o, o + vec2(0.18, 0.9), ppu);                                                   // ノ（草）
           else if (sh < 0.9) dd = segPx(g, o, o + vec2(0.5, 0.05), ppu);                                                    // 短線
           else dd = length((g - o) * ppu) - 0.6;                                                                            // 点
-          c = max(c, (1.0 - smoothstep(hwPx * wk - 0.5, hwPx * wk + 0.5, dd)) * step(0.01, wk));
+          c = max(c, (1.0 - smoothstep(hwPx * wk - 0.5, hwPx * wk + 0.5, dd)) * step(0.01, wk) * keep);
         }
       }
       return c;
@@ -334,10 +337,11 @@
       float tone = vInk.x; float pat = floor(vInk.y + 0.5);
       float det = uA.x;
       vec2 fc = gl_FragCoord.xy;
-      bool groundPat = (pat == 7.0 || pat == 20.0 || pat == 17.0);
+      bool groundPat = (pat == 7.0 || pat == 20.0 || pat == 17.0 || (pat == 18.0 && abs(vN.y) > 0.8 && vInk.x < 0.3));
       float winWhite = 0.0;
       // --- 光 ---
       float sh = getShadowMask();
+      sh = mix(1.0, sh, 1.0 - smoothstep(uShC.w * 0.8, uShC.w * 0.98, length(vW.xz - uShC.xz)));   // 影の計算範囲の外は影なし
       float lam = max(dot(n, uL), 0.0);
       float wrap = clamp(dot(n, uL) * 0.5 + 0.5, 0.0, 1.0);
       float key0 = mix(lam, smoothstep(0.0, 0.35, lam), 0.6);    // 劇画：光と影をはっきり分ける
@@ -456,7 +460,7 @@
       float s1 = ring ? vU.x : dot(vW, a1);
       float S = uPx;
       float sp1 = max(8.0 * S, 3.6), sp2 = max(4.0 * S, 2.7), sp3 = max(4.2 * S, 3.0), sp4 = max(2.6 * S, 2.4);
-      float hwA = 0.45 * max(S, 0.75), hwB = 0.85 * max(S, 0.75);   // 線の半幅（px）
+      float hwA = 0.5 * max(S, 1.0), hwB = 0.9 * max(S, 1.0);   // 線の半幅（px）。縮小しても 1px 以上の黒い線に（灰色にしない）
       float ink = 0.0;
       if (hat > 0.02 && !(groundPat && mat < 0.6)) {
         float w1 = smoothstep(t1, t1 + 0.3, d);
@@ -468,10 +472,10 @@
       }
       // 地面：短い筆致と、点描の影
       if (groundPat) {
-        float base = pat == 20.0 ? 0.8 : pat == 17.0 ? 0.0 : 0.4;
+        float base = pat == 20.0 ? 0.8 : (pat == 17.0 || pat == 18.0) ? 0.0 : 0.4;
         float dens = base * (0.3 + 0.7 * smoothstep(0.05, 0.7, d)) * (1.0 - fog);
         if (base > 0.0) ink = max(ink, strokes(vW, dens, mix(0.5, 0.75, det) * max(S, 0.8)) * smoothstep(0.0, 0.25, det + 0.1));
-        ink = max(ink, stipple(fc, clamp(shadowAmt * 1.35, 0.0, 0.92) * (1.0 - fog)));
+        ink = max(ink, stipple(fc, clamp(shadowAmt * 1.2, 0.0, 0.7) * (1.0 - fog)));
       }
       // --- トーン ---
       float tk = floor(uA.z + 0.5); float toneCov = 0.0;
@@ -562,7 +566,10 @@
       float lap = abs(zs[0] + zs[1] - 2.0 * zc) + abs(zs[2] + zs[3] - 2.0 * zc);
       float sil = 0.0;
       if (bg < 0.5) {
-        sil = max(smoothstep(0.02, 0.05, (max(zmax, far * zc * 10.0) - zc) / zc), far);
+        float jump = smoothstep(0.02, 0.05, (zmax - zc) / zc);
+        // 同じ面をかすめ角で見ているだけ（同じ部品・法線もそろう）なら、距離の差は輪郭ではない
+        if (idd < 0.5 && ndiff < 0.04) jump *= smoothstep(0.08, 0.3, nc.z);
+        sil = max(jump, far);
         sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z));
       }
       float crease = (1.0 - bg) * smoothstep(mix(0.45, 0.16, uLine.z), mix(0.75, 0.4, uLine.z), ndiff);
@@ -806,7 +813,7 @@
     const inkMat = new T.ShaderMaterial({
       uniforms: T.UniformsUtils.merge([T.UniformsLib.lights, {
         uL: { value: V3(0, 1, 0) }, uCam: { value: V3() }, uRight: { value: V3(1, 0, 0) }, uUp: { value: V3(0, 1, 0) }, uFwdH: { value: V3(0, 0, -1) },
-        uFocal: { value: 500 }, uPx: { value: 1 }, uH: { value: new T.Vector4() }, uA: { value: new T.Vector4() }, uF: { value: new T.Vector4() }, uL2: { value: new T.Vector4() }, uJit: { value: 0 }, uRimDir: { value: V3(0, 1, 0) }, uNight: { value: 0 },
+        uFocal: { value: 500 }, uPx: { value: 1 }, uH: { value: new T.Vector4() }, uA: { value: new T.Vector4() }, uF: { value: new T.Vector4() }, uL2: { value: new T.Vector4() }, uJit: { value: 0 }, uRimDir: { value: V3(0, 1, 0) }, uNight: { value: 0 }, uShC: { value: new T.Vector4(0, 0, 0, 1e4) },
       }]),
       vertexShader: INK_VS, fragmentShader: INK_FS, lights: true, side: T.FrontSide, extensions: { derivatives: true },
     });
@@ -888,7 +895,7 @@
     U.uA.value.set(art.detail, art.grain, art.toneKind, L.ambient ?? 0.18);
     const fog = S.fog || {}; U.uF.value.set(fog.near ?? 40, fog.far ?? 160, fog.tone ?? 0, fog.amount ?? 0.8);
     U.uL2.value.set(L.strength ?? 0.95, L.rim ?? 0.0, L.flash ?? 0, art.softness);
-    U.uJit.value = art.line.jitter; U.uNight.value = S.night ? 1 : 0; U.uRimDir.value.set(...(L.rimDir || [-ldir.x, Math.max(0.2, ldir.y), -ldir.z])).normalize();
+    U.uJit.value = art.line.jitter; U.uNight.value = S.night ? 1 : 0; U.uShC.value.set(bs.c[0], bs.c[1], bs.c[2], bs.r); U.uRimDir.value.set(...(L.rimDir || [-ldir.x, Math.max(0.2, ldir.y), -ldir.z])).normalize();
     r.geoMat.uniforms.uL.value.copy(ldir);
     const prof = opts.profile ? [] : null; const _px = new Uint8Array(4); const mark = (n) => { if (!prof) return; gl.readRenderTargetPixels(rt.edge, 0, 0, 1, 1, _px); prof.push([n, performance.now()]); };
     mark('start');

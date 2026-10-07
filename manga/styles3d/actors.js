@@ -518,12 +518,12 @@
       }
     }
     // 粉塵：小さな粒をたくさん
-    const nd = o.dust ?? n * 3;
+    const nd = o.dust ?? n * 6;
     for (let i = 0; i < nd; i++) {
       const d = dir.clone().addScaledVector(side, rr(-1.4, 1.4) * spr).addScaledVector(up2, rr(-1.2, 1.2) * spr).normalize();
       const v = v0 * rr(0.2, 1.0), t = rr(0.05, 0.5);
       const p = V3(ox + d.x * v * t, oy + d.y * v * t - 0.5 * g * t * t, oz + d.z * v * t); if (p.y < 0.02) continue;
-      B.add(new T.IcosahedronGeometry(rr(0.015, 0.05), 0), M(p.toArray()), { tone: 0.95, pat: 'plain', flat: true, id });
+      B.add(new T.IcosahedronGeometry(rr(0.006, 0.022) * (o.dustSize ?? 1), 0), M(p.toArray()), { tone: 0.95, pat: 'plain', flat: true, id });
     }
     return id;
   }

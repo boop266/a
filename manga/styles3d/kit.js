@@ -493,7 +493,7 @@
       const o = V3(...p).addScaledVector(side, (i - (n - 1) / 2) * 0.18).add(V3(0, rr(-0.05, 0.05), 0));
       const L = len * rr(0.4, 1.2), bend = V3(rr(-0.4, 0.4), rr(-0.8, 0.2), rr(-0.4, 0.4));
       const pts = []; for (let k = 0; k <= 6; k++) { const t = k / 6; pts.push(o.clone().addScaledVector(d0, L * t).addScaledVector(bend, t * t * L).toArray()); }
-      B.add(tube(pts, 0.014, 5), null, { tone: 0.9, pat: 'plain', id });
+      B.add(tube(pts, 0.03, 5), null, { tone: 0.97, pat: 'plain', id });
     }
   }
   function concreteRuin(B, o) {
@@ -662,11 +662,11 @@
       for (let i = 0; i < 5; i++) { const x = rr(-120, 120), z = rr(-300, -80); tree(B, { pos: [x, hgt(x, z), z], h: rr(7, 12), depth: 3, dead: false }); }
       for (let i = 0; i < 12; i++) { const x = rr(-30, 30), z = rr(-40, 5); if (Math.hypot(x, z) < 4) continue; B.add(rock(rr(0.3, 1.2)), M([x, hgt(x, z), z], [0, rr(0, 6), 0]), { tone: 0.25, pat: 'stone', flat: true }); }
       mountains(B, { n: 9, r: 520, hk: 1.6 });
-      return { sky: env.time === 'night' ? 'scratch' : 'day', moon: env.time === 'night', light: { high: 0.9 }, fog: { near: 80, far: 600 }, bounds: { c: [0, 0, -20], r: 60 }, cam: { target: [0, 1.6 + hgt(0, 0), 0] }, height: hgt, floorY: 0 };
+      return { sky: env.time === 'night' ? 'scratch' : 'day', moon: env.time === 'night', light: { high: 0.9 }, fog: { near: 80, far: 600 }, bounds: { c: [0, 0, -20], r: 60 }, cam: { target: [0, 1.6 + hgt(0, 0), 0] }, height: hgt, floorY: hgt(0, 0) };
     },
   });
   Object.assign(ALIAS, { metropolis: 'metropolis', megacity: 'metropolis', skyscrapers: 'metropolis', downtown: 'metropolis', 高層: 'metropolis', 摩天楼: 'metropolis',
     ruined_city: 'ruined_city', ruincity: 'ruined_city', concrete: 'ruined_city', 廃都: 'ruined_city', 廃ビル: 'ruined_city',
-    factory: 'factory', machine: 'factory', plant: 'factory', 工場: 'factory', 機械: 'factory', grassland: 'grassland', meadow: 'grassland', field: 'grassland', hill: 'grassland', 草原: 'grassland', 丘: 'grassland' });
+    factory: 'factory', machine: 'factory', plant: 'factory', 工場: 'factory', 機械: 'factory', grassland: 'grassland', prairie: 'grassland', 草原: 'grassland', 丘: 'grassland' });
   Object.assign(M3.Kit, { jaggedSlab, rebar, concreteRuin, rubbleHeap, pipe, cables, tank, panel, truss, tower2 });
 })();
