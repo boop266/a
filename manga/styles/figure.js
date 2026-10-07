@@ -48,7 +48,7 @@
     spin: { lean: 4, twist: 35, arms: { n: [95, 80, 110, 70, 'open'], f: [150, 40, 175, 25, 'open'] }, legs: { n: [6, 6, 0, 2], f: [-30, 30, -75, 10] }, head: [-6, 18, 10], spin: true, yaw: 20 },
     thrust: { atCam: ['arms.n'], lean: 12, twist: 30, arms: { n: [92, 0, 92, 0, 'open'], f: [-25, 12, 40, 6, 'fist'] }, legs: { n: [30, 10, 6, 4], f: [-28, 10, -20, 4] }, yaw: -45, head: [4, 0, 0] },
     kick: { atCam: ['legs.n'], lean: -18, twist: -10, arms: { n: [60, 50, 100, 40, 'fist'], f: [-40, 40, -10, 30, 'fist'] }, legs: { n: [96, 0, 92, 0], f: [-10, 6, -30, 4] }, yaw: -45, noBalance: true },
-    hug: { lean: 0, arms: { n: [10, 10, 25, -10], f: [8, 10, 22, -10] }, legs: { n: [120, 20, 10, 10], f: [120, 20, 10, 10] }, ground: 'seat', head: [20, 0, 0] },
+    hug: { lean: 22, arms: { n: [62, 18, 98, -62, 'relax'], f: [60, 18, 96, -62, 'relax'] }, legs: { n: [128, 8, 12, 4], f: [126, 8, 10, 4] }, ground: 'seat', head: [26, 0, 0], noBalance: true },
     fall: { lean: -30, arms: { n: [160, 40, 140, 30, 'open'], f: [110, 50, 90, 40, 'open'] }, legs: { n: [70, 10, 20, 4], f: [30, 10, -10, 4] }, air: 0.2, head: [-15, 0, 10] },
   };
   const POSE_ALIAS = { dance: 'spin', twirl: 'spin', jump2: 'leap', tuck: 'leap', push: 'thrust', stop: 'thrust', crouchhug: 'hug', idle: 'stand', running: 'run', jumping: 'jump', sitting: 'sit', attack: 'slash', swing: 'slash', defend: 'guard', battle: 'fight', ready: 'guard', surprised: 'surprise', crying: 'cry', thinking: 'think' };
@@ -175,7 +175,11 @@
       const pitchR = (box.pitch ?? ({ worm: 48, low: 24, eye: 0, high: -32, top: -78 }[box.camera] ?? 0)) * D, dist = m.Ht * 0.65;
       const camW = rig0ToBody([0, lerp(J.pelvis[1], J.neckB[1], 0.75) + Math.sin(pitchR) * dist, Math.cos(pitchR) * dist]);
       if (grp === 'arms') { const sh = J['sh' + k]; const d = norm3(sub3(camW, sh)); J['el' + k] = add3(sh, d, m.upper); J['wr' + k] = add3(J['el' + k], d, m.fore * 0.95); J['ad' + k] = d; }
-      else { const hp = J['hip' + k]; const d = norm3(sub3(camW, hp)); J['kn' + k] = add3(hp, d, m.thigh); J['an' + k] = add3(J['kn' + k], d, m.shin); J['toe' + k] = add3(J['an' + k], [d[0] * 0.2, -0.6, d[2] * 0.4 + 0.3], m.foot * 0.6); } }
+      else { const hp = J['hip' + k];
+        // 靴底で顔が隠れないよう、蹴り足は体の横へずらしてカメラへ（デフォルメが強いほど大きく）。顔はすねの横からのぞく
+        const off = sides[k] * m.Ht * lerp(0.12, 0.3, clamp((art.deform - 0.3) / 0.6)) * (camW[2] > 0 ? 1 : -1);
+        const tgt = [camW[0] + off * Math.cos(yaw * D), camW[1] + m.Ht * 0.06, camW[2] - off * Math.sin(yaw * D)];
+        const d = norm3(sub3(tgt, hp)); J['kn' + k] = add3(hp, d, m.thigh); J['an' + k] = add3(J['kn' + k], d, m.shin); J['toe' + k] = add3(J['an' + k], [d[0] * 0.2, -0.6, d[2] * 0.4 + 0.3], m.foot * 0.6); } }
     // 手を顔へ（考える・泣く）
     if (P.handAt) for (const k in P.handAt) { const tgt = add3(J.neckB, [sides[k] * m.R * (P.handAt[k] === 'eye' ? 0.62 : 0.1), -m.neck - m.R * (P.handAt[k] === 'eye' ? 0.55 : 0.45), m.R * 1.0]); const sh = J['sh' + k]; const mid = add3(sh, [sides[k] * m.upper * 0.35, m.upper * 0.75, m.upper * 0.45]); J['el' + k] = mid; J['wr' + k] = tgt; }
     // 首と頭
@@ -255,7 +259,8 @@
     // headAt：頭の中心をその位置に合わせる（バストアップ・アップのコマ用）
     if (box.headAt) { const hp = rig.proj(rig.J.head); box = Object.assign({}, box, { shadow: false, footX: box.footX + box.headAt.x - hp.x, footY: box.footY + box.headAt.y - hp.y }); rig = buildRig(spec, pose, box, art, m); }
     const pad = Ht * 0.9;
-    let lb = { x: (box.footX || 0) - pad, y: (box.footY || 0) - Ht * 1.45, w: pad * 2, h: Ht * 1.6 };
+    const extra = (box.camera === 'top' || box.camera === 'high' || (box.pitch || 0) < -20) ? Ht * 0.9 : 0; // 俯瞰では体が足もとより下へも広がる
+    let lb = { x: (box.footX || 0) - pad, y: (box.footY || 0) - Ht * 1.45, w: pad * 2, h: Ht * 1.6 + extra };
     if (box.panel) { const p = box.panel; const x0 = Math.max(lb.x, p.x), y0 = Math.max(lb.y, p.y), x1 = Math.min(lb.x + lb.w, p.x + p.w), y1 = Math.min(lb.y + lb.h, p.y + p.h); lb = { x: x0, y: y0, w: Math.max(4, x1 - x0), h: Math.max(4, y1 - y0) }; }
     const ly = new Layer(lb, S);
     const poseKey = POSES[pose] ? pose : (POSE_ALIAS[pose] || 'stand');
@@ -271,6 +276,13 @@
     if (box.panel) { ctx.beginPath(); ctx.rect(box.panel.x, box.panel.y, box.panel.w, box.panel.h); ctx.clip(); }
     // 点描の影（地面に落ちる影）：人物の下に、点の密度で。浮いていれば小さく薄く
     const groundY = box.ground ?? (box.footY0 ?? box.footY);
+    const topCam = (rig.J.camPitch || 0) < -45;
+    if (topCam && !art.rough && box.shadow !== false) { // 真上から：床に落ちる影が形を説明する（どの絵柄でもはっきり）
+      const L = K.getLight(), hd = rig.proj(rig.J.head), pv = rig.proj(rig.J.pelvis), kn = rig.proj(V3mid(rig.J.knn, rig.J.knf)); const ox = -L[0] * m.Ht * 0.17, oy = -L[1] * m.Ht * 0.17;
+      const jp = ['head', 'pelvis', 'knn', 'knf', 'eln', 'elf', 'wrn', 'wrf', 'shn', 'shf'].map(k => rig.proj(rig.J[k])); const xs2 = jp.map(q => q.x), ys2 = jp.map(q => q.y); const cx = (Math.min(...xs2) + Math.max(...xs2)) / 2 + ox, cy = (Math.min(...ys2) + Math.max(...ys2)) / 2 + oy;
+      const sh = ellipsePts(cx, cy, Math.max(m.R * 1.3, (Math.max(...xs2) - Math.min(...xs2)) / 2 + m.R * 0.5), Math.max(m.R * 1.3, (Math.max(...ys2) - Math.min(...ys2)) / 2 + m.R * 0.5), 0, 40).map((p, i) => [p[0] + Math.sin(i * 1.7) * m.Ht * 0.01, p[1]]);
+      ctx.save(); ctx.fillStyle = art.black > 0.5 ? '#000' : 'rgba(0,0,0,0.55)'; if (art.toneKind !== 'none' && art.black <= 0.5) { ctx.fillStyle = '#000'; ctx.globalAlpha = 0.45; } fillPoly(ctx, catmull(sh, 2, true)); ctx.restore();
+    } else
     if (!art.rough && !BLOBS.includes(spec.species) && (art.black > 0.35 || art.hatching > 0.35) && box.shadow !== false) {
       const lifted = Math.max(0, groundY - res.body.y - res.body.h) / m.Ht; const k = clamp(1 - lifted * 1.5, 0.25, 1);
       const L = K.getLight(); const cx = (box.footX0 ?? box.footX) - L[0] * m.Ht * 0.12;
@@ -310,6 +322,7 @@
   /* ---------- 人型 ---------- */
   function drawHumanoid(C) {
     const { ly, spec, art, m, rig } = C; const { J, proj } = rig;
+    LIMB_Q = m.q;
     const robot = spec.species === 'robot'; C.robot = robot;
     const outfit = OUTFIT[spec.outfit] || (spec.species === 'human' ? OUTFIT.tshirt : OUTFIT.none);
     const items = new Set(spec.items || []);
@@ -436,7 +449,9 @@
 
   /* ---------- 手足：関節をまたいで1本につながった肉付け ----------
      P: [付け根, 関節, 先]（投影済み {x,y,k}）。曲げの内側（くぼむ側）＝屈筋側として、筋肉のふくらみを左右で変える */
+  let LIMB_Q = 0.5;
   function limbChain(P, r, kind, mus, robot) {
+    const qq = LIMB_Q;
     const A = [P[0].x, P[0].y], B = [P[1].x, P[1].y], Cc = [P[2].x, P[2].y];
     const l1 = V.dist(A, B), l2 = V.dist(B, Cc), tj = l1 / Math.max(1e-3, l1 + l2);
     const cr = (B[0] - A[0]) * (Cc[1] - B[1]) - (B[1] - A[1]) * (Cc[0] - B[0]);
@@ -453,11 +468,11 @@
     const bump = (t, c, w, h) => h * Math.exp(-(((t - c) / w) ** 2));
     const prof = kind === 'arm'
       ? (t, side) => { if (robot) return t < tj ? 1.0 : 0.85; const u = t / tj, v = (t - tj) / (1 - tj);
-          const base = t < tj ? lerp(1.1, 0.78, u) : lerp(0.8, 0.58, v);
+          const base = t < tj ? lerp(1.1, 0.74, u) : lerp(0.84, lerp(0.6, 0.44, qq), Math.pow(v, 0.8)); // 手首へ細く
           return base + (side > 0 ? bump(t, tj * 0.55, tj * 0.25, 0.22 * m2 + 0.05) + bump(t, tj + (1 - tj) * 0.22, 0.1, 0.18 * m2 + 0.06) - bump(t, tj, 0.04, 0.08 * bend)
                                 : bump(t, tj * 0.12, tj * 0.18, 0.18 + 0.15 * m2) + bump(t, tj * 0.45, tj * 0.22, 0.14 * m2) + bump(t, tj, 0.04, 0.1 * bend)); }
       : (t, side) => { if (robot) return t < tj ? 1.0 : 0.85; const u = t / tj, v = (t - tj) / (1 - tj);
-          const base = t < tj ? lerp(1.42, 0.78, Math.pow(u, 0.8)) : lerp(0.76, 0.52, v);
+          const base = t < tj ? lerp(1.42, 0.74, Math.pow(u, 0.8)) : lerp(0.8, lerp(0.54, 0.4, qq), Math.pow(v, 0.9)); // 足首へ細く
           return base + (side > 0 ? bump(t, tj * 0.45, tj * 0.3, 0.1 + 0.1 * m2) + bump(t, tj + (1 - tj) * 0.28, 0.12, 0.2 + 0.12 * m2) - bump(t, tj, 0.04, 0.06 * bend)
                                 : bump(t, tj * 0.4, tj * 0.3, 0.12 + 0.15 * m2) + bump(t, tj, 0.05, 0.1)); };
     const Lp = [], Rp = [];
@@ -479,6 +494,8 @@
     const inner = cs > 0 ? Lp : Rp, outer = cs > 0 ? Rp : Lp;
     if (bend > 0.25 && !robot) { const c = inner[ij], cc = path[ij]; lines.push({ p: [V.lerp(cc, c, 0.95), V.lerp(cc, c, 0.55), V.lerp(path[Math.min(path.length - 1, ij + 2)], inner[Math.min(path.length - 1, ij + 2)], 0.5)], w: 0.7, o: { tin: 1, tout: 3 } }); }
     if (kind === 'leg' && !robot) { const o = outer[ij]; lines.push({ p: [V.lerp(path[ij - 1] || path[ij], outer[ij - 1] || o, 0.6), V.lerp(path[ij], o, 0.75), V.lerp(path[ij + 1] || path[ij], outer[ij + 1] || o, 0.6)], w: 0.6, o: { tin: 1, tout: 1 } }); }
+    // 関節での筋肉の重なり：外側の輪郭が、関節の少し先から内へ回り込む短い線（チューブのつなぎ目に見せない）
+    if (!robot && qq > 0.35 && path.length > 6) { const io = Math.min(path.length - 2, ij + 1), o0 = outer[io], c0 = path[io], i2 = Math.min(path.length - 1, ij + 3); const tgt = V.lerp(path[i2], outer[i2], 0.15); lines.push({ p: [V.lerp(c0, o0, 0.98), V.lerp(V.lerp(c0, o0, 0.6), tgt, 0.4), tgt], w: 0.75, o: { tin: 0.5, tout: 3 } }); }
     if (kind === 'arm' && m2 > 0.4) { const i0 = Math.round(tj * 0.35 * (path.length - 1)), i1 = Math.round(tj * 0.75 * (path.length - 1)); lines.push({ p: [V.lerp(path[i0], inner[i0], 0.35), V.lerp(path[i1], inner[i1], 0.3)], w: 0.6, o: { tin: 2, tout: 4 } }); }
     return { poly, L: Lp, R: Rp, C: path, tj, bend, cs, lines, inner, outer };
   }
@@ -562,8 +579,9 @@
   function drawTorso(C, outfit) {
     const { ly, m, rig, art, spec } = C, { J, proj } = rig;
     const secs = [ // t: 骨盤0→首1, a: 横幅の半分, b: 厚みの半分, z: 前への張り出し
-      [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist * (m.fem ? 1 : 1.06), m.depth * 0.85, 0.02],
-      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.8, m.shHalf * 0.88, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.84, m.depth * 0.85, 0.02], [0.97, m.shHalf * 0.66, m.depth * 0.7, 0], [1.02, m.shHalf * 0.48, m.depth * 0.55, 0], [1.06, m.shHalf * 0.34, m.depth * 0.45, 0],
+      // 胸郭 → くびれ → 腰：断面の幅に、はっきりした起伏をつける（手描きの胴の外形）
+      [-0.08, m.hipHalf * 1.28, m.depth * 0.95, 0], [0.1, m.hipHalf * 1.26, m.depth * 0.9, 0], [0.24, lerp(m.hipHalf * 1.2, m.waist, 0.6), m.depth * 0.86, 0.01], [0.38, m.waist * (m.fem ? 0.95 : 0.97), m.depth * 0.84, 0.02],
+      [0.55, lerp(m.waist, m.shHalf, 0.62), m.depth * 0.95, m.depth * 0.06], [0.66, lerp(m.waist, m.shHalf, 0.82), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.12)], [0.8, m.shHalf * 0.88, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.84, m.depth * 0.85, 0.02], [0.97, m.shHalf * 0.66, m.depth * 0.7, 0], [1.02, m.shHalf * 0.48, m.depth * 0.55, 0], [1.06, m.shHalf * 0.34, m.depth * 0.45, 0],
     ];
     const Lf = [], Rt = [];
     for (const [t, a, b, zc] of secs) {
@@ -635,8 +653,20 @@
     // 帯・ベルト
     if (outfit.top !== 'none' && outfit.top !== 'knee' && !outfit.obi && outfit.bottom === 'pants') { const b1 = [T(0.05, -1), T(0.03, 0), T(0.05, 1)]; ink(l, b1, 0.9); }
     if (outfit.top === 'knee') { // 白衣のすそ
-      const hem = [T(0.95, -0.98), T(0.2, -1.15), T(-0.9, -1.25), T(-0.95, 0), T(-0.9, 1.25), T(0.2, 1.15), T(0.95, 0.98)];
-      const hp = catmull(hem, 4, true); ly.fill(hp, C.mat.top, { shade: 0.7, off: m.shHalf * 0.5 }); contour(l, hp, 1.6); ink(l, [T(0.6, 0), T(-0.9, 0.05)], 1.0);
+      // 長いコート：裾は重く、動くと大きな弧を描いて遅れてついてくる（回転では外へ広がる）。腰から下に縦の大きなひだ
+      const P0 = rig.P, moving = (P0.air || P0.spin || (P0.lean || 0) > 10) ? 1 : 0.15, lag = art.dynamism * moving;
+      const back = -rig.mir, bot = -0.9 - lag * 0.15;
+      const trail = (p, t, x) => { const d = clamp(-t / 0.95); if (d <= 0) return p; const swing = P0.spin ? [Math.sign(x || 1) * lag * d * m.leg * 0.45, -lag * d * m.leg * 0.2] : [back * lag * d * d * m.leg * 0.8, -lag * d * d * m.leg * 0.35]; return [p[0] + swing[0], p[1] + swing[1]]; };
+      const side = [[0.95, -0.98], [0.5, -1.08], [0.05, -1.15], [-0.45, -1.2]];
+      const hemN = 9, hemPts = []; for (let i = 0; i <= hemN; i++) { const x = lerp(-1.25, 1.25, i / hemN); const t = bot + Math.sin(i * 1.7) * 0.03; hemPts.push(trail(T(t, x), t, x)); }
+      const L1 = side.map(([t, x]) => trail(T(t, x), t, x)), R1 = side.map(([t, x]) => trail(T(t, -x), t, -x));
+      const hp = catmull(L1.concat(hemPts.slice().reverse(), R1.slice().reverse()), 3, true);
+      const darkC = C.mat.top >= (C.R.betaM ?? 0.9) - 0.02;
+      ly.fill(hp, C.mat.top, { shade: 0.7, off: m.shHalf * 0.5 }); contour(l, hp, 1.6);
+      const fl = darkC ? ly.hi : l; ink(fl, [T(0.6, 0), trail(T(bot, 0.05), bot, 0.05)], 1.0);
+      for (const x of [-0.75, -0.35, 0.35, 0.75]) { const top = T(-0.05, x * 0.8), b2 = trail(T(bot + 0.02, x), bot, x); ink(fl, [top, V.lerp(top, b2, 0.55), b2], 0.75, { tin: m.leg * 0.15, tout: 2 }); } // 縦の大きなひだ
+      // ベルトでくびれる
+      ink(l, [T(0.12, -1.05), T(0.1, 0), T(0.12, 1.05)], 1.0);
     }
   }
   function drawPattern(C, poly, pat, outfit) {
@@ -1237,6 +1267,65 @@
     // 髪の房の形は、人物ごとに決まった種で作る（どの角度・表情でも同じ房になる）
     const { ly, spec } = C; const ha0 = ly.ha; ly.ha = 1; const keep = K.seedState ? K.seedState() : null; seed(hashStr((spec.id || spec.name || 'x') + '|hair|' + phase));
     try { drawHair2(C, F, phase); } finally { ly.ha = ha0; if (keep != null) K.seedSet(keep); } }
+  /* 髪の房：生え際から額へかかる前髪の房と、顔の横へ落ちるサイドの房。
+     絵柄で先の形が変わる：すっきり線＝鋭い房、劇画＝墨の筆線、ゆるかわ・絵本＝丸いかたまり */
+  const SIDE = { short: 0.05, spiky: 0.0, messy: 0.42, bob: 0.82, long: 1.15, ponytail: 0.3, twintail: 0.45, bun: 0.2, curly: 0.75, braid: 0.38 };
+  function drawLocks(C, F, H, hair, mat, vol, vOf) {
+    const { ly, art } = C; const { R, q } = F; const l = ly.l;
+    if (hair === 'bald' || !H) return;
+    const soft = Math.max(art.softness, art.deform * 0.9) > 0.55 && (C.clean || 0) < 0.4; // 丸い房
+    const sharp = (C.clean || 0) > 0.3 || hair === 'spiky';
+    const eyeTopV = lerp(0.3, 0.06, q) - ({ sparkle: 0.42, simple: 0.3, sharp: 0.17, realistic: 0.15, dot: 0.2 }[art.eyeStyle === 'round' ? 'simple' : art.eyeStyle] || 0.3) * lerp(0.55, 1.45, art.eyeSize) * 0.55 - 0.04;
+    const locks = [];
+    // 前髪の房
+    const nb = H.bang > 0.05 ? Math.round(lerp(3, 6, q * 0.6 + art.detail * 0.4)) + (hair === 'messy' ? 1 : 0) : 0;
+    const span = H.even ? 1.05 : 0.9;
+    for (let i = 0; i < nb; i++) {
+      const t = nb === 1 ? 0.5 : i / (nb - 1), u = lerp(-span, span, t) + rr(-0.06, 0.06);
+      const part = (H.even ? 0 : 0.18) * Math.sign(u || 1); // 分け目から外へ流れる
+      const rootV = vOf(u) - 0.42, len = H.bang * (H.even ? 1 : rr(0.8, 1.15)) * (1 - Math.abs(u) * 0.2);
+      const tipV = Math.min(vOf(u) + len, Math.abs(u) < 0.8 ? Math.max(vOf(u) + 0.1, eyeTopV) : 0.6);
+      const r = F.sp(u * 0.6, rootV, vol * 1.0), m2 = F.sp(u * 0.85 + part * 0.6, lerp(rootV, tipV, 0.55), vol * 1.07), tp = F.sp(u + part + rr(-0.05, 0.05), tipV, vol * 1.03);
+      if (tp.z < 0.05) continue;
+      locks.push({ pts: [[r.x, r.y], [m2.x, m2.y], [tp.x, tp.y]], w: R * lerp(0.2, 0.16, q) * (soft ? 1.05 : 1), z: tp.z, front: true });
+    }
+    // 顔の横へ落ちる房（耳の前を通って、頬・あごへ）
+    const sl = SIDE[hair] ?? 0.2;
+    if (sl > 0.08) for (const sx of [-1, 1]) {
+      const n2 = sl > 0.6 ? 2 : 1;
+      for (let j = 0; j < n2; j++) {
+        const u0 = sx * (1.18 + j * 0.2), r = F.sp(u0 * 0.85, -0.55, vol), m2 = F.sp(u0 * 1.05, lerp(-0.1, 0.3, sl), vol * 1.06), tp = F.sp(u0 * (1.0 - sl * 0.1), Math.min(1.1, -0.2 + sl * 1.1 + j * 0.08), vol * 1.04);
+        if (m2.z < -0.3 || m2.z > 0.62 || tp.z > 0.62) continue; // 顔の前には出さない（輪郭ぎわを落ちる）
+        if (C.headHull) { const hb = K.bbox(C.headHull); if (tp.x > hb.x + R * 0.25 && tp.x < hb.x + hb.w - R * 0.25 && tp.y > F.c.y) continue; }
+        locks.push({ pts: [[r.x, r.y], [m2.x, m2.y], [tp.x, tp.y]], w: R * lerp(0.2, 0.15, q) * (soft ? 1.05 : 1) * (1 - j * 0.2), z: m2.z - 0.5, front: false });
+      }
+    }
+    // 奥から手前へ（横の房 → 端の前髪 → 中央の前髪）
+    locks.sort((a, b) => a.z - b.z);
+    C.bangs = [];
+    for (const L of locks) {
+      const Cc = catmull(L.pts, 6); const n = Cc.length - 1;
+      const sw = sweep(Cc, t => L.w * (soft ? (t < 0.75 ? 1 - t * 0.25 : 0.81 * Math.sqrt(Math.max(0, (1 - t) / 0.25)) * 0.9 + 0.12) : Math.pow(1 - t, 0.85) * (1 + 0.15 * Math.sin(t * Math.PI))));
+      let P;
+      if (soft) { // 丸い先
+        const e = V.norm(V.sub(Cc[n], Cc[n - 1])), wl = V.dist(sw.L[n], sw.R[n]) / 2 + L.w * 0.25, cap = [];
+        for (let i = 1; i < 8; i++) { const a = Math.PI * i / 8; cap.push(V.add(Cc[n], V.add(V.mul(V.perp(e), Math.cos(a) * wl), V.mul(e, Math.sin(a) * wl)))); }
+        P = sw.L.concat(cap, sw.R.slice().reverse());
+      } else if (!sharp && (C.brush || 0) > 0.3) { // 劇画：先が二つ三つに割れる
+        const tips = []; const e = V.norm(V.sub(Cc[n], Cc[n - 2])); const nn = V.perp(e);
+        for (let k = 0; k < 3; k++) { tips.push(V.add(Cc[n], V.add(V.mul(nn, (k - 1) * L.w * 0.35), V.mul(e, L.w * rr(0.1, 0.6))))); if (k < 2) tips.push(V.add(Cc[n - 1], V.mul(nn, (k - 0.5) * L.w * 0.3))); }
+        P = sw.L.concat(tips, sw.R.slice().reverse());
+      } else P = sw.poly;
+      ly.fill(P, mat, { shade: 0.6, off: R * 0.08, ha: 1 });
+      // 根元は髪のかたまりへ溶けこむので、線は房の両側だけ（根元の端は描かない）
+      const k0 = Math.round(n * 0.25);
+      if (soft) { const n3 = P.length; ink(l, P.slice(Math.round(n3 * 0.3), Math.round(n3 * 0.7)), 1.1, { dense: true, tin: 3, tout: 3 }); }
+      else { ink(l, sw.L.slice(k0), 1.1, { dense: true, tin: 2, tout: 0.5 }); ink(l, sw.R.slice(k0), 1.0, { dense: true, tin: 2, tout: 0.5 }); if (P.length > sw.poly.length) ink(l, P.slice(sw.L.length, P.length - sw.R.length), 0.9, { dense: true }); }
+      if (L.front) C.bangs.push([Cc[Math.round(n * 0.2)], Cc[n]]);
+      // 房の中の毛の線（劇画は白、ほかは黒の細線）
+      if (art.detail > 0.25 && !soft) { const c2 = mat > 0.6 ? ly.hi : l; ink(c2, Cc.slice(Math.round(n * 0.2), Math.round(n * 0.85)).map(p => V.add(p, V.mul(V.perp(V.norm(V.sub(Cc[n], Cc[0]))), L.w * 0.25))), 0.45, { dense: true, tin: 3, tout: 5 }); }
+    }
+  }
   // 墨の筆線の髪：根元から毛先へ流れる線、毛先はばらけて、少し飛沫
   function inkHair(C, P, root, R, mat) {
     const br = C.brush || 0; if (br < 0.15 || C.clean > 0.5 || C.art.rough) return;
@@ -1318,7 +1407,7 @@
           if (idx !== lastBang) {
             lastBang = idx;
             const u0 = -bangW + (idx + 0.5) / nb * 2 * bangW;
-            const len = H.bang * (H.even ? 1 : 0.75 + 0.45 * Math.abs(Math.sin(idx * 2.7 + 1))) * (1 - Math.abs(u0) * 0.25);
+            const len = H.bang * 0.45 * (H.even ? 1 : 0.75 + 0.45 * Math.abs(Math.sin(idx * 2.7 + 1))) * (1 - Math.abs(u0) * 0.25);
             const sway = (hair === 'spiky' || hair === 'messy') ? rr(-0.25, 0.25) : 0.12 * (F.side);
             const eyeTopV = lerp(0.3, 0.06, q) - ({ sparkle: 0.42, simple: 0.3, sharp: 0.17, realistic: 0.15, dot: 0.2 }[art.eyeStyle === 'round' ? 'simple' : art.eyeStyle] || 0.3) * lerp(0.55, 1.45, art.eyeSize) * 0.55 - 0.05;
             const tip = F.sp(u0 + sway, Math.min(0.9, vOf(u0) + len, Math.abs(u0) < 0.75 ? Math.max(vOf(u0) + 0.08, eyeTopV - (C.clean > 0.3 ? 0.14 : 0)) : 0.9), vol * 1.02);
@@ -1354,6 +1443,11 @@
     ly.fill(P, mat, { shade: 0.8, off: R * 0.25, blur: R * 0.03 });
     contour(l, P, 1.5);
     shine(P);
+    if (vis.length >= 2) drawLocks(C, F, H, hair, mat, vol, vOf);
+    if ((C.rig.J.camPitch || 0) < -40) { // 真上から：つむじ（渦）と、そこから放射する毛の流れ
+      const cr = F.pt(0.05, -0.92, -0.3); const c2 = mat > 0.6 ? ly.hi : l; const sp = []; for (let i = 0; i <= 26; i++) { const a = i / 26 * TAU * 1.6, rr2 = R * 0.03 + R * 0.12 * i / 26; sp.push([cr.x + Math.cos(a) * rr2, cr.y + Math.sin(a) * rr2]); } ink(c2, sp, 0.7, { dense: true, tin: 1, tout: 3 });
+      for (let i = 0; i < 14; i++) { const a = i / 14 * TAU + 0.3; const p0 = [cr.x + Math.cos(a) * R * 0.18, cr.y + Math.sin(a) * R * 0.18], p1 = [cr.x + Math.cos(a + 0.35) * R * 0.85, cr.y + Math.sin(a + 0.35) * R * 0.85]; ink(c2, [p0, V.lerp(p0, p1, 0.5).map((v, j) => v + (j ? 1 : -1) * Math.sin(a) * R * 0.05), p1], 0.55, { tin: 1, tout: R * 0.3 }); }
+    }
     inkHair(C, P, [c.x - F.side * R * 0.2, c.y - R * 0.9], R, mat);
     // すっきりした線：房の中に細い線を2〜3本（房の根元から先へ）
     if (C.clean > 0.3 && C.bangs) for (const [r0, tp] of C.bangs) for (let k = 0; k < 2 + (rand() < 0.5 ? 1 : 0); k++) { const off = V.mul(V.perp(V.norm(V.sub(tp, r0))), R * (k - 1) * 0.05); const a = V.add(V.lerp(r0, tp, 0.25), off), b2 = V.add(V.lerp(r0, tp, rr(0.7, 0.88)), V.mul(off, 0.4)); ink(mat > 0.6 ? ly.hi : l, [a, V.lerp(a, b2, 0.5), b2], 0.45, { tin: R * 0.05, tout: R * 0.25, noScratch: true }); }
@@ -1449,7 +1543,11 @@
     if (items.has('hairbutton')) { // ボタン型の髪どめ：丸い板に穴が2つ
       const p = pt(-0.68, -0.55, 0.5); if (p.z > -0.2) { const r = R * 0.2; const B = ellipsePts(p.x, p.y, r * clamp(p.z + 0.4, 0.5, 1), r, 0, 18); ly.fill(B, 0, { shade: 0.4 }); contour(l, B, 1.2); ink(l, ellipsePts(p.x, p.y, r * 0.62 * clamp(p.z + 0.4, 0.5, 1), r * 0.62, 0, 14).concat([]), 0.6, { dense: true, closed: true }); for (const d of [-1, 1]) { l.beginPath(); l.arc(p.x + d * r * 0.25, p.y, r * 0.13, 0, TAU); l.fill(); } } }
     if (items.has('hairflower')) { const p = pt(0.7 * C.rig.mir, -0.65, 0.4); drawFlower(ly, p.x, p.y, R * 0.28); }
-    if (items.has('ribbon')) { const p = pt(-0.6, -0.8, 0.3); for (const sx of [-1, 1]) { const P = catmull([[p.x, p.y], [p.x + sx * R * 0.4, p.y - R * 0.25], [p.x + sx * R * 0.45, p.y + R * 0.2]], 3, true); ly.fill(P, 0.9, { shade: 0.3 }); contour(l, P, 1.1); } const k = ellipsePts(p.x, p.y, R * 0.09, R * 0.09, 0, 10); ly.fill(k, 0.9, { shade: 0 }); }
+    if (items.has('ribbon')) { // リボン：頭の横（ツインテールなら結び目）。小さめに
+      const tw = (C.spec.hair === 'twintail'), p = tw ? pt(0.88 * (F.side >= 0 ? -1 : 1), -0.42, 0.15) : pt(-0.72, -0.62, 0.45); if (p.z > -0.3) { const sR = R * 0.26;
+      for (const sx of [-1, 1]) { const P = catmull([[p.x, p.y], [p.x + sx * sR, p.y - sR * 0.55], [p.x + sx * sR * 1.1, p.y + sR * 0.45]], 3, true); ly.fill(P, 0.9, { shade: 0.3 }); contour(l, P, 1.0); }
+      for (const sx of [-1, 1]) ink(l, [[p.x, p.y], [p.x + sx * sR * 0.4, p.y + sR * 1.0]], 0.9, { tin: 1, tout: 2 });
+      const k = ellipsePts(p.x, p.y, sR * 0.22, sR * 0.22, 0, 10); ly.fill(k, 0.9, { shade: 0 }); } }
     if (items.has('horns')) for (const sx of [-1, 1]) { const b = pt(sx * 0.5, -0.85, 0.2); const t = pt(sx * 0.95, -1.55, 0.1); const P = catmull([[b.x - R * 0.13, b.y], [lerp(b.x, t.x, 0.5) + sx * R * 0.1, lerp(b.y, t.y, 0.6)], [t.x, t.y], [b.x + R * 0.13, b.y + R * 0.02]], 4, true); ly.fill(P, 0.25, { shade: 0.9, off: R * 0.1 }); contour(l, P, 1.2); }
     if (items.has('halo')) { const c = pt(0, -1.45, 0); const P = ellipsePts(c.x, c.y, R * 0.6, R * 0.16, F.tilt, 26); l.lineWidth = R * 0.07; l.strokeStyle = '#000'; l.beginPath(); pathPoly(l, P); l.stroke(); }
     if (items.has('crown')) { const b0 = pt(-0.55, -0.9, 0.3), b1 = pt(0.55, -0.9, 0.3); const P = [[b0.x, b0.y], [b0.x, b0.y - R * 0.4], [lerp(b0.x, b1.x, 0.25), b0.y - R * 0.15], [lerp(b0.x, b1.x, 0.5), b0.y - R * 0.5], [lerp(b0.x, b1.x, 0.75), b0.y - R * 0.15], [b1.x, b1.y - R * 0.4], [b1.x, b1.y]]; ly.fill(P, 0.25, { shade: 0.8 }); contour(l, P, 1.2, { seg: 1 }); }

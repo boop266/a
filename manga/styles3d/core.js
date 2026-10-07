@@ -570,11 +570,13 @@
       if (bg < 0.5) {
         float jump = smoothstep(0.02, 0.05, (zmax - zc) / zc);
         // 同じ面をかすめ角で見ているだけ（同じ部品・法線もそろう）なら、距離の差は輪郭ではない
-        if (idd < 0.5 && ndiff < 0.04) jump *= (1.0 - graze) * smoothstep(0.08, 0.3, nc.z);
+        // 同じ面をかすめ角で見ているだけなら輪郭ではない。ただし段差が大きい（別の物が重なる）ときは輪郭
+        // 平らな面をかすめ角で見ると奥行きは左右対称に変わる（二階差分が小さい）。物が重なる段差は片側だけ跳ぶ
+        if (idd < 0.5 && ndiff < 0.04) jump *= smoothstep(0.25, 0.6, lap / max(zmax - zc, 1e-5));
         sil = max(jump, far);
         sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z) * (1.0 - graze));
       }
-      float nearD = clamp(uRefZ / max(zc, 0.05), 0.5, 2.5);
+      float nearD = clamp(pow(min(uRefZ, 8.0) / max(zc, 0.05), 0.5), 0.75, 1.4);
       float crease = (1.0 - bg) * smoothstep(mix(0.45, 0.16, uLine.z) / nearD, mix(0.75, 0.4, uLine.z) / nearD, ndiff);
       float part = (1.0 - bg) * idd;
       float e = max(sil, max(crease * 0.8, part * 0.85));
@@ -582,7 +584,7 @@
       float f = fract(gc.w); float darkMat = step(0.5, f); float lit = (f - 0.5 * darkMat) / 0.49;
       // 1600px 幅で：外形 2.5〜4px、内側 1〜1.5px（線の太さ＝全幅）
       // 手前ほど太く・奥ほど細く（主役までの距離 uRefZ が基準）。突き出した手や足の線が太くなる
-      float near = clamp(pow(uRefZ / max(zc, 0.05), 0.65), 0.55, 2.4);
+      float near = clamp(pow(min(uRefZ, 8.0) / max(zc, 0.05), 0.5), 0.6, 1.7);   // 遠景は従来どおり細く
       float wOut = max(mix(2.4, 4.2, uLine.x) * uPx, 1.5);
       float wIn = max(mix(0.9, 1.6, uLine.x) * uPx, 0.9);
       float w = mix(wIn, wOut, sil);
@@ -742,7 +744,8 @@
       lineInk *= 1.0 - uLine.y * smoothstep(0.62, 0.8, br) * 0.9;
       // 黒い物の輪郭は、黒の上では白い線（ふち取り）にしない＝そのまま黒
       // 黒い物の上の輪郭は白く抜く（白フチ）。背景も黒いときにシルエットが溶けないように
-      float whiteRim = step(0.75, onDark) * step(0.75, ink) * lineInk * step(1.2, lineW);
+      // 固有色が黒い物の輪郭は白く抜く（黒の中でも形が読める）。暗い物と暗い背景の分離は、陰影のリムライトが受け持つ
+      float whiteRim = max(step(0.75, onDark), step(0.25, onDark) * step(0.9, 1.0 - shade)) * step(0.75, ink) * lineInk * step(1.2, lineW);
       ink = max(ink, lineInk);
       ink = mix(ink, 0.0, whiteRim * 0.95);
       // ---- 雨 ----
