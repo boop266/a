@@ -514,7 +514,7 @@
   const GEO_VS = `
     attribute vec3 aInk;
     uniform vec3 uL;
-    varying vec3 vNv; varying float vId; varying float vLit; varying float vTone; varying float vZ;
+    varying vec3 vNv; varying float vId; varying float vLit; varying float vTone; varying float vZ; varying vec3 vVP;
     void main(){
       vec4 lp = vec4(position, 1.0); vec3 ln = normal;
       #ifdef USE_INSTANCING
@@ -523,16 +523,17 @@
       vec3 nW = normalize(mat3(modelMatrix) * ln);
       vNv = normalize(mat3(viewMatrix) * nW);
       vId = aInk.z; vLit = dot(nW, uL); vTone = aInk.x;
-      vec4 mv = modelViewMatrix * lp; vZ = -mv.z;
+      vec4 mv = modelViewMatrix * lp; vZ = -mv.z; vVP = mv.xyz;
       gl_Position = projectionMatrix * mv;
     }`;
   // R,G = 視線空間の法線 xy、B = 距離（m）、A = 部品番号 + 光(0..0.49) + 黒い物(0.5)
   const GEO_FS = `
-    varying vec3 vNv; varying float vId; varying float vLit; varying float vTone; varying float vZ;
+    varying vec3 vNv; varying float vId; varying float vLit; varying float vTone; varying float vZ; varying vec3 vVP;
     void main(){
       vec3 n = normalize(vNv); if (!gl_FrontFacing) n = -n;
       float lit = clamp(vLit * 0.5 + 0.5, 0.0, 1.0);
-      gl_FragColor = vec4(n.xy, vZ, floor(vId + 0.5) + lit * 0.49 + (vTone > 0.8 ? 0.5 : 0.0));
+      float facing = abs(dot(n, normalize(-vVP)));
+      gl_FragColor = vec4(n.xy, facing < 0.18 ? -vZ : vZ, floor(vId + 0.5) + lit * 0.49 + (vTone > 0.8 ? 0.5 : 0.0));
     }`;
 
   const QUAD_VS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -547,6 +548,7 @@
     void main(){
       vec2 px = 1.0 / uRes;
       vec4 gc = texture2D(tGeo, vUv);
+      float graze = step(gc.z, -0.0001); gc.z = abs(gc.z);
       float zc = gc.z; float bg = step(zc, 0.0001);
       vec3 nc = nrm(gc); float idc = floor(gc.w);
       float zmax = 0.0, ndiff = 0.0, idd = 0.0, far = 0.0;
@@ -554,7 +556,7 @@
       float zs[4];
       for (int i = 0; i < 4; i++){
         vec4 g = texture2D(tGeo, vUv + o[i]);
-        float z = g.z; bool b = z <= 0.0001;
+        float z = abs(g.z); bool b = z <= 0.0001;
         zs[i] = b ? zc * 10.0 : z;
         if (b) far = 1.0;
         else {
@@ -568,9 +570,9 @@
       if (bg < 0.5) {
         float jump = smoothstep(0.02, 0.05, (zmax - zc) / zc);
         // 同じ面をかすめ角で見ているだけ（同じ部品・法線もそろう）なら、距離の差は輪郭ではない
-        if (idd < 0.5 && ndiff < 0.04) jump *= smoothstep(0.08, 0.3, nc.z);
+        if (idd < 0.5 && ndiff < 0.04) jump *= (1.0 - graze) * smoothstep(0.08, 0.3, nc.z);
         sil = max(jump, far);
-        sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z));
+        sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z) * (1.0 - graze));
       }
       float nearD = clamp(uRefZ / max(zc, 0.05), 0.5, 2.5);
       float crease = (1.0 - bg) * smoothstep(mix(0.45, 0.16, uLine.z) / nearD, mix(0.75, 0.4, uLine.z) / nearD, ndiff);
@@ -613,7 +615,7 @@
     float lineCov(float u, float hw){ float fw = max(fwidth(u), 1e-4); float f = abs(fract(u) - 0.5); return 1.0 - smoothstep(hw - fw * 0.7, hw + fw * 0.7, f); }
     void main(){
       vec2 fc = gl_FragCoord.xy;
-      float zg = texture2D(tGeo, vUv).z; float bg = step(zg, 0.0001);
+      float zg = abs(texture2D(tGeo, vUv).z); float bg = step(zg, 0.0001);
       float shade = texture2D(tShade, vUv).r;
       float ink = 1.0 - shade;
       vec3 rd = rayDir(vUv);

@@ -28,7 +28,7 @@
     // 回る：片足で立ち、もう片足は曲げる。腕を大きく開く。裾は円盤状に広がる
     spin: { hips: [0, 28, 0], spine: [0, -12, 0], chest: [0, -22, -6], neck: [0, 34, 6], shL: [-10, 0, 82], elL: [-12, 0, 0], shR: [-28, 0, -72], elR: [-38, 0, 0], hipL: [-8, 0, 6], hipR: [-55, 0, -22], knR: [95, 0, 0], anR: [30, 0, 0], hands: { L: 'fan', R: 'fan' }, spin: 1, flare: 0.9 },
     // 手を伸ばす：手前（+Z）へ腕を突き出す。手のひらがこちらを向く（短縮法）
-    reach: { hips: [6, 4, 0], spine: [8, 0, 0], chest: [12, -10, 0], neck: [-14, 6, 0], head: [-4, 0, 0], shR: [-108, -4, 20], elR: [-4, 0, 0], haR: [-70, 0, 0], shL: [24, 0, 14], elL: [-60, 0, 0], hipL: [-30, 0, 6], knL: [28, 0, 0], hipR: [16, 0, -6], knR: [12, 0, 0], hands: { L: 'claw', R: 'fan' }, motion: [0, 0, 0.6] },
+    reach: { hips: [6, 4, 0], spine: [8, 0, 0], chest: [12, -10, 0], neck: [-14, 6, 0], head: [-4, 0, 0], aim: { R: { dir: [0.12, 0.1, 1], palm: [0, 0, 1], up: [0.1, 1, 0.15] } }, shL: [24, 0, 14], elL: [-60, 0, 0], hipL: [-30, 0, 6], knL: [28, 0, 0], hipR: [16, 0, -6], knR: [12, 0, 0], hands: { L: 'claw', R: 'fan' }, motion: [0, 0, 0.6] },
     // 膝を抱えて座る（真上から見るとほぼ円になる）
     crouch: { root: { sit: 0.13 }, hips: [-28, 0, 0], spine: [26, 0, 0], chest: [22, 0, 0], neck: [26, 0, 0], head: [14, 0, 0], hipL: [-122, 0, 10], knL: [148, 0, 0], anL: [-20, 0, 0], hipR: [-122, 0, -10], knR: [148, 0, 0], anR: [-20, 0, 0], shL: [-62, -18, 16], elL: [-100, 0, 0], shR: [-62, 18, -16], elR: [-100, 0, 0], hands: { L: 'grip', R: 'grip' } },
     // 前蹴り：靴の裏を前へ突き出す
@@ -79,6 +79,25 @@
     outer.position.set(...(o.pos || [0, 0, 0])); outer.rotation.y = (o.yaw ?? 0) * D2R;
     outer.updateMatrixWorld(true);
     return { J, s, root: outer, P, pr, k: s * pr.bs };
+  }
+  // 腕を向きで決める：dir（体の向きの座標：+Z が前）へ腕をまっすぐ伸ばし、手のひらを palm の向きへ、指を up の向きへ
+  function aimArms(R, aim, yaw) {
+    const rotY = new T.Quaternion().setFromAxisAngle(V3(0, 1, 0), yaw);
+    for (const [S, a] of Object.entries(aim || {})) {
+      const sh = R.J['sh' + S], el = R.J['el' + S], ha = R.J['ha' + S], sg = S === 'L' ? 1 : -1;
+      const d = V3(...a.dir).normalize().applyQuaternion(rotY);
+      const setWorld = (j, qw) => { const pq = new T.Quaternion(); j.parent.getWorldQuaternion(pq); j.quaternion.copy(pq.invert().multiply(qw)); j.updateMatrixWorld(true); };
+      // 肩：-Y を d へ
+      setWorld(sh, new T.Quaternion().setFromUnitVectors(V3(0, -1, 0), d));
+      setWorld(el, new T.Quaternion().setFromUnitVectors(V3(0, -1, 0), d));
+      // 手：指（-Y）を up へ、手のひら（-sg*X）を palm へ
+      const f = V3(...(a.up || [0, 1, 0])).applyQuaternion(rotY).normalize();
+      let n = V3(...(a.palm || a.dir)).applyQuaternion(rotY).normalize();
+      n.addScaledVector(f, -n.dot(f)).normalize();
+      const yAx = f.clone().negate(), xAx = n.clone().multiplyScalar(-sg), zAx = V3().crossVectors(xAx, yAx).normalize();
+      const m = new T.Matrix4().makeBasis(xAx, yAx, zAx);
+      setWorld(ha, new T.Quaternion().setFromRotationMatrix(m));
+    }
   }
   const W = j => j.matrixWorld.clone();
   const wp = j => j.getWorldPosition(V3());
@@ -347,6 +366,7 @@
     const R = rig(o.pose || 'stand', o);
     const P = R.P;
     const yaw = (o.yaw ?? 0) * D2R;
+    if (P.aim || o.aim) aimArms(R, Object.assign({}, P.aim || {}, o.aim || {}), yaw);
     const toW = v => V3(...v).applyAxisAngle(V3(0, 1, 0), yaw);
     const motion = toW(P.motion || [0, 0, 0]);
     const outfit = o.outfit || 'casual';
