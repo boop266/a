@@ -21,6 +21,7 @@
   // ---------- 乱数（呼び出しごとに種を決めて、毎回同じ絵になる） ----------
   let _s = 1;
   const seed = s => { _s = (s >>> 0) || 1; };
+  const seedState = () => _s, seedSet = v => { _s = v; };
   const rand = () => { _s |= 0; _s = _s + 0x6D2B79F5 | 0; let t = Math.imul(_s ^ _s >>> 15, 1 | _s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const rr = (a, b) => a + (b - a) * rand();
   const rg = (m = 0, s = 1) => { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return m + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
@@ -377,5 +378,5 @@
   // ctx の今の拡大率（studio のページがどの倍率でも、細い線が潰れないように）
   function ctxScale(ctx) { try { const m = ctx.getTransform(); return clamp(Math.hypot(m.a, m.b), 0.5, 4); } catch (e) { return 2; } }
 
-  Object.assign(K, { dryStroke, splatter, grime, stipple, scratchPath, angBucket, TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
+  Object.assign(K, { seedState, seedSet, dryStroke, splatter, grime, stipple, scratchPath, angBucket, TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
 })();

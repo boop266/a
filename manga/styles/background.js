@@ -108,15 +108,20 @@
     if (night) { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.97)); g.addColorStop(1, ly.g(lerp(0.6, 0.9, art.black))); m.fillStyle = g; fillPoly(m, P); env.stars = true; }
     else if (eve) { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.55)); g.addColorStop(1, ly.g(0.08)); m.fillStyle = g; fillPoly(m, P); }
     else if (env.bg.weather === 'rain' || env.bg.weather === 'storm' || env.bg.weather === 'cloudy') { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.5)); g.addColorStop(1, ly.g(0.15)); m.fillStyle = g; fillPoly(m, P); }
+    if (!night && !eve && art.hatching > 0.35 && art.black <= 0.7) { const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(0.45 * art.hatching + 0.1)); g.addColorStop(1, ly.g(0.05)); m.fillStyle = g; fillPoly(m, P); }
     // ベタの多い絵柄は、昼でも空を暗く重く
     if (!night && art.black > 0.7) { const k = (art.black - 0.7) / 0.3; const g = m.createLinearGradient(0, box.y, 0, hz); g.addColorStop(0, ly.g(lerp(0.3, 0.92, k))); g.addColorStop(1, ly.g(lerp(0.1, 0.45, k))); m.fillStyle = g; fillPoly(m, P); }
     // 雲
     if (!night && art.detail > 0.15) {
       const n = 1 + Math.round(art.detail * 3);
       for (let i = 0; i < n; i++) {
-        const cx = box.x + rr(0.05, 0.95) * box.w, cy = box.y + rr(0.08, 0.5) * (hz - box.y), w = box.w * rr(0.12, 0.25), h = w * 0.35;
+        const cx = box.x + rr(0.05, 0.95) * box.w, cy = box.y + rr(0.15, 0.55) * (hz - box.y), w = box.w * rr(0.12, 0.25) * (art.hatching > 0.35 ? 1.3 : 1), h = w * (art.hatching > 0.35 ? 0.55 : 0.35);
         const pts = []; const k = 9; for (let j = 0; j < k; j++) { const a = Math.PI + j / (k - 1) * Math.PI; const r = rr(0.75, 1.1); pts.push([cx + Math.cos(a) * w * r, cy + Math.sin(a) * h * r * (1 + 0.6 * Math.sin(j * 1.7) ** 2)]); }
-        const P2 = catmull(pts, 4, true); ly.fill(P2, 0, { shade: 0.4, off: h * 0.3 }); ink(ly.l, P2.slice(0, -4), 0.9, { dense: true });
+        const P2 = catmull(pts, 4, true); ly.fill(P2, 0, { shade: art.hatching > 0.35 ? 0 : 0.4, off: h * 0.3 });
+        if (art.hatching > 0.35) { // 白い積雲：輪郭を短い平行ハッチで縁取り、内側は白く残す
+          const n2 = P2.length, step = Math.max(1, Math.round(lerp(3, 1, art.hatching))); const hd = V.norm([0.45, 1]);
+          for (let k = 0; k < n2; k += step) { const p = P2[k], q2 = P2[(k + 1) % n2]; const out = V.norm(V.perp(V.sub(q2, p))); const L = h * rr(0.12, 0.3) * (out[1] > 0 ? 1.3 : 0.8); const a0 = V.add(p, V.mul(out, -0.3)); ink(ly.l, [a0, V.add(a0, V.mul(hd, L * (V.dot(hd, out) > 0 ? -1 : 1)))], 0.45, { tin: 0.5, tout: L * 0.6, noScratch: true }); }
+        } else ink(ly.l, P2.slice(0, -4), 0.9, { dense: true });
       }
     }
   }
@@ -365,7 +370,7 @@
     };
     if (name === 'forest' || name === 'park' || name === 'shrine' || name === 'field') {
       const n = name === 'forest' ? 6 + Math.round(det * 10) : 2 + Math.round(det * 3);
-      const trees = []; for (let i = 0; i < n; i++) { const depth = rand(); trees.push({ x: box.x + rand() * box.w, gy: hz + depth * box.h * 0.12, s: box.h * lerp(0.35, 1.1, depth) * (name === 'forest' ? 1.1 : 0.8), far: depth < 0.4 }); }
+      const trees = []; for (let i = 0; i < n; i++) { const depth = rand(); trees.push({ x: box.x + rand() * box.w, gy: hz + depth * box.h * 0.12, s: box.h * lerp(0.35, 1.1, depth) * (name === 'forest' ? 1.1 : name === 'field' ? 0.45 : 0.8), far: depth < 0.4 }); }
       trees.sort((a, b) => a.gy - b.gy).forEach(t => tree(t.x, t.gy, t.s, t.far));
     }
     if (name === 'shrine') { const cx = box.x + box.w * 0.5, gy = hz + box.h * 0.04, s = box.h * 0.55; const post = (x) => { const P = [[x - s * 0.03, gy], [x - s * 0.025, gy - s * 0.8], [x + s * 0.025, gy - s * 0.8], [x + s * 0.03, gy]]; ly.fill(P, 0.6, { shade: 0.8, off: s * 0.02 }); contour(l, P, 1.2); }; post(cx - s * 0.35); post(cx + s * 0.35); const beam = (y, ww, hh, curve) => { const P = catmull([[cx - ww, y - curve], [cx, y], [cx + ww, y - curve], [cx + ww, y + hh - curve], [cx, y + hh], [cx - ww, y + hh - curve]], 3, true); ly.fill(P, 0.6, { shade: 0.6 }); contour(l, P, 1.2); }; beam(gy - s * 0.85, s * 0.55, s * 0.07, s * 0.06); beam(gy - s * 0.68, s * 0.45, s * 0.05, 0); }

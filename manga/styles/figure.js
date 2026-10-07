@@ -6,7 +6,7 @@
    ========================================================= */
 (() => {
   const K = window.MangaStylesKit;
-  const { TAU, clamp, lerp, V, rand, rr, seed, hashStr, catmull, ellipsePts, sweep, convexHull, fillPoly, pathPoly, ink, contour, penPath, Layer, compose, derive, setLine, getLight } = K;
+  const { TAU, clamp, lerp, V, rand, rr, rg, seed, hashStr, catmull, ellipsePts, sweep, convexHull, fillPoly, pathPoly, ink, contour, penPath, Layer, compose, derive, setLine, getLight } = K;
   const D = Math.PI / 180;
 
   /* ---------- ポーズ（骨の角度・度） ----------
@@ -542,7 +542,17 @@
       // 模様
       drawPattern(C, poly, spec.pattern, outfit);
     } });
+    if (outfit.top !== 'none') brushCloth(C, poly, [J.sp[0] * -1, -J.sp[1] * 1].map(v => v), mat);
     const l = ly.l; l.fillStyle = '#000';
+    // 裸の胴：胸と腹の筋肉のふくらみに沿って回り込むハッチ（写実寄り・ハッチが多いとき）
+    if (outfit.top === 'none' && m.q > 0.45 && art.hatching > 0.35 && !C.clean && Math.cos(rig.yaw * Math.PI / 180) > -0.2) {
+      const nh = Math.round(lerp(3, 7, art.hatching));
+      for (const sx of [-1, 1]) { // 胸の下（大胸筋の下縁から下へ向かう弧）
+        for (let i = 0; i < nh; i++) { const x = sx * lerp(0.12, 0.62, i / (nh - 1)); const a = T(0.66 - Math.abs(x) * 0.12, x), b2 = T(0.6 - Math.abs(x) * 0.1, x + sx * 0.03); ink(l, [a, V.lerp(a, b2, 0.5), b2], 0.45, { tin: 0.5, tout: 2, noScratch: true }); }
+        for (let r = 0; r < 3; r++) { const y = 0.48 - r * 0.12; for (let i = 0; i < 3; i++) { const x = sx * (0.06 + i * 0.05); const a = T(y, x), b2 = T(y - 0.05, x); ink(l, [a, b2], 0.4, { tin: 0.5, tout: 1.5, noScratch: true }); } } // 腹筋の段の下
+        for (let i = 0; i < nh; i++) { const y = lerp(0.2, 0.55, i / (nh - 1)); const a = T(y, sx * 0.62), b2 = T(y - 0.04, sx * 0.42); ink(l, [a, b2], 0.45, { tin: 0.5, tout: 2, noScratch: true }); } // わき腹
+      }
+    }
     if (front) {
       // 襟元
       const neckL = T(1.0, -0.38), neckR = T(1.0, 0.38), neckC = T(0.9, 0);
@@ -703,7 +713,7 @@
     const { J, proj } = C.rig;
     const nb = proj(J.neckB), nt = proj(C.rig.add3(J.neckT, [0, 0, 0]));
     const nw = m.R * lerp(0.28, 0.32, q) * nb.k;
-    if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 }); }
+    if (m.neck > 1) { const nk = limb2([nb.x, nb.y], [nt.x, nt.y - R * 0.1], nw * 1.1, nw, [[0, 1, 1], [1, 1, 1]]); part(C.ly, nk.poly, C.mat.fur ?? C.mat.skin, { edges: [nk.L, nk.R], w: 1.3, off: nw * 0.6 }); if (C.clean > 0.3) C.ly.matIn(nk.poly, ellipsePts(nt.x, nt.y - R * 0.05, nw * 1.4, R * 0.32, 0, 18), 0.28); }
     // 頭の形：頭蓋（球）＋あご
     const frog = spec.species === 'frog';
     const chinY = frog ? 0.72 : lerp(0.82, 1.12, q), jawW = frog ? 1.08 : lerp(0.8, 0.68, q), jawY = frog ? 0.45 : lerp(0.55, 0.7, q), chinZ = lerp(0.35, 0.45, q), chinW = frog ? 0.7 : lerp(0.42, 0.24, q);
@@ -855,6 +865,7 @@
     const mp = F.sp(0, lerp(0.72, 0.78, q)); if (mp.z > 0) drawMouth(C, F, [mp.x + F.side * R * 0.05, mp.y], e.m, gag);
     // 追加（汗・赤面・青筋・涙・暗い縦線）
     for (const x of e.x || []) drawExtra(C, F, x, eyes);
+    if (C.clean > 0.5 && !(e.x || []).includes('blush') && ['smile', 'happy', 'laugh', 'love', 'normal', 'embarrassed'].includes(C.exprName)) drawExtra(C, F, 'blush', eyes); // 頬の細い斜線
     // 頬・あごの線（写実寄り）
     if (q > 0.55 && art.detail > 0.4 && F.faceOn < 0.92) { const ck = F.sp(-F.side * 0.0 + Math.sign(F.side) * 0.75, 0.45); if (ck.z > 0) ink(l, [[ck.x, ck.y - R * 0.12], [ck.x - F.side * R * 0.03, ck.y + R * 0.06]], 0.6); }
     if (spec.species === 'robot') { const vp = F.sp(0, eyeV); ink(l, [[vp.x - R * 0.75, vp.y - eh * 1.2], [vp.x + R * 0.75, vp.y - eh * 1.2]], 1.0); ink(l, [[vp.x - R * 0.75, vp.y + eh * 1.2], [vp.x + R * 0.75, vp.y + eh * 1.2]], 1.0); }
@@ -1087,7 +1098,22 @@
     curly: { f: -0.45, s: 0.3, b: 0.9, bang: 0.3, back: 1.2, curl: 1 }, braid: { f: -0.5, s: 0.0, b: 0.7, bang: 0.26, back: 0 },
   };
   function drawHair(C, F, phase) {
-    const { ly, spec, art, m } = C; const ha0 = ly.ha; ly.ha = 1; try { drawHair2(C, F, phase); } finally { ly.ha = ha0; } }
+    // 髪の房の形は、人物ごとに決まった種で作る（どの角度・表情でも同じ房になる）
+    const { ly, spec } = C; const ha0 = ly.ha; ly.ha = 1; const keep = K.seedState ? K.seedState() : null; seed(hashStr((spec.id || spec.name || 'x') + '|hair|' + phase));
+    try { drawHair2(C, F, phase); } finally { ly.ha = ha0; if (keep != null) K.seedSet(keep); } }
+  // 墨の筆線の髪：根元から毛先へ流れる線、毛先はばらけて、少し飛沫
+  function inkHair(C, P, root, R, mat) {
+    const br = C.brush || 0; if (br < 0.15 || C.clean > 0.5 || C.art.rough) return;
+    const { ly } = C; const c = mat > 0.6 ? ly.hi : ly.l; const n = Math.round(8 + br * 22);
+    c.save(); c.beginPath(); pathPoly(c, P); c.clip();
+    for (let i = 0; i < n; i++) { const tip = P[Math.floor(rand() * P.length)]; if (tip[1] < root[1] + R * 0.1) continue; const r0 = [lerp(root[0], tip[0], 0.55) + rg(0, R * 0.08), root[1] + rg(0, R * 0.06)]; const mid = V.add(V.lerp(r0, tip, 0.55), V.mul(V.perp(V.norm(V.sub(tip, r0))), rg(0, R * 0.12))); ink(c, [r0, mid, V.lerp(r0, tip, rr(0.8, 0.97))], rr(0.35, 0.8), { tin: R * 0.1, tout: R * 0.5, noScratch: true }); }
+    c.restore();
+    // 毛先：外へばらける細い線と飛沫
+    const l = ly.l; l.fillStyle = '#000';
+    for (let i = 0; i < P.length; i += Math.max(2, Math.round(P.length / (6 + br * 14)))) { const p = P[i]; const d = V.norm(V.sub(p, root)); if (V.dot(d, [0, 1]) < -0.2) continue; for (let k = 0; k < 2; k++) { const a = Math.atan2(d[1], d[0]) + rg(0, 0.35); const len = R * rr(0.08, 0.28); penPath(l, [p, [p[0] + Math.cos(a) * len, p[1] + Math.sin(a) * len]], rr(0.4, 0.9) * K.getLine().w, { tin: 0.3, tout: len * 0.8, taper: 1, jit: 0 }); }
+      if (rand() < 0.3 * br) K.splatter(l, p[0], p[1], Math.atan2(d[1], d[0]), R * 0.12, 4, { spread: 1, reach: 2.5 }); }
+  }
+  function hairSplatter(C, p, dir, size) { if ((C.brush || 0) < 0.3 || C.art.rough) return; K.splatter(C.ly.l, p[0], p[1], Math.atan2(dir[1], dir[0]), size * 0.6, Math.round(6 + C.brush * 12), { spread: 1.2, reach: 2.2 }); }
   function drawHair2(C, F, phase) {
     const { ly, spec, art, m } = C; const { pt, R, c } = F;
     let hair = spec.species === 'alien' || (ANIMAL_EARS[spec.species] && !spec.keepHair) ? 'bald' : spec.hair || (ANIMAL_EARS[spec.species] || spec.species === 'robot' ? 'bald' : 'short');
@@ -1127,7 +1153,7 @@
         for (let i = 1; i < tips; i++) { const t = i / tips; pts.push([lerp(bl[0], br[0], t), lerp(bl[1], br[1], t) + (i % 2 ? -R * (H.even ? 0.03 : 0.16) : R * 0.04)]); }
         pts.push(br, [c.x - vol * R, c.y]);
         const P = catmull(pts, 4, true);
-        ly.fill(P, mat, { shade: 0.85, off: R * 0.35 }); contour(l, P, 1.4); shine(P); flowLines(P, Math.round(2 + art.detail * 5));
+        ly.fill(P, mat, { shade: 0.85, off: R * 0.35 }); contour(l, P, 1.4); shine(P); flowLines(P, Math.round(2 + art.detail * 5)); inkHair(C, P, [c.x, c.y - R * 0.6], R, mat);
       }
       if (tailRootZ < 0.1) tails();
       return;
@@ -1149,7 +1175,7 @@
       const nb = Math.round(lerp(4, 9, (1 - art.deform) * 0.6 + q * 0.4)) + (hair === 'messy' || hair === 'spiky' ? 2 : 0);
       const edge = [];
       const bangW = H.even ? 1.25 : 1.1;
-      let lastBang = -1;
+      let lastBang = -1; C.bangs = [];
       for (const o of vis) {
         if (Math.abs(o.u) < bangW && H.bang > 0.05) {
           const idx = Math.floor((o.u + bangW) / (2 * bangW) * nb);
@@ -1161,7 +1187,7 @@
             const tip = F.sp(u0 + sway, Math.min(0.9, vOf(u0) + len), vol * 1.02);
             const rootA = F.sp(-bangW + idx / nb * 2 * bangW, vOf(u0) + 0.02, vol);
             if (rootA.z > 0) edge.push([rootA.x, rootA.y]);
-            if (tip.z > 0) edge.push([tip.x, tip.y]);
+            if (tip.z > 0) { edge.push([tip.x, tip.y]); const rc = F.sp(u0, vOf(u0) - 0.35, vol); C.bangs.push([[rc.x, rc.y], [tip.x, tip.y]]); }
           }
         } else edge.push([o.p.x, o.p.y]);
       }
@@ -1191,6 +1217,11 @@
     ly.fill(P, mat, { shade: 0.8, off: R * 0.25, blur: R * 0.03 });
     contour(l, P, 1.5);
     shine(P);
+    inkHair(C, P, [c.x - F.side * R * 0.2, c.y - R * 0.9], R, mat);
+    // すっきりした線：房の中に細い線を2〜3本（房の根元から先へ）
+    if (C.clean > 0.3 && C.bangs) for (const [r0, tp] of C.bangs) for (let k = 0; k < 2 + (rand() < 0.5 ? 1 : 0); k++) { const off = V.mul(V.perp(V.norm(V.sub(tp, r0))), R * (k - 1) * 0.05); const a = V.add(V.lerp(r0, tp, 0.25), off), b2 = V.add(V.lerp(r0, tp, rr(0.7, 0.88)), V.mul(off, 0.4)); ink(mat > 0.6 ? ly.hi : l, [a, V.lerp(a, b2, 0.5), b2], 0.45, { tin: R * 0.05, tout: R * 0.25, noScratch: true }); }
+    if (C.clean > 0.3 && C.headHull && F.faceOn > -0.25) { // 影は1段階：前髪の下（おでこ）にだけ
+      const sh = P.filter(p => p[1] > c.y - R * 0.45).map(p => [p[0] + K.getLight()[0] * -R * 0.05, p[1] + R * 0.1]); if (sh.length > 3) ly.matIn(C.headHull, catmull(K.convexHull(sh), 2, true), 0.28); }
     // 毛束の切れ目：外形の所々から、内側へ短い線（髪の流れに沿って）
     const ln = Math.round(lerp(2, 10, art.detail) * lerp(0.5, 1, 1 - art.deform));
     for (let i = 0; i < ln; i++) { const k = Math.floor(rr(0.05, 0.95) * P.length); const p0 = P[k]; const toC = V.norm(V.sub([c.x, c.y - R * 0.6], p0)); const len = R * rr(0.2, 0.45); const bendv = V.mul(V.perp(toC), len * rr(-0.2, 0.2)); const p1 = V.add(V.add(p0, V.mul(toC, len)), bendv); ink(mat > 0.6 ? ly.hi : l, [V.add(p0, V.mul(toC, R * 0.03)), V.add(V.lerp(p0, p1, 0.5), V.mul(bendv, 0.5)), p1], 0.6, { tin: 1, tout: len * 0.6 }); }

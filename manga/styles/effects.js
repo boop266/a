@@ -4,11 +4,11 @@
    ========================================================= */
 (() => {
   const K = window.MangaStylesKit;
-  const { TAU, clamp, lerp, V, rand, rr, seed, hashStr, catmull, ellipsePts, fillPoly, pathPoly, penPath, ink, contour, derive, setLine } = K;
+  const { TAU, clamp, lerp, V, rand, rr, rg, seed, hashStr, catmull, ellipsePts, fillPoly, pathPoly, penPath, ink, contour, derive, setLine } = K;
 
   // 効果ごとに「人物の下（under）」か「上（over）」か
   const PHASE = { focus: 'under', speed: 'under', speedv: 'under', dark: 'under', spotlight: 'under', flashback: 'under', tone: 'under', flowers: 'under', gloom: 'under', betaflash: 'under', wind: 'under', bubbles: 'under',
-    sparkle: 'over', rainbow: 'under', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
+    sparkle: 'over', rainbow: 'under', arcspeed: 'under', splatter: 'over', splash: 'over', hearts: 'over', shake: 'over', impact: 'over', explosion: 'over', fire: 'over', smoke: 'over', magic: 'over', question: 'over', exclaim: 'over', sweat: 'over', rain: 'over', grain: 'over', sfx: 'over', debris: 'over', shockwave: 'over' };
 
   function drawEffect(ctx, spec, box, opts) {
     spec = typeof spec === 'string' ? { name: spec } : (spec || {});
@@ -83,6 +83,35 @@
         const ly = new K.Layer(box, K.ctxScale(ctx)); const big = spec.big || (spec.scale ?? 1) > 1.1; const cx = spec.x ?? box.x + box.w * 0.5, cy = spec.y ?? box.y + box.h * (big ? 1.05 : 0.95), r = spec.r ?? Math.min(box.w * 0.55 * (spec.scale ?? 1), box.h * (big ? 1.0 : 0.85));
         K.rainbowArc(ly, cx, cy, r, r * (big ? 0.42 : 0.22), Math.PI, TAU, big); const { R: RR } = derive(art, sc); K.compose(ctx, ly, RR);
         if (spk > 0.2) for (let i = 0; i < 4 + spk * 8; i++) { const a = Math.PI * rr(1.05, 1.95); star(ctx, cx + Math.cos(a) * r * rr(0.7, 1.08), cy + Math.sin(a) * r * rr(0.7, 1.08), rr(4, 10) * sc, spk); }
+        break; }
+      case 'splatter': { // 墨の飛沫・粉塵：focus から angle の向きへ。大小の点、しずく、筆の塊
+        const ang = spec.angle ?? (spec.dir != null ? spec.dir : rr(0, TAU)), amt = (spec.amount ?? 1) * lerp(0.6, 1.6, Math.max(dyn, art.black));
+        const sz = Math.min(box.w, box.h) * 0.08 * (spec.size ?? 1);
+        K.splatter(ctx, f[0], f[1], ang, sz, Math.round(70 * amt), { spread: spec.spread ?? 1.0, reach: 3.2, blot: !!spec.blot });
+        K.splatter(ctx, f[0], f[1], ang + Math.PI * 0.85, sz * 0.5, Math.round(15 * amt), { spread: 1.6, reach: 2 });
+        // 粉塵：進行方向に流れる短い線
+        for (let i = 0; i < 25 * amt; i++) { const a = ang + rg(0, 0.4), d = sz * rr(0.5, 4); const p = [f[0] + Math.cos(a) * d, f[1] + Math.sin(a) * d]; const L = rr(2, 8) * sc; penPath(ctx, [p, [p[0] + Math.cos(ang) * L, p[1] + Math.sin(ang) * L]], rr(0.3, 0.8) * sc, { tin: L * 0.5, tout: L * 0.4, taper: 1, jit: 0, wob: 0 }); }
+        break; }
+      case 'arcspeed': { // 体を弧で包むスピード線（打撃・斬撃）：focus を中心に、回転方向へ細くなる弧
+        ctx.fillStyle = INK; const h0 = heads[0]; const c0 = spec.focus ? f : h0 ? [h0.x, h0.y + h0.r * 2] : f;
+        const R0 = spec.r ?? Math.min(box.w, box.h) * 0.42, dirn = spec.dir ?? 1, a0 = spec.angle ?? -Math.PI * 0.75;
+        const n = Math.round(lerp(25, 90, dyn) * sc);
+        for (let i = 0; i < n; i++) { const r = R0 * rr(0.55, 1.5), span = rr(0.5, 1.6) * lerp(0.7, 1.2, dyn), st = a0 + rg(0, 0.7); const P = []; for (let k = 0; k <= 20; k++) { const a = st + dirn * span * k / 20; P.push([c0[0] + Math.cos(a) * r, c0[1] + Math.sin(a) * r * 0.82]); } penPath(ctx, P, line.w * rr(0.4, 2.0), { tin: V.dist(P[0], P[20]) * 0.15, tout: V.dist(P[0], P[20]) * 0.8, taper: 1, jit: 0, wob: 0 }); }
+        break; }
+      case 'splash': { // 水しぶき：弧を描く水の帯（白に輪郭と中の線）＋細かい粒
+        const c0 = f, s0 = Math.min(box.w, box.h) * 0.36 * (spec.size ?? 1); const nb = Math.round(6 + dyn * 6);
+        for (let i = 0; i < nb; i++) { const t = i / (nb - 1) - 0.5; const a = -Math.PI / 2 + t * 2.6 + rg(0, 0.06); const L = s0 * rr(0.55, 1.0) * (1 - Math.abs(t) * 0.7); const w = s0 * rr(0.07, 0.13) * (1 - Math.abs(t) * 0.4);
+          // 帯：上へ立ち上がり、先が外へ巻いて垂れる
+          const out = Math.sign(t || 0.01), base = [c0[0] + t * s0 * 0.35, c0[1]];
+          const mid = [base[0] + Math.cos(a) * L * 0.55, base[1] + Math.sin(a) * L * 0.6];
+          const tip = [mid[0] + out * L * 0.32 + Math.cos(a) * L * 0.2, mid[1] - L * 0.05];
+          const Cc = catmull([base, mid, tip], 10); const sw = K.sweep(Cc, u => w * Math.sin(Math.min(1, u * 1.1 + 0.15) * Math.PI) + 0.4);
+          ctx.fillStyle = '#fff'; fillPoly(ctx, sw.poly); ctx.fillStyle = '#000'; ink(ctx, sw.L, 1.1, { dense: true, tin: 2, tout: 8 }); ink(ctx, sw.R, 0.8, { dense: true, tin: 2, tout: 8 }); ink(ctx, Cc.slice(3, -3), 0.4, { dense: true, tin: 3, tout: 6 });
+          for (let k = 0; k < 4; k++) { const d = L * rr(0.05, 0.3), p = [tip[0] + out * d, tip[1] + d * rr(0.2, 1.2)], r = rr(0.8, 2.6) * sc; const D = catmull([[p[0], p[1] - r * 2.2], [p[0] + r, p[1] + r * 0.2], [p[0], p[1] + r], [p[0] - r, p[1] + r * 0.2]], 3, true); ctx.fillStyle = '#fff'; fillPoly(ctx, D); ctx.fillStyle = '#000'; ink(ctx, D.concat([D[0]]), 0.6, { dense: true }); } }
+        // 足もとの水面：波紋の楕円
+        for (let k = 0; k < 3; k++) { const rx = s0 * (0.6 + k * 0.35), ry = rx * 0.18; ink(ctx, ellipsePts(c0[0], c0[1] + 2, rx, ry, 0, 30, Math.PI * 0.05 + k * 0.2, Math.PI * 0.95 - k * 0.1), 0.7, { dense: true, tin: 8, tout: 8 }); }
+        // 粒の散布
+        ctx.fillStyle = '#000'; for (let i = 0; i < 40 + dyn * 60; i++) { const a = -Math.PI / 2 + rg(0, 0.9), d = s0 * Math.pow(rand(), 0.6) * 1.5, r = rr(0.3, 1.4) * sc; ctx.beginPath(); ctx.arc(c0[0] + Math.cos(a) * d, c0[1] + Math.sin(a) * d * 0.9, r, 0, TAU); ctx.fill(); }
         break; }
       case 'grain': { const amt = spec.amount ?? art.grain; const c = ctx.getImageData ? null : null; for (let i = 0; i < box.w * box.h / 60 * amt; i++) { ctx.fillStyle = rand() < 0.5 ? 'rgba(0,0,0,.25)' : 'rgba(255,255,255,.6)'; ctx.fillRect(box.x + rand() * box.w, box.y + rand() * box.h, rr(0.4, 1.2), rr(0.4, 1.2)); } break; }
       case 'sfx': K.sfxText(ctx, spec.text || 'ドン', spec.x ?? f[0], spec.y ?? f[1], spec.size ?? Math.min(box.w, box.h) * 0.22, art, spec); break;
