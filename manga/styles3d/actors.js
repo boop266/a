@@ -441,8 +441,8 @@
         shield(B, W(J.elL).multiply(M([0.07, -0.12, 0.05], [0, PI / 2, 0], 0.85)), { tone: 0.45 });
       }
     } else if (lod === 1) {
-      B.add(limb(0.85, [[0, 0.13], [0.5, 0.15], [1, 0.11]]), M([0, 1.5, 0]), { tone: 0.6, pat: 'cloth' });
-      B.add(limb(0.75, [[0, 0.11], [1, 0.09]]), M([0, 0.75, 0]), { tone: 0.75, pat: 'cloth' });
+      B.add(limb(0.85, [[0, 0.13], [0.5, 0.15], [1, 0.11]], 1, 1, 6), M([0, 1.5, 0]), { tone: 0.6, pat: 'cloth' });
+      B.add(limb(0.75, [[0, 0.11], [1, 0.09]], 1, 1, 6), M([0, 0.75, 0]), { tone: 0.75, pat: 'cloth' });
       B.add(ell(0.11, 0.13, 0.11, 8, 6), M([0, 1.66, 0]), { tone: kind === 'mob' ? 0.2 : 0.35, pat: 'metal' });
       if (kind !== 'mob') { B.add(box(0.035, 2.9, 0.035), M([0.22, 1.45, 0.08]), { tone: 0.9, pat: 'plain' }); B.add(new T.ConeGeometry(0.04, 0.22, 4), M([0.22, 3.0, 0.08]), { tone: 0.2, pat: 'metal', flat: true }); }
     } else {
@@ -460,7 +460,7 @@
     const [px, py, pz] = o.pos || [0, 0, 0];
     const hgt = o.height || (() => py);
     const cam = V3(...(o.camPos || [0, 2, 20]));
-    const lodD = o.lod || [22, 70];
+    const lodD = o.lod || [18, 45];
     const fwd = V3(Math.sin(yaw), 0, Math.cos(yaw)), right = V3(Math.cos(yaw), 0, -Math.sin(yaw));
     const pts = [];
     const f = o.formation || 'ranks';

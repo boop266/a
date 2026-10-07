@@ -31,18 +31,18 @@
   }
   // 人物・獣など（毎回つくる。軽い）
   const ACACHE = new Map();
-  function buildActors(list, floorY, sd) {
-    const key = JSON.stringify(list || []) + '|' + floorY;
+  function buildActors(list, floorY, sd, heightFn) {
+    const key = JSON.stringify(list || []) + '|' + floorY + '|' + (heightFn ? 'h' : '');
     if (ACACHE.has(key)) return ACACHE.get(key);
-    const r = buildActors0(list, floorY, sd);
+    const r = buildActors0(list, floorY, sd, heightFn);
     ACACHE.set(key, r); if (ACACHE.size > 8) { const k = ACACHE.keys().next().value; const o = ACACHE.get(k); if (o.geo) o.geo.dispose(); ACACHE.delete(k); }
     return r;
   }
-  function buildActors0(list, floorY, sd) {
+  function buildActors0(list, floorY, sd, heightFn) {
     const B = new Builder(); const out = [];
     seed(sd || 7);
     for (const a of list || []) {
-      const p = a.pos || [0, 0]; const pos = p.length === 2 ? [p[0], floorY, p[1]] : [p[0], p[1] + floorY, p[2]];
+      const p = a.pos || [0, 0]; const gy = (x, z) => heightFn ? heightFn(x, z) : floorY; const pos = p.length === 2 ? [p[0], gy(p[0], p[1]), p[1]] : [p[0], p[1] + gy(p[0], p[2]), p[2]];
       const t = a.type || 'mannequin';
       if (t === 'knight' || t === 'mannequin' || t === 'human') out.push(Object.assign({ type: t }, A.figure(B, Object.assign({}, a, { kind: t === 'knight' ? 'knight' : 'mannequin', pos }))));
       else if (t === 'beast') out.push(Object.assign({ type: t }, A.beast(B, Object.assign({}, a, { pos }))));
@@ -125,7 +125,7 @@
     const aspect = box.w / box.h;
     const camera = cameraFor(bg, info, art, aspect);
     const list = (spec.actors || []).filter(a => a.type !== 'crowd');
-    const act = buildActors(list, floorY, hashStr(JSON.stringify(list)));
+    const act = buildActors(list, floorY, hashStr(JSON.stringify(list)), info.height);
     const scene = new T.Scene();
     if (!spec.noBackground) scene.add(new T.Mesh(back.geo));
     if (act.geo) scene.add(new T.Mesh(act.geo));

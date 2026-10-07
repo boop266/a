@@ -289,7 +289,7 @@
     float strokes(vec3 P, float dens, float hwPx){
       vec2 q = vec2(dot(P, uRight), dot(P, uFwdH));
       vec2 fq = max(fwidth(q), vec2(1e-6));
-      float cs = 15.0 * uPx * fq.x;
+      float cs = mix(30.0, 9.0, smoothstep(4.0, 70.0, vZ)) * uPx * fq.x;
       float l = log2(cs / 0.05); float l0 = floor(l); float t = l - l0;
       float c = 0.0;
       for (int k = 0; k < 2; k++){
@@ -592,7 +592,7 @@
     uniform vec4 uMist;    // x amount, y height falloff, z tone, w seed
     uniform float uAlphaBg;
     uniform float uFlash; uniform float uDebug;
-    uniform vec4 uBloom; uniform vec4 uBloom2; uniform vec3 uSwirl;
+    uniform vec4 uBloom; uniform vec4 uBloom2; uniform vec3 uSwirl; uniform float uLineR;
     varying vec2 vUv;
     ${GLSL_NOISE}
     vec3 rayDir(vec2 uv){ vec4 p = uInvProj * vec4(uv * 2.0 - 1.0, 1.0, 1.0); p /= p.w; return normalize((uCamMat * vec4(p.xyz, 0.0)).xyz); }
@@ -609,8 +609,8 @@
         float k = floor(uSky.x + 0.5);
         vec2 sp = rd.xz / max(0.06, rd.y + 0.12) * 0.6 + uSky.w;
         float alt = clamp(rd.y, 0.0, 1.0);
-        float c = fbm2(sp * vec2(0.9, 1.6)) * 0.5 + 0.5;            // 雲の濃さ
-        float c2 = fbm2(sp * vec2(2.3, 3.6) + 5.0) * 0.5 + 0.5;
+        float c = 0.5, c2 = 0.5;
+        if (k >= 0.5 && k <= 4.5 || uSky.z > 0.05 && k < 4.5) { c = fbm2(sp * vec2(0.9, 1.6)) * 0.5 + 0.5; c2 = fbm2(sp * vec2(2.3, 3.6) + 5.0) * 0.5 + 0.5; }   // 雲の濃さ
         float cl = smoothstep(0.62 - uSky.z * 0.3, 0.72 - uSky.z * 0.3, c);   // 雲の塊
         float dark = uSky.y;
         float base = 0.0;
@@ -654,10 +654,10 @@
           float white = 0.0;
           float wpx = 0.55 * max(uPx, 0.8);
           // 渦：中心のまわりの同心円（少しゆがむ）。中心に近いほど線が太い
-          float ring = ang * 70.0 + 0.8 * sin(th * 3.0 + ang * 9.0) + fbm2(vec2(th * 1.5, ang * 6.0)) * 1.4;
+          float ring = ang * 55.0 + 1.6 * sin(th * 2.0 + ang * 7.0) + fbm2(vec2(th * 1.2, ang * 4.0)) * 3.0;
           float rw = wpx * mix(2.2, 0.8, smoothstep(0.05, 0.6, ang));
           float rd1 = abs(fract(ring + 0.5) - 0.5) / max(fwidth(ring), 1e-5);
-          white = max(white, (1.0 - smoothstep(rw - 0.5, rw + 0.5, rd1)) * smoothstep(1.1, 0.1, ang) * step(0.3, h12(vec2(floor(ring), floor(th * 4.0)))));
+          white = max(white, (1.0 - smoothstep(rw - 0.5, rw + 0.5, rd1)) * smoothstep(0.42, 0.04, ang) * step(0.35, h12(vec2(floor(ring), floor(th * 2.5 + floor(ring) * 0.37)))));
           // 雲：流れに沿った白い線（等高線を横に引き伸ばす）
           vec2 cp = sp * vec2(0.45, 1.8);
           float cc = fbm2(cp) * 0.5 + 0.5;
@@ -666,9 +666,9 @@
           white = max(white, band * (1.0 - smoothstep(wpx - 0.5, wpx + 0.5, cd)) * smoothstep(0.0, 0.05, alt));
           // 光：中心の白と、放射の細い光線
           float core = 1.0 - smoothstep(0.035, 0.09, ang);
-          float ray = th / 6.2832 * 90.0; float rayd = abs(fract(ray + 0.5) - 0.5) / max(fwidth(ray), 1e-5);
+          float ray = th / 6.2832 * 60.0; float rayd = abs(fract(ray + 0.5) - 0.5) / max(fwidth(ray), 1e-5);
           white = max(white, core);
-          white = max(white, (1.0 - smoothstep(wpx - 0.5, wpx + 0.5, rayd)) * smoothstep(0.35, 0.08, ang) * step(0.55, h12(vec2(floor(ray), 2.0))));
+          white = max(white, (1.0 - smoothstep(wpx - 0.5, wpx + 0.5, rayd)) * smoothstep(0.22, 0.06, ang) * step(0.7, h12(vec2(floor(ray), 2.0))));
           // 星
           vec2 sc = fc / (5.0 * max(uPx, 0.7)); vec2 sid = floor(sc);
           float st = step(0.985, h12(sid)) * (1.0 - smoothstep(0.6, 1.4, length((fract(sc) - 0.5) * 5.0 * max(uPx, 0.7)) / (0.6 + h12(sid + 1.0) * 1.2)));
@@ -712,9 +712,10 @@
       // ---- 主線：太らせる ----
       float lineInk = 0.0; float onDark = 0.0; float lineW = 0.0;
       vec2 jit = vec2(vn2(fc / (14.0 * uPx)), vn2(fc / (14.0 * uPx) + 7.3)) * uLine.x * 1.6 * uPx;
+      float Rmax = min(4.2, uLineR);
       for (int y = -4; y <= 4; y++) for (int x = -4; x <= 4; x++) {
         vec2 off = vec2(float(x), float(y));
-        float r = length(off); if (r > 4.2) continue; if (r > 2.5 && mod(float(x + y), 2.0) > 0.5) continue;
+        float r = length(off); if (r > Rmax) continue; if (r > 2.5 && mod(float(x + y), 2.0) > 0.5) continue;
         vec4 e = texture2D(tEdge, (fc + off + jit) / uRes);
         float w = max(e.g * 8.0 * 0.5, 0.55);
         float cov = e.r * (1.0 - smoothstep(w - 0.5, w + 0.5, r));
@@ -813,7 +814,7 @@
         tShade: { value: null }, tEdge: { value: null }, tGeo: { value: null }, uRes: { value: new T.Vector2() }, uPx: { value: 1 }, uNear: { value: 0.1 }, uFar: { value: 1000 },
         uInvProj: { value: new T.Matrix4() }, uCamMat: { value: new T.Matrix4() }, uSky: { value: new T.Vector4() }, uMoon: { value: V3(0, 1, 0) }, uMoonP: { value: new T.Vector4() },
         uRain: { value: new T.Vector4() }, uFx: { value: new T.Vector4() }, uFocus: { value: new T.Vector2(0.5, 0.5) }, uFxDepth: { value: 0 }, uLine: { value: new T.Vector4() },
-        uMist: { value: new T.Vector4() }, uAlphaBg: { value: 0 }, uFlash: { value: 0 }, uDebug: { value: 0 }, uBloom: { value: new T.Vector4() }, uBloom2: { value: new T.Vector4() }, uSwirl: { value: V3(0, 0.4, -1) },
+        uMist: { value: new T.Vector4() }, uAlphaBg: { value: 0 }, uFlash: { value: 0 }, uDebug: { value: 0 }, uBloom: { value: new T.Vector4() }, uBloom2: { value: new T.Vector4() }, uSwirl: { value: V3(0, 0.4, -1) }, uLineR: { value: 4.2 },
       }, vertexShader: QUAD_VS, fragmentShader: COMP_FS, depthTest: false, depthWrite: false, transparent: false, extensions: { derivatives: true },
     });
     R = { gl, canvas, inkMat, geoMat, edgeMat, compMat, quad, qScene, qCam, rt: null, w: 0, h: 0 };
@@ -917,6 +918,7 @@
     CU.uLine.value.set(art.line.jitter, art.line.roughness, art.hatching, art.crossHatch);
     const mist = S.mist; CU.uMist.value.set(mist ? (mist.amount ?? 0.6) : 0, mist ? (mist.falloff ?? 0.25) : 0, mist ? (mist.tone ?? 0) : 0, mist ? (mist.seed ?? 3) : 0);
     const bl = [].concat(S.bloom || []); CU.uBloom.value.set(...(bl[0] ? [bl[0].center[0], bl[0].center[1], bl[0].radius ?? 0.2, bl[0].amount ?? 1] : [0, 0, 0, 0])); CU.uBloom2.value.set(...(bl[1] ? [bl[1].center[0], bl[1].center[1], bl[1].radius ?? 0.2, bl[1].amount ?? 1] : [0, 0, 0, 0])); CU.uSwirl.value.set(...(sky.swirl || (moon && moon.dir) || [0, 0.4, -1]));
+    CU.uLineR.value = Math.max(1.5, Math.max(1.5, (0.9 + 1.8 * (rough ? 0.35 : art.line.weight)) * px) * 1.25 / 2 + 1.0 + art.line.jitter * 1.6 * px);
     CU.uAlphaBg.value = S.transparent ? 1 : 0; CU.uDebug.value = opts.debug || 0; CU.uFlash.value = S.flash ?? 0;
     r.quad.material = r.compMat; gl.setRenderTarget(null); gl.setClearColor(0xffffff, 0); gl.clear(); gl.render(r.qScene, r.qCam);
     mark('comp');

@@ -655,11 +655,14 @@
     },
     // 草原・丘（短い筆致で）
     grassland(B, env) {
-      const hgt = terrain({ amp: 9, flat: 30, scale: 0.012, base: 0 }); ground(B, { size: 1400, seg: 180, height: hgt, tone: 0.1, pat: 'grass' });
+      const t0 = terrain({ amp: 9, flat: 140, scale: 0.008, base: 0, bump: 0.15 });
+      const hill = env.hill ?? 7;   // 手前の小高い丘（見下ろすため）
+      const hgt = (x, z) => t0(x, z) + hill * Math.exp(-(x * x + (z - 2) * (z - 2)) / 500) - hill * 0.25 * Math.exp(-((z + 70) * (z + 70)) / 3000);
+      ground(B, { size: 1400, seg: 150, height: hgt, tone: 0.1, pat: 'grass' });
       for (let i = 0; i < 5; i++) { const x = rr(-120, 120), z = rr(-300, -80); tree(B, { pos: [x, hgt(x, z), z], h: rr(7, 12), depth: 3, dead: false }); }
       for (let i = 0; i < 12; i++) { const x = rr(-30, 30), z = rr(-40, 5); if (Math.hypot(x, z) < 4) continue; B.add(rock(rr(0.3, 1.2)), M([x, hgt(x, z), z], [0, rr(0, 6), 0]), { tone: 0.25, pat: 'stone', flat: true }); }
       mountains(B, { n: 9, r: 520, hk: 1.6 });
-      return { sky: env.time === 'night' ? 'scratch' : 'day', moon: env.time === 'night', light: { high: 0.9 }, fog: { near: 80, far: 600 }, bounds: { c: [0, 0, -20], r: 60 }, cam: { target: [0, 1.6, 0] }, height: hgt };
+      return { sky: env.time === 'night' ? 'scratch' : 'day', moon: env.time === 'night', light: { high: 0.9 }, fog: { near: 80, far: 600 }, bounds: { c: [0, 0, -20], r: 60 }, cam: { target: [0, 1.6 + hgt(0, 0), 0] }, height: hgt, floorY: 0 };
     },
   });
   Object.assign(ALIAS, { metropolis: 'metropolis', megacity: 'metropolis', skyscrapers: 'metropolis', downtown: 'metropolis', 高層: 'metropolis', 摩天楼: 'metropolis',
