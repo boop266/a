@@ -863,7 +863,7 @@ window.MangaSamples = [
         {
          "id": "haru",
          "x": 0.4,
-         "expr": "funny",
+         "expr": "puff",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -889,7 +889,8 @@ window.MangaSamples = [
         }
        ],
        "fx": [
-        "focus"
+        "focus",
+        "impact"
        ]
       },
       {
@@ -1733,7 +1734,7 @@ window.MangaSamples = [
         {
          "id": "haru",
          "x": 0.45,
-         "expr": "funny",
+         "expr": "puff",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -1747,7 +1748,8 @@ window.MangaSamples = [
         }
        ],
        "fx": [
-        "focus"
+        "focus",
+        "impact"
        ]
       },
       {
@@ -1933,7 +1935,7 @@ window.MangaSamples = [
         {
          "id": "mom",
          "x": 0.5,
-         "expr": "funny",
+         "expr": "funny2",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -2098,7 +2100,8 @@ window.MangaSamples = [
          "id": "moku",
          "x": 0.5,
          "expr": "laugh",
-         "pose": "float"
+         "pose": "float",
+         "float": 0.9
         },
         {
          "id": "haru",
@@ -2278,9 +2281,9 @@ window.MangaSamples = [
         }
        ],
        "fx": [
-        "rainbow",
         "sparkle"
-       ]
+       ],
+       "big": true
       }
      ]
     },
@@ -3240,7 +3243,7 @@ window.MangaSamples = [
         {
          "id": "haru",
          "x": 0.4,
-         "expr": "funny",
+         "expr": "puff",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -3266,7 +3269,8 @@ window.MangaSamples = [
         }
        ],
        "fx": [
-        "focus"
+        "focus",
+        "impact"
        ]
       },
       {
@@ -4102,7 +4106,7 @@ window.MangaSamples = [
         {
          "id": "haru",
          "x": 0.45,
-         "expr": "funny",
+         "expr": "puff",
          "pose": "surprise",
          "face": "front",
          "hold": "none"
@@ -4116,7 +4120,8 @@ window.MangaSamples = [
         }
        ],
        "fx": [
-        "focus"
+        "focus",
+        "impact"
        ]
       },
       {
