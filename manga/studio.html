@@ -2,7 +2,8 @@
 <!--
 ================================================================================
  漫画工房（studio.html）── データの形のまとめ  ※スキーマを変えたら、ここも必ず更新する
- 版: schema v4.1（2026-10-06）企画会議 meeting・ネーム段階の台本 nameScript・裏話 extras・制作ログ meta.log
+ 版: schema v4.2（2026-10-07）自由作画枠 PANEL.draw・見せ場 PANEL.key・SVG 保存 draw_<workId>・呼び出し予算 meta.calls・3D作画の受け入れ口
+      v4.1 企画会議 meeting・ネーム段階の台本 nameScript・裏話 extras・制作ログ meta.log
 ================================================================================
 
 ■ 1. 台本（script）── 正規化後の形（normalizeScript の出力。Claude の出力はこの形に寄せて検証・補完される）
@@ -35,8 +36,14 @@ PANEL = {
   laundry: [string](≤8, bg=yard のとき干す物。作画モジュールには bgSpec.laundry で渡る),
   props: [ string | { name, x?, y?, s?, facing? } ](≤8, 床に置く小物。bgSpec.props で渡り、さらに1つずつ drawProp(ctx, name, {x, y=床の線, unit=人物と同じ, facing}, art) で描く),
   big: bool|null, scale: 0.2〜3|null（背景の大きさ。bgSpec.big / bgSpec.scale で渡る。例：大きな虹）,
-  art: ART_PARTIAL | null                       // このコマだけ絵柄を部分的に上書き（例：劇画オチ）
+  art: ART_PARTIAL | null,                      // このコマだけ絵柄を部分的に上書き（例：劇画オチ）
+  key: bool|null,                               // 見せ場のコマ。高画質モードでは構図違いを2〜3案描いて、編集者が画像を見て選ぶ
+  draw: [DRAW](≤2) | null                       // 自由作画枠。Claude が SVG で描いた一枚絵をコマに重ねる（人物は描かない）
 }
+DRAW = { prompt: string(≤200, 何を描くか), layer: bg(背景の代わり・覆う)|fg(人物の手前・収める)|fx(効果・収める),
+         box?: { x, y, w, h }(コマ内の 0〜1。省略でコマ全体), engine?: '3d'(styles3d の drawObject で描く),
+         id?: string(描けたら付く。SVG 本体は draw_<workId> に保存), note?: string, rounds?: 講評で直した回数 }
+  描く順：背景 → draw(bg) → 小物 → 人物 → draw(fg) → 効果 → draw(fx) → 吹き出し
 CAST = { id, x: 0.05〜0.95|null(自動), face: left|right|front|back|null(自動), expr: EXPR, pose: POSE, hold: HELD|"none"|null,
          color: (cloud等の色の上書き)|null, rain: 0〜3|null(雲の雨), look: up|down|side|null,
          float: true|0〜3（大人の身長の何倍浮かせるか）|null, lift: px|null, exprLevel: 0〜2（表情の強さ）|null }   ※どれも作画モジュールの box にそのまま渡る
@@ -61,7 +68,10 @@ ART_PARTIAL = ART の一部の項目だけ（line は項目ごとに上書き）
   meta: { createdAt: ms, mode: random|pref|sequel|sample, seed: SEED|null,
           aim: { kind: random|pref|sequel, target?: 0〜100(狙った好み度), fit?: 0〜100(できあがり予測), brief?: string } | null,
           editor: [ { stage: name|check, round?, verdict: ok|revise, notes: [string], originality: string, sparks?: [string], warnings?: number, artFix?: string } ],
-          warnings: [string](自動チェックの残り), log: [LOG](下), extrasError?: エラーコード, seriesId: 第1話の id | null, bundled?: true(見本) } }
+          warnings: [string](自動チェックの残り), log: [LOG](下), extrasError?: エラーコード, seriesId: 第1話の id | null, bundled?: true(見本),
+          calls?: { used, max, plan: '標準'|'高画質' }（この作品で Claude を呼んだ回数と上限） } }
+DRAWINGS（db: data/users/<id>/draw_<workId>）= { svgs: { DRAW.id: サニタイズ済みの SVG 文字列(≤30000字) }, savedAt }（240KB を超えたら大きい物から省く）
+  SVG は読み込むたびにもう一度サニタイズする（許可した要素・属性だけ。script / foreignObject / style / text / image / on* / 外部の href・url() / javascript: / data: は消す）
 PROFILE（編集者の仕上がりチェックが付ける。無ければ台本から推定 source:'heuristic'）
   = { axes: { humor, warmth, tension, tempo, dark, fantasy, romance, action, mystery, tearjerk, absurd, charDriven,
               talky, growth, everyday, scale, twist, afterglow, cute, smart: 0〜1 }（意味は AXES。物語の味であって絵柄ではない）,
@@ -90,7 +100,12 @@ meta.log（制作の各工程のログ。裏話の材料）= [
   { stage:'name', t, verdict, notes, originality, editedByEditor: DIFF|null, art:{aim,reason,direction}, panelArt:[…], sparks:[ { label, parts, used:bool } ] },
   { stage:'revise', t, after:'ネーム検討'|'仕上がりチェックN', notes, changes: DIFF },
   { stage:'check', t, round, verdict, notes, originality, warnings, artFix, images },
+  { stage:'draw', t, page, panel, layer, prompt, rounds, issues:[[string]], removed:[消した要素・属性], ok },
+  { stage:'key', t, page, panel, variants:[案の名前], chosen, reason },
   { stage:'extras', t, ok } ]
+呼び出しの予算（PLANS）：標準 = 1作品 最大14回・自由作画2枚・描き直し無し・見せ場1コマ（画像が送れるときだけ）
+                       高画質 = 最大40回・自由作画6枚・画像を見て2回まで描き直し・見せ場2コマを3案から選ぶ（画面の「高画質モード」）
+  modelTier：作者・編集者・自由作画・講評 = 'complex'、壊れたJSONの修復 = 'quick'（1回だけ）。画像は limits().images が真のときだけ送る。
   DIFF = { title:[前,後]|null, pages:[前,後]|null, linesRemoved, linesAdded, examples:[ { before, after } ], characters:[前,後]|null }
   extrasPrompt に渡す history = { firstName, editorNotes:[ { stage, verdict, notes, originality } ], revisions:[ { after, notes, changes } ],
                                   artIntent:{ aim, reason, direction, fixes, panels:[ { page, panel, note } ] }, unusedSparks:[string], usedSparks:[string] }
@@ -137,6 +152,11 @@ window.MangaSamples（samples/index.js）= [ { id?, script: SCRIPT(生の台本�
 持っていれば、裏話の設定資料・表情集に使う。ラフ（ネーム）描画では opts.sketch = true を渡す。
 window.MangaStyles.register(name, { drawCharacter(ctx, CHAR, pose, expr, box, opts), drawBackground(ctx, bgSpec, box, opts),
                                     drawEffect(ctx, effectSpec, box, opts), drawProp?(ctx, name, {x,y,unit,facing}, opts), metrics?(CHAR, opts) })   ※詳しくは 35_art の説明
+3D作画（styles3d/）は <meta name="manga-styles3d" content="styles3d/index.js"> で読み込む。境界は styles と同じ形：
+window.MangaStyles3D.register(name, { supports: { bg:[名]|'*', props:[名]|'*', species:[名], objects:'*' },
+                                      drawBackground?(ctx, bgSpec, box, opts), drawProp?(ctx, name, box, opts),
+                                      drawCharacter?(ctx, CHAR, pose, expr, box, opts), drawObject?(ctx, DRAW, box, opts), ready?: Promise })
+  supports にある物だけ 3D に回し、false / null を返すか例外なら 2D（ink → 組み込み）に戻る。art.use3d === false の作品では使わない。
 ================================================================================
 -->
 <style>
@@ -197,6 +217,9 @@ section[hidden]{display:none!important}
 .make-card b{display:block;font-family:var(--display);font-weight:400;font-size:22px;letter-spacing:.04em;line-height:1.2}
 .make-card small{display:block;color:var(--sub);font-size:13px;margin-top:4px;font-weight:400}
 .make-card .aimline{color:var(--accent);font-weight:900}
+.hq{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px}
+.hq label{font-weight:900;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.hq input{width:18px;height:18px;accent-color:var(--accent)}
 .wish{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .wish label{font-weight:900;font-size:14px}
 .wish input{flex:1 1 220px;min-width:0;font:inherit;border:1.5px solid var(--rule-strong);border-radius:10px;padding:8px 12px;background:var(--card);color:var(--ink)}
@@ -422,13 +445,14 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       <button class="make-card" id="btnRandom"><canvas id="icoRandom" width="144" height="144" aria-hidden="true"></canvas><span><b>ランダムで作る</b><small>ジャンルも舞台も結末も、サイコロで決めた企画で描きます</small></span></button>
       <button class="make-card" id="btnPref"><canvas id="icoPref" width="144" height="144" aria-hidden="true"></canvas><span><b>好みで作る</b><small id="prefHint">あなたの反応から好みを読み取って描きます</small></span></button>
     </div>
+    <div class="hq" id="hqRow"><label for="hqToggle"><input type="checkbox" id="hqToggle"> 高画質モード（時間と利用量が増えます）</label><span class="sub" id="hqInfo"></span></div>
     <div class="wish" id="wishRow"><label for="wish">入れてほしいこと</label><input id="wish" maxlength="60" placeholder="空でOK（例：雨の日、商店街、おばあちゃん）"></div>
     <div class="progress" id="progress" hidden aria-live="polite">
       <ol class="steps" id="steps">
         <li data-step="meeting"><b>企画会議</b>案を出し合っています</li>
         <li data-step="writer"><b>作者</b>ネームを書いています</li>
         <li data-step="name"><b>編集者</b>ネームを読み、絵柄を決めています</li>
-        <li data-step="draw"><b>作画</b>その絵柄で描いています</li>
+        <li data-step="draw"><b>作画</b>自由作画・見せ場・その絵柄で描いています</li>
         <li data-step="check"><b>編集者</b>仕上がりをチェック中</li>
         <li data-step="revise"><b>作者</b>直しています</li>
         <li data-step="finish"><b>仕上げ</b>原稿にしています</li>
@@ -436,7 +460,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
       <div class="ticker" id="ticker">準備しています…</div>
       <div class="chat" id="meetFeed" hidden aria-live="polite"></div>
       <div class="seedcard" id="seedCard"></div>
-      <div class="row"><button id="btnStop">止める</button><span class="sub" id="roundInfo"></span></div>
+      <div class="row"><button id="btnStop">止める</button><span class="sub" id="roundInfo"></span><span class="sub" id="callInfo"></span></div>
     </div>
     <div id="makeErr" class="notice" hidden></div>
     <div>
@@ -489,7 +513,7 @@ html.fs #tab-read:not([hidden]) .fs-end.on{display:flex}
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 
-<script>window.MangaStyles = window.MangaStyles || { _queue: [], register(n, i) { this._queue.push([n, i]); return true; } };</script>
+<script>window.MangaStyles = window.MangaStyles || { _queue: [], register(n, i) { this._queue.push([n, i]); return true; } }; window.MangaStyles3D = window.MangaStyles3D || { _queue: [], register(n, i) { this._queue.push([n, i]); return true; } };</script>
 <script>/* styles/ink.js */
 /* =========================================================
    manga/styles/ink.js — 作画の土台（線・トーン・レイヤー）
@@ -14851,6 +14875,28 @@ const BUILTIN_STYLE = {
 };
 const STYLE_MODULES = {}; let lastModule = null;
 function moduleFor(art) { return (art && art.renderer && STYLE_MODULES[art.renderer]) || (lastModule && STYLE_MODULES[lastModule]) || BUILTIN_STYLE; }
+/* ---------- 3D作画（styles3d/）の受け入れ口 ----------
+   window.MangaStyles3D.register(name, {
+     supports: { bg: [背景名…] | '*', props: [小物名…] | '*', species: ['monster', …] },   // 引き受けるもの
+     drawBackground?(ctx, bgSpec, box, opts), drawProp?(ctx, name, box, opts), drawCharacter?(ctx, charSpec, pose, expr, box, opts),
+     drawObject?(ctx, { prompt, layer }, box, opts),   // 自由作画枠の代わりに 3D で描くとき（panel.draw[].engine === '3d'）
+     ready?: Promise })                                  // WebGL の準備が終わったら resolve
+   どの関数も false を返すか例外を出すと、2D の作画モジュール（ink）→ 組み込み、の順に戻る。
+   art.use3d === false の作品・コマでは使わない。読み込みは <meta name="manga-styles3d" content="styles3d/index.js">。 */
+const STYLES3D = {};
+const _queued3d = (window.MangaStyles3D && window.MangaStyles3D._queue) || [];
+window.MangaStyles3D = {
+  register(name, impl) { if (!name || !impl) return false; STYLES3D[name] = { ...impl, name }; Promise.resolve(impl.ready).then(() => { if (typeof window.__onArtChange === 'function') window.__onArtChange(); }); if (typeof window.__onArtChange === 'function') window.__onArtChange(); return true; },
+  unregister(name) { delete STYLES3D[name]; if (typeof window.__onArtChange === 'function') window.__onArtChange(); },
+  list: () => Object.keys(STYLES3D),
+};
+for (const [n, impl] of _queued3d) window.MangaStyles3D.register(n, impl);
+const supports3d = (impl, kind, name) => { const s = impl.supports && impl.supports[kind]; return s === '*' || (Array.isArray(s) && s.includes(name)); };
+function try3d(kind, name, fn, opts, args) {
+  if (opts && opts.use3d === false) return null;
+  for (const impl of Object.values(STYLES3D)) { if (typeof impl[fn] !== 'function' || !supports3d(impl, kind, name)) continue; try { const r = impl[fn](...args, opts); if (r !== false && r != null) return r; } catch (e) { console.warn('3D作画', impl.name, fn, e); } }
+  return null;
+}
 /* 1コマ（または表紙）を描くための作画セット：作品の art にコマの上書きを重ねた opts を渡す */
 /* ネーム（ラフ）用：鉛筆の下描きのように。作画モジュールには opts.sketch=true として伝わる */
 const SKETCH_ART = { line: { weight: 0.3, taper: 0.2, jitter: 0.65, roughness: 0.9 }, tone: 0, black: 0, hatching: 0, crossHatch: 0, toneKind: 'none', detail: 0.2, sparkle: 0, grain: 0.5, panelFrame: 'rough', sketch: true, rough: true };
@@ -14859,12 +14905,14 @@ function artFor(S, P, mode) {
   if (mode && mode.sketch) opts = mergeArt(opts, SKETCH_ART);
   const impl = moduleFor(S.art);
   const safe = (fn, fb) => (...a) => { if (impl !== BUILTIN_STYLE && impl[fn]) { try { const r = impl[fn](...a, opts); if (r !== false && (fn !== 'drawCharacter' || (r && r.head))) return r; } catch (e) { console.warn('作画モジュール', impl.name, fn, e); } } return fb(...a, opts); };
+  const dc = safe('drawCharacter', BUILTIN_STYLE.drawCharacter), db = safe('drawBackground', BUILTIN_STYLE.drawBackground), dp = safe('drawProp', BUILTIN_STYLE.drawProp);
   return {
     opts, module: impl.name, mod: impl === BUILTIN_STYLE ? null : impl,
-    drawCharacter: safe('drawCharacter', BUILTIN_STYLE.drawCharacter),
-    drawBackground: safe('drawBackground', BUILTIN_STYLE.drawBackground),
+    drawCharacter: (ctx, spec, pose, expr, box) => { const r3 = try3d('species', spec.species, 'drawCharacter', opts, [ctx, spec, pose, expr, box]); return r3 && r3.head ? r3 : dc(ctx, spec, pose, expr, box); },
+    drawBackground: (ctx, spec, box) => { if (try3d('bg', spec.name, 'drawBackground', opts, [ctx, spec, box]) != null) return; db(ctx, spec, box); },
     drawEffect: safe('drawEffect', BUILTIN_STYLE.drawEffect),
-    drawProp: safe('drawProp', BUILTIN_STYLE.drawProp),
+    drawProp: (ctx, name, box) => { if (try3d('props', name, 'drawProp', opts, [ctx, name, box]) != null) return; dp(ctx, name, box); },
+    drawObject3d: (ctx, d, box) => try3d('objects', '*', 'drawObject', opts, [ctx, d, box]) != null,
     metrics: spec => { const base = BUILTIN_STYLE.metrics(spec, opts); if (impl === BUILTIN_STYLE || !impl.metrics) return base; try { return { ...base, ...impl.metrics(spec, opts) }; } catch (e) { return base; } },
   };
 }
@@ -14876,6 +14924,8 @@ window.MangaStyles = {
 };
 for (const [n, impl] of _queued) window.MangaStyles.register(n, impl);
 function loadRendererModules() {
+  const m3 = document.querySelector('meta[name="manga-styles3d"]'), u3 = m3 && m3.getAttribute('content');
+  if (u3) { try { const s3 = document.createElement('script'); s3.src = u3; s3.async = true; s3.onerror = () => s3.remove(); document.head.append(s3); } catch (e) {} }
   const meta = document.querySelector('meta[name="manga-styles"]'); const url = meta && meta.getAttribute('content');
   if (!url) return Promise.resolve(false);
   return new Promise(res => { try { const s = document.createElement('script'); s.src = url; s.async = true; s.onload = () => res(true); s.onerror = () => { s.remove(); res(false); }; document.head.append(s); setTimeout(() => res(false), 5000); } catch (e) { res(false); } });
@@ -14943,6 +14993,16 @@ function normalizeCast(c, chars, issues, where) {
     float: c.float === true ? true : (c.float != null && Number.isFinite(Number(c.float)) && c.float !== false ? num(c.float, 0, 0, 3) : null), lift: c.lift != null ? num(c.lift, 0, -400, 400) : null, exprLevel: c.exprLevel != null ? num(c.exprLevel, 1, 0, 2) : null,
   };
 }
+/* 自由作画枠：{ prompt, layer, box, id?, svg? }（svg は見本などに直接書かれたときだけ。登録して id に置き換える） */
+function normDraw(v) {
+  return arr(v).map(d => typeof d === 'string' ? { prompt: d } : d).filter(d => d && typeof d === 'object' && txt(d.prompt)).slice(0, 2).map(d => {
+    const b = d.box && typeof d.box === 'object' ? d.box : {}; const n = (x, a, z) => clamp(Number.isFinite(Number(x)) ? Number(x) : a, 0, z);
+    const box = { x: n(b.x, 0, 0.95), y: n(b.y, 0, 0.95), w: 0, h: 0 }; box.w = n(b.w, 1 - box.x, 1 - box.x) || 1 - box.x; box.h = n(b.h, 1 - box.y, 1 - box.y) || 1 - box.y;
+    const o = { prompt: txt(d.prompt, 300), layer: ['bg', 'fg', 'fx'].includes(d.layer) ? d.layer : 'fg', box, id: d.id ? txt(d.id, 40) : null, ...(d.engine === '3d' ? { engine: '3d' } : {}) };
+    if (typeof d.svg === 'string' && typeof registerDrawing === 'function') { const id = o.id || 'd' + hashStr(d.svg).toString(36); if (registerDrawing(id, d.svg)) o.id = id; }
+    return o;
+  });
+}
 /* 床に置く小物（作画モジュールに bgSpec.props で渡す）。文字列か {name, x, y, s} */
 function normProps(v) { return arr(v).map(x => typeof x === 'string' ? { name: txt(x, 16).toLowerCase() } : x && typeof x === 'object' ? { ...x, name: txt(x.name || x.type || x.id, 16).toLowerCase() } : null).filter(x => x && x.name).slice(0, 8); }
 function normalizePanel(p, chars, issues, where) {
@@ -14974,7 +15034,7 @@ function normalizePanel(p, chars, issues, where) {
   if (narrFromSay.length) narr = [narr, ...narrFromSay].filter(Boolean).join('\n');
   const sfx = arr(p.sfx).map(s => typeof s === 'string' ? { text: s } : s).filter(s => s && (s.text || s.t)).map(s => ({ text: normText(s.text || s.t).slice(0, 8), size: pick(s.size, ['s', 'm', 'l'], { small: 's', medium: 'm', large: 'l', big: 'l' }, 'm') })).slice(0, 3);
   const fx = arr(p.fx || p.effects).map(f => pick(f, FX_LIST, { concentration: 'focus', 集中線: 'focus', niji: 'rainbow', 虹: 'rainbow', speedlines: 'speed', blackout: 'dark', memory: 'flashback', 回想: 'flashback', glitter: 'sparkle', shine: 'sparkle', love: 'hearts', depression: 'gloom', boom: 'explosion', burst: 'impact', flash: 'impact' }, null)).filter(Boolean);
-  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4), art: normalizePanelArt(p.art), laundry: arr(p.laundry || (p.bgSpec && p.bgSpec.laundry) || (p.bgo && p.bgo.laundry)).map(x => txt(x, 12).toLowerCase()).filter(Boolean).slice(0, 8), props: normProps(p.props || (p.bgSpec && p.bgSpec.props)), big: !!(p.big || (p.bgSpec && p.bgSpec.big)) || null, scale: (p.scale ?? (p.bgSpec && p.bgSpec.scale)) != null ? num(p.scale ?? p.bgSpec.scale, 1, 0.2, 3) : null };
+  return { shot, bg: bgName, time: time || 'day', weather, cast: shot === 'bg' ? [] : castU, say: say.filter(s => s.who !== 'narr'), narr: narr.slice(0, 80), sfx, fx: [...new Set(fx)].slice(0, 4), art: normalizePanelArt(p.art), laundry: arr(p.laundry || (p.bgSpec && p.bgSpec.laundry) || (p.bgo && p.bgo.laundry)).map(x => txt(x, 12).toLowerCase()).filter(Boolean).slice(0, 8), props: normProps(p.props || (p.bgSpec && p.bgSpec.props)), big: !!(p.big || (p.bgSpec && p.bgSpec.big)) || null, key: !!(p.key || p.keyPanel) || null, draw: normDraw(p.draw), scale: (p.scale ?? (p.bgSpec && p.bgSpec.scale)) != null ? num(p.scale ?? p.bgSpec.scale, 1, 0.2, 3) : null };
 }
 function normalizeScript(raw, opts = {}) {
   const issues = [];
@@ -15345,6 +15405,7 @@ function drawPanel(ctx, S, b, P, r, tag, isLast, mode) {
     if (P.shot === 'up' || (P.shot === 'bust' && P.cast.length)) { ctx.fillStyle = P.shot === 'up' ? 'rgba(255,255,255,.62)' : 'rgba(255,255,255,.35)'; ctx.fillRect(b.x, b.y, b.w, b.h); }
     if (fx.has('flashback')) { ctx.fillStyle = tone(ctx, 6, 1.15, 1, true); ctx.fillRect(b.x, b.y, b.w, b.h); }
   }
+  if (P.draw && P.draw.length && !dark) paintDrawings(ctx, P, b, 'bg', ART);
   const placed = placeCast(S, P, b, ART);
   const focusPt = placed.length ? [placed[0].X, placed[0].Y + ART.metrics(placed[0].ch).hc * placed[0].u] : [b.x + b.w / 2, b.y + b.h / 2];
   runEffects(ART, ctx, P, b, r, 'under', focusPt, []);
@@ -15359,7 +15420,9 @@ function drawPanel(ctx, S, b, P, r, tag, isLast, mode) {
     const res = ART.drawCharacter(ctx, x.ch, x.c.pose, x.c.expr, { footX: x.X, footY: x.Y, unit: x.u, facing: fc.F, back: fc.back, look: x.c.look, hold: x.c.hold, color: x.c.color, rain: x.c.rain, float: x.c.float ?? undefined, lift: x.c.lift ?? undefined, exprLevel: x.c.exprLevel ?? undefined, panel: b, rand: r });
     heads.push({ id: x.ch.id, hx: res.head.x, hy: res.head.y, hr: res.head.r }); bodies.push(res.body);
   });
+  if (P.draw && P.draw.length) paintDrawings(ctx, P, b, 'fg', ART);
   runEffects(ART, ctx, P, b, r, 'over', focusPt, heads);
+  if (P.draw && P.draw.length) paintDrawings(ctx, P, b, 'fx', ART);
   const visHeads = heads.filter(h => h.hy > b.y - h.hr * 0.5 && h.hy < b.y + b.h + h.hr * 0.5 && h.hx > b.x - h.hr && h.hx < b.x + b.w + h.hr);
   const visBodies = bodies.map(B => { const x = Math.max(B.x, b.x), y = Math.max(B.y, b.y), x2 = Math.min(B.x + B.w, b.x + b.w), y2 = Math.min(B.y + B.h, b.y + b.h); return { x, y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) }; }).filter(B => B.w > 2 && B.h > 2);
   // 効果音はコマの中（枠線の下）
@@ -15757,6 +15820,13 @@ fx: ${FX_LIST.join(' / ')}（focus=集中線, speed=スピード線, dark=暗転
 - 雲（cloud）は表情で色が変わる（悲しいと灰色、怒ると黒）。cast に "rain":0〜3 を付けると雨を降らせる。
 - 絵は白黒の漫画。色の名前は使わず、hairColor・pattern・color の値で表す。
 - 作品全体の "art"（絵柄）と、コマごとの "art"（そのコマだけ部分的に変える）は、編集者が決める。`;
+const DRAW_WRITER_DOC = `【自由作画枠と見せ場（任意）】
+- 決まった部品では描けない物（巨大な木、ふしぎな機械、崩れる城、満天の星、模様の入った扉など）は、コマに "draw":[{"prompt":"何をどう描くか（日本語で具体的に）","layer":"bg か fg か fx"}] を付けると、絵師が一枚絵で描き足す（1コマ最大2つ、作品全体で多くて4つ）。bg=背景の代わり、fg=人物の手前の物、fx=光や煙などの効果。人物は描かせない（人物はいつもの部品で描く）。
+- 物語のいちばんの見せ場のコマには "key":true を付ける（作品全体で1〜2コマ）。構図違いの案を描き比べて、いちばん効くものを選ぶ。
+- 既存作品のキャラクター・デザイン・紋章を描かせない。`;
+const DRAW_EDITOR_DOC = `【見せ場と自由作画（任意）】返事のJSONに次を足してよい:
+ "keyPanels": [{"page":ページ番号,"panel":何コマ目か}]（作品の見せ場。1〜2コマ。構図違いを描き比べて選ぶ）,
+ "panelDraw": [{"page":ページ番号,"panel":何コマ目か,"prompt":"描き足す物を具体的に","layer":"bg / fg / fx"}]（部品では描けない背景・物・効果を一枚絵で足す。人物は描かせない。既存作品のキャラクター・デザイン・紋章を描かせない）`;
 const ORIGINALITY = `【オリジナリティの決まり（必ず守る）】
 - 既存の漫画・アニメ・映画・ゲーム・小説・絵本のキャラクター、名前、決めゼリフ、見た目、設定、話の筋をまねしない。パロディもしない。
 - 実在の人物・企業・商品名を出さない。
@@ -15982,6 +16052,133 @@ function peekMeeting(text) {
   return [...text.matchAll(/\{\s*"(?:who|speaker)"\s*:\s*"([^"]*)"\s*,\s*"(?:text|line)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g)].map(m => ({ who: /作画|artist/.test(m[1]) ? '作画' : /編集|editor/.test(m[1]) ? '編集者' : '作者', text: m[2].replace(/\\n/g, ' ').replace(/\\"/g, '"') }));
 }
 /* =========================================================
+   自由作画枠：エンジンの部品にないもの（独自の怪物・乗り物・建物・決めゴマの構図・特殊な効果）を
+   Claude に SVG で直接描かせる。人物はキャラの見た目をそろえるため、これまでどおりエンジンで描く。
+   台本：panel.draw = [{ prompt, layer: 'bg'|'fg'|'fx', box?: {x,y,w,h}(コマに対する割合), id? }]
+   SVG 本体は台本に入れず、DRAW（id → SVG）に持ち、作品とは別の文書 draw_<作品id> に保存する。
+   ========================================================= */
+const DRAW = new Map();          // id → { svg, img, w, h, ready:Promise }
+const DRAW_LAYERS = ['bg', 'fg', 'fx'];
+const SVG_MAX = 30000;           // 1枚あたりの上限（文字数）。db の1文書 256KiB に収めるため
+const SVG_TAGS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'defs', 'pattern', 'lineargradient', 'radialgradient', 'stop', 'clippath', 'mask', 'use', 'title', 'desc', 'symbol']);
+const SVG_ATTRS = /^(id|d|x|y|x1|y1|x2|y2|cx|cy|r|rx|ry|width|height|points|viewbox|transform|fill|stroke|stroke-width|stroke-linecap|stroke-linejoin|stroke-dasharray|stroke-dashoffset|stroke-opacity|fill-opacity|fill-rule|clip-rule|opacity|offset|stop-color|stop-opacity|gradientunits|gradienttransform|patternunits|patterncontentunits|patterntransform|clip-path|mask|maskunits|maskcontentunits|preserveaspectratio|href|xlink:href|fx|fy|spreadmethod|vector-effect|paint-order|xmlns|xmlns:xlink|version|stroke-miterlimit|display|visibility)$/i;
+/* サニタイズ：script・foreignObject・image・style 要素、イベント属性、外部参照（#以外の href、url(#…) 以外の url()）を除く */
+function sanitizeSVG(text) {
+  if (typeof text !== 'string') return null;
+  const m = text.match(/<svg[\s\S]*<\/svg>/i); if (!m) return null;
+  let doc; try { doc = new DOMParser().parseFromString(m[0], 'image/svg+xml'); } catch (e) { return null; }
+  const root = doc.documentElement; if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
+  const removed = [];
+  const walk = el => {
+    for (const ch of [...el.children]) {
+      const tag = ch.nodeName.toLowerCase().replace(/^svg:/, '');
+      if (!SVG_TAGS.has(tag)) { removed.push(tag); ch.remove(); continue; }
+      for (const a of [...ch.attributes]) {
+        const n = a.name.toLowerCase(), v = a.value;
+        const bad = !SVG_ATTRS.test(n) || n.startsWith('on') || ((n === 'href' || n === 'xlink:href') && !/^#[\w-]+$/.test(v.trim())) || (/url\s*\(/i.test(v) && !/^\s*url\(\s*#[\w-]+\s*\)\s*$/i.test(v)) || /javascript:|data:|expression\(/i.test(v);
+        if (bad) { removed.push('@' + n); ch.removeAttribute(a.name); }
+      }
+      walk(ch);
+    }
+  };
+  for (const a of [...root.attributes]) { const n = a.name.toLowerCase(); if (!SVG_ATTRS.test(n) || n.startsWith('on')) { removed.push('@' + n); root.removeAttribute(a.name); } }
+  walk(root);
+  // 大きさ：viewBox を必須にして、width/height をそろえる
+  let vb = (root.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  if (vb.length !== 4 || vb.some(v => !Number.isFinite(v)) || vb[2] <= 0 || vb[3] <= 0) { const w0 = parseFloat(root.getAttribute('width')) || 1000, h0 = parseFloat(root.getAttribute('height')) || 1000; vb = [0, 0, w0, h0]; root.setAttribute('viewBox', vb.join(' ')); }
+  root.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); root.setAttribute('width', String(vb[2])); root.setAttribute('height', String(vb[3]));
+  const out = new XMLSerializer().serializeToString(root);
+  if (out.length > SVG_MAX) return null;
+  return { svg: out, w: vb[2], h: vb[3], removed };
+}
+function registerDrawing(id, svgText) {
+  const s = sanitizeSVG(svgText); if (!s) return null;
+  const img = new Image();
+  const ent = { svg: s.svg, w: s.w, h: s.h, img, loaded: false, removed: s.removed };
+  ent.ready = new Promise(res => { img.onload = () => { ent.loaded = true; res(true); }; img.onerror = () => res(false); });
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg);
+  DRAW.set(id, ent);
+  return ent;
+}
+const drawIdOf = (pi, k, d) => 'd' + hashStr(`${pi}|${k}|${d.layer}|${d.prompt}`).toString(36);
+function drawItems(S) { const out = []; S.pages.forEach((pg, pi) => pg.panels.forEach((P, k) => (P.draw || []).forEach((d, j) => out.push({ pi, k, j, P, d })))); return out; }
+async function drawingsReady(S) { await Promise.all(drawItems(S).map(x => x.d.id && DRAW.get(x.d.id) ? DRAW.get(x.d.id).ready : true)); }
+/* コマに合成：bg は覆うように、fg・fx は収まるように */
+function paintDrawings(ctx, P, b, layer, ART) {
+  for (const d of P.draw || []) {
+    if (d.layer !== layer) continue;
+    if (d.engine === '3d' && ART && ART.drawObject3d) { const bx = d.box || { x: 0, y: 0, w: 1, h: 1 }; if (ART.drawObject3d(ctx, d, { x: b.x + b.w * bx.x, y: b.y + b.h * bx.y, w: b.w * bx.w, h: b.h * bx.h })) continue; }
+    if (!d.id) continue;
+    const e = DRAW.get(d.id); if (!e || !e.loaded) continue;
+    const bx = d.box || { x: 0, y: 0, w: 1, h: 1 };
+    const rx = b.x + b.w * bx.x, ry = b.y + b.h * bx.y, rw = b.w * bx.w, rh = b.h * bx.h;
+    const k = layer === 'bg' ? Math.max(rw / e.w, rh / e.h) : Math.min(rw / e.w, rh / e.h);
+    const dw = e.w * k, dh = e.h * k;
+    ctx.save(); ctx.beginPath(); ctx.rect(rx, ry, rw, rh); ctx.clip();
+    ctx.drawImage(e.img, rx + (rw - dw) / 2, ry + (rh - dh) / 2, dw, dh); ctx.restore();
+  }
+}
+/* 絵柄（art）を、自由作画への言葉に直す */
+function artWords(A) {
+  const lv = v => v < 0.25 ? 'ほとんど無し' : v < 0.45 ? '少なめ' : v < 0.65 ? 'ほどほど' : v < 0.85 ? '多め' : 'とても多い';
+  return `線の太さ${lv(A.line.weight)}・線の荒さ${lv(A.line.roughness)}・斜線（ハッチング）${lv(A.hatching)}・網目の斜線${lv(A.crossHatch)}・ベタ（黒）${lv(A.black)}・トーン${lv(A.tone)}（${A.toneKind}）・描き込み${lv(A.detail)}・パース${lv(A.perspective)}・やわらかさ${lv(A.softness)}・ざらつき${lv(A.grain)}。作画方針：${txt(A.direction) || 'なし'}。狙い：${txt(A.aim) || 'なし'}`;
+}
+function drawPrompt(S, it, W2, H2) {
+  const P = it.P, A = mergeArt(S.art || ART_DEFAULT, P.art);
+  const layerText = { bg: '背景（コマ全体の奥。不透明。人物は描かない）', fg: '前景の物体（背景は透明。描く物の外側は何も塗らない）', fx: '特殊な効果（背景は透明。光・煙・魔法・衝撃など。物の形より効果を）' }[it.d.layer];
+  return `あなたは日本の漫画のプロのアシスタントです。白黒の漫画原稿の1コマに入れる絵を、SVG で描いてください。
+【描くもの】${it.d.prompt}
+【役割】${layerText}
+【コマの状況】背景:${P.bg}／時間:${P.time}／天気:${P.weather}／カメラ:${P.shot}${P.narr ? `／ナレーション:${P.narr}` : ''}${P.say.length ? `／セリフ:${P.say.map(s => s.text.replace(/\n/g, '')).join('、')}` : ''}
+【作品の絵柄】${artWords(A)}
+【SVG の決まり】
+- ルート要素は <svg viewBox="0 0 ${W2} ${H2}">。この大きさいっぱいに構図を作る。
+- 色は黒（#000）・白（#fff）・灰色（#333〜#ddd）だけ。カラーは使わない。
+- 漫画の技法で描く：輪郭は path の強弱のある線（太い線と細い線を描き分ける）、影は <pattern> の斜線（ハッチング）や網目、トーンは <pattern> の網点か <linearGradient>／<radialGradient>、ベタは黒の塗り。
+- 使える要素：svg g path rect circle ellipse line polyline polygon defs pattern linearGradient radialGradient stop clipPath mask use。
+- 使えないもの：文字（text）、画像（image）、script、foreignObject、style 要素、外部の参照、イベント属性。
+- 人物・登場キャラクターは描かない（人物はあとで別に描き込む）。
+- 3万字以内。細部はパターンとくり返しで効率よく。
+【オリジナリティ（必ず守る）】既存の漫画・アニメ・映画・ゲームのキャラクター、デザイン、メカ、紋章、ロゴ、実在の商標を描かない。この作品のためだけの新しいデザインにする。
+【返事】次のJSONだけを返す：{"svg":"<svg ...>…</svg>","note":"どう描いたか（30字以内）"}`;
+}
+function critiquePrompt(S, it, round) {
+  return `あなたは日本の漫画のベテラン作画監督です。添付画像は、白黒の漫画原稿の1コマです。この中の「${it.d.prompt}」（${it.d.layer === 'bg' ? '背景' : it.d.layer === 'fg' ? '前景の物体' : '効果'}）を、あなたが SVG で描きました（${round}回目の講評）。
+【見るところ】形が伝わるか・線の強弱・影とトーンの付け方・作品の絵柄（${artWords(mergeArt(S.art || ART_DEFAULT, it.P.art))}）との調和・人物や吹き出しとの重なり・コマの中での見せ方。
+【オリジナリティ】既存作品のキャラクター・デザイン・メカ・紋章・ロゴに似ていたら、別の新しい形に直す。
+【いまの SVG】
+${DRAW.get(it.d.id) ? DRAW.get(it.d.id).svg : ''}
+【返事】次のJSONだけを返す：{"ok":true か false,"issues":["直すべき点（最大4つ、短く）"],"svg":"直した SVG 全体（ok なら null）"}
+- 同じ決まり（白黒・パターンのハッチング・グラデーションのトーン・text と image を使わない・3万字以内）を守る。`;
+}
+/* 見せ場のコマ：構図・カメラ・art を変えた2〜3案（描くのはエンジン。Claude には画像で選ばせる） */
+const SHOT_SWAP = { up: 'full', bust: 'long', full: 'up', long: 'bust', bg: 'long' };
+function keyVariants(P) {
+  const clone = JSON.parse(JSON.stringify(P));
+  const v1 = JSON.parse(JSON.stringify(P)); v1.shot = P.cast.length ? SHOT_SWAP[P.shot] || 'full' : P.shot; if (v1.shot === 'up') v1.cast = v1.cast.slice(0, 1);
+  v1.art = { ...(P.art || {}), dynamism: 0.9, perspective: 0.8 }; v1.fx = [...new Set([...(P.fx || []).filter(f => f !== 'speed'), 'focus'])].slice(0, 4);
+  const v2 = JSON.parse(JSON.stringify(P)); v2.cast = v2.cast.map((c, i, a) => ({ ...c, x: c.x != null ? 1 - c.x : (a.length === 1 ? 0.62 : null), face: c.face === 'left' ? 'right' : c.face === 'right' ? 'left' : c.face })).reverse();
+  v2.art = { ...(P.art || {}), black: 0.8, hatching: 0.6, line: { weight: 0.8 } }; v2.fx = [...new Set([...(P.fx || []), 'speed'])].slice(0, 4);
+  return [{ label: 'A：ネームどおり', P: clone }, { label: 'B：カメラを変えて動きを強く', P: v1 }, { label: 'C：左右を入れかえ、ベタを濃く', P: v2 }];
+}
+function choosePrompt(S, pi, k, variants) {
+  const P = S.pages[pi].panels[k];
+  return `あなたは漫画編集者です。この作品の見せ場のコマ（${pi + 2}ページ${k + 1}コマ目）を、${variants.length}通りに描きました。添付画像は順に ${variants.map(v => v.label).join('／')} です。
+【コマ】${P.narr || ''} ${P.say.map(s => s.text.replace(/\n/g, '')).join(' ')}
+【作品の絵柄の狙い】${txt(S.art && S.art.aim) || 'なし'}
+いちばん読者の心に残る案を、ページ全体の流れも考えて1つ選んでください。
+【返事】次のJSONだけを返す：{"choice":0から${variants.length - 1}の番号,"reason":"選んだ理由（40字以内）"}`;
+}
+/* コマ1つを画像にする（ページを描いて切り抜く） */
+async function panelImage(S, pi, k, scale = 1) {
+  await drawingsReady(S);
+  const { canvas } = renderPage(S, pi + 1, scale);
+  const b = layoutPage(S.pages[pi])[k]; if (!b) return null;
+  const pad = 8, c = document.createElement('canvas'); c.width = Math.round((b.w + pad * 2) * scale); c.height = Math.round((b.h + pad * 2) * scale);
+  c.getContext('2d').drawImage(canvas, (b.x - pad) * scale, (b.y - pad) * scale, c.width, c.height, 0, 0, c.width, c.height);
+  return await new Promise(res => c.toBlob(res, 'image/png'));
+}
+/* =========================================================
    アプリ：保存・制作パイプライン・画面
    ========================================================= */
 const $ = id => document.getElementById(id);
@@ -16019,6 +16216,7 @@ function viaP(names, call, builtin, check) {
 }
 const targetOf = seed => seed && seed.mode === 'pref' ? { axes: seed.axes, likes: seed.likes, avoid: seed.avoid, tags: [...(seed.motifs || []), seed.genre].filter(Boolean), craft: seed.craft ? Object.entries(seed.craft).map(([k, v]) => CRAFT_HINT[k] ? CRAFT_HINT[k](v) : '').filter(Boolean) : [] } : null;
 const seriesOf = (prev, seed) => prev ? { script: prev.script, extras: prev.extras || null, episode: seed.episode, history: [] } : null;
+const withDoc = (prompt, marker, doc) => (typeof prompt === 'string' && !prompt.includes(marker)) ? `${prompt}\n${doc}` : prompt;
 const withNote = (prompt, note, head) => { const t = txt(note, 600); return t ? `${prompt}\n${head}${t}` : prompt; };
 const Mod_writer = (...a) => Mod._writer(...a), Mod_editorName = (...a) => Mod._editorName(...a);
 /* prompts.js の検証結果を、この本体の形に寄せる */
@@ -16040,8 +16238,8 @@ const Mod = {
   randomSeed: viaP(['randomSeed', 'drawSeed'], (f, r) => f(r), r => randomSeed(r), v => v && v.axes && v.genre),
   sparks: viaP(['sparks', 'artSparks'], (f, r) => f(r), r => artSparks(r), v => Array.isArray(v) && v.every(x => x && x.parts)),
   meeting: viaP(['meetingPrompt'], (f, a) => f({ seeds: a.sparks, target: targetOf(a.seed), series: seriesOf(a.prev, a.seed), tasteHint: a.seed.artHints, seed: a.seed }), a => meetingPromptBuiltin(a), isStr),
-  writer: (seed, prev) => withNote(Mod_writer(seed, prev), seed && seed.tasteNote, '【分析担当から作者へのメモ（参考）】'),
-  editorName: (S, seed, issues, sparks) => withNote(Mod_editorName(S, seed, issues, sparks), seed && seed.editorNote, '【分析担当から編集者へのメモ（参考。絵柄の最終判断はあなたのセンスで）】'),
+  writer: (seed, prev) => withNote(withDoc(Mod_writer(seed, prev), '"draw"', DRAW_WRITER_DOC), seed && seed.tasteNote, '【分析担当から作者へのメモ（参考）】'),
+  editorName: (S, seed, issues, sparks) => withNote(withDoc(Mod_editorName(S, seed, issues, sparks), 'panelDraw', DRAW_EDITOR_DOC), seed && seed.editorNote, '【分析担当から編集者へのメモ（参考。絵柄の最終判断はあなたのセンスで）】'),
   _writer: viaP(['writer', 'authorPrompt'], (f, seed, prev) => f.name === 'writer' ? f(seed, prev) : f({ seed, target: targetOf(seed), series: seriesOf(prev, seed), plan: seed.meeting ? (seed.meeting.raw || null) : null }), (seed, prev) => writerPrompt(seed, prev), isStr),
   _editorName: viaP(['editorName', 'editorPlanPrompt'], (f, S, seed, issues, sparks) => f.name === 'editorName' ? f(S, seed, issues, sparks) : f({ script: S, inspiration: { seed, sparks }, tasteHint: seed.artHints }), (S, seed, issues, sparks) => editorNamePrompt(S, seed, issues, sparks), isStr),
   editorCheck: viaP(['editorCheck', 'editorReviewPrompt'], (f, S, seed, issues, warnings, img, fin) => f.name === 'editorCheck' ? f(S, seed, issues, warnings, img, fin) : f({ script: S, warnings: [...issues, ...warnings], hasImages: img, seed, finalRound: fin }), (S, seed, issues, warnings, img, fin) => editorCheckPrompt(S, seed, issues, warnings, img, fin), isStr),
@@ -16049,7 +16247,8 @@ const Mod = {
   tasteWords: viaP(['tasteWords', 'tasteNarrativePrompt'], (f, d) => f(d), data => tasteWordsPrompt(data), isStr),
   extras: viaP(['extrasPrompt'], (f, a) => f(a), arg => extrasPromptBuiltin(arg), isStr),
   repair: viaP(['repair', 'parseJSON'], (f, t) => f(t), text => repairJSON(text), v => v == null || typeof v === 'object'),
-  validate: (kind, obj, S) => {
+  validate: (kind, obj, S) => { const v = Mod._validate(kind, obj, S); return carryDraw(kind, obj, v); },
+  _validate: (kind, obj, S) => {
     const p = window.MangaPrompts; if (!p || !obj || typeof obj !== 'object') return obj;
     try {
       if (typeof p.validate === 'function') { const v = p.validate(kind, obj); return v && typeof v === 'object' ? v : obj; }
@@ -16062,6 +16261,23 @@ const Mod = {
     return obj;
   },
 };
+
+/* 外の検証（prompts.js）が知らない欄（自由作画 draw・見せ場 key・keyPanels・panelDraw）を、検証のあとに元の返事から戻す */
+function carryScriptDraw(raw, v) {
+  if (!raw || !v || typeof raw !== 'object' || typeof v !== 'object' || v === raw) return v;
+  const rp = arr(raw.pages).filter(p => p && typeof p === 'object' && !p.cover);
+  arr(v.pages).forEach((pg, i) => arr(pg && pg.panels).forEach((P, k) => { const R = rp[i] && arr(rp[i].panels)[k]; if (!R || !P || typeof P !== 'object') return; if (R.draw != null && P.draw == null) P.draw = R.draw; if (R.key != null && P.key == null) P.key = R.key; }));
+  return v;
+}
+function carryDraw(kind, raw, v) {
+  try {
+    if (!raw || typeof raw !== 'object' || !v || typeof v !== 'object' || v === raw) return v;
+    if (kind === 'script') return carryScriptDraw(raw, v);
+    if (raw.script && v.script) carryScriptDraw(raw.script, v.script);
+    if (kind === 'editorName') { if (raw.keyPanels && !v.keyPanels) v.keyPanels = raw.keyPanels; if (raw.panelDraw && !v.panelDraw) v.panelDraw = raw.panelDraw; }
+  } catch (e) { console.warn('draw 欄の引き継ぎに失敗', e); }
+  return v;
+}
 
 /* ---------- 保存：db（閲覧者ごとの非公開領域）→ だめなら localStorage → だめならメモリ ---------- */
 /* 保存の決まり（作品が消えたり二重になったりしないこと最優先）
@@ -16153,7 +16369,10 @@ function analysisNow() { state.A = Mod.analyze(state.works, state.fb, state.hist
 
 /* ---------- 描画キャッシュ ---------- */
 const cache = new Map();
-function pageCanvas(w, i) { const k = w.id + ':' + i; if (cache.has(k)) return cache.get(k); const c = renderPage(w.script, i).canvas; cache.set(k, c); if (cache.size > 48) cache.delete(cache.keys().next().value); return c; }
+/* 読むページは2倍の解像度で描いて縮小表示（線をきれいに。拡大しても粗くならない）。メモリのため、覚えておくのは12枚まで */
+const DISPLAY_SCALE = 2;
+function pageCanvas(w, i) { const k = w.id + ':' + i; if (cache.has(k)) return cache.get(k); const c = renderPage(w.script, i, DISPLAY_SCALE).canvas; cache.set(k, c); if (cache.size > 12) cache.delete(cache.keys().next().value); return c; }
+function whenDrawingsLoad(w) { const pend = drawItems(w.script).filter(x => x.d.id && DRAW.get(x.d.id) && !DRAW.get(x.d.id).loaded); if (!pend.length) return; drawingsReady(w.script).then(() => { for (const k of [...cache.keys()]) if (k.startsWith(w.id + ':')) cache.delete(k); thumbCache.delete(w.id); if (state.cur === w.id && state.tab === 'read') showPage(state.page, 0); }); }
 const thumbCache = new Map();
 function thumb(w, cls) { let src = thumbCache.get(w.id); if (!src) { src = renderPage(w.script, 0, 0.25).canvas; thumbCache.set(w.id, src); } const c = el('canvas', { width: src.width, height: src.height, 'aria-hidden': 'true', class: cls }); c.getContext('2d').drawImage(src, 0, 0); return c; }
 window.__onArtChange = () => { cache.clear(); thumbCache.clear(); if (state.cur) showPage(state.page, 0); };
@@ -16197,6 +16416,7 @@ function renderMake() {
   $('btnRandom').disabled = $('btnPref').disabled = !canMake() || state.busy;
   $('makeCards').hidden = !canMake() && state.sampleWhy !== 'checking';
   $('wishRow').hidden = !canMake();
+  $('hqRow').hidden = !canMake();
   const A = analysisNow();
   $('prefHint').innerHTML = '';
   if (A.n === 0) $('prefHint').append('まだ反応がないので、探索しながら作ります。読んで ♥ を押すほど好みに寄ります');
@@ -16234,10 +16454,24 @@ const ERR_TEXT = {
   upstream_error: '通信が途切れました。もう一度どうぞ。',
 };
 const HIDE_CODES = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
+/* 呼び出しの予算：費用は閲覧者の Claude の利用分から出るので、作品1本あたりの上限を決める。
+   必須の工程（会議・ネーム・編集・直し・裏話）は必ず行い、自由作画・講評・案くらべは残りの予算の中だけで行う */
+const PLANS = {
+  standard: { max: 14, draws: 2, critique: 0, keys: 1, label: '標準', note: '1作品あたり Claude の呼び出しは最大14回（自由作画は2枚まで・描き直しなし）' },
+  hq: { max: 40, draws: 6, critique: 2, keys: 2, label: '高画質', note: '1作品あたり最大40回（自由作画6枚まで・画像を見ながら2回まで描き直し・見せ場のコマは3案から選ぶ）' },
+};
+const planNow = () => PLANS[state.hq ? 'hq' : 'standard'];
+function spend() { if (state.run) state.run.used++; const ri = $('callInfo'); if (ri && state.run) ri.textContent = `Claude の呼び出し ${state.run.used} / ${state.run.max} 回`; }
+function canSpend(n, reserve) { return !state.run || state.run.used + n + (reserve || 0) <= state.run.max; }
 async function callJSON(prompt, opts) {
-  try { return await state.sample.json(prompt, { cache: false, modelTier: 'default', ...opts }); }
+  spend();
+  try { return await state.sample.json(prompt, { cache: false, modelTier: 'complex', ...opts }); }
   catch (e) {
-    if (e && e.code === 'invalid_json' && e.text) { const j = Mod.repair(e.text); if (j && typeof j === 'object') return j; }
+    if (e && e.code === 'invalid_json' && e.text) {
+      const j = Mod.repair(e.text); if (j && typeof j === 'object') return j;
+      // 手元で直せないときだけ、速いモデルに直してもらう（1回だけ）
+      if (!opts.noRepair && canSpend(1, 0)) { spend(); try { const fixed = await state.sample.json(`次の文字列は、JSON のつもりで書かれたが壊れています。中身は変えずに、正しい JSON だけを返してください。\n${String(e.text).slice(0, 60000)}`, { cache: false, modelTier: 'quick', signal: opts.signal }); if (fixed && typeof fixed === 'object') return fixed; } catch (e2) {} }
+    }
     if (e && (e.code === 'images_unavailable' || e.code === 'image_rejected') && opts.images) { state.imgOK = false; const { images, ...rest } = opts; return callJSON(prompt, rest); }
     throw e;
   }
@@ -16279,6 +16513,7 @@ function extrasHistory(w) {
     editorNotes: L.filter(x => x.stage === 'name' || x.stage === 'check').map(x => ({ stage: x.stage === 'name' ? 'ネーム検討' : `仕上がりチェック${x.round || ''}`, verdict: x.verdict, notes: x.notes, originality: x.originality })),
     revisions: L.filter(x => x.stage === 'revise').map(x => ({ after: x.after, notes: x.notes, changes: x.changes })),
     artIntent: { aim: w.script.art.aim, reason: w.script.art.reason, direction: w.script.art.direction, fixes: L.filter(x => x.artFix).map(x => x.artFix), panels: w.script.pages.flatMap((pg, i) => pg.panels.map((p, k) => p.art ? { page: i + 2, panel: k + 1, note: p.art.note || '' } : null)).filter(Boolean) },
+    drawings: L.filter(x => x.stage === 'draw' && !x.skipped).map(x => ({ page: x.page, panel: x.panel, prompt: x.prompt, critiques: (x.rounds || []).map(r => r.issues) })), keyChoices: L.filter(x => x.stage === 'key' && x.variants).map(x => ({ page: x.page, panel: x.panel, chosen: x.variants[x.chosen], reason: x.reason })),
     unusedSparks: ((L.find(x => x.stage === 'name') || {}).sparks || []).filter(x => !x.used).map(x => `${x.label}: ${x.parts.join('、')}`),
     usedSparks: ((L.find(x => x.stage === 'name') || {}).sparks || []).filter(x => x.used).map(x => `${x.label}: ${x.parts.join('、')}`),
   };
@@ -16312,12 +16547,60 @@ async function makeExtras(w, fromClick) {
     if (fromClick) toast(ERR_TEXT[code] || ERR_TEXT.upstream_error);
   } finally { extrasBusy[w.id] = false; if (state.tab === 'extras' && state.exId === w.id) renderExtras(); if (state.cur === w.id) renderReadHead(); }
 }
+/* ---------- 自由作画と、見せ場の案くらべ ---------- */
+async function freeDraw(S, ctl, plan, reserve, log) {
+  const todo = drawItems(S).filter(x => !(x.d.id && DRAW.has(x.d.id)) && x.d.engine !== '3d').slice(0, plan.draws);
+  for (const [n, it] of todo.entries()) {
+    if (!canSpend(1, reserve)) { log.push({ stage: 'draw', skipped: it.d.prompt, why: '呼び出しの予算' }); break; }
+    $('ticker').textContent = `自由作画 ${n + 1}/${todo.length}：「${it.d.prompt.slice(0, 30)}」を描いています…`;
+    const b = layoutPage(S.pages[it.pi])[it.k]; const bx = it.d.box || { x: 0, y: 0, w: 1, h: 1 };
+    const rw = Math.max(40, b.w * bx.w), rh = Math.max(40, b.h * bx.h), H2 = 1000, W2 = Math.round(1000 * rw / rh);
+    const id = drawIdOf(it.pi, it.k, it.d) + Date.now().toString(36).slice(-5) + n, rec = { stage: 'draw', t: Date.now(), page: it.pi + 2, panel: it.k + 1, prompt: it.d.prompt, layer: it.d.layer, rounds: [] };
+    let res; try { res = await callJSON(drawPrompt(S, it, W2, H2), { signal: ctl.signal, onText: () => {}, noRepair: true }); } catch (e) { if (e && e.code === 'cancelled') throw e; rec.error = e && e.code; log.push(rec); continue; }
+    let ent = registerDrawing(id, res && res.svg);
+    if (!ent) { rec.error = 'SVG を読めませんでした'; log.push(rec); continue; }
+    it.d.id = id; await ent.ready; rec.note = txt(res.note, 60); rec.removed = ent.removed.length;
+    // 自分の絵を画像で見て講評し、直す（画像を送れるときだけ・最大2回）
+    for (let round = 1; round <= plan.critique && state.imgOK; round++) {
+      if (!canSpend(1, reserve)) break;
+      $('ticker').textContent = `自由作画 ${n + 1}/${todo.length}：仕上がりを見て講評しています（${round}回目）…`;
+      const img = await panelImage(S, it.pi, it.k, 1.5);
+      let cr; try { cr = await callJSON(critiquePrompt(S, it, round), { signal: ctl.signal, images: [img], onText: () => {}, noRepair: true }); } catch (e) { if (e && e.code === 'cancelled') throw e; break; }
+      rec.rounds.push({ ok: !!(cr && cr.ok), issues: arr(cr && cr.issues).map(x => txt(x, 80)).slice(0, 4) });
+      if (!cr || cr.ok || !cr.svg) break;
+      const e2 = registerDrawing(id, cr.svg); if (!e2) break; ent = e2; await ent.ready;
+    }
+    log.push(rec);
+  }
+}
+async function chooseKeys(S, ctl, plan, reserve, log) {
+  const keys = []; S.pages.forEach((pg, pi) => pg.panels.forEach((P, k) => { if (P.key) keys.push({ pi, k }); }));
+  for (const { pi, k } of keys.slice(0, plan.keys)) {
+    if (!state.imgOK) { log.push({ stage: 'key', page: pi + 2, panel: k + 1, chosen: 0, why: '画像を送れない環境なので、ネームどおり' }); continue; }
+    if (!canSpend(1, reserve)) { log.push({ stage: 'key', page: pi + 2, panel: k + 1, chosen: 0, why: '呼び出しの予算' }); continue; }
+    $('ticker').textContent = `見せ場（${pi + 2}ページ${k + 1}コマ目）を3通りに描いて、編集者が選んでいます…`;
+    const vs = keyVariants(S.pages[pi].panels[k]), imgs = [];
+    for (const v of vs) { const S2 = JSON.parse(JSON.stringify(S)); S2.pages[pi].panels[k] = v.P; imgs.push(await panelImage(S2, pi, k, 1)); }
+    let ch; try { ch = await callJSON(choosePrompt(S, pi, k, vs), { signal: ctl.signal, images: imgs, onText: () => {}, noRepair: true }); } catch (e) { if (e && e.code === 'cancelled') throw e; continue; }
+    const c = clamp(Math.round(Number(ch && ch.choice) || 0), 0, vs.length - 1);
+    S.pages[pi].panels[k] = { ...vs[c].P, key: true };
+    log.push({ stage: 'key', t: Date.now(), page: pi + 2, panel: k + 1, variants: vs.map(v => v.label), chosen: c, reason: txt(ch && ch.reason, 80) });
+  }
+}
+/* 作品で使っている SVG を、作品とは別の文書に保存する（1文書 256KiB に収める） */
+function saveDrawings(w) {
+  const svgs = {}; for (const x of drawItems(w.script)) if (x.d.id && DRAW.has(x.d.id)) svgs[x.d.id] = DRAW.get(x.d.id).svg;
+  let ids = Object.keys(svgs); if (!ids.length) return;
+  while (JSON.stringify(svgs).length > 240000 && ids.length) { const big = ids.sort((a, b) => svgs[b].length - svgs[a].length)[0]; delete svgs[big]; ids = Object.keys(svgs); }
+  return Store.put('draw_' + w.id, { svgs });
+}
 function seedTags(seed) { return { genre: [seed.genre], setting: [seed.setting], relation: [seed.relation], ending: [seed.ending], motif: seed.motifs || [] }; }
 
 async function runMake(mode, src) {
   if (state.busy) return;
   if (!canMake()) { toast('新しい漫画は Claude.ai で開くと作れます'); return; }
   state.busy = true; state.revised = false; state.visited = new Set(); state.stepNow = null; renderMake();
+  const plan = planNow(); state.run = { used: 0, max: plan.max, plan: plan.label };
   const ctl = new AbortController(); state.ctl = ctl;
   const r = rng((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
   const A = analysisNow();
@@ -16352,7 +16635,7 @@ async function runMake(mode, src) {
     if (meeting) log.push({ stage: 'meeting', t: Date.now(), pitches: meeting.pitches.map(p => p.title), chosen: meeting.chosen, decision: meeting.decision, characters: meeting.characters.map(c => ({ name: c.name, designs: c.designs.length, chosen: c.chosen })), art: meeting.art && meeting.art.aim });
     log.push({ stage: 'writer', t: Date.now(), name: nameSummary(S), issues: issues.slice(0, 12) });
     const MAX_TRIPS = 2;
-    const adopt = (obj, keepArt) => { const n = normalizeScript(obj); if (n.script.pages.length < Math.min(5, S.pages.length)) return false; const art = S.art, pa = S.pages.map(pg => pg.panels.map(p => p.art)); S = n.script; issues = n.issues; if (keepArt) { if (!(obj.art && typeof obj.art === 'object')) S.art = art; S.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (!p.art && pa[i] && pa[i][k]) p.art = pa[i][k]; })); } if (mode === 'sequel') keepSeries(S, src); return true; };
+    const adopt = (obj, keepArt) => { const n = normalizeScript(obj); if (n.script.pages.length < Math.min(5, S.pages.length)) return false; const art = S.art, pa = S.pages.map(pg => pg.panels.map(p => p.art)); const ids = new Map(drawItems(S).filter(x => x.d.id).map(x => [x.d.layer + '|' + x.d.prompt, x.d.id])); const keys = S.pages.map(pg => pg.panels.map(p => p.key)); setTimeout(() => {}, 0); S = n.script; issues = n.issues; if (keepArt) { if (!(obj.art && typeof obj.art === 'object')) S.art = art; S.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (!p.art && pa[i] && pa[i][k]) p.art = pa[i][k]; })); } if (mode === 'sequel') keepSeries(S, src); drawItems(S).forEach(x => { if (!x.d.id) x.d.id = ids.get(x.d.layer + '|' + x.d.prompt) || null; }); S.pages.forEach((pg, i) => pg.panels.forEach((p, k) => { if (!p.key && keys[i] && keys[i][k]) p.key = true; })); return true; };
     const writerFix = async (notes, after) => { state.revised = true; setStep('revise'); $('ticker').textContent = '作者が赤ペンを見て直しています…'; trips++; const before = S; const rv = await callJSON(Mod.revise(S, seed, notes), { signal: ctl.signal, onText: ticker('作者') }); adopt(Mod.validate('script', rv), true); log.push({ stage: 'revise', t: Date.now(), after, notes, changes: diffScripts(before, S) }); };
     /* (1) 編集者：ネームの検討と、今回の絵柄の決定 */
     setStep('name'); $('ticker').textContent = '編集者がネームを読んで、今回の絵柄を考えています…';
@@ -16361,11 +16644,18 @@ async function runMake(mode, src) {
     const preN = S;
     if (edN && edN.script && typeof edN.script === 'object') adopt(edN.script, false);
     S.art = normalizeArt(edN && edN.art);
+    for (const kp of arr(edN && edN.keyPanels)) { const pn = S.pages[(Number(kp.page) || 0) - 2] && S.pages[(Number(kp.page) || 0) - 2].panels[(Number(kp.panel) || 0) - 1]; if (pn) pn.key = true; }
+    for (const pd of arr(edN && edN.panelDraw)) { const pn = S.pages[(Number(pd.page) || 0) - 2] && S.pages[(Number(pd.page) || 0) - 2].panels[(Number(pd.panel) || 0) - 1]; if (pn && (pn.draw || []).length < 2) pn.draw = [...(pn.draw || []), ...normDraw([pd])].slice(0, 2); }
     for (const pa of arr(edN && edN.panelArt)) { const pg = S.pages[(Number(pa.page) || 0) - 2], pn = pg && pg.panels[(Number(pa.panel) || 0) - 1]; const art = normalizePanelArt({ ...(pa.art || {}), note: pa.note }); if (pn && art) pn.art = art; }
     editor.push({ stage: 'name', verdict: edN && edN.verdict === 'revise' ? 'revise' : 'ok', notes: arr(edN && edN.notes).map(x => txt(x)).slice(0, 8), originality: txt(edN && edN.originality), sparks: sparks.map(x => `${x.label}: ${x.parts.join('、')}${sparkUsed(x, S.art) ? '（採用）' : ''}`) });
     log.push({ stage: 'name', t: Date.now(), verdict: editor[0].verdict, notes: editor[0].notes, originality: editor[0].originality, editedByEditor: preN !== S ? diffScripts(preN, S) : null,
       art: { aim: S.art.aim, reason: S.art.reason, direction: S.art.direction }, panelArt: arr(edN && edN.panelArt).slice(0, 8), sparks: sparks.map(x => ({ label: x.label, parts: x.parts, used: sparkUsed(x, S.art) })) });
     if (edN && edN.verdict === 'revise') await writerFix(arr(edN.notes).map(x => txt(x)), 'ネーム検討');
+    /* (1.5) 自由作画（エンジンの部品にない物を SVG で）と、見せ場の案くらべ */
+    setStep('draw');
+    const reserveCore = () => 1 + Math.max(0, MAX_TRIPS - trips) * 2 + 1; // 仕上がりチェック・直し・裏話のぶん
+    await freeDraw(S, ctl, plan, reserveCore(), log);
+    await chooseKeys(S, ctl, plan, reserveCore(), log);
     /* (2) 作画 → 編集者：仕上がりチェック（直しは合わせて最大2往復） */
     for (let round = 1; ; round++) {
       setStep('draw'); $('ticker').textContent = `「${S.art.aim || '今回の絵柄'}」で作画しています…`; $('roundInfo').textContent = `仕上がりチェック ${round} 回目`;
@@ -16382,6 +16672,7 @@ async function runMake(mode, src) {
       const ce = editor[editor.length - 1]; log.push({ stage: 'check', t: Date.now(), round, verdict: ce.verdict, notes: ce.notes, originality: ce.originality, warnings: warnings.slice(0, 10), artFix: ed && ed.artFix ? ed.artFix : null, images: images ? images.length : 0 });
       if (!(ed && ed.verdict === 'revise') || finalRound) break;
       await writerFix(arr(ed.notes).map(x => txt(x)), `仕上がりチェック${round}`);
+      setStep('draw'); await freeDraw(S, ctl, plan, reserveCore(), log);
     }
     setStep('finish'); $('ticker').textContent = '原稿に仕上げています…';
     await new Promise(res => setTimeout(res, 30));
@@ -16391,7 +16682,8 @@ async function runMake(mode, src) {
     const w = { id, script: S, nameScript, meeting, profile, feat: scriptFeatures(S), artFeat: artFeatures(S, profile), meta: { createdAt: Date.now(), mode, seed, aim, editor, warnings: checkScript(S).slice(0, 30), log, seriesId: mode === 'sequel' ? (src.meta.seriesId || src.id) : null } };
     if (mode === 'pref' && A.n) w.meta.aim.fit = Mod.predictFit(A, profile, S.art);
     if (mode === 'sequel') { fbOf(src.id).sequel = true; saveFb(src.id, true); if (!src.meta.seriesId) { src.meta.seriesId = src.id; if (!src.meta.bundled) Store.put('work_' + src.id, src); else state.sampleSeries = true; } }
-    state.works[id] = w; await Store.put('work_' + id, w);
+    w.meta.calls = { used: state.run.used, max: state.run.max, plan: state.run.plan };
+    state.works[id] = w; await Store.put('work_' + id, w); await saveDrawings(w);
     $('progress').hidden = true; $('meetFeed').hidden = true; $('wish').value = '';
     state.busy = false; renderMake();
     openWork(id, 0, true);
@@ -16404,7 +16696,7 @@ async function runMake(mode, src) {
     else if (code !== 'cancelled') { const m = $('makeErr'); m.hidden = false; m.innerHTML = ''; m.append(el('b', { text: '途中で止まりました' }), ERR_TEXT[code] || ERR_TEXT.upstream_error); if (state.tab !== 'make') setTab('make'); }
     else toast('止めました');
     renderMake();
-  } finally { state.ctl = null; }
+  } finally { state.ctl = null; state.run = null; }
 }
 
 /* ---------- 読む ---------- */
@@ -16436,6 +16728,7 @@ function renderReadHead() {
 function showPage(i, dir) {
   const w = state.works[state.cur]; if (!w) return; const N = w.script.pages.length + 1;
   commitDwell(); state.page = clamp(i, 0, N - 1);
+  whenDrawingsLoad(w);
   const sh = $('sheet'); sh.innerHTML = ''; const c = pageCanvas(w, state.page); c.setAttribute('role', 'img'); c.setAttribute('aria-label', `${fullTitle(w.script)} ${state.page + 1}ページ`); sh.append(c);
   sh.classList.remove('flip', 'flipb'); void sh.offsetWidth; if (dir > 0) sh.classList.add('flip'); if (dir < 0) sh.classList.add('flipb');
   $('nombre').innerHTML = ''; $('nombre').append(el('b', { text: String(state.page + 1) }), ` / ${N}`);
@@ -16469,6 +16762,9 @@ function renderMemo() {
       b.append(el('div', { class: 'sub', text: head }), e.notes && e.notes.length ? el('ul', {}, ...e.notes.map(n => el('li', { text: n }))) : '', e.originality ? el('div', { class: 'sub', text: 'オリジナリティ：' + e.originality }) : '', e.sparks ? el('div', { class: 'sub', text: 'ひらめきの種：' + e.sparks.join('／') }) : '');
     }
   }
+  const dl = (w.meta.log || []).filter(x => x.stage === 'draw' || x.stage === 'key');
+  if (dl.length) b.append(el('h3', { text: '自由作画・見せ場', style: 'margin-top:10px' }), el('ul', {}, ...dl.map(x => el('li', { text: x.stage === 'draw' ? `${x.page || ''}ページ${x.panel || ''}コマ目「${x.prompt || x.skipped || ''}」（${x.layer || ''}）${x.error ? '：描けませんでした ' + x.error : x.skipped ? '：予算のため省略' : `：講評${(x.rounds || []).length}回${(x.rounds || []).some(r => !r.ok) ? '（直しあり）' : ''}`}` : `${x.page}ページ${x.panel}コマ目：${x.variants ? `3案から「${x.variants[x.chosen]}」` : 'ネームどおり'}${x.reason ? '（' + x.reason + '）' : x.why ? '（' + x.why + '）' : ''}` }))));
+  if (w.meta.calls) b.append(el('div', { class: 'sub', text: `Claude の呼び出し：${w.meta.calls.used} 回（${w.meta.calls.plan}モード・上限 ${w.meta.calls.max} 回）` }));
   if (w.meta.warnings && w.meta.warnings.length) b.append(el('h3', { text: '自動チェックで残った注意', style: 'margin-top:10px' }), el('ul', {}, ...w.meta.warnings.slice(0, 8).map(n => el('li', { text: n }))));
   if (w.profile) {
     b.append(el('h3', { text: w.profile.source === 'editor' ? '作品の味（編集者の採点）' : '作品の味（台本からの推定）', style: 'margin-top:10px' }));
@@ -16779,6 +17075,7 @@ function mergeLoaded(all) {
     byId[id] = { ...v, id };
   }
   for (const v of Object.values(byId)) { try { const n = normalizeScript(v.script); state.works[v.id] = { ...v, script: { ...n.script, episode: v.script.episode || 1, seriesTitle: v.script.seriesTitle || '' }, profile: v.profile || heuristicProfile(n.script), meta: v.meta || { createdAt: v.savedAt || 0, mode: 'random', editor: [], warnings: [] } }; } catch (e) { console.warn('作品を読み込めませんでした', v.id, e); } }
+  for (const [k, v] of Object.entries(all)) if (k.startsWith('draw_') && v && v.svgs && typeof v.svgs === 'object') for (const [id, svg] of Object.entries(v.svgs)) if (!DRAW.has(id)) registerDrawing(id, svg);
   for (const [k, v] of Object.entries(all)) if (k.startsWith('fb_') && v && typeof v === 'object') { const id = k.slice(3), cur = state.fb[id]; state.fb[id] = cur ? { ...v, liked: cur.liked || v.liked, disliked: cur.disliked || v.disliked, opens: (v.opens || 0) + (cur.opens || 0), finished: cur.finished || v.finished, maxPage: Math.max(cur.maxPage || 0, v.maxPage || 0), dwell: (v.dwell || []).map((x, i) => (x || 0) + ((cur.dwell || [])[i] || 0)), rereads: (v.rereads || 0) + (cur.rereads || 0), sequel: cur.sequel || v.sequel, lastRead: Math.max(cur.lastRead || 0, v.lastRead || 0) } : { dwell: [], ...v }; }
   const h = all.history && Array.isArray(all.history.items) ? all.history.items : [];
   const seen = new Set(); state.history = [...h, ...state.history].filter(x => x && x.id && !seen.has(x.id + ':' + x.t) && seen.add(x.id + ':' + x.t)).sort((a, b) => a.t - b.t).slice(-300);
@@ -16790,6 +17087,8 @@ async function boot() {
   $('btnRandom').addEventListener('click', () => runMake('random'));
   $('btnPref').addEventListener('click', () => runMake('pref'));
   $('btnStop').addEventListener('click', () => state.ctl && state.ctl.abort());
+  state.hq = lsGet(Store.prefix + 'hq') === '1'; $('hqToggle').checked = state.hq; $('hqInfo').textContent = planNow().note;
+  $('hqToggle').addEventListener('change', () => { state.hq = $('hqToggle').checked; lsSet(Store.prefix + 'hq', state.hq ? '1' : '0'); $('hqInfo').textContent = planNow().note; });
   $('nextBtn').addEventListener('click', () => showPage(state.page + 1, 1));
   $('prevBtn').addEventListener('click', () => showPage(state.page - 1, -1));
   $('likeBtn').addEventListener('click', () => setLike('like'));
@@ -16839,7 +17138,7 @@ async function boot() {
   if (ui.cur && state.works[ui.cur]) { state.cur = ui.cur; state.page = ui.page || 0; renderReadHead(); showPage(state.page, 0); }
   setTab(tab);
   if (document.fonts) document.fonts.addEventListener('loadingdone', () => { cache.clear(); thumbCache.clear(); if (state.tab === 'read' && state.cur) showPage(state.page, 0); });
-  window.__mk = { Mod, state, Store, analyze: analysisNow, normalizeScript, renderPage, checkScript, runMake, openWork, setTab, repairJSON, styles: () => window.MangaStyles.list() };
+  window.__mk = { DRAW, sanitizeSVG, registerDrawing, layoutPage, panelImage, keyVariants, PLANS, Mod, state, Store, analyze: analysisNow, normalizeScript, renderPage, checkScript, runMake, openWork, setTab, repairJSON, styles: () => window.MangaStyles.list() };
 }
 boot();
 
