@@ -100,14 +100,14 @@
         break; }
       case 'splash': { // 水しぶき：弧を描く水の帯（白に輪郭と中の線）＋細かい粒
         const c0 = f, s0 = Math.min(box.w, box.h) * 0.36 * (spec.size ?? 1); const nb = Math.round(6 + dyn * 6);
-        for (let i = 0; i < nb; i++) { const t = i / (nb - 1) - 0.5; const a = -Math.PI / 2 + t * 2.6 + rg(0, 0.06); const L = s0 * rr(0.55, 1.0) * (1 - Math.abs(t) * 0.7); const w = s0 * rr(0.07, 0.13) * (1 - Math.abs(t) * 0.4);
+        for (let i = 0; i < nb; i++) { const t = i / (nb - 1) - 0.5; const a = -Math.PI / 2 + t * 2.6 + rg(0, 0.06); const L = s0 * rr(0.55, 1.0) * (1 - Math.abs(t) * 0.7); const w = s0 * rr(0.035, 0.06) * (1 - Math.abs(t) * 0.4);
           // 帯：上へ立ち上がり、先が外へ巻いて垂れる
           const out = Math.sign(t || 0.01), base = [c0[0] + t * s0 * 0.35, c0[1]];
           const mid = [base[0] + Math.cos(a) * L * 0.55, base[1] + Math.sin(a) * L * 0.6];
           const tip = [mid[0] + out * L * 0.32 + Math.cos(a) * L * 0.2, mid[1] - L * 0.05];
-          const Cc = catmull([base, mid, tip], 10); const sw = K.sweep(Cc, u => w * Math.sin(Math.min(1, u * 1.1 + 0.15) * Math.PI) + 0.4);
+          const Cc = catmull([base, mid, tip], 10); const sw = K.sweep(Cc, u => w * (u < 0.7 ? 1 - u * 0.4 : (1 - u) * 2.4) + 0.3);
           ctx.fillStyle = '#fff'; fillPoly(ctx, sw.poly); ctx.fillStyle = '#000'; ink(ctx, sw.L, 1.1, { dense: true, tin: 2, tout: 8 }); ink(ctx, sw.R, 0.8, { dense: true, tin: 2, tout: 8 }); ink(ctx, Cc.slice(3, -3), 0.4, { dense: true, tin: 3, tout: 6 });
-          for (let k = 0; k < 4; k++) { const d = L * rr(0.05, 0.3), p = [tip[0] + out * d, tip[1] + d * rr(0.2, 1.2)], r = rr(0.8, 2.6) * sc; const D = catmull([[p[0], p[1] - r * 2.2], [p[0] + r, p[1] + r * 0.2], [p[0], p[1] + r], [p[0] - r, p[1] + r * 0.2]], 3, true); ctx.fillStyle = '#fff'; fillPoly(ctx, D); ctx.fillStyle = '#000'; ink(ctx, D.concat([D[0]]), 0.6, { dense: true }); } }
+          for (let k = 0; k < 6; k++) { const d = L * (0.06 + k * 0.07), dirT = V.norm(V.sub(tip, mid)), p = [tip[0] + dirT[0] * d + out * d * 0.3, tip[1] + dirT[1] * d + d * d / L * 1.5], r = Math.max(0.6, (2.6 - k * 0.3)) * sc * rr(0.7, 1.1); const D = catmull([[p[0], p[1] - r * 2.2], [p[0] + r, p[1] + r * 0.2], [p[0], p[1] + r], [p[0] - r, p[1] + r * 0.2]], 3, true); ctx.fillStyle = '#fff'; fillPoly(ctx, D); ctx.fillStyle = '#000'; ink(ctx, D.concat([D[0]]), 0.6, { dense: true }); } }
         // 足もとの水面：波紋の楕円
         for (let k = 0; k < 3; k++) { const rx = s0 * (0.6 + k * 0.35), ry = rx * 0.18; ink(ctx, ellipsePts(c0[0], c0[1] + 2, rx, ry, 0, 30, Math.PI * 0.05 + k * 0.2, Math.PI * 0.95 - k * 0.1), 0.7, { dense: true, tin: 8, tout: 8 }); }
         // 粒の散布

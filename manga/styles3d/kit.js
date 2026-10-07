@@ -335,14 +335,16 @@
     const SHOT = { long: 3.2, full: 1.25, knee: 0.9, bust: 0.55, up: 0.3 };
     const fill = SHOT[o.shot] ?? 1.6;
     let dist = o.dist ?? subj * fill / (2 * Math.tan(fov * PI / 360));
-    const ANG = { worm: -38, low: -18, eye: 2, high: 28, bird: 62 };
+    const ANG = { worm: -38, low: -18, eye: 2, high: 28, bird: 62, top: 89.5 };
     let elev = (typeof o.angle === 'number' ? o.angle : ANG[o.angle] ?? lerp(4, -14, Math.max(0, p - 0.5) * 2)) * PI / 180;
     const yaw = (o.yaw ?? 0) * PI / 180;
     const cam = new T.PerspectiveCamera(fov, aspect, 0.1, 1500);
     const pos = V3(tgt.x + Math.sin(yaw) * Math.cos(elev) * dist, tgt.y + Math.sin(elev) * dist, tgt.z + Math.cos(yaw) * Math.cos(elev) * dist);
     if (o.height != null) pos.y = o.height;
     pos.y = Math.max(pos.y, (o.minY ?? 0.5));
-    cam.position.copy(pos); cam.lookAt(tgt);
+    cam.position.copy(pos);
+    if (Math.abs(elev) > 1.4) cam.up.set(-Math.sin(yaw), 0, -Math.cos(yaw));   // 真上から：画面の上＝奥
+    cam.lookAt(tgt);
     if (o.roll) cam.rotateZ(o.roll * PI / 180);
     if (o.shift) { cam.setViewOffset(1000, 1000 / aspect, 0, -o.shift * 1000 / aspect, 1000, 1000 / aspect); }
     cam.updateMatrixWorld();
@@ -464,5 +466,204 @@
     city: 'city', street: 'city', shopping: 'city', station: 'city', 街: 'city', room: 'room', classroom: 'room', office: 'room', home: 'room', 部屋: 'room', sky: 'sky', space: 'sky', 空: 'sky', plain: 'plain', white: 'plain',
   };
 
+  const box = (w, h, d, sg = 1) => new T.BoxGeometry(w, h, d, sg, sg, sg);
   Object.assign(M3, { Kit: { terrain, ground, mountains, wall, rubble, tower, crag, spire, tree, house, building, room, cave, bones, graveyardWeapons, column }, SCENES, SCENE_ALIAS: ALIAS, camera });
+
+  // ---------- コンクリートの廃墟：床板・柱・壁（窓の穴）・露出した鉄筋・瓦礫 ----------
+  // 縁がぎざぎざの板（多角形を押し出す）
+  function jaggedSlab(w, d, t, o = {}) {
+    const sh = new T.Shape(); const n = 28, pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * PI * 2, cx = Math.cos(a), cz = Math.sin(a);
+      let r = 1 / Math.max(Math.abs(cx) / (w / 2), Math.abs(cz) / (d / 2));
+      const broken = o.broken && Math.cos(a - (o.breakDir ?? 0)) > 0.35;
+      if (broken) r *= rr(0.35, 0.85);
+      else r *= rr(0.95, 1.0);
+      pts.push([cx * r, cz * r]);
+    }
+    sh.moveTo(pts[0][0], pts[0][1]); for (const q of pts.slice(1)) sh.lineTo(q[0], q[1]);
+    const g = new T.ExtrudeGeometry(sh, { depth: t, bevelEnabled: false, curveSegments: 1 }); g.rotateX(PI / 2); g.translate(0, t / 2, 0);
+    g.userData.edge = pts.filter((_, i) => o.broken && Math.cos(i / n * PI * 2 - (o.breakDir ?? 0)) > 0.35);
+    return g;
+  }
+  // 鉄筋：折れ口から突き出して曲がる細い棒
+  function rebar(B, p, dir, n = 5, len = 1.2, id) {
+    const d0 = V3(...dir).normalize(), side = V3().crossVectors(d0, V3(0, 1, 0)).normalize();
+    for (let i = 0; i < n; i++) {
+      const o = V3(...p).addScaledVector(side, (i - (n - 1) / 2) * 0.18).add(V3(0, rr(-0.05, 0.05), 0));
+      const L = len * rr(0.4, 1.2), bend = V3(rr(-0.4, 0.4), rr(-0.8, 0.2), rr(-0.4, 0.4));
+      const pts = []; for (let k = 0; k <= 6; k++) { const t = k / 6; pts.push(o.clone().addScaledVector(d0, L * t).addScaledVector(bend, t * t * L).toArray()); }
+      B.add(tube(pts, 0.014, 5), null, { tone: 0.9, pat: 'plain', id });
+    }
+  }
+  function concreteRuin(B, o) {
+    const [x, y, z] = o.pos, w = o.w ?? 12, d = o.d ?? 10, fl = o.floors ?? 4, fh = o.fh ?? 3.3, id = o.id ?? B.newId();
+    const ang = o.ang ?? 0, base = M([x, y, z], [0, ang, 0]);
+    const put = (g, m, op = {}) => B.add(g, base.clone().multiply(m), Object.assign({ tone: 0.12, pat: 'concrete', id }, op));
+    const breakDir = rr(0, PI * 2);
+    const keep = (k) => k < fl - Math.floor(rand() * 2);  // 上の階ほど欠ける
+    for (let k = 1; k <= fl; k++) {
+      if (!keep(k) && k > 1) continue;
+      const broken = k >= fl - 1 || rand() < 0.4;
+      const slab = jaggedSlab(w, d, 0.3, { broken, breakDir });
+      const tilt = broken && k === fl ? [rr(-0.15, 0.15), 0, rr(-0.15, 0.15)] : [0, 0, 0];
+      put(slab, M([0, k * fh, 0], tilt));
+      if (broken) for (const e of slab.userData.edge.filter((_, i) => i % 3 === 0)) {
+        const pW = V3(e[0], k * fh + 0.15, -e[1]).applyMatrix4(base);
+        rebar(B, pW.toArray(), V3(e[0], 0, -e[1]).normalize().transformDirection(base).toArray(), 4, rr(0.6, 1.4), id);
+      }
+    }
+    // 柱：格子に。上が折れた柱もある
+    const cx = Math.max(2, Math.round(w / 4)), cz = Math.max(2, Math.round(d / 4));
+    for (let i = 0; i <= cx; i++) for (let j = 0; j <= cz; j++) {
+      const h = fh * fl * (rand() < 0.25 ? rr(0.3, 0.8) : 1);
+      const px = -w / 2 + w * i / cx, pz = -d / 2 + d * j / cz;
+      put(box(0.5, h, 0.5, 1), M([px, h / 2, pz], [rr(-0.02, 0.02), 0, rr(-0.03, 0.03)]), { tone: 0.15 });
+      if (h < fh * fl) rebar(B, V3(px, h, pz).applyMatrix4(base).toArray(), [0, 1, 0], 4, 0.9, id);
+    }
+    // 外壁：窓の穴のあいたパネル（ところどころ抜け落ちる）
+    for (const side of [-1, 1]) for (let k = 0; k < fl; k++) for (let i = 0; i < Math.round(w / 2.4); i++) {
+      if (rand() < 0.3) continue;
+      const px = -w / 2 + (i + 0.5) * w / Math.round(w / 2.4);
+      put(box(2.3, 0.9, 0.22), M([px, k * fh + 0.45 + 0.3, side * d / 2]), { tone: 0.1 });
+      put(box(2.3, 0.6, 0.22), M([px, k * fh + fh - 0.0, side * d / 2]), { tone: 0.1 });
+      put(box(0.35, fh - 1.2, 0.22), M([px - 1.0, k * fh + fh / 2 + 0.3, side * d / 2]), { tone: 0.1 });
+    }
+    rubbleHeap(B, { pos: [x + Math.cos(breakDir) * w * 0.5, y, z - Math.sin(breakDir) * d * 0.5], r: Math.max(w, d) * 0.5, n: 60 });
+  }
+  // 瓦礫の塊：コンクリ片（不規則な多角形）を山に。鉄筋も少し
+  function rubbleHeap(B, o) {
+    const [cx, cy, cz] = o.pos, r = o.r ?? 4, n = o.n ?? 50, id = o.id ?? B.newId();
+    for (let i = 0; i < n; i++) {
+      const a = rand() * PI * 2, dd = Math.sqrt(rand()) * r, h = (1 - dd / r) * r * 0.35;
+      const s = rr(0.2, 1.1) * (o.size ?? 1);
+      const g = rand() < 0.5 ? rock(s, { detail: 0, rough: 0.55, squash: rr(0.4, 0.9), cut: 0.6 }) : stone(s * rr(1, 2.2), s * rr(0.25, 0.5), s * rr(0.8, 1.5), { amp: s * 0.2, seg: 1 });
+      B.add(g, M([cx + Math.cos(a) * dd, cy + h * rr(0.3, 1), cz + Math.sin(a) * dd], [rr(-0.7, 0.7), rr(0, 6), rr(-0.7, 0.7)]), { tone: rr(0.08, 0.4), pat: 'concrete', flat: true, id });
+      if (rand() < 0.12) rebar(B, [cx + Math.cos(a) * dd, cy + h + 0.1, cz + Math.sin(a) * dd], [rr(-1, 1), rr(0.2, 1), rr(-1, 1)], 2, rr(0.5, 1.2), id);
+    }
+  }
+
+  // ---------- 機械キット：パイプ・フランジ・配線・タンク・パネルとボルト・鉄骨 ----------
+  function pipe(B, pts, r = 0.25, o = {}) {
+    const id = o.id ?? B.newId();
+    // 角を丸めた折れ線
+    const P = pts.map(p => V3(...p)), path = [];
+    for (let i = 0; i < P.length; i++) {
+      if (i === 0 || i === P.length - 1) { path.push(P[i]); continue; }
+      const a = P[i].clone().lerp(P[i - 1], Math.min(0.5, r * 2.5 / P[i].distanceTo(P[i - 1]))), b = P[i].clone().lerp(P[i + 1], Math.min(0.5, r * 2.5 / P[i].distanceTo(P[i + 1])));
+      for (let k = 0; k <= 4; k++) { const t = k / 4; path.push(a.clone().multiplyScalar((1 - t) * (1 - t)).addScaledVector(P[i], 2 * t * (1 - t)).addScaledVector(b, t * t)); }
+    }
+    const dense = []; for (let i = 0; i < path.length - 1; i++) { const L = path[i].distanceTo(path[i + 1]), m = Math.max(1, Math.ceil(L / 1.0)); for (let k = 0; k < m; k++) dense.push(path[i].clone().lerp(path[i + 1], k / m)); } dense.push(path[path.length - 1]);
+    B.add(tube(dense.map(v => v.toArray()), r, 14), null, { tone: o.tone ?? 0.2, pat: 'machine', id });
+    // フランジ（継ぎ目の輪）とボルト
+    let acc = 0;
+    for (let i = 1; i < dense.length; i++) {
+      acc += dense[i].distanceTo(dense[i - 1]);
+      if (acc > (o.flangeEvery ?? 3)) {
+        acc = 0; const dir = dense[i].clone().sub(dense[i - 1]).normalize();
+        const m = new T.Matrix4().compose(dense[i], new T.Quaternion().setFromUnitVectors(V3(0, 1, 0), dir), V3(1, 1, 1));
+        B.add(new T.CylinderGeometry(r * 1.35, r * 1.35, r * 0.35, 16), m, { tone: 0.3, pat: 'machine', id });
+        for (let b = 0; b < 8; b++) { const a = b / 8 * PI * 2; B.add(new T.CylinderGeometry(r * 0.08, r * 0.08, r * 0.45, 6), m.clone().multiply(M([Math.cos(a) * r * 1.18, 0, Math.sin(a) * r * 1.18])), { tone: 0.6, pat: 'machine', id }); }
+      }
+    }
+  }
+  // 配線：たるんだ束（懸垂線）
+  function cables(B, a, b, n = 5, sag = 1.5, o = {}) {
+    const id = o.id ?? B.newId();
+    for (let i = 0; i < n; i++) {
+      const off = V3(rr(-0.25, 0.25), rr(-0.15, 0.15), rr(-0.25, 0.25)), sg = sag * rr(0.8, 1.3), pts = [];
+      for (let k = 0; k <= 16; k++) { const t = k / 16; const p = V3(...a).lerp(V3(...b), t).add(off); p.y -= sg * 4 * t * (1 - t); pts.push(p.toArray()); }
+      B.add(tube(pts, o.r ?? rr(0.02, 0.05), 5), null, { tone: 0.95, pat: 'plain', id });
+    }
+  }
+  function tank(B, p, r = 2.5, h = 6, o = {}) {
+    const id = o.id ?? B.newId();
+    B.add(new T.CylinderGeometry(r, r, h, 28), M([p[0], p[1] + h / 2, p[2]]), { tone: 0.15, pat: 'machine', id });
+    B.add(new T.SphereGeometry(r, 28, 10, 0, PI * 2, 0, PI / 2), M([p[0], p[1] + h, p[2]], [0, 0, 0], [1, 0.35, 1]), { tone: 0.15, pat: 'machine', id });
+    for (let k = 1; k < 4; k++) B.add(new T.TorusGeometry(r * 1.01, 0.05, 6, 32), M([p[0], p[1] + h * k / 4, p[2]], [PI / 2, 0, 0]), { tone: 0.5, pat: 'machine', id });
+    // はしご
+    const a = o.ladder ?? 0.5; const lx = p[0] + Math.cos(a) * (r + 0.25), lz = p[2] + Math.sin(a) * (r + 0.25);
+    for (const s of [-0.22, 0.22]) B.add(box(0.05, h, 0.05), M([lx - Math.sin(a) * s, p[1] + h / 2, lz + Math.cos(a) * s]), { tone: 0.6, pat: 'machine', id });
+    for (let y = 0.3; y < h; y += 0.35) B.add(box(0.03, 0.03, 0.44), M([lx, p[1] + y, lz], [0, -a, 0]), { tone: 0.6, pat: 'machine', id });
+  }
+  function panel(B, p, w = 2, h = 1.5, rot = 0, o = {}) {
+    const id = o.id ?? B.newId(), m = M(p, [0, rot, 0]);
+    B.add(box(w, h, 0.12), m, { tone: 0.18, pat: 'machine', id });
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) B.add(new T.CylinderGeometry(0.03, 0.03, 0.05, 6), m.clone().multiply(M([(i - 0.5) * (w - 0.15), (j - 0.5) * (h - 0.15), 0.08], [PI / 2, 0, 0])), { tone: 0.7, pat: 'machine', id });
+    for (let k = 0; k < 6; k++) B.add(box(w * 0.1, 0.03, 0.03), m.clone().multiply(M([w * 0.3, -h * 0.3 + k * 0.08, 0.08])), { tone: 0.9, pat: 'plain', id });
+  }
+  function truss(B, a, b, o = {}) {   // 鉄骨の梁（ラチス）
+    const id = o.id ?? B.newId(), A = V3(...a), Bv = V3(...b), L = A.distanceTo(Bv), dir = Bv.clone().sub(A).normalize();
+    const side = V3().crossVectors(dir, Math.abs(dir.y) < 0.9 ? V3(0, 1, 0) : V3(1, 0, 0)).normalize().multiplyScalar(0.3), upv = V3().crossVectors(side, dir).normalize().multiplyScalar(0.3);
+    const rail = (o2) => B.add(box(1, 1, 1).translate(0, 0.5, 0), Mab(A.clone().add(o2).toArray(), Bv.clone().add(o2).toArray(), [0.06, 0.06]), { tone: 0.5, pat: 'machine', id });
+    for (const s of [-1, 1]) for (const u of [-1, 1]) rail(side.clone().multiplyScalar(s).addScaledVector(upv, u));
+    const n = Math.round(L / 0.8);
+    for (let i = 0; i < n; i++) { const p0 = A.clone().addScaledVector(dir, L * i / n), p1 = A.clone().addScaledVector(dir, L * (i + 1) / n);
+      for (const s of [-1, 1]) B.add(box(1, 1, 1).translate(0, 0.5, 0), Mab(p0.clone().add(side.clone().multiplyScalar(s)).sub(upv).toArray(), p1.clone().add(side.clone().multiplyScalar(s)).add(upv).toArray(), [0.035, 0.035]), { tone: 0.5, pat: 'machine', id }); }
+  }
+
+  // ---------- 密な高層ビル（窓の格子はシェーダで） ----------
+  function tower2(B, o) {
+    const [x, y, z] = o.pos, w = o.w ?? 14, d = o.d ?? 14, h = o.h ?? 80, id = o.id ?? B.newId();
+    B.add(box(w, h, d), M([x, y + h / 2, z]), { tone: o.tone ?? rr(0.0, 0.2), pat: 'windows', id });
+    // 段々の屋上、アンテナ、看板
+    let hh = h, ww = w * rr(0.6, 0.8), dd = d * rr(0.6, 0.8);
+    for (let k = 0; k < (rand() < 0.6 ? 2 : 1); k++) { const sh = rr(4, 12); B.add(box(ww, sh, dd), M([x, y + hh + sh / 2, z]), { tone: 0.2, pat: 'windows', id }); hh += sh; ww *= 0.65; dd *= 0.65; }
+    if (rand() < 0.6) B.add(box(0.15, rr(6, 18), 0.15), M([x + rr(-1, 1), y + hh + 6, z]), { tone: 0.9, pat: 'machine', id });
+    // 外壁の縦の柱（ピラスター）
+    for (const s of [-1, 1]) for (let i = 0; i <= 3; i++) B.add(box(0.5, h, 0.5), M([x - w / 2 + w * i / 3, y + h / 2, z + s * (d / 2 + 0.2)]), { tone: 0.1, pat: 'concrete', id });
+  }
+
+  // ---------- 新しい場面 ----------
+  Object.assign(SCENES, {
+    // 消失点1つの高層都市（大通り）
+    metropolis(B, env) {
+      const id = B.newId();
+      for (const s of [-1, 1]) { let z = 6; while (z > -420) { const d = rr(16, 30), w = rr(14, 22); tower2(B, { pos: [s * (16 + w / 2 + rr(0, 3)), 0, z - d / 2], w, d, h: rr(50, 160) }); z -= d + rr(1, 6); } }
+      for (const s of [-1, 1]) { let z = -40; while (z > -500) { const d = rr(20, 34), w = rr(16, 26); tower2(B, { pos: [s * (50 + w / 2 + rr(0, 20)), 0, z], w, d, h: rr(80, 220) }); z -= d + rr(8, 30); } }
+      const road = new T.PlaneGeometry(32, 900); road.rotateX(-PI / 2); B.add(road, M([0, 0.03, -400]), { tone: 0.05, pat: 'road', id });
+      for (const s of [-1, 1]) B.add(box(5, 0.25, 900), M([s * 18.5, 0.125, -400]), { tone: 0.05, pat: 'concrete', id: B.newId() });
+      for (let z = 2; z > -300; z -= 22) for (const s of [-1, 1]) { B.add(new T.CylinderGeometry(0.1, 0.13, 9, 6), M([s * 16.5, 4.5, z]), { tone: 0.6, pat: 'machine' }); B.add(box(2.6, 0.14, 0.3), M([s * 15.3, 9, z]), { tone: 0.6, pat: 'machine' }); }
+      ground(B, { size: 1400, seg: 30, tone: 0.1, pat: 'plain' });
+      return { sky: env.time === 'night' ? 'night' : 'day', light: { high: 2.6, front: 0.2 }, fog: { near: 120, far: 600 }, bounds: { c: [0, 30, -60], r: 120 }, cam: { target: [0, 6, -60], lens: 'wide', angle: 'eye', height: 1.7, dist: 62 }, onePoint: true };
+    },
+    // コンクリートの廃都：崩れたビル、瓦礫の原、鉄筋
+    ruined_city(B, env) {
+      const hgt = terrain({ amp: 1.5, flat: 30 }); ground(B, { size: 800, height: hgt, tone: 0.12 });
+      concreteRuin(B, { pos: [-14, 0, -18], w: 12, d: 10, floors: 5, ang: 0.2 });
+      concreteRuin(B, { pos: [16, 0, -30], w: 14, d: 12, floors: 7, ang: -0.3 });
+      concreteRuin(B, { pos: [-30, 0, -60], w: 16, d: 14, floors: 9, ang: 0.5 });
+      concreteRuin(B, { pos: [30, 0, -80], w: 18, d: 12, floors: 11, ang: 0.1 });
+      for (let i = 0; i < 6; i++) concreteRuin(B, { pos: [rr(-90, 90), 0, rr(-220, -110)], w: rr(14, 24), d: rr(12, 20), floors: Math.round(rr(5, 14)), ang: rr(0, 3) });
+      rubbleHeap(B, { pos: [4, 0, -6], r: 6, n: 70 }); rubbleHeap(B, { pos: [-5, 0, 4], r: 3, n: 25, size: 0.6 });
+      return { sky: env.time === 'night' ? 'night' : 'storm', light: { high: 1.2 }, fog: { near: 40, far: 260 }, bounds: { c: [0, 6, -25], r: 50 }, cam: { target: [0, 2, -6], lens: 'wide', angle: 'low' }, height: hgt };
+    },
+    // 機械の置き場：パイプ・タンク・配線・鉄骨
+    factory(B, env) {
+      ground(B, { size: 500, seg: 40, tone: 0.1, pat: 'concrete' });
+      tank(B, [-9, 0, -10], 3.2, 9); tank(B, [-2, 0, -16], 2.4, 7, { ladder: 2 }); tank(B, [10, 0, -14], 4, 12, { ladder: 3 });
+      pipe(B, [[-14, 1.2, 4], [-14, 1.2, -6], [-6, 1.2, -6], [-6, 6, -6], [12, 6, -6], [12, 6, -12]], 0.45);
+      pipe(B, [[-16, 0.6, 2], [16, 0.6, 2], [16, 0.6, -20]], 0.3, { flangeEvery: 2.5 });
+      pipe(B, [[-10, 9.5, -10], [-10, 11, -2], [6, 11, -2], [6, 3, 4], [6, 0.4, 4]], 0.35);
+      for (let i = 0; i < 4; i++) pipe(B, [[-12 + i * 0.6, 0.3, 8], [-12 + i * 0.6, 0.3, -3], [-12 + i * 0.6, 3 + i * 0.5, -5], [8, 3 + i * 0.5, -5]], 0.12, { flangeEvery: 4, tone: 0.4 });
+      truss(B, [-16, 8, 6], [16, 8, 6]); truss(B, [-16, 8, -22], [16, 8, -22]); truss(B, [-16, 8, 6], [-16, 8, -22]);
+      for (const x of [-16, 16]) for (const z of [6, -22]) B.add(box(0.5, 8, 0.5), M([x, 4, z]), { tone: 0.4, pat: 'machine' });
+      cables(B, [-16, 7.5, 6], [16, 7.5, 6], 6, 2.2); cables(B, [-9, 9, -10], [10, 12, -14], 4, 3); cables(B, [-2, 7, -16], [-16, 7.8, -22], 5, 1.8);
+      for (let i = 0; i < 6; i++) panel(B, [rr(-14, 14), 0.8, rr(-4, 6)], rr(1.4, 2.4), rr(1.2, 1.8), rr(0, 6));
+      rubbleHeap(B, { pos: [3, 0, 2], r: 3, n: 20, size: 0.5 });
+      return { sky: env.time === 'night' ? 'night' : 'day', light: { high: 1.4 }, fog: { near: 60, far: 300 }, bounds: { c: [0, 4, -6], r: 30 }, cam: { target: [0, 3, -4], lens: 'wide' } };
+    },
+    // 草原・丘（短い筆致で）
+    grassland(B, env) {
+      const hgt = terrain({ amp: 9, flat: 30, scale: 0.012, base: 0 }); ground(B, { size: 1400, seg: 180, height: hgt, tone: 0.1, pat: 'grass' });
+      for (let i = 0; i < 5; i++) { const x = rr(-120, 120), z = rr(-300, -80); tree(B, { pos: [x, hgt(x, z), z], h: rr(7, 12), depth: 3, dead: false }); }
+      for (let i = 0; i < 12; i++) { const x = rr(-30, 30), z = rr(-40, 5); if (Math.hypot(x, z) < 4) continue; B.add(rock(rr(0.3, 1.2)), M([x, hgt(x, z), z], [0, rr(0, 6), 0]), { tone: 0.25, pat: 'stone', flat: true }); }
+      mountains(B, { n: 9, r: 520, hk: 1.6 });
+      return { sky: env.time === 'night' ? 'scratch' : 'day', moon: env.time === 'night', light: { high: 0.9 }, fog: { near: 80, far: 600 }, bounds: { c: [0, 0, -20], r: 60 }, cam: { target: [0, 1.6, 0] }, height: hgt };
+    },
+  });
+  Object.assign(ALIAS, { metropolis: 'metropolis', megacity: 'metropolis', skyscrapers: 'metropolis', downtown: 'metropolis', 高層: 'metropolis', 摩天楼: 'metropolis',
+    ruined_city: 'ruined_city', ruincity: 'ruined_city', concrete: 'ruined_city', 廃都: 'ruined_city', 廃ビル: 'ruined_city',
+    factory: 'factory', machine: 'factory', plant: 'factory', 工場: 'factory', 機械: 'factory', grassland: 'grassland', meadow: 'grassland', field: 'grassland', hill: 'grassland', 草原: 'grassland', 丘: 'grassland' });
+  Object.assign(M3.Kit, { jaggedSlab, rebar, concreteRuin, rubbleHeap, pipe, cables, tank, panel, truss, tower2 });
 })();

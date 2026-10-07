@@ -55,15 +55,23 @@
       else if (t === 'rock') M3.Kit.crag(B, { pos, size: a.size ?? 2, n: a.n ?? 3 });
       else if (t === 'tree') M3.Kit.tree(B, { pos, h: a.h ?? 8 });
       else if (t === 'rubble') M3.Kit.rubble(B, { pos, r: a.r ?? 2, n: a.n ?? 20 });
+      else if (t === 'debris') A.debris(B, Object.assign({}, a, { pos: (a.pos && a.pos.length === 3) ? [a.pos[0], a.pos[1] + floorY, a.pos[2]] : [pos[0], floorY + 1, pos[2]] }));
+      else if (t === 'concrete' || t === 'ruin') M3.Kit.concreteRuin(B, Object.assign({ floors: 4 }, a, { pos }));
+      else if (t === 'rubbleHeap') M3.Kit.rubbleHeap(B, Object.assign({}, a, { pos }));
+      else if (t === 'pipe') M3.Kit.pipe(B, a.points || [[pos[0] - 3, pos[1] + 0.5, pos[2]], [pos[0] + 3, pos[1] + 0.5, pos[2]]], a.r ?? 0.3);
+      else if (t === 'tank') M3.Kit.tank(B, pos, a.r ?? 2.5, a.h ?? 6);
     }
     return { geo: B.count ? B.geometry() : null, out, tris: B.count };
   }
 
   // 天気・時間 → 空・光・雨・霧
-  function atmosphere(bg, info, art) {
+  function atmosphere(bg, info0, art) {
+    let info = info0;
     const night = bg.time === 'night', eve = bg.time === 'evening', w = bg.weather || '';
     const sky = { kind: info.sky || 'day', dark: 0.85, clouds: 0.5, seed: (bg.seed ?? 0) * 3.1 + 1 };
-    if (info.sky === 'white') { sky.kind = 'white'; sky.clouds = 0; }
+    if (bg.sky) info = Object.assign({}, info, { sky: bg.sky });
+    if (info.sky === 'scratch') { sky.kind = 'scratch'; sky.clouds = 0.6; }
+    else if (info.sky === 'white') { sky.kind = 'white'; sky.clouds = 0; }
     else if (night) { sky.kind = w === 'storm' || w === 'rain' || info.sky === 'storm' ? 'storm' : 'night'; sky.dark = lerp(0.7, 0.98, art.black); sky.clouds = sky.kind === 'storm' ? 0.65 : 0.25; }
     else if (eve) { sky.kind = 'dusk'; sky.dark = lerp(0.5, 0.9, art.black); }
     else if (w === 'storm' || w === 'rain') { sky.kind = 'storm'; sky.dark = lerp(0.45, 0.85, art.black); }
@@ -71,10 +79,11 @@
     else if (sky.kind === 'storm' && !night) sky.dark = lerp(0.4, 0.8, art.black);
     else if (sky.kind === 'day') { sky.clouds = 0.35; }
     const L = Object.assign({ dir: [-0.5, 0.75, 0.4], strength: 0.85, ambient: 0.32, rim: 0 }, info.light || {});
+    if (sky.kind === 'scratch') { sky.swirl = bg.swirl || null; }
     if (night) { L.ambient = Math.min(L.ambient, 0.14); L.rim = 0.9; L.strength = 1.0; L.front = 0.3; L.high = 0.95; }
     if (eve) { L.high = 0.3; L.rim = 0.5; L.strength = 0.75; L.ambient = 0.2; }
     if (bg.light) Object.assign(L, bg.light);
-    const moon = (info.moon || night) && sky.kind !== 'white' ? { dir: bg.moonDir || [L.dir[0] * 0.8, 0.35, Math.min(-0.5, L.dir[2])], size: 0.075, halo: 0.6 } : null;
+    const moon = (info.moon || night) && sky.kind !== 'white' && sky.kind !== 'scratch' ? { dir: bg.moonDir || [L.dir[0] * 0.8, 0.35, Math.min(-0.5, L.dir[2])], size: 0.075, halo: 0.6 } : null;
     const rain = (w === 'rain' || w === 'storm') ? { amount: w === 'storm' ? 0.85 : 0.6, angle: w === 'storm' ? 0.32 : 0.12, length: w === 'storm' ? 55 : 35, seed: bg.seed ?? 1 } : null;
     const fog = Object.assign({ near: 35, far: 260, tone: night ? 0.35 : 0, amount: 0.85 }, info.fog || {});
     if (w === 'fog') { fog.near = 6; fog.far = 70; fog.tone = 0; }
@@ -113,12 +122,22 @@
     const back = buildBackground(bg);
     const info = back.info;
     const floorY = info.floorY ?? 0;
-    const act = buildActors(spec.actors, floorY, hashStr(JSON.stringify(spec.actors || [])));
+    const aspect = box.w / box.h;
+    const camera = cameraFor(bg, info, art, aspect);
+    const list = (spec.actors || []).filter(a => a.type !== 'crowd');
+    const act = buildActors(list, floorY, hashStr(JSON.stringify(list)));
     const scene = new T.Scene();
     if (!spec.noBackground) scene.add(new T.Mesh(back.geo));
     if (act.geo) scene.add(new T.Mesh(act.geo));
-    const aspect = box.w / box.h;
-    const camera = cameraFor(bg, info, art, aspect);
+    // 群衆・軍勢：インスタンス描画（手前は描き込み、奥は記号）
+    let crowdN = 0;
+    for (const a of (spec.actors || []).filter(a => a.type === 'crowd')) {
+      seed(hashStr(JSON.stringify(a)));
+      const p = a.pos || [0, -10]; const pos = p.length === 2 ? [p[0], floorY, p[1]] : [p[0], p[1] + floorY, p[2]];
+      const hf = info.height ? ((x, z) => info.height(x, z)) : (() => pos[1]);
+      const c = A.crowd(Object.assign({}, a, { pos, camPos: camera.position.toArray(), height: hf }));
+      c.meshes.forEach(m => scene.add(m)); crowdN += c.count;
+    }
     const at = atmosphere(bg, info, art);
     const fx = Object.assign({}, spec.fx || {});
     if (fx.focus || fx.speed) { fx.behind = fx.behind ?? true; if (fx.depth == null) { const tg = V3(...((bg.camera && bg.camera.target) || info.cam?.target || [0, 1.4, 0])); fx.depth = camera.position.distanceTo(tg) + 1.5; } if (fx.center && fx.center.length === 3) { const p = V3(...fx.center).project(camera); fx.center = [p.x * 0.5 + 0.5, p.y * 0.5 + 0.5]; } }
@@ -131,13 +150,23 @@
       if (!at.light.rimDir) at.light.rimDir = V3().addScaledVector(right, -0.6 * k).add(V3(0, 0.35, 0)).addScaledVector(back, -0.9).normalize().toArray();
       if (at.moon && !bg.moonDir) { const md = V3().addScaledVector(right, 0.35).add(V3(0, 0.42, 0)).addScaledVector(back, -1).normalize(); at.moon.dir = md.toArray(); }
     }
-    const S = { scene, camera, light: at.light, sky: at.sky, moon: at.moon, rain: spec.rain === false ? null : at.rain, fog: at.fog, mist: at.mist, fx, bounds: spec.bounds || info.bounds, flash: spec.flash, transparent: !!spec.transparent };
+    // 白飛び：fx.bloom = { at:[x,y,z] か center:[u,v](0..1, 下が0), radius(画面の高さに対する割合), amount }（配列で2つまで）
+    const bloom = [].concat(fx.bloom || []).slice(0, 2).map(b => { let c = b.center; if (b.at) { const q = V3(...b.at).project(camera); c = [q.x * 0.5 + 0.5, q.y * 0.5 + 0.5]; } return { center: c || [0.5, 0.5], radius: b.radius ?? 0.18, amount: b.amount ?? 1 }; });
+    const S = { scene, camera, light: at.light, sky: at.sky, moon: at.moon, rain: spec.rain === false ? null : at.rain, fog: at.fog, mist: at.mist, fx, bloom, night: bg.time === 'night', bounds: spec.bounds || info.bounds, flash: spec.flash, transparent: !!spec.transparent };
     const t1 = performance.now();
     const r = M3.render(ctx, S, box, opts);
     const t2 = performance.now();
     const res = { ok: !!r, ms: Math.round(t2 - t0), buildMs: Math.round(t1 - t0), renderMs: Math.round(t2 - t1), tris: back.tris + act.tris, camera, actors: act.out };
     res.project = p => M3.project(S, box, p);
     if (bg.weather === 'storm' && spec.lightning !== false && bg.lightning !== false) lightning(ctx, box, art, hashStr(bg.name + (bg.seed ?? 0)));
+    // 墨の飛沫：fx.splatter = { at:[x,y,z], dir:[x,y,z]（世界の向き）, amount, size } または配列
+    for (const sp of [].concat(fx.splatter || [])) {
+      const q = V3(...(sp.at || [0, 1, 0])).project(camera), q2 = V3(...(sp.at || [0, 1, 0])).add(V3(...(sp.dir || [0, 1, 0]))).project(camera);
+      const p0 = { x: box.x + (q.x * 0.5 + 0.5) * box.w, y: box.y + (0.5 - q.y * 0.5) * box.h };
+      const dx = (q2.x - q.x) * box.w, dy = -(q2.y - q.y) * box.h;
+      splatter(ctx, box, art, { focus: p0, angle: Math.atan2(dy, dx), amount: sp.amount ?? 1, size: sp.size ?? 1, seed: sp.seed ?? 1 });
+    }
+    res.crowd = crowdN;
     return res;
   }
 
@@ -209,6 +238,7 @@
         for (let i = 0; i < n; i++) { const x = box.x + r() * box.w, y = box.y + r() * box.h, L = (14 + r() * 40) * sc; wedge(ctx, [x, y], [x - Math.sin(a) * L, y + Math.cos(a) * L], 0.05, (0.35 + r() * 0.6) * sc); }
         break; }
       case 'lightning': lightning(ctx, box, art, hashStr('lt' + box.x + box.y) + (spec.seed || 0), spec.x); break;
+      case 'splatter': case 'dust': splatter(ctx, box, art, { focus: { x: f[0], y: f[1] }, angle: spec.angle ?? -PI / 2, amount: spec.amount ?? 1, size: spec.size ?? 1, seed: spec.seed || 1, dust: spec.name === 'dust' }); break;
       case 'betaflash': { // ベタフラ：黒地に白い放射
         ctx.fillStyle = '#000'; ctx.fillRect(box.x, box.y, box.w, box.h); ctx.fillStyle = '#fff';
         const n = Math.round(lerp(120, 300, dyn) * sc);
@@ -219,6 +249,21 @@
     }
     ctx.restore();
     return done;
+  }
+  // 墨の飛沫・粉塵：進行方向に流れる大小の黒点と、しずくの尾
+  function splatter(ctx, box, art, o) {
+    const r = rng(hashStr('sp' + Math.round(o.focus.x) + ',' + Math.round(o.focus.y)) + (o.seed || 0)); const sc = clamp(Math.max(box.w, box.h) / 1600, 0.5, 3) * (o.size ?? 1);
+    const n = Math.round((o.dust ? 900 : 420) * (o.amount ?? 1)), a0 = o.angle ?? -PI / 2;
+    ctx.save(); ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip(); ctx.fillStyle = o.white ? '#fff' : '#000';
+    for (let i = 0; i < n; i++) {
+      const a = a0 + (r() - 0.5) * (o.dust ? 1.6 : 1.1) * (0.4 + r()), d = Math.pow(r(), 0.7) * 260 * sc * (o.dust ? 1.4 : 1);
+      const x = o.focus.x + Math.cos(a) * d, y = o.focus.y + Math.sin(a) * d;
+      const big = r() < 0.06 && !o.dust;
+      const rad = (big ? 3 + r() * 6 : 0.6 + Math.pow(r(), 3) * 2.6) * sc * (1 - d / (300 * sc) * 0.5);
+      ctx.beginPath(); ctx.arc(x, y, Math.max(0.5, rad), 0, PI * 2); ctx.fill();
+      if (big || (r() < 0.15 && !o.dust)) { const L = rad * (2 + r() * 5); wedge(ctx, [x, y], [x - Math.cos(a) * L, y - Math.sin(a) * L], rad * 0.9, 0.05); }   // 尾（飛んできた向きへ細る）
+    }
+    ctx.restore();
   }
   // 稲妻：枝分かれする白い帯に黒いふち
   function lightning(ctx, box, art, s, x0) {

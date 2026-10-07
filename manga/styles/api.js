@@ -28,7 +28,8 @@
     const avail = bot - top;
     const unit = avail * 0.92 / met.top;
     const fullW = w * 0.72;
-    const cols = [{ f: 0, back: false, lab: '正面' }, { f: 1, yaw: 90, lab: '横' }, { f: 0, back: true, lab: '後ろ' }];
+    // 設定画：正面・4分の3・横向き（髪の房・飾り・服は、人物ごとに決まった形なので全角度で一致する）
+    const cols = [{ f: 0, back: false, lab: '正面' }, { f: 1, lab: '4分の3' }, { f: 1, yaw: 90, lab: '横' }];
     // 頭身の目盛り
     const H = met.top * unit, headPx = H / (art.headRatio * ({ child: 0.68, teen: 0.93, adult: 1, elder: 0.95 }[spec.age] || 1));
     ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
@@ -39,13 +40,10 @@
       K.drawCharacter(ctx, spec, 'stand', 'normal', { footX: cx, footY: bot, unit, facing: c.f, back: c.back, yaw: c.yaw, panel: { x: x + fullW * i / cols.length, y: top - th * 0.3, w: fullW / cols.length, h: bot - top + th * 0.6 } }, art);
       label(ctx, c.lab, cx, bot + th * 0.45, th * 0.5);
     });
-    // バストアップ（3/4・ほほえみ）
-    const bx = x + fullW + 8, bw = w - fullW - 16, bh = Math.min(bw * 1.25, avail * 0.55);
-    const pan = { x: bx, y: top, w: bw, h: bh };
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.strokeRect(pan.x, pan.y, pan.w, pan.h);
-    bust(ctx, spec, art, pan, 'smile', 1);
-    const pan2 = { x: bx, y: top + bh + 8, w: bw, h: Math.min(bh, bot - top - bh - 8) };
-    if (pan2.h > 40) { ctx.strokeRect(pan2.x, pan2.y, pan2.w, pan2.h); bust(ctx, spec, art, pan2, 'determined', -1); }
+    // 表情差分：同じ顔の角度（4分の3）で、笑顔・目閉じ・口開き
+    const bx = x + fullW + 8, bw = w - fullW - 16; const exs = [['smile', '笑顔'], ['happy', '目閉じ'], ['surprised', '口開き']];
+    const bh = Math.min(bw * 1.0, (avail - 16) / 3);
+    exs.forEach(([e, t], i) => { const pan = { x: bx, y: top + i * (bh + 8), w: bw, h: bh }; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.2; ctx.strokeRect(pan.x, pan.y, pan.w, pan.h); bust(ctx, spec, art, pan, e, 1); label(ctx, t, pan.x + 6, pan.y + 10, th * 0.45, 'left'); });
     ctx.restore();
   }
   // バストアップを枠に収める

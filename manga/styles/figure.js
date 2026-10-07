@@ -280,7 +280,8 @@
     const bottomMat = outfit.skirtMat ?? (outfit.bottom === 'pants' ? (topMat > 0.6 ? topMat : 0.55) : outfit.bottom === 'shorts' ? 0.85 : topMat);
     const shoeMat = robot ? Math.min(0.9, skinMat + 0.35) : 0.88;
     const capMat = v => v == null ? v : Math.min(v, (C.R.betaM ?? 0.9) - 0.12); // 肌がベタになると顔が消えるので、ベタの手前で止める
-    C.mat = { skin: capMat(skinMat), top: topMat, bottom: bottomMat, hair: HAIR_MAT[spec.hairColor] ?? 0.96, shoe: shoeMat, fur: capMat(furMat) };
+    const brushMat = v => (C.R.brush > 0.4 && v > 0.15 && v < (C.R.betaM ?? 0.9) - 0.05) ? v * (1 - C.R.brush * 0.85) : v; // 筆で描く布は、機械的な斜線を減らす
+    C.mat = { skin: capMat(skinMat), top: brushMat(topMat), bottom: brushMat(bottomMat), hair: HAIR_MAT[spec.hairColor] ?? 0.96, shoe: shoeMat, fur: capMat(furMat) };
     const W = m.Ht / 300; // 線の基準
     const parts = [];
     const P2 = p => proj(p);
@@ -302,7 +303,7 @@
       parts.push({ z: zArm, f: () => {
         const ch = limbChain([sh, el, wr], m.armR, 'arm', mus, robot);
         if (!(sleeve === 'long' || wide) || robot) { part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.5, off: m.armR * 0.7, lines: ch.lines }); if (skin < 0.5 && !robot) contourHatch(C, ch); }
-        if (sleeve !== 'none' && !robot) { const end = sleeve === 'short' ? 0.42 : 0.96; const cl = clothOver(ch, 0, end, wide ? 1.55 : 1.16, sleeve === 'long' || wide ? 'cuff' : 'hem', art, wide); part(ly, cl.poly, topMat, { edges: cl.edges, w: 1.5, off: m.armR * 0.8, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), topMat); }
+        if (sleeve !== 'none' && !robot) { const end = sleeve === 'short' ? 0.42 : 0.96; const cl = clothOver(ch, 0, end, wide ? 1.55 : 1.16, sleeve === 'long' || wide ? 'cuff' : 'hem', art, wide); part(ly, cl.poly, C.mat.top, { edges: cl.edges, w: 1.5, off: m.armR * 0.8, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), topMat); }
         const dir = V.norm([wr.x - el.x, wr.y - el.y]);
         if (C.hold && k === 'n') drawHeld(C, [wr.x, wr.y], dir, wr.k);
         drawHand(C, [wr.x, wr.y], dir, m.hand * wr.k, (C.hold && k === 'n') ? 'grip' : J['hand' + k], k, skin);
@@ -318,7 +319,7 @@
         const ch = limbChain([hp, kn, an], m.legR, 'leg', mus, robot);
         const cover = pants === 'pants' ? 0.97 : pants === 'shorts' ? 0.4 : 0;
         if (cover < 0.9 || robot) { part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.6, off: m.legR * 0.8, lines: ch.lines }); if (skin < 0.5 && !robot) contourHatch(C, ch); }
-        if (cover > 0 && !robot) { const cl = clothOver(ch, 0, cover, cover > 0.9 ? 1.14 : 1.2, cover > 0.9 ? 'bunch' : 'hem', art, false); part(ly, cl.poly, bottomMat, { edges: cl.edges, w: 1.6, off: m.legR * 0.9, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), bottomMat); }
+        if (cover > 0 && !robot) { const cl = clothOver(ch, 0, cover, cover > 0.9 ? 1.14 : 1.2, cover > 0.9 ? 'bunch' : 'hem', art, false); part(ly, cl.poly, C.mat.bottom, { edges: cl.edges, w: 1.6, off: m.legR * 0.9, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), bottomMat); }
         drawShoe(C, an, toe, k);
       } });
     }
@@ -358,15 +359,15 @@
     const dark = mat >= (C.R.betaM ?? 0.9) - 0.02; const L = K.getLight(); const ax = V.norm(axis), nx = [-ax[1], ax[0]];
     const ctr = poly.reduce((a, p) => [a[0] + p[0] / poly.length, a[1] + p[1] / poly.length], [0, 0]);
     const c = dark ? ly.hi : ly.l; c.save(); c.beginPath(); pathPoly(c, poly); c.clip(); c.fillStyle = dark ? '#fff' : '#000';
-    const n = Math.round((dark ? 3 : 4) + br * (dark ? 7 : 9) * Math.min(1.6, size / 60));
+    const n = Math.round((dark ? 3 : 4) + br * (dark ? 7 : 10) * Math.min(1.8, size / 50));
     for (let i = 0; i < n; i++) {
       // 置き場所：黒い布は光の側に白線、明るい布は影の側に黒の筆
       let p, tries = 0; do { p = [b.x + rand() * b.w, b.y + rand() * b.h]; const side = V.dot(V.sub(p, ctr), L) / (size * 0.5); if ((dark ? side : -side) > rr(-0.4, 0.5)) break; } while (++tries < 6);
-      const len = size * rr(0.25, 0.7) * (dark ? 0.8 : 1), bend = rg(0, 0.18) * len;
+      const len = size * rr(0.35, 0.95) * (dark ? 0.8 : 1), bend = rg(0, 0.18) * len;
       const p1 = V.add(p, V.add(V.mul(ax, len), V.mul(nx, bend)));
       const mid = V.add(V.lerp(p, p1, 0.5), V.mul(nx, bend * 0.6));
       if (dark) ink(c, [p, mid, p1], rr(0.6, 1.3), { tin: len * 0.15, tout: len * 0.5, noScratch: true });
-      else K.dryStroke(c, [p, mid, p1], size * rr(0.05, 0.12) * (0.6 + br * 0.6), { dry: lerp(0.35, 0.75, br) });
+      else K.dryStroke(c, [p, mid, p1], size * rr(0.07, 0.16) * (0.6 + br * 0.6), { dry: lerp(0.2, 0.5, br) });
     }
     // 払いのしわ：布の端（すそ）から内へ、細く抜ける
     for (let i = 0; i < Math.round(1 + br * 3); i++) { const p = poly[Math.floor(rand() * poly.length)]; const d = V.norm(V.sub(ctr, p)); const len = size * rr(0.2, 0.4); ink(c, [p, V.add(p, V.add(V.mul(d, len * 0.5), V.mul(V.perp(d), len * 0.1))), V.add(p, V.mul(d, len))], dark ? 0.9 : 1.2, { tin: 0.5, tout: len * 0.7, noScratch: true }); }
@@ -512,7 +513,7 @@
     const { ly, m, rig, art, spec } = C, { J, proj } = rig;
     const secs = [ // t: 骨盤0→首1, a: 横幅の半分, b: 厚みの半分, z: 前への張り出し
       [-0.08, m.hipHalf * 1.25, m.depth * 0.95, 0], [0.12, m.hipHalf * 1.2, m.depth * 0.9, 0], [0.4, m.waist * (m.fem ? 1 : 1.06), m.depth * 0.85, 0.02],
-      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.8, m.shHalf * 0.9, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.9, m.depth * 0.85, 0.02], [0.96, m.shHalf * 0.76, m.depth * 0.7, 0], [1.01, m.shHalf * 0.6, m.depth * 0.55, 0], [1.06, m.shHalf * 0.36, m.depth * 0.45, 0],
+      [0.62, lerp(m.waist, m.shHalf, 0.6), m.depth * (m.fem ? 1.05 : 1), m.depth * (m.fem ? 0.2 : 0.1)], [0.8, m.shHalf * 0.88, m.depth * 0.95, m.depth * 0.08], [0.9, m.shHalf * 0.84, m.depth * 0.85, 0.02], [0.97, m.shHalf * 0.66, m.depth * 0.7, 0], [1.02, m.shHalf * 0.48, m.depth * 0.55, 0], [1.06, m.shHalf * 0.34, m.depth * 0.45, 0],
     ];
     const Lf = [], Rt = [];
     for (const [t, a, b, zc] of secs) {
@@ -549,7 +550,7 @@
       const nh = Math.round(lerp(3, 7, art.hatching));
       for (const sx of [-1, 1]) { // 胸の下（大胸筋の下縁から下へ向かう弧）
         for (let i = 0; i < nh; i++) { const x = sx * lerp(0.12, 0.62, i / (nh - 1)); const a = T(0.66 - Math.abs(x) * 0.12, x), b2 = T(0.6 - Math.abs(x) * 0.1, x + sx * 0.03); ink(l, [a, V.lerp(a, b2, 0.5), b2], 0.45, { tin: 0.5, tout: 2, noScratch: true }); }
-        for (let r = 0; r < 3; r++) { const y = 0.48 - r * 0.12; for (let i = 0; i < 3; i++) { const x = sx * (0.06 + i * 0.05); const a = T(y, x), b2 = T(y - 0.05, x); ink(l, [a, b2], 0.4, { tin: 0.5, tout: 1.5, noScratch: true }); } } // 腹筋の段の下
+        for (let r = 0; r < 3; r++) { const y = 0.5 - r * 0.12; for (let i = 0; i < 2; i++) { const a = T(y - i * 0.018, sx * 0.04), mid = T(y - 0.02 - i * 0.018, sx * 0.1), b2 = T(y - i * 0.018, sx * 0.16); ink(l, [a, mid, b2], 0.4, { tin: 0.5, tout: 1.5, noScratch: true }); } } // 腹筋の段の下
         for (let i = 0; i < nh; i++) { const y = lerp(0.2, 0.55, i / (nh - 1)); const a = T(y, sx * 0.62), b2 = T(y - 0.04, sx * 0.42); ink(l, [a, b2], 0.45, { tin: 0.5, tout: 2, noScratch: true }); } // わき腹
       }
     }
@@ -601,7 +602,7 @@
   function drawSkirt(C, outfit) {
     const { ly, m, rig } = C, { J, proj } = rig;
     const len = outfit.skirt === 'ankle' ? m.leg * 0.98 : m.leg * 0.48;
-    const w0 = m.hipHalf * 1.2, w1 = (outfit.skirt === 'ankle' ? m.hipHalf * 1.3 : m.hipHalf * 1.6) * lerp(1, 1.25, C.art.dynamism * (C.rig.P.air ? 1 : 0.3));
+    const w0 = m.hipHalf * 1.15, w1 = (outfit.skirt === 'ankle' ? m.hipHalf * 1.3 : m.hipHalf * 1.4) * lerp(1, 1.25, C.art.dynamism * (C.rig.P.air ? 1 : 0.3));
     const top = rig.add3(J.pelvis, J.sp, m.torso * 0.1);
     // 脚の開きに合わせて裾を広げる
     const kn = proj(J.knn), kf = proj(J.knf), c0 = proj(top);
@@ -612,7 +613,9 @@
     const poly = catmull(pts, 4, true);
     const lines = []; const nf = 2 + Math.round(C.art.detail * 4);
     for (let i = 1; i < nf; i++) { const t = i / nf; lines.push({ p: [[lerp(c0.x - w0, c0.x + w0, t), c0.y + len * 0.25], [lerp(bot[0] - hw, bot[0] + hw, t), bot[1]]], w: 0.7, o: { tin: len * 0.4, tout: 1 } }); }
-    part(ly, poly, C.mat.bottom, { w: 1.6, off: hw * 0.3, lines });
+    const darkSk = C.mat.bottom >= (C.R.betaM ?? 0.9) - 0.02; // 黒いスカートは、ひだを白い線で
+    part(ly, poly, C.mat.bottom, { w: 1.6, off: hw * 0.3, lines: darkSk ? [] : lines });
+    if (darkSk) for (const ln of lines) ink(ly.hi, ln.p, 0.7, ln.o);
     brushCloth(C, poly, [0, 1], C.mat.bottom);
   }
   function drawHand(C, W, dir, hs, kind, k, mat) {
@@ -1184,7 +1187,8 @@
             const u0 = -bangW + (idx + 0.5) / nb * 2 * bangW;
             const len = H.bang * (H.even ? 1 : 0.75 + 0.45 * Math.abs(Math.sin(idx * 2.7 + 1))) * (1 - Math.abs(u0) * 0.25);
             const sway = (hair === 'spiky' || hair === 'messy') ? rr(-0.25, 0.25) : 0.12 * (F.side);
-            const tip = F.sp(u0 + sway, Math.min(0.9, vOf(u0) + len), vol * 1.02);
+            const eyeTopV = lerp(0.3, 0.06, q) - ({ sparkle: 0.42, simple: 0.3, sharp: 0.17, realistic: 0.15, dot: 0.2 }[art.eyeStyle === 'round' ? 'simple' : art.eyeStyle] || 0.3) * lerp(0.55, 1.45, art.eyeSize) * 0.55 - 0.05;
+            const tip = F.sp(u0 + sway, Math.min(0.9, vOf(u0) + len, Math.abs(u0) < 0.75 ? Math.max(vOf(u0) + 0.08, eyeTopV) : 0.9), vol * 1.02);
             const rootA = F.sp(-bangW + idx / nb * 2 * bangW, vOf(u0) + 0.02, vol);
             if (rootA.z > 0) edge.push([rootA.x, rootA.y]);
             if (tip.z > 0) { edge.push([tip.x, tip.y]); const rc = F.sp(u0, vOf(u0) - 0.35, vol); C.bangs.push([[rc.x, rc.y], [tip.x, tip.y]]); }

@@ -137,7 +137,7 @@
 
   // ---------- Builder：部品を1つにまとめる ----------
   // 質感の番号（シェーダで使う）
-  const PAT = { plain: 0, stone: 1, metal: 2, cloth: 3, skin: 4, wood: 5, hide: 6, ground: 7, leaf: 8, bone: 9, glass: 10, water: 11, hair: 12, brick: 13, cloud: 14, cobble: 15 };
+  const PAT = { plain: 0, stone: 1, metal: 2, cloth: 3, skin: 4, wood: 5, hide: 6, ground: 7, leaf: 8, bone: 9, glass: 10, water: 11, hair: 12, brick: 13, cloud: 14, cobble: 15, windows: 16, road: 17, concrete: 18, machine: 19, grass: 20 };
   let _idc = 1;
   class Builder {
     constructor() { this.P = []; this.N = []; this.A = []; this.U = []; this.count = 0; }

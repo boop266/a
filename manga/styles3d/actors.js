@@ -85,7 +85,7 @@
   // o: { tone, pat, joints: true(球関節), build: 0..1(筋肉), female: false }
   function body(B, R, o = {}) {
     const { J, s } = R, id = o.id ?? B.newId(), tone = o.tone ?? 0.1, pat = o.pat ?? 'skin', mus = o.build ?? 0.6, f = o.female ? 1 : 0;
-    const add = (g, j, m, op = {}) => B.add(g, W(j).multiply(m || new T.Matrix4()), Object.assign({ tone, pat, id }, op));
+    const add = (g, j, m, op = {}) => B.add(g, W(j).multiply(m || new T.Matrix4()), Object.assign({ tone, pat, id, ring: o.ring ?? 'y' }, op));
     const k = lerp(0.85, 1.15, mus);
     // 頭：卵形＋あご
     if (!o.noHead) {
@@ -282,7 +282,7 @@
   function horse(B, o = {}) {
     const id = B.newId(), tone = o.tone ?? 0.75, s = o.scale ?? 1;
     const base = M(o.pos || [0, 0, 0], [0, (o.yaw ?? 0) * D2R, 0], s);
-    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m), Object.assign({ tone, pat: 'hide', id }, op));
+    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m), Object.assign({ tone, pat: 'hide', id, ring: [0, 0, 1] }, op));
     const gait = o.gait ?? 'stand'; // stand | gallop | rear
     const rear = gait === 'rear' ? 0.6 : 0;
     const bodyM = M([0, 1.38 + rear * 0.5, 0], [-rear, 0, 0]);
@@ -325,7 +325,7 @@
   function beast(B, o = {}) {
     const id = B.newId(), tone = o.tone ?? 0.55, s = o.scale ?? 1;
     const base = M(o.pos || [0, 0, 0], [0, (o.yaw ?? 0) * D2R, 0], s);
-    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m || new T.Matrix4()), Object.assign({ tone, pat: 'hide', id }, op));
+    const add = (g, m, op = {}) => B.add(g, base.clone().multiply(m || new T.Matrix4()), Object.assign({ tone, pat: 'hide', id, ring: [0, 0.35, 1] }, op));
     const s0 = rr(0, 50);
     const lumpy = (g, amp, f) => displaceWelded(g, (v, n) => (fbm3(v.x * f + s0, v.y * f, v.z * f, 4) * 0.7 + Math.abs(noise3(v.x * f * 2.3, v.y * f * 2.3 + s0, v.z * f * 2.3)) * 0.5) * amp);
     const flesh = (pts, rad, seg = 16, amp = 0.12, f = 1.3) => lumpy(tube(pts, rad, seg), amp, f);
@@ -415,5 +415,118 @@
     for (let i = 0; i < 6; i++) { const g = new T.TorusGeometry(r * (1 - i * 0.06), 0.014, 5, 16, PI * 0.8); B.add(g, m.clone().multiply(M([0, r * 0.25, r * (0.9 - i * 0.32)], [0, 0, PI * 0.1 + rr(-0.2, 0.2)])), { tone: 0.08, pat: 'bone', id }); }
   }
 
-  M3.Actors = { POSES, POSE_ALIAS, rig, body, armor, cape, sword, spear, shield, figure, horse, beast, skull, longBone, ribs, limb };
+
+  // ---------- 群衆・軍勢（インスタンス描画） ----------
+  // 兵の形を 3 段階で用意：近い＝描き込み、中＝簡略、遠い＝記号（点と縦線）
+  const UNIT = {};
+  function unitGeo(kind, lod, variant) {
+    const key = kind + lod + variant; if (UNIT[key]) return UNIT[key];
+    const B = new M3.Builder();
+    const sv = M3.rand; // 形の乱数は固定
+    if (lod === 0) {
+      const poses = ['stand', 'guard', 'walk'];
+      const pose = kind === 'mob' ? ['stand', 'walk', 'lookup'][variant % 3] : poses[variant % 3];
+      const R = rig(pose, { pos: [0, 0, 0] });
+      body(B, R, { tone: 0.55, pat: 'cloth', build: 0.7, noHead: kind !== 'mob', joints: false, ring: false });
+      if (kind !== 'mob') {
+        const J = R.J;
+        // 兜（丸い鉢＋鼻当て）と、肩の板、胸当て
+        B.add(lathe([[0.0001, 0.24], [0.08, 0.23], [0.115, 0.17], [0.12, 0.08], [0.11, 0.0]], 12), W(J.head), { tone: 0.35, pat: 'metal', double: true });
+        B.add(box(0.025, 0.09, 0.03), W(J.head).multiply(M([0, 0.08, 0.12])), { tone: 0.5, pat: 'metal' });
+        B.add(ell(0.17, 0.2, 0.13), W(J.chest).multiply(M([0, 0.06, 0.01])), { tone: 0.3, pat: 'metal' });
+        for (const sd of ['L', 'R']) B.add(shell(0.11, 0, PI * 2, 0, PI * 0.4, 10), W(J['sh' + sd]).multiply(M([0, 0.02, 0])), { tone: 0.35, pat: 'metal', double: true });
+        // 槍（立てて持つ）と丸盾
+        const hp = wp(J.haR);
+        spear(B, M([hp.x, 0.0, hp.z + 0.05]), { len: 2.9 });
+        shield(B, W(J.elL).multiply(M([0.07, -0.12, 0.05], [0, PI / 2, 0], 0.85)), { tone: 0.45 });
+      }
+    } else if (lod === 1) {
+      B.add(limb(0.85, [[0, 0.13], [0.5, 0.15], [1, 0.11]]), M([0, 1.5, 0]), { tone: 0.6, pat: 'cloth' });
+      B.add(limb(0.75, [[0, 0.11], [1, 0.09]]), M([0, 0.75, 0]), { tone: 0.75, pat: 'cloth' });
+      B.add(ell(0.11, 0.13, 0.11, 8, 6), M([0, 1.66, 0]), { tone: kind === 'mob' ? 0.2 : 0.35, pat: 'metal' });
+      if (kind !== 'mob') { B.add(box(0.035, 2.9, 0.035), M([0.22, 1.45, 0.08]), { tone: 0.9, pat: 'plain' }); B.add(new T.ConeGeometry(0.04, 0.22, 4), M([0.22, 3.0, 0.08]), { tone: 0.2, pat: 'metal', flat: true }); }
+    } else {
+      // 記号：縦の線（体）と点（頭）、槍は長い縦線
+      B.add(box(0.2, 1.45, 0.2), M([0, 0.72, 0]), { tone: 0.95, pat: 'plain' });
+      B.add(new T.IcosahedronGeometry(0.15, 0), M([0, 1.65, 0]), { tone: 0.95, pat: 'plain', flat: true });
+      if (kind !== 'mob') B.add(box(0.07, 3.2, 0.07), M([0.25, 1.6, 0]), { tone: 0.95, pat: 'plain' });
+    }
+    return (UNIT[key] = B.geometry());
+  }
+  // o: { count, formation: 'ranks'|'block'|'column'|'mob'|'line', pos:[x,y,z], yaw, spacing:[横, 縦], cols, unit:'soldier'|'mob', camPos:[x,y,z], height(x,z), lod:[近, 中](m) }
+  function crowd(o = {}) {
+    const n = Math.max(1, Math.min(o.count ?? 400, 20000)), kind = o.unit === 'mob' || o.formation === 'mob' ? 'mob' : 'soldier';
+    const sp = o.spacing || [1.1, 1.4], yaw = (o.yaw ?? 0) * D2R;
+    const [px, py, pz] = o.pos || [0, 0, 0];
+    const hgt = o.height || (() => py);
+    const cam = V3(...(o.camPos || [0, 2, 20]));
+    const lodD = o.lod || [22, 70];
+    const fwd = V3(Math.sin(yaw), 0, Math.cos(yaw)), right = V3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const pts = [];
+    const f = o.formation || 'ranks';
+    if (f === 'mob') { const R = Math.sqrt(n) * sp[0] * 0.75; for (let i = 0; i < n; i++) { const a = rand() * PI * 2, d = Math.sqrt(rand()) * R; pts.push([Math.cos(a) * d, Math.sin(a) * d * (o.squash ?? 1), rr(-PI, PI)]); } }
+    else {
+      const cols = o.cols ?? (f === 'column' ? 6 : f === 'line' ? n : Math.ceil(Math.sqrt(n * 2.5)));
+      const blockGap = f === 'ranks' ? (o.blockEvery ?? 10) : 1e9;
+      for (let i = 0; i < n; i++) {
+        const c = i % cols, r = Math.floor(i / cols);
+        const gx = (c - (cols - 1) / 2) * sp[0] + Math.floor(c / blockGap) * sp[0] * 1.5, gz = -r * sp[1] - Math.floor(r / blockGap) * sp[1] * 2;
+        pts.push([gx + rr(-0.15, 0.15) * sp[0], gz + rr(-0.15, 0.15) * sp[1], rr(-0.12, 0.12)]);
+      }
+    }
+    // 振り分け
+    const groups = {};
+    const mtx = new T.Matrix4(), q = new T.Quaternion(), sc = V3(1, 1, 1);
+    for (const [lx, lz, ry] of pts) {
+      const wx = px + right.x * lx + fwd.x * lz, wz = pz + right.z * lx + fwd.z * lz;
+      const wy = hgt(wx, wz);
+      const dist = Math.hypot(wx - cam.x, wy - cam.y, wz - cam.z);
+      const lod = dist < lodD[0] ? 0 : dist < lodD[1] ? 1 : 2;
+      const variant = lod === 0 ? Math.floor(rand() * 3) : 0;
+      const key = lod + '_' + variant;
+      q.setFromAxisAngle(V3(0, 1, 0), yaw + ry + (kind === 'mob' ? rand() * PI * 2 : 0));
+      const s = rr(0.94, 1.06); sc.set(s, s, s);
+      (groups[key] = groups[key] || { lod, variant, m: [] }).m.push(mtx.compose(V3(wx, wy, wz), q, sc).clone());
+    }
+    const meshes = [];
+    for (const g of Object.values(groups)) {
+      const im = new T.InstancedMesh(unitGeo(kind, g.lod, g.variant), null, g.m.length);
+      g.m.forEach((m, i) => im.setMatrixAt(i, m)); im.instanceMatrix.needsUpdate = true;
+      im.userData.noShadow = g.lod === 2; meshes.push(im);
+    }
+    return { meshes, count: pts.length };
+  }
+
+  // ---------- 飛散物：破片・土が軌跡を描いて飛ぶ ----------
+  // o: { pos:[x,y,z]（飛び出す点）, dir:[x,y,z], count, spread(0..1), speed, size, trail(0..1), dust }
+  function debris(B, o = {}) {
+    const id = B.newId(), [ox, oy, oz] = o.pos || [0, 1, 0];
+    const dir = V3(...(o.dir || [0, 1, 1])).normalize(), n = o.count ?? 40, spr = o.spread ?? 0.5, v0 = o.speed ?? 12, g = 9.8;
+    const side = V3().crossVectors(dir, Math.abs(dir.y) < 0.9 ? V3(0, 1, 0) : V3(1, 0, 0)).normalize(), up2 = V3().crossVectors(side, dir);
+    for (let i = 0; i < n; i++) {
+      const d = dir.clone().addScaledVector(side, rr(-1, 1) * spr).addScaledVector(up2, rr(-1, 1) * spr).normalize();
+      const v = v0 * rr(0.5, 1.15), t = rr(0.12, 0.6) * (o.time ?? 1);
+      const at = tt => V3(ox + d.x * v * tt, oy + d.y * v * tt - 0.5 * g * tt * tt, oz + d.z * v * tt);
+      const p = at(t); if (p.y < 0.05) continue;
+      const size = (o.size ?? 0.3) * Math.pow(rand(), 1.8) + 0.04;
+      B.add(rock(size, { detail: 0, rough: 0.6, cut: 1 }), M(p.toArray(), [rand() * 6, rand() * 6, rand() * 6]), { tone: rr(0.3, 0.9), pat: o.pat || 'stone', flat: true, id });
+      // 軌跡：うしろへ細る黒い帯
+      if ((o.trail ?? 0.8) > 0 && size > 0.07) {
+        const tl = t * (o.trail ?? 0.8) * rr(0.3, 0.7), pts = [], rad = [];
+        for (let k = 0; k <= 5; k++) { const q = at(t - tl * k / 5); pts.push(q.toArray()); rad.push(size * 0.32 * (1 - k / 5) + 0.002); }
+        B.add(tube(pts, rad, 4, { cap: false }), null, { tone: 0.97, pat: 'plain', id, double: true });
+      }
+    }
+    // 粉塵：小さな粒をたくさん
+    const nd = o.dust ?? n * 3;
+    for (let i = 0; i < nd; i++) {
+      const d = dir.clone().addScaledVector(side, rr(-1.4, 1.4) * spr).addScaledVector(up2, rr(-1.2, 1.2) * spr).normalize();
+      const v = v0 * rr(0.2, 1.0), t = rr(0.05, 0.5);
+      const p = V3(ox + d.x * v * t, oy + d.y * v * t - 0.5 * g * t * t, oz + d.z * v * t); if (p.y < 0.02) continue;
+      B.add(new T.IcosahedronGeometry(rr(0.015, 0.05), 0), M(p.toArray()), { tone: 0.95, pat: 'plain', flat: true, id });
+    }
+    return id;
+  }
+
+  M3.Actors = { crowd, debris, POSES, POSE_ALIAS, rig, body, armor, cape, sword, spear, shield, figure, horse, beast, skull, longBone, ribs, limb };
 })();
