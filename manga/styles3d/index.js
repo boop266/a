@@ -5,7 +5,7 @@
 (() => {
   if (window.MangaInk3D) return;
   const THREE_URL = window.MANGA3D_THREE_URL || 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-  const FILES = ['core.js', 'kit.js', 'actors.js', 'api.js'];
+  const FILES = ['core.js', 'kit.js', 'actors.js', 'human.js', 'api.js'];
   const me = document.currentScript && document.currentScript.src;
   const base = me ? me.slice(0, me.lastIndexOf('/') + 1) : 'styles3d/';
   const load = src => new Promise((ok, ng) => { const s = document.createElement('script'); s.charset = 'utf-8'; s.src = src; s.onload = ok; s.onerror = () => ng(new Error('styles3d: 読み込み失敗 ' + src)); document.head.appendChild(s); });

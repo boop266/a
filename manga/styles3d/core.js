@@ -541,7 +541,7 @@
   const EDGE_FS = `
     uniform sampler2D tGeo; uniform vec2 uRes;
     uniform float uPx; uniform vec4 uLine;   // x weight, y taper(強弱), z detail(内側の線の量), w fogFar
-    uniform float uFogNear;
+    uniform float uFogNear; uniform float uRefZ;
     varying vec2 vUv;
     vec3 nrm(vec4 g){ return vec3(g.xy, sqrt(max(0.0, 1.0 - dot(g.xy, g.xy)))); }
     void main(){
@@ -572,20 +572,22 @@
         sil = max(jump, far);
         sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z));
       }
-      float crease = (1.0 - bg) * smoothstep(mix(0.45, 0.16, uLine.z), mix(0.75, 0.4, uLine.z), ndiff);
+      float nearD = clamp(uRefZ / max(zc, 0.05), 0.5, 2.5);
+      float crease = (1.0 - bg) * smoothstep(mix(0.45, 0.16, uLine.z) / nearD, mix(0.75, 0.4, uLine.z) / nearD, ndiff);
       float part = (1.0 - bg) * idd;
       float e = max(sil, max(crease * 0.8, part * 0.85));
       // 太さ：外側は太く、内側は細く。近いほど太く、遠いほど細く。影の側は太く
       float f = fract(gc.w); float darkMat = step(0.5, f); float lit = (f - 0.5 * darkMat) / 0.49;
       // 1600px 幅で：外形 2.5〜4px、内側 1〜1.5px（線の太さ＝全幅）
-      float near = clamp(pow(7.0 / max(zc, 0.1), 0.4), 0.7, 1.25);
+      // 手前ほど太く・奥ほど細く（主役までの距離 uRefZ が基準）。突き出した手や足の線が太くなる
+      float near = clamp(pow(uRefZ / max(zc, 0.05), 0.65), 0.55, 2.4);
       float wOut = max(mix(2.4, 4.2, uLine.x) * uPx, 1.5);
       float wIn = max(mix(0.9, 1.6, uLine.x) * uPx, 0.9);
       float w = mix(wIn, wOut, sil);
       w *= mix(1.0, mix(1.2, 0.8, smoothstep(0.3, 0.75, lit)) * near, uLine.y);
       float fog = smoothstep(uFogNear, uLine.w, zc);
       w *= 1.0 - fog * 0.6; e *= 1.0 - fog * 0.85; e = smoothstep(0.15, 0.55, e);
-      gl_FragColor = vec4(e, w / 8.0, max(darkMat, step(0.6, sil) * 0.5), 1.0);
+      gl_FragColor = vec4(e, w / 16.0, max(darkMat, step(0.6, sil) * 0.5), 1.0);
     }`;
 
   // 太らせ（主線）＋空＋雨＋霧＋効果線 → 最終画
@@ -724,12 +726,12 @@
       // ---- 主線：太らせる ----
       float lineInk = 0.0; float onDark = 0.0; float lineW = 0.0;
       vec2 jit = vec2(vn2(fc / (14.0 * uPx)), vn2(fc / (14.0 * uPx) + 7.3)) * uLine.x * 1.6 * uPx;
-      float Rmax = min(4.2, uLineR);
-      for (int y = -4; y <= 4; y++) for (int x = -4; x <= 4; x++) {
+      float Rmax = min(6.2, uLineR);
+      for (int y = -6; y <= 6; y++) for (int x = -6; x <= 6; x++) {
         vec2 off = vec2(float(x), float(y));
-        float r = length(off); if (r > Rmax) continue; if (r > 2.5 && mod(float(x + y), 2.0) > 0.5) continue;
+        if (abs(off.x) > Rmax || abs(off.y) > Rmax) continue; float r = length(off); if (r > Rmax) continue; if (r > 2.5 && mod(float(x + y), 2.0) > 0.5) continue;
         vec4 e = texture2D(tEdge, (fc + off + jit) / uRes);
-        float w = max(e.g * 8.0 * 0.5, 0.55);
+        float w = max(e.g * 16.0 * 0.5, 0.55);
         float cov = e.r * (1.0 - smoothstep(w - 0.5, w + 0.5, r));
         if (cov > lineInk) { lineInk = cov; onDark = e.b; lineW = w; }
       }
@@ -738,7 +740,7 @@
       lineInk *= 1.0 - uLine.y * smoothstep(0.62, 0.8, br) * 0.9;
       // 黒い物の輪郭は、黒の上では白い線（ふち取り）にしない＝そのまま黒
       // 黒い物の上の輪郭は白く抜く（白フチ）。背景も黒いときにシルエットが溶けないように
-      float whiteRim = max(step(0.75, onDark), step(0.25, onDark) * step(0.9, 1.0 - shade)) * step(0.75, ink) * lineInk * step(1.2, lineW);
+      float whiteRim = step(0.75, onDark) * step(0.75, ink) * lineInk * step(1.2, lineW);
       ink = max(ink, lineInk);
       ink = mix(ink, 0.0, whiteRim * 0.95);
       // ---- 雨 ----
@@ -820,7 +822,7 @@
     const geoMat = new T.ShaderMaterial({ uniforms: { uL: { value: V3(0, 1, 0) } }, vertexShader: GEO_VS, fragmentShader: GEO_FS, side: T.FrontSide });
     const quad = new T.Mesh(new T.PlaneGeometry(2, 2));
     const qScene = new T.Scene(); qScene.add(quad); const qCam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const edgeMat = new T.ShaderMaterial({ uniforms: { tGeo: { value: null }, uRes: { value: new T.Vector2() }, uPx: { value: 1 }, uLine: { value: new T.Vector4() }, uFogNear: { value: 50 } }, vertexShader: QUAD_VS, fragmentShader: EDGE_FS, depthTest: false, depthWrite: false });
+    const edgeMat = new T.ShaderMaterial({ uniforms: { tGeo: { value: null }, uRes: { value: new T.Vector2() }, uPx: { value: 1 }, uLine: { value: new T.Vector4() }, uFogNear: { value: 50 }, uRefZ: { value: 7 } }, vertexShader: QUAD_VS, fragmentShader: EDGE_FS, depthTest: false, depthWrite: false });
     const compMat = new T.ShaderMaterial({
       uniforms: {
         tShade: { value: null }, tEdge: { value: null }, tGeo: { value: null }, uRes: { value: new T.Vector2() }, uPx: { value: 1 }, uNear: { value: 0.1 }, uFar: { value: 1000 },
@@ -854,6 +856,7 @@
       detail: n(a.detail, 0.7), perspective: n(a.perspective, 0.45), dynamism: n(a.dynamism, 0.5), grain: n(a.grain, 0.1), softness: n(a.softness, 0),
       line: { weight: n(l.weight, 0.6), taper: n(l.taper, 0.8), jitter: n(l.jitter, 0.15), roughness: n(l.roughness, 0.15) },
       rough: !!a.rough,
+      headRatio: Number.isFinite(Number(a.headRatio)) ? Number(a.headRatio) : undefined, deform: n(a.deform, 0),
     };
   }
 
@@ -914,7 +917,7 @@
     // 3) 輪郭
     const EU = r.edgeMat.uniforms;
     EU.tGeo.value = rt.geo.texture; EU.uRes.value.set(W, H); EU.uPx.value = px;
-    EU.uLine.value.set(rough ? 0.35 : art.line.weight, art.line.taper, art.detail, fog.far ?? 160); EU.uFogNear.value = fog.near ?? 40;
+    EU.uLine.value.set(rough ? 0.35 : art.line.weight, art.line.taper, art.detail, fog.far ?? 160); EU.uFogNear.value = fog.near ?? 40; EU.uRefZ.value = S.refZ ?? 7;
     r.quad.material = r.edgeMat; gl.setRenderTarget(rt.edge); gl.render(r.qScene, r.qCam);
     mark('edge');
     // 4) 仕上げ
@@ -930,7 +933,7 @@
     CU.uLine.value.set(art.line.jitter, art.line.roughness, art.hatching, art.crossHatch);
     const mist = S.mist; CU.uMist.value.set(mist ? (mist.amount ?? 0.6) : 0, mist ? (mist.falloff ?? 0.25) : 0, mist ? (mist.tone ?? 0) : 0, mist ? (mist.seed ?? 3) : 0);
     const bl = [].concat(S.bloom || []); CU.uBloom.value.set(...(bl[0] ? [bl[0].center[0], bl[0].center[1], bl[0].radius ?? 0.2, bl[0].amount ?? 1] : [0, 0, 0, 0])); CU.uBloom2.value.set(...(bl[1] ? [bl[1].center[0], bl[1].center[1], bl[1].radius ?? 0.2, bl[1].amount ?? 1] : [0, 0, 0, 0])); CU.uSwirl.value.set(...(sky.swirl || (moon && moon.dir) || [0, 0.4, -1]));
-    CU.uLineR.value = Math.max(1.5, Math.max(1.5, (0.9 + 1.8 * (rough ? 0.35 : art.line.weight)) * px) * 1.25 / 2 + 1.0 + art.line.jitter * 1.6 * px);
+    CU.uLineR.value = Math.max(1.5, Math.max(1.5, (2.4 + 1.8 * (rough ? 0.35 : art.line.weight)) * px) * 2.4 / 2 + 1.0 + art.line.jitter * 1.6 * px);
     CU.uAlphaBg.value = S.transparent ? 1 : 0; CU.uDebug.value = opts.debug || 0; CU.uFlash.value = S.flash ?? 0;
     r.quad.material = r.compMat; gl.setRenderTarget(null); gl.setClearColor(0xffffff, 0); gl.clear(); gl.render(r.qScene, r.qCam);
     mark('comp');

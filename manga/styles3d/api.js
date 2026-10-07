@@ -31,20 +31,21 @@
   }
   // 人物・獣など（毎回つくる。軽い）
   const ACACHE = new Map();
-  function buildActors(list, floorY, sd, heightFn) {
-    const key = JSON.stringify(list || []) + '|' + floorY + '|' + (heightFn ? 'h' : '');
+  function buildActors(list, floorY, sd, heightFn, art) {
+    const key = JSON.stringify(list || []) + '|' + floorY + '|' + (heightFn ? 'h' : '') + '|' + (art ? art.headRatio + ',' + art.deform : '');
     if (ACACHE.has(key)) return ACACHE.get(key);
-    const r = buildActors0(list, floorY, sd, heightFn);
+    const r = buildActors0(list, floorY, sd, heightFn, art);
     ACACHE.set(key, r); if (ACACHE.size > 8) { const k = ACACHE.keys().next().value; const o = ACACHE.get(k); if (o.geo) o.geo.dispose(); ACACHE.delete(k); }
     return r;
   }
-  function buildActors0(list, floorY, sd, heightFn) {
+  function buildActors0(list, floorY, sd, heightFn, art) {
     const B = new Builder(); const out = [];
     seed(sd || 7);
     for (const a of list || []) {
       const p = a.pos || [0, 0]; const gy = (x, z) => heightFn ? heightFn(x, z) : floorY; const pos = p.length === 2 ? [p[0], gy(p[0], p[1]), p[1]] : [p[0], p[1] + gy(p[0], p[2]), p[2]];
       const t = a.type || 'mannequin';
-      if (t === 'knight' || t === 'mannequin' || t === 'human') out.push(Object.assign({ type: t }, A.figure(B, Object.assign({}, a, { kind: t === 'knight' ? 'knight' : 'mannequin', pos }))));
+      if (t === 'human' || t === 'person' || t === 'man' || t === 'woman') out.push(Object.assign({ type: 'human' }, A.human(B, Object.assign({ headRatio: art && art.headRatio, deform: art && art.deform }, a, { pos, female: a.female ?? (t === 'woman' ? true : undefined) }))));
+      else if (t === 'knight' || t === 'mannequin') out.push(Object.assign({ type: t }, A.figure(B, Object.assign({}, a, { kind: t === 'knight' ? 'knight' : 'mannequin', pos }))));
       else if (t === 'beast') out.push(Object.assign({ type: t }, A.beast(B, Object.assign({}, a, { pos }))));
       else if (t === 'horse') out.push(Object.assign({ type: t }, A.horse(B, Object.assign({}, a, { pos }))));
       else if (t === 'skull') A.skull(B, pos, a.size ?? 0.14, [0, (a.yaw || 0) * PI / 180, 0]);
@@ -78,7 +79,7 @@
     else if (w === 'cloudy') { sky.kind = 'day'; sky.clouds = 0.8; }
     else if (sky.kind === 'storm' && !night) sky.dark = lerp(0.4, 0.8, art.black);
     else if (sky.kind === 'day') { sky.clouds = 0.35; }
-    const L = Object.assign({ dir: [-0.5, 0.75, 0.4], strength: 0.85, ambient: 0.32, rim: 0 }, info.light || {});
+    const L = Object.assign({ dir: [-0.5, 0.75, 0.4], strength: 0.85, ambient: 0.32, rim: 0.35 }, info.light || {});   // 昼でも逆光のふちを少し（暗い物と暗い背景を分ける）
     if (sky.kind === 'scratch') { sky.swirl = bg.swirl || null; }
     if (night) { L.ambient = Math.min(L.ambient, 0.14); L.rim = 0.9; L.strength = 1.0; L.front = 0.3; L.high = 0.95; }
     if (eve) { L.high = 0.3; L.rim = 0.5; L.strength = 0.75; L.ambient = 0.2; }
@@ -125,7 +126,7 @@
     const aspect = box.w / box.h;
     const camera = cameraFor(bg, info, art, aspect);
     const list = (spec.actors || []).filter(a => a.type !== 'crowd');
-    const act = buildActors(list, floorY, hashStr(JSON.stringify(list)), info.height);
+    const act = buildActors(list, floorY, hashStr(JSON.stringify(list)), info.height, art);
     const scene = new T.Scene();
     if (!spec.noBackground) scene.add(new T.Mesh(back.geo));
     if (act.geo) scene.add(new T.Mesh(act.geo));
@@ -152,7 +153,8 @@
     }
     // 白飛び：fx.bloom = { at:[x,y,z] か center:[u,v](0..1, 下が0), radius(画面の高さに対する割合), amount }（配列で2つまで）
     const bloom = [].concat(fx.bloom || []).slice(0, 2).map(b => { let c = b.center; if (b.at) { const q = V3(...b.at).project(camera); c = [q.x * 0.5 + 0.5, q.y * 0.5 + 0.5]; } return { center: c || [0.5, 0.5], radius: b.radius ?? 0.18, amount: b.amount ?? 1 }; });
-    const S = { scene, camera, light: at.light, sky: at.sky, moon: at.moon, rain: spec.rain === false ? null : at.rain, fog: at.fog, mist: at.mist, fx, bloom, night: bg.time === 'night', bounds: spec.bounds || info.bounds, flash: spec.flash, transparent: !!spec.transparent };
+    const refZ = camera.position.distanceTo(V3(...((bg.camera && bg.camera.target) || (info.cam && info.cam.target) || [0, 1.4, 0])));
+    const S = { refZ, scene, camera, light: at.light, sky: at.sky, moon: at.moon, rain: spec.rain === false ? null : at.rain, fog: at.fog, mist: at.mist, fx, bloom, night: bg.time === 'night', bounds: spec.bounds || info.bounds, flash: spec.flash, transparent: !!spec.transparent };
     const t1 = performance.now();
     const r = M3.render(ctx, S, box, opts);
     const t2 = performance.now();
@@ -180,7 +182,7 @@
   function drawCharacter(ctx, spec, pose, expr, box, opts) {
     spec = spec || {}; box = box || {};
     const unit = box.unit || 3, Hpx = 100 * unit, pxPerM = Hpx / 1.8;
-    const kind = spec.model || (/(knight|騎士|armor|甲冑)/i.test(JSON.stringify(spec.outfit || '') + (spec.role || '') + (spec.items || []).join(',')) ? 'knight' : 'mannequin');
+    const kind = spec.model || (/(knight|騎士|armor|甲冑)/i.test(JSON.stringify(spec.outfit || '') + (spec.role || '') + (spec.items || []).join(',')) ? 'knight' : 'human');
     const facing = box.facing ?? 1;
     const yaw = box.yaw != null ? box.yaw * facing : (box.back ? 180 : 35 * facing);
     const pad = Hpx * 0.9;
@@ -194,8 +196,13 @@
     const camera = new T.PerspectiveCamera(fov, aspect, 0.5, dist * 3);
     camera.position.set(cx, cy, dist); camera.lookAt(cx, cy, 0); camera.updateMatrixWorld();
     const B = new Builder(); seed(hashStr((spec.id || spec.name || 'x') + pose));
-    const P = { stand: 'stand', walk: 'walk', run: 'run', jump: 'run', fight: 'guard', punch: 'slash', kick: 'slash', fall: 'fallen', lookup: 'lookup', look_up: 'lookup' };
-    const fig = A.figure(B, { kind, pose: P[pose] || pose || 'stand', yaw, height: 1.8 * (spec.height || 1), weapon: (spec.items || []).includes('sword') || kind === 'knight' ? 'sword' : (spec.items || []).includes('spear') ? 'spear' : null, shield: (spec.items || []).includes('shield'), cape: kind === 'knight' || /cape|cloak|マント/.test(JSON.stringify(spec.outfit || '')) });
+    const P = { stand: 'stand', walk: 'walk', run: 'run', jump: 'jump', fight: 'guard', punch: 'slash', kick: 'kick', fall: 'fallen', lookup: 'lookup', look_up: 'lookup', dance: 'spin', surprise: 'scream', scared: 'scream' };
+    const art0 = M3.artOf(opts), artRaw = (opts && (opts.art || opts)) || {};
+    const outfitStr = JSON.stringify(spec.outfit || '');
+    const outfit3 = /coat|コート|cloak|jacket/.test(outfitStr) ? 'coat' : /dress|ドレス|ワンピ/.test(outfitStr) ? 'dress' : /skirt|スカート/.test(outfitStr) ? 'skirt' : 'casual';
+    const hair3 = /long|ロング|長/.test(JSON.stringify(spec.hair || '')) ? 'long' : /spik|ツンツン|とげ/.test(JSON.stringify(spec.hair || '')) ? 'spiky' : /bald|none|坊主|スキン/.test(JSON.stringify(spec.hair || '')) ? 'none' : undefined;
+    const fig = kind === 'human' ? A.human(B, { pose: P[pose] || pose || 'stand', yaw, height: 1.8 * (spec.height || 1), headRatio: artRaw.headRatio, deform: artRaw.deform, outfit: spec.outfit3 || outfit3, hair: spec.hair3 || hair3, female: spec.gender === 'female' || spec.gender === 'f' ? true : undefined, expr, weapon: (spec.items || []).includes('sword') ? 'sword' : null })
+      : A.figure(B, { kind, pose: P[pose] || pose || 'stand', yaw, height: 1.8 * (spec.height || 1), weapon: (spec.items || []).includes('sword') || kind === 'knight' ? 'sword' : (spec.items || []).includes('spear') ? 'spear' : null, shield: (spec.items || []).includes('shield'), cape: kind === 'knight' || /cape|cloak|マント/.test(JSON.stringify(spec.outfit || '')) });
     const scene = new T.Scene(); scene.add(new T.Mesh(B.geometry()));
     const art = M3.artOf(opts);
     const S = { scene, camera, light: { dir: [-0.55 * facing, 0.75, 0.5], strength: 0.95, ambient: 0.2 }, sky: { kind: 'white' }, bounds: { c: [0, 1, 0], r: 3 }, fog: { near: 1e4, far: 2e4 }, transparent: true };
