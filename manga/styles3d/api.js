@@ -42,6 +42,7 @@
     const B = new Builder(); const out = [];
     seed(sd || 7);
     for (const a of list || []) {
+      const p0 = B.P.length, n0 = out.length;
       const p = a.pos || [0, 0]; const gy = (x, z) => heightFn ? heightFn(x, z) : floorY; const pos = p.length === 2 ? [p[0], gy(p[0], p[1]), p[1]] : [p[0], p[1] + gy(p[0], p[2]), p[2]];
       const t = a.type || 'mannequin';
       if (t === 'human' || t === 'person' || t === 'man' || t === 'woman') out.push(Object.assign({ type: 'human' }, A.human(B, Object.assign({ headRatio: art && art.headRatio, deform: art && art.deform }, a, { pos, female: a.female ?? (t === 'woman' ? true : undefined) }))));
@@ -61,6 +62,8 @@
       else if (t === 'rubbleHeap') M3.Kit.rubbleHeap(B, Object.assign({}, a, { pos }));
       else if (t === 'pipe') M3.Kit.pipe(B, a.points || [[pos[0] - 3, pos[1] + 0.5, pos[2]], [pos[0] + 3, pos[1] + 0.5, pos[2]]], a.r ?? 0.3);
       else if (t === 'tank') M3.Kit.tank(B, pos, a.r ?? 2.5, a.h ?? 6);
+      // 主役（人物・獣・馬）の範囲を記録：カメラの自動の寄せに使う
+      if (out.length > n0 && B.P.length > p0) { const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (let i = p0; i < B.P.length; i += 3) for (let k = 0; k < 3; k++) { const v = B.P[i + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; } out[out.length - 1].bbox = [mn, mx]; }
     }
     return { geo: B.count ? B.geometry() : null, out, tris: B.count };
   }
@@ -114,6 +117,58 @@
     return M3.camera(c, art, aspect);
   }
 
+  // ---------- 主役に合わせた自動の寄せ ----------
+  // 人物などの範囲（bbox）を画面に投影し、パネルの高さ（または幅）の 55〜75% に収める。
+  // 寄りのショット（shot: 'up' / 'bust' / 'closeup'、または crop: true）は、わざと切るのでそのまま。
+  // 真下から（煽り）は、頭と手が画面の上の方を占め、その上に空が見えるように狙う（足は切れてよい）。
+  function fitCamera(cam, actors, cs, aspect) {
+    const subj = (actors || []).filter(a => a.bbox); if (!subj.length) return;
+    if (subj.length > 1 && cs.fit !== true) return;   // 複数の主役の構図は、頼まれたときだけ寄せる
+    if (cs.crop || ['up', 'bust', 'closeup'].includes(cs.shot)) return;
+    const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+    for (const a of subj) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], a.bbox[0][k]); mx[k] = Math.max(mx[k], a.bbox[1][k]); }
+    const fwd = V3(); cam.getWorldDirection(fwd);
+    const ang = typeof cs.angle === 'number' ? cs.angle : ({ worm: -38, top: 89 }[cs.angle] ?? 0);
+    const H = mx[1] - mn[1];
+    const worm = (fwd.y > 0.3 || ang <= -30) && H > 0.8, top = fwd.y < -0.85 || ang >= 80;   // 寝ている人を真下からは煽らない
+    const want = cs.fill ?? (worm ? 0.72 : top ? 0.62 : 0.66);
+    // 煽り：上半分（頭・手）だけで寄せ、カメラは地面すれすれから見上げる。足は切れてよい
+    const lo = worm ? mn[1] + H * 0.4 : mn[1];
+    const aim = V3((mn[0] + mx[0]) / 2, worm ? mn[1] + H * 0.62 : (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2);
+    if (worm) { const hd = V3(cam.position.x - aim.x, 0, cam.position.z - aim.z); const hl = Math.max(hd.length(), 0.5); hd.normalize(); const el = Math.max(-ang, 40) * Math.PI / 180; cam.position.set(aim.x + hd.x * hl, Math.max(0.12, Math.min(cam.position.y, aim.y - Math.tan(el) * hl)), aim.z + hd.z * hl); }
+    const corners = []; for (let i = 0; i < 8; i++) corners.push(V3(i & 1 ? mx[0] : mn[0], i & 2 ? mx[1] : lo, i & 4 ? mx[2] : mn[2]));
+    const up = cam.up.clone();
+    // まず今の画面での大きさを測る。作り込んだ構図（距離の指定・複数の主役）は、明らかに外れているときだけ直す
+    { cam.updateMatrixWorld(); let x0 = 1, x1 = -1, y0 = 1, y1 = -1, vis = 0;
+      for (const c of corners) { const v = c.clone().project(cam); if (v.z > 1) continue; vis++; x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+      const frac0 = vis ? Math.max((y1 - y0) / 2, (x1 - x0) / 2) : 0;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, inside = vis > 0 && Math.abs(cx) < 0.9 && Math.abs(cy) < 0.9;
+      const composed = subj.length > 1 || cs.dist != null;
+      if (composed && !(worm || top) && inside && frac0 > (subj.length > 1 ? 0.2 : 0.4)) return;
+      if (subj.length > 1 && inside && frac0 > 0.2) return;
+    }
+    for (let it = 0; it < 4; it++) {
+      // 向きを主役へ（煽りは上体へ）。距離は今のまま
+      const dir = V3().subVectors(cam.position, aim); let d = dir.length(); dir.normalize();
+      cam.up.copy(up); cam.lookAt(aim); cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+      let x0 = 1, x1 = -1, y0 = 1, y1 = -1, behind = false;
+      for (const c of corners) { const v = c.clone().project(cam); if (v.z > 1) { behind = true; continue; } x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+      if (behind) { d *= 1.4; cam.position.copy(aim).addScaledVector(dir, d); continue; }
+      const frac = Math.max((y1 - y0) / 2, (x1 - x0) / 2 * (worm ? 0.8 : 1));
+      const k = frac / want;
+      if (Math.abs(k - 1) < 0.04) break;
+      // 寄る・引く：主役までの距離を変える（極端な広角でも近づきすぎない）
+      d = Math.max(0.6, d * k);
+      cam.position.copy(aim).addScaledVector(dir, d);
+      if (cam.position.y < 0.12) cam.position.y = 0.12;
+    }
+    if (worm) { // 主役の上側を画面の上 1/3 あたりまで持ち上げ、上に空を残す：少しだけ下を見る
+      cam.updateMatrixWorld(); const v = V3(aim.x, mx[1], aim.z).project(cam);
+      if (v.y > 0.55) cam.rotateX(Math.atan((v.y - 0.55) * Math.tan(cam.fov * Math.PI / 360)));   // 頭の上に空を残す
+    }
+    cam.updateMatrixWorld(); cam.updateProjectionMatrix(); cam.userData.aim = aim;
+  }
+
   // ---------- drawScene ----------
   // spec: { bg: bgSpec, actors: [...], camera: {...}, fx: { focus, speed, angle, behind, center }, flash }
   function drawScene(ctx, spec, box, opts) {
@@ -127,6 +182,9 @@
     const camera = cameraFor(bg, info, art, aspect);
     const list = (spec.actors || []).filter(a => a.type !== 'crowd');
     const act = buildActors(list, floorY, hashStr(JSON.stringify(list)), info.height, art);
+    const hasCrowd = (spec.actors || []).some(a => a.type === 'crowd');
+    const camSpec = Object.assign({}, info.cam || {}, bg.camera || {});
+    if (!hasCrowd && camSpec.fit !== false) fitCamera(camera, act.out, camSpec, aspect);
     const scene = new T.Scene();
     if (!spec.noBackground) scene.add(new T.Mesh(back.geo));
     if (act.geo) scene.add(new T.Mesh(act.geo));
@@ -153,7 +211,7 @@
     }
     // 白飛び：fx.bloom = { at:[x,y,z] か center:[u,v](0..1, 下が0), radius(画面の高さに対する割合), amount }（配列で2つまで）
     const bloom = [].concat(fx.bloom || []).slice(0, 2).map(b => { let c = b.center; if (b.at) { const q = V3(...b.at).project(camera); c = [q.x * 0.5 + 0.5, q.y * 0.5 + 0.5]; } return { center: c || [0.5, 0.5], radius: b.radius ?? 0.18, amount: b.amount ?? 1 }; });
-    const refZ = camera.position.distanceTo(V3(...((bg.camera && bg.camera.target) || (info.cam && info.cam.target) || [0, 1.4, 0])));
+    const refZ = camera.userData.aim ? camera.position.distanceTo(camera.userData.aim) : camera.position.distanceTo(V3(...((bg.camera && bg.camera.target) || (info.cam && info.cam.target) || [0, 1.4, 0])));
     const S = { refZ, scene, camera, light: at.light, sky: at.sky, moon: at.moon, rain: spec.rain === false ? null : at.rain, fog: at.fog, mist: at.mist, fx, bloom, night: bg.time === 'night', bounds: spec.bounds || info.bounds, flash: spec.flash, transparent: !!spec.transparent };
     const t1 = performance.now();
     const r = M3.render(ctx, S, box, opts);

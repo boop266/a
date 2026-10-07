@@ -178,9 +178,13 @@
         dir.applyAxisAngle(axis, -(H.c[f][k] + (rand() - 0.5) * 0.08));     // 手のひら側へ曲げる
         p = p.clone().addScaledVector(dir, lens[f][k] * sc); pts.push(p.clone());
       }
-      const rads = [0.0095, 0.0088, 0.0078, 0.0066].map(r => r * sc * (f === 3 ? 0.85 : 1));
-      add(tube(pts.map(v => toW(v.x, v.y, v.z).toArray()), rads, 7), null, { ring: false });
-      for (let k = 1; k < 3; k++) add(ell(rads[k] * 1.05, rads[k] * 1.05, rads[k] * 1.05, 6, 5), M(toW(pts[k].x, pts[k].y, pts[k].z).toArray()), { ring: false }); // 関節のふくらみ
+      // 指：付け根が太く先へ細る。関節（第2・第3）で少しふくらみ、指先は丸い。手のひら側にやや平たい
+      const r0 = 0.0102 * sc * (f === 3 ? 0.85 : 1);
+      const L = [0, lens[f][0], lens[f][0] + lens[f][1], lens[f][0] + lens[f][1] + lens[f][2]]; const tot = L[3];
+      const kn1 = L[1] / tot, kn2 = L[2] / tot;
+      const prof = [[0, r0], [kn1 - 0.1, r0 * 0.86], [kn1, r0 * 0.95], [kn1 + 0.08, r0 * 0.8], [kn2 - 0.06, r0 * 0.72], [kn2, r0 * 0.8], [kn2 + 0.06, r0 * 0.68], [0.92, r0 * 0.6], [1, r0 * 0.38]];
+      add(limbTube(pts.map(v => toW(v.x, v.y, v.z)), prof, 8, 0.85), null, { ring: false });
+      const tip = toW(pts[3].x, pts[3].y, pts[3].z); add(ell(r0 * 0.5, r0 * 0.5, r0 * 0.5, 7, 5), M(tip.toArray()), { ring: false });   // 指先の丸み
     }
     // 親指
     let dir = V3(0, -0.55, 1).normalize().addScaledVector(pn, 0.45 - (H.thOut || 0) * 0.5 + (H.thIn || 0) * 0.2).normalize();
@@ -190,7 +194,7 @@
       if (k > 0) { const axis = V3().crossVectors(dir, pn).normalize(); dir.applyAxisAngle(axis, -(H.th[k - 1]) * 0.9); if (H.thIn) dir.addScaledVector(V3(0, -0.6, -1), 0.35 * H.thIn).normalize(); }
       p = p.clone().addScaledVector(dir, tl[k] * sc); pts.push(p.clone());
     }
-    add(tube(pts.map(v => toW(v.x, v.y, v.z).toArray()), [0.012, 0.011, 0.0095, 0.0075].map(r => r * sc), 7), null, { ring: false });
+    add(limbTube(pts.map(v => toW(v.x, v.y, v.z)), [[0, 0.0135 * sc], [0.4, 0.0115 * sc], [0.5, 0.0122 * sc], [0.62, 0.0102 * sc], [0.92, 0.0078 * sc], [1, 0.005 * sc]], 8, 0.85), null, { ring: false });
   }
 
   // ---------- 頭：顔の造作と髪 ----------
@@ -244,11 +248,16 @@
       const front = ca > 0.55;
       const hk = lerp(1, 0.55, chibi);
       const len = hk * (style === 'long' ? (front ? rr(0.06, 0.1) : rr(0.25, 0.42)) : style === 'spiky' ? rr(0.09, 0.15) : (front ? rr(0.05, 0.08) : rr(0.07, 0.13))) * sc;
-      const g = style === 'spiky' ? 0.15 : 0.75;
+      const soft = chibi > 0.35 && style !== 'spiky';    // 頭の大きい絵柄：とがらせず、丸くまとまった房に
+      const g = style === 'spiky' ? 0.15 : soft ? 0.9 : 0.75;
       const pts = [base]; let d = out.clone().multiplyScalar(1 - g * 0.6).addScaledVector(flow, g).normalize();
       if (front) d.addScaledVector(V3(0, -1, 0.3).transformDirection(m), 0.6).normalize();
       for (let k = 1; k <= 4; k++) { d.addScaledVector(flow, style === 'spiky' ? 0.05 : 0.22).normalize(); pts.push(pts[k - 1].clone().addScaledVector(d, len / 4).addScaledVector(out, len * 0.05)); }
-      B.add(tube(pts.map(v => v.toArray()), [0.024, 0.019, 0.012, 0.006, 0.0008].map(r => r * sc * hk * (style === 'long' ? 1.05 : 1)), 6), null, Object.assign({}, op, hairOp, { ring: false }));
+      if (soft) { // 房の先を頭へ寄せ、太く丸い先にする
+        const c0 = V3(0, 0.12 * sc, -0.01 * sc).applyMatrix4(m);
+        for (let k = 2; k <= 4; k++) pts[k].lerp(c0, 0.06 * (k - 1));
+        B.add(tube(pts.map(v => v.toArray()), [0.03, 0.03, 0.026, 0.018, 0.009].map(r => r * sc * hk * 1.25), 8), null, Object.assign({}, op, hairOp, { ring: false }));
+      } else B.add(tube(pts.map(v => v.toArray()), [0.024, 0.019, 0.012, 0.006, 0.0008].map(r => r * sc * hk * (style === 'long' ? 1.05 : 1)), 6), null, Object.assign({}, op, hairOp, { ring: false }));
     }
   }
 

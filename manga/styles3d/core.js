@@ -286,35 +286,38 @@
     }
     float segPx(vec2 p, vec2 a, vec2 b, vec2 pxPerUnit){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); vec2 d = (pa - ba * h) * pxPerUnit; return length(d); }
     // 地面の短い筆致（く・点・短線・ノ）。手前は大きく疎、奥は小さく密（世界のマス目に置くので自然にそうなる）
+    // 地面の短い筆致（く・ノ・短線・点）。地面の上に置いた物として描く：世界の xz のマス目に固定するので、
+    // 遠いほど小さく・画面あたり密になり、かすめ角では縦に潰れる（パースが正しい）。群れと空白のまだらを作る（§1 の余白）
     float strokes(vec3 P, float dens, float hwPx){
-      vec2 q = vec2(dot(P, uRight), dot(P, uFwdH));
+      vec2 q = P.xz;
       vec2 fq = max(fwidth(q), vec2(1e-6));
-      float aniso = fq.y / fq.x;                       // かすめ角ほど大きい（縦に潰れる）
-      float keep = 1.0 - smoothstep(3.0, 7.0, aniso);
-      if (keep <= 0.0) return 0.0;
-      float cs = mix(30.0, 9.0, smoothstep(4.0, 70.0, vZ)) * uPx * fq.x;
-      float l = log2(cs / 0.05); float l0 = floor(l); float t = l - l0;
+      float fmax = max(fq.x, fq.y), fmin = min(fq.x, fq.y);
+      float keep = 1.0 - smoothstep(4.0, 9.0, fmax / fmin);         // かすめ角すぎる所は描かない
+      float size = 0.4;
+      float cpx = size / fmax;                                         // 1 マスが画面で何 px か（短い方向）
+      if (cpx > 70.0) { size *= exp2(-ceil(log2(cpx / 70.0))); cpx = size / fmax; }   // 近すぎる所は細かいマスに
+      keep *= smoothstep(2.5, 6.0, cpx);                               // 遠すぎると消える（白く抜ける）
+      // 群れ：大きなまだらで、描く所と空白を分ける
+      float clump = smoothstep(0.36, 0.6, vn2(q * 0.07 + 3.0) * 0.5 + 0.5) * (0.55 + 0.45 * smoothstep(0.3, 0.7, vn2(q * 0.4 + 9.0) * 0.5 + 0.5));
+      float dd0 = dens * clump;
+      if (keep <= 0.0 || dd0 <= 0.01) return 0.0;
+      vec2 g = q / size; vec2 ip = floor(g);
+      vec2 ppu = size / fq;
       float c = 0.0;
-      for (int k = 0; k < 2; k++){
-        float size = 0.05 * exp2(l0 + float(k));
-        vec2 g = q / size; vec2 ip = floor(g);
-        vec2 ppu = size / fq;                       // 1 マスが何 px か（横・縦）
-        float wk = (k == 0 ? smoothstep(1.0, 0.3, t) : 1.0);
-        for (int j = -1; j <= 0; j++) for (int i = -1; i <= 0; i++){
-          vec2 id = ip + vec2(float(i), float(j));
-          float h = h12(id + float(k) * 71.0);
-          if (h > dens) continue;
-          vec2 o = id + 0.5 + (vec2(h12(id + 3.1), h12(id + 7.7)) - 0.5) * 0.7;
-          float sh = h12(id + 13.0);
-          float dd;
-          if (sh < 0.45) dd = min(segPx(g, o + vec2(0.22, 0.42), o, ppu), segPx(g, o, o + vec2(0.24, -0.4), ppu));      // く
-          else if (sh < 0.75) dd = segPx(g, o, o + vec2(0.18, 0.9), ppu);                                                   // ノ（草）
-          else if (sh < 0.9) dd = segPx(g, o, o + vec2(0.5, 0.05), ppu);                                                    // 短線
-          else dd = length((g - o) * ppu) - 0.6;                                                                            // 点
-          c = max(c, (1.0 - smoothstep(hwPx * wk - 0.5, hwPx * wk + 0.5, dd)) * step(0.01, wk) * keep);
-        }
+      for (int j = -1; j <= 0; j++) for (int i = -1; i <= 0; i++){
+        vec2 id = ip + vec2(float(i), float(j));
+        if (h12(id) > dd0) continue;
+        vec2 o = id + 0.5 + (vec2(h12(id + 3.1), h12(id + 7.7)) - 0.5) * 0.7;
+        float sh = h12(id + 13.0), sc = 0.55 + 0.6 * h12(id + 5.5);
+        float ang = h12(id + 2.7) * 1.2 - 0.6; vec2 e1 = vec2(cos(ang), sin(ang)) * sc, e2 = vec2(-e1.y, e1.x);
+        float dd;
+        if (sh < 0.45) dd = min(segPx(g, o + e1 * 0.22 + e2 * 0.42, o, ppu), segPx(g, o, o + e1 * 0.24 - e2 * 0.4, ppu));   // く
+        else if (sh < 0.72) dd = segPx(g, o, o + e1 * 0.15 + e2 * 0.75, ppu);                                                 // ノ
+        else if (sh < 0.9) dd = segPx(g, o, o + e1 * 0.45, ppu);                                                              // 短線
+        else dd = length((g - o) * ppu) - 0.6;                                                                                // 点
+        c = max(c, 1.0 - smoothstep(hwPx - 0.5, hwPx + 0.5, dd));
       }
-      return c;
+      return c * keep;
     }
     // 点描（影を点の密度で）
     float stipple(vec2 fc, float dens){
@@ -472,8 +475,11 @@
       }
       // 地面：短い筆致と、点描の影
       if (groundPat) {
-        float base = pat == 20.0 ? 0.8 : (pat == 17.0 || pat == 18.0) ? 0.0 : 0.4;
+        float base = pat == 20.0 ? 0.95 : (pat == 17.0 || pat == 18.0) ? 0.0 : 0.65;
         float dens = base * (0.3 + 0.7 * smoothstep(0.05, 0.7, d)) * (1.0 - fog);
+        // かすめ角（地平線の近く）は線を引かず、薄い網点のグラデーションで遠ざける
+        float grz = 1.0 - smoothstep(0.015, 0.09, abs(dot(n, V)));
+        ink = max(ink, dots(fc, grz * 0.16 * clamp(uH.x + uH.w + uH.z * 0.5, 0.25, 1.0) * (1.0 - fog * 0.6), max(4.5 * S, 3.2)));
         if (base > 0.0) ink = max(ink, strokes(vW, dens, mix(0.5, 0.75, det) * max(S, 0.8)) * smoothstep(0.0, 0.25, det + 0.1));
         ink = max(ink, stipple(fc, clamp(shadowAmt * 1.2, 0.0, 0.7) * (1.0 - fog)));
       }
@@ -573,7 +579,8 @@
         // 同じ面をかすめ角で見ているだけなら輪郭ではない。ただし段差が大きい（別の物が重なる）ときは輪郭
         // 平らな面をかすめ角で見ると奥行きは左右対称に変わる（二階差分が小さい）。物が重なる段差は片側だけ跳ぶ
         if (idd < 0.5 && ndiff < 0.04) jump *= smoothstep(0.25, 0.6, lap / max(zmax - zc, 1e-5));
-        sil = max(jump, far);
+        if (idd < 0.5) jump *= 1.0 - graze * 0.85;   // かすめ角の地面は、奥の地面との距離差を輪郭にしない（地平線を太くしない）
+        sil = max(jump, far * (1.0 - graze * 0.85));   // かすめ角の地面の果て（地平線）は細く薄く
         sil = max(sil, smoothstep(0.03, 0.08, lap / zc) * 0.9 * smoothstep(0.12, 0.35, nc.z) * (1.0 - graze));
       }
       float nearD = clamp(pow(min(uRefZ, 8.0) / max(zc, 0.05), 0.5), 0.75, 1.4);
@@ -589,6 +596,7 @@
       float wIn = max(mix(0.9, 1.6, uLine.x) * uPx, 0.9);
       float w = mix(wIn, wOut, sil);
       w *= mix(1.0, mix(1.2, 0.8, smoothstep(0.3, 0.75, lit)) * near, uLine.y);
+      w *= mix(1.0, 0.45, graze);
       float fog = smoothstep(uFogNear, uLine.w, zc);
       w *= 1.0 - fog * 0.6; e *= 1.0 - fog * 0.85; e = smoothstep(0.15, 0.55, e);
       gl_FragColor = vec4(e, w / 16.0, max(darkMat, step(0.6, sil) * 0.5), 1.0);
