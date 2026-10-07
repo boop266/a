@@ -199,7 +199,7 @@
     const art = K.normalizeArt(opts && (opts.art || opts));
     if (box.color) spec = Object.assign({}, spec, { color: box.color }); // コマごとの色（例：雲を灰色に）
     // 宙に浮かせる：box.float = true（体の高さの0.6倍）または数値（体の高さに対する割合）、box.lift = px
-    { const Ht0 = 100 * (box.unit || 3) * sizeFactor(spec); const Ha = 100 * (box.unit || 3); const up = (box.float === true ? 0.6 : typeof box.float === 'number' ? box.float : 0) * Ha + (box.lift || 0) + (pose === 'float' && BLOBS.includes(spec.species) ? Ht0 * 0.15 : 0); if (up) box = Object.assign({}, box, { footY: (box.footY || 0) - up }); }
+    { const Ht0 = 100 * (box.unit || 3) * sizeFactor(spec); const Ha = 100 * (box.unit || 3); const up = (box.float === true ? 0.6 : typeof box.float === 'number' ? box.float : 0) * Ha + (box.lift || 0) + (pose === 'float' && BLOBS.includes(spec.species) ? Ht0 * 0.15 : 0); if (up) box = Object.assign({}, box, { footY0: box.footY, footY: (box.footY || 0) - up }); }
     const unit = box.unit || 3, sz = sizeFactor(spec), Ht = 100 * unit * sz;
     seed(hashStr((spec.id || spec.name || 'x') + '|' + pose + '|' + expr + '|' + Math.round(box.footX || 0)));
     const lineSc = clamp(Math.sqrt(Ht / 300), 0.45, 2.2);
@@ -209,7 +209,7 @@
     const S = K.ctxScale(ctx) * (box.res || 1);
     let rig = buildRig(spec, pose, box, art, m);
     // headAt：頭の中心をその位置に合わせる（バストアップ・アップのコマ用）
-    if (box.headAt) { const hp = rig.proj(rig.J.head); box = Object.assign({}, box, { footX: box.footX + box.headAt.x - hp.x, footY: box.footY + box.headAt.y - hp.y }); rig = buildRig(spec, pose, box, art, m); }
+    if (box.headAt) { const hp = rig.proj(rig.J.head); box = Object.assign({}, box, { shadow: false, footX: box.footX + box.headAt.x - hp.x, footY: box.footY + box.headAt.y - hp.y }); rig = buildRig(spec, pose, box, art, m); }
     const pad = Ht * 0.9;
     let lb = { x: (box.footX || 0) - pad, y: (box.footY || 0) - Ht * 1.45, w: pad * 2, h: Ht * 1.6 };
     if (box.panel) { const p = box.panel; const x0 = Math.max(lb.x, p.x), y0 = Math.max(lb.y, p.y), x1 = Math.min(lb.x + lb.w, p.x + p.w), y1 = Math.min(lb.y + lb.h, p.y + p.h); lb = { x: x0, y: y0, w: Math.max(4, x1 - x0), h: Math.max(4, y1 - y0) }; }
@@ -218,13 +218,28 @@
     const freeHand = !NOHOLD.has(poseKey);
     const ctxD = { ly, spec, art, m, rig, R, line, expr: EXPRS[expr] || EXPRS[EXPR_ALIAS[expr]] || EXPRS.normal, exprName: expr, box, hold: box.hold != null ? box.hold : (rig.P.hold || (freeHand ? (spec.items || []).find(i => HELD_SET.has(i)) : null)) };
     if (ctxD.hold === 'none') ctxD.hold = null;
+    ctxD.brush = R.brush || 0; ctxD.clean = R.clean || 0; ctxD.rough = art.line.roughness;
     // 変顔の強さ：0=ほっぺをふくらませる(puff), 1=変顔, 2=もっと崩す（funny2、または大人の funny）
     const en = EXPRS[expr] ? expr : (EXPR_ALIAS[expr] || expr); ctxD.exprName = en;
     ctxD.funnyLevel = en === 'puff' ? 0 : en === 'funny2' ? 2 : en === 'funny' ? (box.exprLevel != null ? clamp(Math.round(box.exprLevel), 0, 2) : (spec.age === 'adult' || spec.age === 'elder' ? 2 : 1)) : -1;
     const res = BLOBS.includes(spec.species) ? drawBlob(ctxD) : art.rough ? drawRough(ctxD) : drawHumanoid(ctxD);
     ctx.save();
     if (box.panel) { ctx.beginPath(); ctx.rect(box.panel.x, box.panel.y, box.panel.w, box.panel.h); ctx.clip(); }
+    // 点描の影（地面に落ちる影）：人物の下に、点の密度で。浮いていれば小さく薄く
+    const groundY = box.ground ?? (box.footY0 ?? box.footY);
+    if (!art.rough && !BLOBS.includes(spec.species) && (art.black > 0.35 || art.hatching > 0.35) && box.shadow !== false) {
+      const lifted = Math.max(0, groundY - res.body.y - res.body.h) / m.Ht; const k = clamp(1 - lifted * 1.5, 0.25, 1);
+      const L = K.getLight(); const cx = (box.footX0 ?? box.footX) - L[0] * m.Ht * 0.12;
+      seed(hashStr('shadow' + (spec.id || '')));
+      K.stipple(ctx, cx, groundY, m.shHalf * 2.2 * k + m.Ht * 0.05, m.Ht * 0.035 * k, lerp(0.6, 1.6, Math.max(art.black, art.hatching)) * k, lineSc * 0.9);
+    }
     compose(ctx, ly, R);
+    // 足もとの粉塵：動きのあるポーズで、筆の強い絵柄ほど
+    if ((ctxD.brush > 0.2 || art.dynamism > 0.7) && !art.rough && ['run', 'jump', 'punch', 'slash', 'fight', 'kick', 'crouch', 'guard'].includes(POSES[pose] ? pose : POSE_ALIAS[pose])) {
+      seed(hashStr('dust' + pose));
+      for (const k of ['n', 'f']) { const a = rig.proj(rig.J['an' + k]); if (Math.abs(a.y - groundY) > m.Ht * 0.08) continue; K.splatter(ctx, a.x, groundY - m.Ht * 0.01, Math.PI + (rig.mir > 0 ? 0.25 : -0.25) * -1 + (rig.mir > 0 ? 0 : Math.PI), m.Ht * 0.05, Math.round(12 + 30 * Math.max(ctxD.brush, art.dynamism)), { spread: 1.4, reach: 2.5 });
+        ctx.fillStyle = '#000'; for (let i = 0; i < 6; i++) { const x = a.x - rig.mir * rr(0, m.Ht * 0.12), y = groundY - rr(0, m.Ht * 0.02); penPath(ctx, [[x, y], [x - rig.mir * rr(4, 10) * lineSc, y - rr(0, 2)]], 0.6 * lineSc, { tin: 2, tout: 3, taper: 1, jit: 0 }); } }
+    }
     if (box.rain) rainFrom(ctx, ctxD, res, art);
     ctx.restore();
     return res;
@@ -245,6 +260,7 @@
     else if (o.outline !== false) contour(l, poly, o.w ?? 1.5, { closed: true, base: 0.5, k: 1.1 });
     if (o.lines) for (const s of o.lines) { l.fillStyle = s.c || '#000'; ink(l, s.p, s.w ?? 0.8, s.o || {}); }
     l.fillStyle = '#000';
+    const LSr = K.getLine().rough; if (LSr > 0.6 && poly.length > 8) K.grime(mat > 0.8 ? ly.hi : l, poly, (LSr - 0.6) * 2.5, Math.max(0.6, K.getLine().w)); // ひび・傷・汚れ
   }
 
   /* ---------- 人型 ---------- */
@@ -285,8 +301,8 @@
       const zArm = (sh.z + el.z * 2 + wr.z) / 4;
       parts.push({ z: zArm, f: () => {
         const ch = limbChain([sh, el, wr], m.armR, 'arm', mus, robot);
-        if (!(sleeve === 'long' || wide) || robot) part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.5, off: m.armR * 0.7, lines: ch.lines });
-        if (sleeve !== 'none' && !robot) { const end = sleeve === 'short' ? 0.42 : 0.96; const cl = clothOver(ch, 0, end, wide ? 1.55 : 1.16, sleeve === 'long' || wide ? 'cuff' : 'hem', art, wide); part(ly, cl.poly, topMat, { edges: cl.edges, w: 1.5, off: m.armR * 0.8, lines: cl.lines }); }
+        if (!(sleeve === 'long' || wide) || robot) { part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.5, off: m.armR * 0.7, lines: ch.lines }); if (skin < 0.5 && !robot) contourHatch(C, ch); }
+        if (sleeve !== 'none' && !robot) { const end = sleeve === 'short' ? 0.42 : 0.96; const cl = clothOver(ch, 0, end, wide ? 1.55 : 1.16, sleeve === 'long' || wide ? 'cuff' : 'hem', art, wide); part(ly, cl.poly, topMat, { edges: cl.edges, w: 1.5, off: m.armR * 0.8, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), topMat); }
         const dir = V.norm([wr.x - el.x, wr.y - el.y]);
         if (C.hold && k === 'n') drawHeld(C, [wr.x, wr.y], dir, wr.k);
         drawHand(C, [wr.x, wr.y], dir, m.hand * wr.k, (C.hold && k === 'n') ? 'grip' : J['hand' + k], k, skin);
@@ -301,8 +317,8 @@
       parts.push({ z: zLeg, f: () => {
         const ch = limbChain([hp, kn, an], m.legR, 'leg', mus, robot);
         const cover = pants === 'pants' ? 0.97 : pants === 'shorts' ? 0.4 : 0;
-        if (cover < 0.9 || robot) part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.6, off: m.legR * 0.8, lines: ch.lines });
-        if (cover > 0 && !robot) { const cl = clothOver(ch, 0, cover, cover > 0.9 ? 1.14 : 1.2, cover > 0.9 ? 'bunch' : 'hem', art, false); part(ly, cl.poly, bottomMat, { edges: cl.edges, w: 1.6, off: m.legR * 0.9, lines: cl.lines }); }
+        if (cover < 0.9 || robot) { part(ly, ch.poly, skin, { edges: [ch.L, ch.R], w: 1.6, off: m.legR * 0.8, lines: ch.lines }); if (skin < 0.5 && !robot) contourHatch(C, ch); }
+        if (cover > 0 && !robot) { const cl = clothOver(ch, 0, cover, cover > 0.9 ? 1.14 : 1.2, cover > 0.9 ? 'bunch' : 'hem', art, false); part(ly, cl.poly, bottomMat, { edges: cl.edges, w: 1.6, off: m.legR * 0.9, lines: cl.lines }); brushCloth(C, cl.poly, V.sub(ch.C[ch.C.length - 1], ch.C[0]), bottomMat); }
         drawShoe(C, an, toe, k);
       } });
     }
@@ -332,6 +348,42 @@
     const xs = [], ys = []; for (const k of ['shn', 'shf', 'ann', 'anf', 'wrn', 'wrf', 'head']) { const p = proj(J[k]); xs.push(p.x); ys.push(p.y); }
     const top = hc.y - m.R * 1.2, bot = Math.max(...ys) + m.footH;
     return { head: { x: hc.x, y: hc.y, r: m.R * hc.k }, body: { x: Math.min(...xs) - m.R * 0.3, y: top, w: Math.max(...xs) - Math.min(...xs) + m.R * 0.6, h: bot - top } };
+  }
+
+  /* ---------- 筆とドライブラシ（服・マント） ----------
+     axis: 布の流れる向き（画面上のベクトル）。黒い布は「黒ベタ＋白いしわの線」、明るい布は影側にかすれた太い筆致と払いのしわ */
+  function brushCloth(C, poly, axis, mat) {
+    const br = C.brush || 0, art = C.art; if (br < 0.12 || C.clean > 0.5 || art.rough || !poly || poly.length < 6) return;
+    const { ly } = C; const b = K.bbox(poly); const size = Math.sqrt(b.w * b.h); if (size < 8) return;
+    const dark = mat >= (C.R.betaM ?? 0.9) - 0.02; const L = K.getLight(); const ax = V.norm(axis), nx = [-ax[1], ax[0]];
+    const ctr = poly.reduce((a, p) => [a[0] + p[0] / poly.length, a[1] + p[1] / poly.length], [0, 0]);
+    const c = dark ? ly.hi : ly.l; c.save(); c.beginPath(); pathPoly(c, poly); c.clip(); c.fillStyle = dark ? '#fff' : '#000';
+    const n = Math.round((dark ? 3 : 4) + br * (dark ? 7 : 9) * Math.min(1.6, size / 60));
+    for (let i = 0; i < n; i++) {
+      // 置き場所：黒い布は光の側に白線、明るい布は影の側に黒の筆
+      let p, tries = 0; do { p = [b.x + rand() * b.w, b.y + rand() * b.h]; const side = V.dot(V.sub(p, ctr), L) / (size * 0.5); if ((dark ? side : -side) > rr(-0.4, 0.5)) break; } while (++tries < 6);
+      const len = size * rr(0.25, 0.7) * (dark ? 0.8 : 1), bend = rg(0, 0.18) * len;
+      const p1 = V.add(p, V.add(V.mul(ax, len), V.mul(nx, bend)));
+      const mid = V.add(V.lerp(p, p1, 0.5), V.mul(nx, bend * 0.6));
+      if (dark) ink(c, [p, mid, p1], rr(0.6, 1.3), { tin: len * 0.15, tout: len * 0.5, noScratch: true });
+      else K.dryStroke(c, [p, mid, p1], size * rr(0.05, 0.12) * (0.6 + br * 0.6), { dry: lerp(0.35, 0.75, br) });
+    }
+    // 払いのしわ：布の端（すそ）から内へ、細く抜ける
+    for (let i = 0; i < Math.round(1 + br * 3); i++) { const p = poly[Math.floor(rand() * poly.length)]; const d = V.norm(V.sub(ctr, p)); const len = size * rr(0.2, 0.4); ink(c, [p, V.add(p, V.add(V.mul(d, len * 0.5), V.mul(V.perp(d), len * 0.1))), V.add(p, V.mul(d, len))], dark ? 0.9 : 1.2, { tin: 0.5, tout: len * 0.7, noScratch: true }); }
+    c.restore();
+  }
+  /* ---------- 筋肉のふくらみに沿って回り込むハッチ（写実寄りの人体） ---------- */
+  function contourHatch(C, ch) {
+    const art = C.art, q = C.m.q; if (q < 0.45 || art.hatching < 0.35 || C.clean > 0.5 || art.rough) return;
+    const { ly } = C; const l = ly.l; const L = K.getLight(); const n = ch.C.length;
+    const shadowSide = (() => { const i = Math.floor(n / 2); const dl = V.sub(ch.L[i], ch.C[i]); return V.dot(dl, L) < 0 ? 'L' : 'R'; })();
+    const edge = ch[shadowSide], step = Math.max(1, Math.round(lerp(4, 1.5, art.hatching)));
+    for (let i = 1; i < n - 1; i += step) {
+      const e = edge[i], c = ch.C[i], d = V.norm(V.sub(ch.C[Math.min(n - 1, i + 1)], ch.C[Math.max(0, i - 1)]));
+      const depth = lerp(0.35, 0.75, art.hatching) * (0.7 + 0.3 * Math.sin(i * 0.9));
+      const p1 = V.lerp(e, c, depth); const mid = V.add(V.lerp(e, p1, 0.5), V.mul(d, V.dist(e, c) * 0.18)); // 円柱を輪切りにした弧
+      ink(l, [V.lerp(e, c, 0.04), mid, p1], 0.45, { tin: 0.5, tout: V.dist(e, p1) * 0.6, noScratch: true });
+    }
   }
 
   /* ---------- 手足：関節をまたいで1本につながった肉付け ----------
@@ -551,6 +603,7 @@
     const lines = []; const nf = 2 + Math.round(C.art.detail * 4);
     for (let i = 1; i < nf; i++) { const t = i / nf; lines.push({ p: [[lerp(c0.x - w0, c0.x + w0, t), c0.y + len * 0.25], [lerp(bot[0] - hw, bot[0] + hw, t), bot[1]]], w: 0.7, o: { tin: len * 0.4, tout: 1 } }); }
     part(ly, poly, C.mat.bottom, { w: 1.6, off: hw * 0.3, lines });
+    brushCloth(C, poly, [0, 1], C.mat.bottom);
   }
   function drawHand(C, W, dir, hs, kind, k, mat) {
     const { ly, art, m } = C; const n = V.perp(dir), sgn = (C.rig.mir) * (k === 'n' ? 1 : -1);
@@ -1293,6 +1346,7 @@
     const P = sw.L.concat(end, sw.R.slice().reverse());
     const lines = []; for (let i = 0; i < 2 + Math.round(art.detail * 4); i++) { const s = rr(0.2, 0.8); const pts = []; for (let k = Math.round(n * rr(0.1, 0.3)); k <= n; k += 2) pts.push(V.lerp(sw.L[k], sw.R[k], s)); if (pts.length > 2) lines.push({ p: pts, w: 0.8, o: { tin: 8, tout: 12 } }); }
     part(ly, P, 0.8, { w: 1.6, off: m.shHalf * 0.6, blur: 2, lines });
+    brushCloth(C, P, dir, 0.8); hairSplatter(C, sw.L[n], dir, m.shHalf * 0.5);
   }
   function drawWings(C) {
     const { ly, m, rig } = C; const { J, proj } = rig; const c = proj(J.chest);

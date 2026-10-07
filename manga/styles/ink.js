@@ -115,6 +115,8 @@
   function ink(ctx, C, w, o = {}) {
     const P = o.dense ? C : catmull(C, o.seg ?? 7, o.closed);
     const ww = w * LS.w;
+    // 荒れた線：輪郭を一本で引かず、短い引っかき線の重ねで作る
+    if (LS.rough > 0.6 && !o.noRough && !o.noScratch && P.length > 3) { scratchPath(ctx, P, ww, (LS.rough - 0.6) / 0.4, o); return; }
     penPath(ctx, P, ww, o);
     if (LS.rough > 0.15 && !o.noRough && P.length > 3 && rand() < LS.rough) {
       const off = rr(0.6, 1.6) * LS.rough * Math.min(2.5, ww + 0.5); const a = rand() * TAU; const d = [Math.cos(a) * off, Math.sin(a) * off];
@@ -124,13 +126,71 @@
       ctx.globalAlpha = ga;
     }
   }
+  function scratchPath(ctx, P, w, k, o) {
+    const L = [0]; for (let i = 1; i < P.length; i++) L.push(L[i - 1] + V.dist(P[i - 1], P[i]));
+    const tot = L[L.length - 1]; if (tot < 3) { penPath(ctx, P, w, o); return; }
+    const at = s => { let i = 1; while (i < L.length - 1 && L[i] < s) i++; const t = (s - L[i - 1]) / Math.max(1e-6, L[i] - L[i - 1]); return V.lerp(P[i - 1], P[i], clamp(t)); };
+    const seg = lerp(14, 6, k) * Math.max(0.7, Math.sqrt(w));
+    for (let s0 = -rr(0, seg * 0.5); s0 < tot; s0 += seg * rr(0.45, 0.75)) {
+      const a = Math.max(0, s0), b = Math.min(tot, s0 + seg * rr(0.8, 1.3)); if (b - a < 1) continue;
+      const pts = []; for (let s = a; s <= b; s += Math.max(0.8, (b - a) / 6)) pts.push(at(s));
+      const d = V.norm(V.sub(pts[pts.length - 1], pts[0])), n = [-d[1], d[0]]; const off = rg(0, 0.35) * w * (0.6 + k), tilt = rg(0, 0.05 + 0.08 * k);
+      const Q = pts.map((p, i) => V.add(p, V.mul(n, off + (i / (pts.length - 1) - 0.5) * tilt * (b - a))));
+      penPath(ctx, Q, w * rr(0.6, 1.0), Object.assign({}, o, { tin: (b - a) * 0.3, tout: (b - a) * 0.4, closed: false, wf: null, taper: 1, jit: 0.3 }));
+    }
+  }
+  // ドライブラシ（かすれた筆）：毛の束を並べ、ところどころ途切れさせる。dry=0..1（かすれの強さ）
+  function dryStroke(ctx, C, w, o = {}) {
+    const P = o.dense ? C : catmull(C, 6); if (P.length < 2) return;
+    const n = Math.max(3, Math.min(14, Math.round(w * 1.4 + 2))), dry = o.dry ?? 0.5, ph = rand() * 100;
+    const L = [0]; for (let i = 1; i < P.length; i++) L.push(L[i - 1] + V.dist(P[i - 1], P[i])); const tot = L[L.length - 1];
+    for (let b = 0; b < n; b++) {
+      const u = (b / (n - 1) - 0.5), edge = Math.abs(u) * 2; let run = null;
+      const flush = () => { if (run && run.length > 2) penPath(ctx, run, w / n * rr(1.1, 1.8), { tin: 2, tout: 4, taper: 1, jit: 0, wob: 0 }); run = null; };
+      for (let i = 0; i < P.length; i++) {
+        const t = L[i] / Math.max(1e-6, tot); const a = P[Math.max(0, i - 1)], c = P[Math.min(P.length - 1, i + 1)]; const d = V.norm(V.sub(c, a)), nn = [-d[1], d[0]];
+        const wid = w * (o.taper === false ? 1 : Math.min(1, Math.pow(Math.min(t, 1 - t) * 4 + 0.15, 0.6)));
+        // 筆の端ほど、また払いの先ほどかすれる
+        const gap = vnoise(b * 3.7 + ph, L[i] * 0.12) < dry * (0.35 + 0.65 * edge) + dry * t * 0.5;
+        if (gap) { flush(); continue; }
+        (run ||= []).push([P[i][0] + nn[0] * u * wid, P[i][1] + nn[1] * u * wid]);
+      }
+      flush();
+    }
+  }
+  // 墨の飛沫：中心から dir 方向へ、大小の点としずく。spread=広がり角
+  function splatter(ctx, x, y, dir, size, n, o = {}) {
+    const spread = o.spread ?? 0.9; ctx.fillStyle = o.color || '#000';
+    for (let i = 0; i < n; i++) {
+      const a = dir + rg(0, spread * 0.5), d = size * Math.pow(rand(), 0.7) * (o.reach ?? 3), r = size * 0.12 * Math.pow(rand(), 2.2) + 0.3;
+      const p = [x + Math.cos(a) * d, y + Math.sin(a) * d];
+      if (rand() < 0.18 && r > 0.6) { const L = r * rr(3, 7); const q = [p[0] - Math.cos(a) * L, p[1] - Math.sin(a) * L]; penPath(ctx, [q, p], r * 1.8, { tin: L * 0.9, tout: 0.5, taper: 1, jit: 0, wob: 0 }); }
+      ctx.beginPath(); ctx.ellipse(p[0], p[1], r * rr(0.8, 1.3), r, a, 0, TAU); ctx.fill();
+    }
+    if (o.blot) { const r = size * 0.35; const P = []; for (let k = 0; k < 16; k++) { const a = k / 16 * TAU; P.push([x + Math.cos(a) * r * rr(0.6, 1.2), y + Math.sin(a) * r * rr(0.6, 1.2)]); } fillPoly(ctx, catmull(P, 3, true)); }
+  }
+  // ひび・傷・汚れ（荒れた線の絵柄で、形の中に）
+  function grime(ctx, poly, amount, sc = 1) {
+    const b = bbox(poly); const n = Math.round(amount * Math.sqrt(b.w * b.h) / 12); if (n < 1) return;
+    ctx.save(); ctx.beginPath(); pathPoly(ctx, poly); ctx.clip(); ctx.fillStyle = '#000';
+    for (let i = 0; i < n; i++) { const p = [b.x + rand() * b.w, b.y + rand() * b.h]; const kind = rand();
+      if (kind < 0.4) { const pts = [p]; let a = rand() * TAU; for (let k = 0; k < 4; k++) { a += rg(0, 0.7); const q = pts[pts.length - 1]; pts.push([q[0] + Math.cos(a) * rr(2, 6) * sc, q[1] + Math.sin(a) * rr(2, 6) * sc]); } penPath(ctx, pts, 0.5 * sc, { tin: 1, tout: 3, taper: 1, jit: 0 }); }
+      else if (kind < 0.75) { const a = rand() * TAU, L = rr(2, 7) * sc; penPath(ctx, [p, [p[0] + Math.cos(a) * L, p[1] + Math.sin(a) * L]], 0.45 * sc, { tin: L * 0.4, tout: L * 0.4, taper: 1, jit: 0 }); }
+      else { for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(p[0] + rg(0, 2) * sc, p[1] + rg(0, 2) * sc, rr(0.2, 0.6) * sc, 0, TAU); ctx.fill(); } } }
+    ctx.restore();
+  }
+  // 点描の影：楕円の中に、中心ほど密な点
+  function stipple(ctx, cx, cy, rx, ry, dens, sc = 1) {
+    const n = Math.round(rx * ry * 0.35 * dens); ctx.fillStyle = '#000';
+    for (let i = 0; i < n; i++) { const a = rand() * TAU, r = Math.sqrt(rand()); const keep = 1 - Math.pow(r, 2.2); if (rand() > keep) continue; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r * rx, cy + Math.sin(a) * r * ry, rr(0.35, 0.75) * sc, 0, TAU); ctx.fill(); }
+  }
   let LIGHT = V.norm([-0.6, -0.8]);
   const setLight = l => { LIGHT = V.norm(l); }; const getLight = () => LIGHT;
   // 光の反対側（影側）を太くする輪郭
   function contour(ctx, P, w, o = {}) {
     const closed = o.closed ?? true;
     const sgn = closed ? (polyArea(P) > 0 ? 1 : -1) : (o.sgn ?? 1); const Lt = o.light || LIGHT;
-    const base = o.base ?? 0.5, k = o.k ?? 1.1;
+    const base = o.base ?? 0.5, k = (o.k ?? 1.1) * (1 - (LS.cleanK || 0) * 0.85); // すっきりした線：太さの強弱を抑える
     const P2 = P.length < 12 ? catmull(P, 4, closed) : P;
     ink(ctx, P2, w, Object.assign({}, o, { dense: true, closed, wf: (t, p, nn) => { const out = [nn[0] * -sgn, nn[1] * -sgn]; const d = -(out[0] * Lt[0] + out[1] * Lt[1]); return base + k * Math.max(0, d); } }));
   }
@@ -317,5 +377,5 @@
   // ctx の今の拡大率（studio のページがどの倍率でも、細い線が潰れないように）
   function ctxScale(ctx) { try { const m = ctx.getTransform(); return clamp(Math.hypot(m.a, m.b), 0.5, 4); } catch (e) { return 2; } }
 
-  Object.assign(K, { angBucket, TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
+  Object.assign(K, { dryStroke, splatter, grime, stipple, scratchPath, angBucket, TAU, clamp, lerp, sstep, V, seed, rand, rr, rg, pick, hashStr, hash2, vnoise, catmull, ellipsePts, polyArea, sweep, bbox, convexHull, fillPoly, pathPoly, setLine, getLine, penPath, ink, contour, setLight, getLight, mkCanvas, Layer, compose, hatch, kakeami, dots, ctxScale });
 })();

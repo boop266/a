@@ -40,7 +40,7 @@
     shonen: { headRatio: 7, deform: 0.2, eyeSize: 0.45, eyeStyle: 'sharp', line: { weight: 0.7, taper: 0.85, jitter: 0.08, roughness: 0.05 }, hatching: 0.25, crossHatch: 0.1, black: 0.6, tone: 0.45, toneKind: 'dot', detail: 0.6, perspective: 0.6, dynamism: 0.95, sparkle: 0.15, softness: 0.1, grain: 0, panelFrame: 'clean' },
     action: { headRatio: 7.5, deform: 0.05, eyeSize: 0.35, eyeStyle: 'sharp', line: { weight: 0.5, taper: 0.8, jitter: 0.05, roughness: 0.05 }, hatching: 0.5, crossHatch: 0.35, black: 0.55, tone: 0.55, toneKind: 'gradient', detail: 1.0, perspective: 1.0, dynamism: 0.85, sparkle: 0.05, softness: 0.0, grain: 0, panelFrame: 'clean' },
     yuru: { headRatio: 2.6, deform: 0.85, eyeSize: 0.25, eyeStyle: 'dot', line: { weight: 0.6, taper: 0.15, jitter: 0.2, roughness: 0.05 }, hatching: 0, crossHatch: 0, black: 0.45, tone: 0.35, toneKind: 'dot', detail: 0.3, perspective: 0.05, dynamism: 0.3, sparkle: 0.3, softness: 0.75, grain: 0, panelFrame: 'rounded' },
-    shojo: { headRatio: 6.8, deform: 0.25, eyeSize: 0.9, eyeStyle: 'sparkle', line: { weight: 0.25, taper: 0.9, jitter: 0.05, roughness: 0 }, hatching: 0.1, crossHatch: 0, black: 0.35, tone: 0.75, toneKind: 'gradient', detail: 0.6, perspective: 0.2, dynamism: 0.25, sparkle: 1.0, softness: 0.6, grain: 0, panelFrame: 'borderless' },
+    shojo: { headRatio: 6.8, deform: 0.25, eyeSize: 0.9, eyeStyle: 'sparkle', line: { weight: 0.2, taper: 0.9, jitter: 0.03, roughness: 0 }, hatching: 0.0, crossHatch: 0, black: 0.35, tone: 0.75, toneKind: 'gradient', detail: 0.6, perspective: 0.2, dynamism: 0.25, sparkle: 1.0, softness: 0.6, grain: 0, panelFrame: 'borderless' },
     gag: { headRatio: 3.2, deform: 1.0, eyeSize: 0.6, eyeStyle: 'simple', line: { weight: 0.85, taper: 0.5, jitter: 0.5, roughness: 0.3 }, hatching: 0.05, crossHatch: 0, black: 0.5, tone: 0.3, toneKind: 'dot', detail: 0.25, perspective: 0.35, dynamism: 1.0, sparkle: 0.1, softness: 0.2, grain: 0, panelFrame: 'rough' },
     horror: { headRatio: 7, deform: 0.1, eyeSize: 0.4, eyeStyle: 'realistic', line: { weight: 0.45, taper: 0.7, jitter: 0.6, roughness: 0.65 }, hatching: 0.55, crossHatch: 0.5, black: 1.0, tone: 0.6, toneKind: 'kakeami', detail: 0.75, perspective: 0.6, dynamism: 0.35, sparkle: 0, softness: 0, grain: 0.35, panelFrame: 'rough' },
     ehon: { headRatio: 3.8, deform: 0.6, eyeSize: 0.3, eyeStyle: 'dot', line: { weight: 0.3, taper: 0.3, jitter: 0.45, roughness: 0.2 }, hatching: 0.0, crossHatch: 0, black: 0.05, tone: 0.45, toneKind: 'gradient', detail: 0.35, perspective: 0.0, dynamism: 0.15, sparkle: 0.35, softness: 1.0, grain: 0.55, panelFrame: 'borderless' },
@@ -52,7 +52,7 @@
   // art → 描き分けの設定（線・トーン・ハッチ）。sc = 線や網点の基準の大きさ
   function derive(art, sc = 1) {
     const a = normalizeArt(art), soft = a.softness;
-    const line = { w: lerp(0.5, 1.9, a.line.weight) * lerp(1, 0.75, soft) * sc, taper: a.line.taper * lerp(1, 0.55, soft), jitter: a.line.jitter * 1.4 * sc, rough: a.line.roughness, soft, grain: a.grain };
+    const line = { w: lerp(0.45, 1.5, a.line.weight) * lerp(1, 0.75, soft) * sc, taper: a.line.taper * lerp(1, 0.55, soft), jitter: a.line.jitter * 1.4 * sc, rough: a.line.roughness, soft, grain: a.grain };
     const hat = a.hatching * lerp(1, 0.6, soft), ch = a.crossHatch * (0.4 + 0.6 * hat > 0.05 ? 1 : 0.3) * lerp(1, 0.5, soft);
     const tk = a.toneKind === 'none' ? 'none' : a.toneKind, tn = tk === 'none' ? 0 : a.tone * lerp(1, 0.8, soft);
     const blk = a.black * lerp(1, 0.7, soft);
@@ -65,12 +65,19 @@
       grain: a.grain, rough: a.line.roughness, grainTone: tk === 'gradient' ? a.grain * 0.5 : 0,
       hatch: [],
     };
+    // ハッチの間隔：技法ノート7章（1600px幅のコマで 明部6〜10px／中間3〜5px／暗部2〜3px＋クロス）
+    // ページ単位（約2px）に直して、明部→中間→暗部の3層にする
     if (hat > 0.02) {
-      const sp = lerp(3.6, 1.9, hat) * sc;
-      R.hatch.push({ ang: -1.0, thr: lerp(0.5, 0.12, hat), sp, w: sp * 0.55, band: 0.35 });
-      if (ch > 0.05) R.hatch.push({ ang: 0.45, thr: lerp(0.9, 0.36, ch), sp: sp * 1.05, w: sp * 0.5, band: 0.3 });
-      if (ch > 0.5) R.hatch.push({ ang: -0.15, thr: lerp(0.95, 0.6, (ch - 0.5) * 2), sp: sp * 0.9, w: sp * 0.45, band: 0.25 });
+      const sp1 = lerp(4.6, 3.2, hat) * sc, sp2 = lerp(2.4, 1.8, hat) * sc, sp3 = lerp(1.4, 1.1, hat) * sc;
+      R.hatch.push({ ang: -1.0, thr: lerp(0.5, 0.12, hat), sp: sp1, w: sp1 * 0.42, band: 0.35 });
+      if (ch > 0.05) R.hatch.push({ ang: 0.45, thr: lerp(0.9, 0.36, ch), sp: sp2, w: sp2 * 0.5, band: 0.3 });
+      if (ch > 0.5) R.hatch.push({ ang: -0.15, thr: lerp(0.95, 0.6, (ch - 0.5) * 2), sp: sp3, w: sp3 * 0.5, band: 0.25 });
     }
+    // 筆の強さ（ドライブラシ・墨の髪・飛沫）と、すっきりした線の度合い（美少女系）
+    R.brush = clamp((a.line.roughness * 0.5 + a.black * 0.3 + a.hatching * 0.3 + a.grain * 0.2 - 0.25) * 1.6);
+    const s01 = (v, lo, hi) => clamp((v - lo) / (hi - lo));
+    R.clean = s01(0.55 - a.line.weight, 0, 0.3) * s01(a.line.taper, 0.55, 0.8) * (1 - s01(a.hatching, 0.05, 0.2)) * s01(a.softness, 0.3, 0.55) * (a.eyeStyle === 'sparkle' ? 1 : 0.6) * (1 - s01(a.line.roughness, 0.3, 0.6));
+    if (R.clean > 0.3) { R.shadeK *= 1 - R.clean * 0.9; line.cleanK = R.clean; }
     if (a.rough) { // ネーム：鉛筆の揺れた線、トーン・ベタなし、黒い所は軽い塗りつぶし線だけ
       Object.assign(line, { w: lerp(0.7, 1.0, a.line.weight) * sc, taper: 0.35, jitter: 1.5 * sc, rough: 0.85, soft: 0, grain: 0.5 });
       Object.assign(R, { toneKind: 'none', toneMat: 0, toneShade: 0, betaM: 9, shadeBeta: false, shadeK: 0, hatchShade: 0, hatchMat: 1, grain: 0.45, rough: 0.8, grainTone: 0, pencil: true,
