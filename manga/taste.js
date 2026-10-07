@@ -41,7 +41,13 @@
       ['cast', '登場人物の数', '少人数', '大人数'], ['narr', 'ナレーションの割合', '少ない', '多い'], ['pages', 'ページ数', '短い', '長い'],
       ['panels', '1ページのコマ数', '大ゴマ', '細かく'], ['shout', '叫びの割合', '静か', 'にぎやか'], ['think', '心の声の割合', '少ない', '多い'],
       ['night', '夜の場面', '昼中心', '夜中心'], ['fx', '演出の多さ', '控えめ', '派手'], ['nonhuman', '人間以外の割合', '人間', '人外'],
+      // 構図・カメラ（studio が台本と原稿から計算。好みで作るときの作者への参考だけに使う。ランダム生成と編集者の絵柄の判断には渡さない）
+      ['camWorm', '地面すれすれの煽り', '少ない', '多い'], ['camLow', '煽りの割合', '少ない', '多い'], ['camEye', '目の高さのカメラ', '少ない', '多い'],
+      ['camHigh', '俯瞰の割合', '少ない', '多い'], ['camBird', '真上・高い俯瞰', '少ない', '多い'], ['lensWide', '広角レンズ', '少ない', '多い'], ['lensTele', '望遠レンズ', '少ない', '多い'],
+      ['scene3d', '3Dで描いたコマ', '少ない', '多い'], ['ink', '黒の多さ', '白く軽い', '黒く重い'], ['bigPanel', '大ゴマの数', '少ない', '多い'],
     ],
+    /* 構図・カメラの特徴（FEATS のうち、作者への参考だけに使うもの） */
+    COMP: ['camWorm', 'camLow', 'camEye', 'camHigh', 'camBird', 'lensWide', 'lensTele', 'scene3d', 'ink', 'bigPanel'],
     /* 物語の軸から「王道の絵柄」を予想する式（studio.html の EXPECT と同じ。0〜1 の正規化済みの絵柄値） */
     EXPECT: {
       headRatio: ax => 1 - (0.3 + 0.5 * ax.cute + 0.2 * ax.humor - 0.2 * ax.dark - 0.15 * ax.tension),
@@ -126,10 +132,11 @@
   function pearson(a, b) { const n = a.length; if (n < 2) return 0; const ma = sum(a) / n, mb = sum(b) / n; let sab = 0, saa = 0, sbb = 0; for (let i = 0; i < n; i++) { const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; } return saa > 0 && sbb > 0 ? sab / Math.sqrt(saa * sbb) : 0; }
 
   /* 軸・特徴の索引（configure で作り直す） */
-  let AX, K, AXL, ARTK, FEATK, NI, OFF, PAIRS;
+  let AX, K, AXL, ARTK, FEATK, FEATW, NI, OFF, PAIRS;
+  let COMP_SEQ = 0, COMP_W = 0.4; // 構図・カメラの特徴は参考程度：事前分布を狭くする（係数の大きさで 0.4 倍）
   function rebuild() {
     AX = S.AXES.map(a => a[0]); K = AX.length; AXL = Object.fromEntries(S.AXES.map(([k, l, r]) => [k, { l, r }]));
-    ARTK = S.ART.map(a => a[0]); FEATK = S.FEATS.map(a => a[0]);
+    ARTK = S.ART.map(a => a[0]); FEATK = S.FEATS.map(a => a[0]); { const cs = new Set(S.COMP || []); FEATW = FEATK.map(k => cs.has(k) ? COMP_W : 1); }
     PAIRS = []; for (let i = 0; i < K; i++) for (let j = i + 1; j < K; j++) PAIRS.push([i, j]);
     NI = PAIRS.length;
     OFF = { icpt: 0, lin: 1, quad: 1 + K, inter: 1 + 2 * K, gap: 1 + 2 * K + NI, art: 3 + 2 * K + NI, feat: 3 + 2 * K + NI + ARTK.length, tag: 3 + 2 * K + NI + ARTK.length + FEATK.length };
@@ -137,7 +144,8 @@
   rebuild();
   function configure(o) {
     o = o || {};
-    for (const k of ['AXES', 'TAG_CATS', 'ART', 'FEATS', 'EXPECT', 'POP_AXES', 'POP_TAGS', 'TONE_AXES']) if (o[k]) S[k] = o[k];
+    for (const k of ['AXES', 'TAG_CATS', 'ART', 'FEATS', 'EXPECT', 'POP_AXES', 'POP_TAGS', 'TONE_AXES', 'COMP']) if (o[k]) S[k] = o[k];
+    if (Number.isFinite(o.COMP_W)) COMP_W = o.COMP_W;
     if (o.VOCAB) S.VOCAB = Object.assign({}, S.VOCAB, o.VOCAB);
     if (o.TAG_ALIAS) Object.assign(TAG_ALIAS, o.TAG_ALIAS);
     if (o.SIGNALS) for (const k in o.SIGNALS) SIGNALS[k] = Object.assign({}, SIGNALS[k], o.SIGNALS[k]);
@@ -184,8 +192,20 @@
       night: panels.filter(p => p.time === 'night' || (p.fx || []).includes('dark')).length / np, fx: panels.reduce((a, p) => a + (p.fx || []).length, 0) / np / 1.5,
       nonhuman: chs.filter(c => c.species && c.species !== 'human').length / Math.max(1, chs.length),
     };
+    Object.assign(f, compFeatures(Sc));
     for (const k in f) f[k] = clamp(f[k], 0, 1);
     return f;
+  }
+  /* 構図・カメラ（studio.html の compFeatures と同じ式）。ink（黒の多さ）は原稿の画素から測るので、台本だけのときは入れない（＝中立） */
+  function compFeatures(Sc) {
+    const pages = (Sc && Sc.pages) || []; const panels = pages.flatMap(p => p.panels || []), np = Math.max(1, panels.length);
+    const cam = p => (p.camera && p.camera.angle) || (p.scene3d && p.scene3d.camera && p.scene3d.camera.angle) || 'eye';
+    const lens = p => (p.camera && p.camera.lens) || (p.scene3d && p.scene3d.camera && p.scene3d.camera.lens) || 'normal';
+    const r = f => panels.filter(f).length / np;
+    let big = 0; for (const pg of pages) { const rows = Array.isArray(pg.rows) && pg.rows.length ? pg.rows : [(pg.panels || []).length]; for (const n of rows) if (n >= 1 && 1 / rows.length / n >= 0.45) big++; }
+    return { camWorm: r(p => cam(p) === 'worm') * 5, camLow: r(p => cam(p) === 'low') * 3, camEye: r(p => cam(p) === 'eye'), camHigh: r(p => cam(p) === 'high') * 3,
+      camBird: r(p => cam(p) === 'bird' || cam(p) === 'top') * 5, lensWide: r(p => lens(p) === 'wide' || lens(p) === 'ultra') * 3, lensTele: r(p => lens(p) === 'tele') * 5,
+      scene3d: r(p => p.scene3d && p.scene3d.on) * 4, bigPanel: big / 4 };
   }
   function expectedArt(axObj) { const o = {}; for (const k in S.EXPECT) o[k] = clamp(S.EXPECT[k](axObj), 0, 1); return o; }
   /* 物語と絵柄のズレ：物語の軸から予想した「王道の絵柄」と実際の絵柄の平均絶対差 ÷ 0.4（studio と同じ定義） */
@@ -208,7 +228,8 @@
     if (!hasArt && w.artFeat) ARTK.forEach((k, i) => { const v = Number(w.artFeat[k]); if (Number.isFinite(v)) { artV[i] = clamp(v, 0, 1); hasArt = true; } });
     let gap = art ? gapOf(axObj, art) : null;
     if (gap == null && w.artFeat && Number.isFinite(Number(w.artFeat.gap))) gap = clamp(Number(w.artFeat.gap), 0, 1);
-    const fsrc = w.feat || (sc.pages ? scriptFeatures(sc) : {});
+    let fsrc = w.feat || (sc.pages ? scriptFeatures(sc) : {});
+    if (w.feat && sc.pages && sc.pages.length && (S.COMP || []).some(k => w.feat[k] == null)) fsrc = Object.assign(compFeatures(sc), w.feat); // 構図の特徴が無い古い作品は台本から補う
     const featV = new Float64Array(FEATK.length).fill(0.5); FEATK.forEach((k, i) => { const v = Number(fsrc[k]); if (Number.isFinite(v)) featV[i] = clamp(v, 0, 1); });
     const pageChars = [0]; (sc.pages || []).forEach(pg => { let c = 0; for (const p of pg.panels || []) { for (const s of p.say || []) c += String(s.text || '').replace(/\n/g, '').length; if (p.narr) c += String(p.narr).length; } pageChars.push(c); });
     const total = sc.pages ? sc.pages.length + 1 : (Number(w.pages) || 0);
@@ -323,7 +344,7 @@
     for (let q = 0; q < NI; q++) { const [i, j] = PAIRS[q]; phi[OFF.inter + q] = z[i] * z[j]; }
     const g = 2 * (aw.gap - 0.5); phi[OFF.gap] = g; phi[OFF.gap + 1] = g * g - 1 / 3;
     for (let k = 0; k < ARTK.length; k++) phi[OFF.art + k] = 2 * (aw.art[k] - 0.5);
-    for (let k = 0; k < FEATK.length; k++) phi[OFF.feat + k] = 2 * (aw.feat[k] - 0.5);
+    for (let k = 0; k < FEATK.length; k++) phi[OFF.feat + k] = 2 * (aw.feat[k] - 0.5) * FEATW[k];
     if (tagIndex) for (const t of aw.tags) { const j = tagIndex.get(t); if (j != null) phi[OFF.tag + j] = 1; }
     return phi;
   }
@@ -469,7 +490,8 @@
     for (const k of ARTK) { const base = ex[k] != null ? ex[k] : 0.5; const v = mismatch ? r() : clamp(base + gauss(r) * 0.12, 0, 1); if (k.startsWith('line.')) art.line[k.slice(5)] = v; else art[k] = v; }
     art.headRatio = 2 + 6 * (art.headRatio != null ? art.headRatio : 0.5);
     const tags = { genre: [pick(S.VOCAB.genre, r)], setting: [pick(S.VOCAB.setting, r)], relation: [pick(S.VOCAB.relation, r)], ending: [pick(S.VOCAB.ending, r)], motif: [...new Set([pick(S.VOCAB.motif, r), pick(S.VOCAB.motif, r)])], humor: [pick(S.VOCAB.humor, r)] };
-    const feat = {}; for (const k of FEATK) feat[k] = clamp(0.5 + gauss(r) * 0.2, 0, 1);
+    const feat = {}, CS = new Set(S.COMP || []); for (const k of FEATK) if (!CS.has(k)) feat[k] = clamp(0.5 + gauss(r) * 0.2, 0, 1);
+    { const rc = mulberry32(0x5bd1e995 + (++COMP_SEQ) * 7919); for (const k of FEATK) if (CS.has(k)) feat[k] = clamp(0.5 + gauss(rc) * 0.2, 0, 1); } // 構図の特徴は別の乱数で
     feat.dialog = clamp(0.3 + 0.5 * axes.talky + gauss(r) * 0.1, 0, 1); feat.sfx = clamp(0.2 + 0.5 * axes.action + gauss(r) * 0.1, 0, 1); feat.night = clamp(0.1 + 0.6 * axes.dark + gauss(r) * 0.1, 0, 1);
     return { id: o.id || 'ref' + Math.floor(r() * 1e9), profile: { axes, tags }, script: { art, title: '', pages: [] }, feat, meta: { createdAt: 0 } };
   }
@@ -774,12 +796,13 @@
     for (let q = 0; q < NI; q++) { const j = OFF.inter + q, m = M.mu[j], P = normCdf(m / Math.sqrt(M.diagS[j])); const [a, b] = PAIRS[q]; if (m > 0.08 && P > 0.85) posCombos.push({ a: AX[a], b: AX[b], m }); if (m < -0.08 && P < 0.15) negCombos.push({ a: AX[a], b: AX[b], m }); }
     posCombos.sort((x, y) => y.m - x.m); negCombos.sort((x, y) => x.m - y.m);
     // 作りのヒント（台本から計算する特徴）と、絵柄の参考
-    const craft = {}; FEATK.forEach((k, i) => { const m = M.mu[OFF.feat + i], P = normCdf(m / Math.sqrt(M.diagS[OFF.feat + i])); if (P > 0.85 || P < 0.15) craft[k] = r2(clamp(0.5 + Math.sign(m) * 0.25, 0, 1)); });
+    const craft = {}, comp = {}; const COMP = new Set(S.COMP || []);
+    FEATK.forEach((k, i) => { const m = M.mu[OFF.feat + i], P = normCdf(m / Math.sqrt(M.diagS[OFF.feat + i])); if (P > 0.85 || P < 0.15) (COMP.has(k) ? comp : craft)[k] = r2(clamp(0.5 + Math.sign(m) * 0.25, 0, 1)); });
     const artHints = artHintsOf(M);
     const tgt = {
       axes, tags: Object.fromEntries(Object.entries(tg).map(([c, l]) => [c, l.map(x => ({ v: x.t.slice(c.length + 1), known: x.known, mean: r2(x.mean) }))])),
       include: likeTags.map(t => t.t), avoid: avoidTags.map(t => t.t), avoidCombos: negCombos.slice(0, 2).map(c => [c.a, c.b]), combos: posCombos.slice(0, 2).map(c => [c.a, c.b]),
-      craft, art: { hints: artHints, note: '絵柄は編集者のセンスで決める。ここは参考情報だけ' },
+      craft, comp, art: { hints: artHints, note: '絵柄は編集者のセンスで決める。ここは参考情報だけ' },
       explore: { rate, axisShare: r2(axisShare), tagShare: r2(tagShare), axes: exploredAxes, tags: tagList.filter(x => !x.known).map(x => x.t) },
       mode,
     };
@@ -802,6 +825,12 @@
     for (const x of cand) out.push(`${x.name}は「${x.m > 0 ? x.r : x.l}」寄りの作品に反応が良い（確信度${Math.round(x.c * 100)}%）`);
     return out;
   }
+  /* 構図・カメラの好みを、作者への短い言葉に（好みで作るときだけ使う） */
+  function compWords(comp) {
+    const w = { camWorm: ['地面すれすれの煽り', ''], camLow: ['煽りのカメラ', ''], camEye: ['目の高さの落ち着いたカメラ', 'カメラの高さを動かす'], camHigh: ['俯瞰', ''], camBird: ['真上・高い俯瞰', ''],
+      lensWide: ['広角で奥行きを強く', ''], lensTele: ['望遠で圧縮した絵', ''], scene3d: ['3Dの場面のコマ', ''], ink: ['黒ベタの多い重い画面', '白の多い軽い画面'], bigPanel: ['大ゴマを多めに', '大ゴマは控えめに'] };
+    return Object.entries(comp || {}).map(([k, v]) => w[k] ? (v > 0.5 ? w[k][0] + 'に反応が良い' : w[k][1] ? w[k][1] + 'ほうが反応が良い' : '') : '').filter(Boolean);
+  }
   function levelWord(v) { return v < 0.25 ? 'かなり控えめ' : v < 0.4 ? '控えめ' : v <= 0.6 ? 'ほどほど' : v <= 0.75 ? '強め' : 'かなり強め'; }
   function briefOf(t) {
     const aim = AX.filter(k => t.axes[k].role === 'aim').sort((a, b) => t.axes[b].gain - t.axes[a].gain).slice(0, 6);
@@ -813,6 +842,7 @@
     const av = t.avoid.map(x => tagLabel(x)).concat(t.avoidCombos.map(([a, b]) => `${AXL[a].r}×${AXL[b].r}の組み合わせ`)); if (av.length) A.push('避けたいもの：' + av.join('、') + '。');
     const ch = { dialog: v => v > 0.5 ? 'セリフ多めで会話を楽しませる' : 'セリフは少なめで絵で見せる', closeup: v => v > 0.5 ? '表情のアップを多めに' : '引きの絵を多めに', narr: v => v > 0.5 ? 'ナレーション多め' : 'ナレーション控えめ', panels: v => v > 0.5 ? 'コマは細かく' : '大ゴマを活かす', sfx: v => v > 0.5 ? '効果音を多めに' : '効果音は控えめ', night: v => v > 0.5 ? '夜の場面を多めに' : '昼の場面中心', nonhuman: v => v > 0.5 ? '人間以外のキャラを中心に' : '人間中心', pages: v => v > 0.5 ? '長め' : '短め', cast: v => v > 0.5 ? '登場人物は多め' : '登場人物は少なめ', shout: v => v > 0.5 ? 'にぎやかに' : '静かに', think: v => v > 0.5 ? '心の声を多めに' : '心の声は控えめ', fx: v => v > 0.5 ? '演出は派手に' : '演出は控えめ' };
     const cr = Object.entries(t.craft).map(([k, v]) => ch[k] ? ch[k](v) : '').filter(Boolean); if (cr.length) A.push('作り：' + cr.join('、') + '。');
+    const cw = compWords(t.comp); if (cw.length) A.push('構図の参考（決めるのは作者。無理に寄せない）：' + cw.join('、') + '。');
     if (ex.length) A.push('今回の冒険：' + ex.map(k => `${AXL[k].r}を${t.axes[k].value.toFixed(2)}に`).join('、') + '（まだ好みが分からないので試す）。');
     A.push('ほかの軸は作者におまかせ。');
     const E = ['絵柄は編集者のセンスで決めてください。以下は読者の反応から見た参考情報です。'];
@@ -885,7 +915,7 @@
       conflict: pick(S.VOCAB.conflict, rng), tone: toneFor(axObj, rng), ending: one('ending', S.VOCAB.ending), gimmick: pick(S.VOCAB.gimmick, rng),
       motifs: (t.tags.motif || []).map(x => x.v), pages: pagesPref, axes: axObj,
       likes: t.include.map(tagLabel), avoid: t.avoid.map(tagLabel).concat(t.avoidCombos.map(([a, b]) => `${AXL[a].r}×${AXL[b].r}の組み合わせ`)),
-      combo: t.combos.map(([a, b]) => `${AXL[a].r}と${AXL[b].r}を両方強く`), craft: t.craft, artHints: t.art.hints,
+      combo: t.combos.map(([a, b]) => `${AXL[a].r}と${AXL[b].r}を両方強く`), craft: t.craft, artHints: t.art.hints, comp: t.comp, compHints: compWords(t.comp),
       explore: t.explore.tags.map(x => x.slice(x.indexOf(':') + 1)).concat(t.explore.axes.map(k => AXL[k].r)), shifted: t.explore.axes,
       exploreRate: t.explore.rate, aim: t, tasteNote: t.brief.author, editorNote: t.brief.editor,
     };
@@ -931,7 +961,7 @@
     // 入口（studio.html の約束）
     analyze, prefSeed, predictFit,
     // 部品
-    adaptWork, adaptFb, fuse, fit, summarize, target, predict, forClaude, oneLiner,
+    adaptWork, adaptFb, fuse, fit, summarize, target, predict, forClaude, oneLiner, compFeatures, compWords,
     // 検証・道具
     randomWork, randomAxes, rng: mulberry32, util: { spearman, pearson, normCdf, gauss, featurize, predictPhi, sampleTheta, fitRows, tagLabel, gapOf, expectedArt },
   };
