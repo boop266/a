@@ -334,7 +334,8 @@
       float tone = vInk.x; float pat = floor(vInk.y + 0.5);
       float det = uA.x;
       vec2 fc = gl_FragCoord.xy;
-      bool groundPat = (pat == 7.0 || pat == 20.0);
+      bool groundPat = (pat == 7.0 || pat == 20.0 || pat == 17.0);
+      float winWhite = 0.0;
       // --- 光 ---
       float sh = getShadowMask();
       float lam = max(dot(n, uL), 0.0);
@@ -379,6 +380,7 @@
         float win = mix(inWin * (1.0 - lit), 0.0, 0.0);
         float near = smoothstep(4.0, 7.0, cellPx);
         line2 = max(line2, near * max(win, frame * step(0.5, inWin + frame)));
+        winWhite = near * max(frame * 0.9, inWin * lit);   // 影の側：窓枠と灯りを白く抜く
         // 遠くは横線（階の線）にまとめる
         float fl = abs(fract(g.y + 0.5) - 0.5) / fwg.y;
         line2 = max(line2, (1.0 - near) * (1.0 - smoothstep(hwLine - 0.5, hwLine + 0.5, fl)) * 0.9);
@@ -466,9 +468,9 @@
       }
       // 地面：短い筆致と、点描の影
       if (groundPat) {
-        float base = pat == 20.0 ? 0.8 : 0.4;
+        float base = pat == 20.0 ? 0.8 : pat == 17.0 ? 0.0 : 0.4;
         float dens = base * (0.3 + 0.7 * smoothstep(0.05, 0.7, d)) * (1.0 - fog);
-        ink = max(ink, strokes(vW, dens, mix(0.5, 0.75, det) * max(S, 0.8)) * smoothstep(0.0, 0.25, det + 0.1));
+        if (base > 0.0) ink = max(ink, strokes(vW, dens, mix(0.5, 0.75, det) * max(S, 0.8)) * smoothstep(0.0, 0.25, det + 0.1));
         ink = max(ink, stipple(fc, clamp(shadowAmt * 1.35, 0.0, 0.92) * (1.0 - fog)));
       }
       // --- トーン ---
@@ -485,6 +487,7 @@
       ink = max(ink, toneCov);
       ink = max(ink, line2 * smoothstep(0.02, 0.3, d + 0.15) * (1.0 - fog));
       ink = max(ink, black);
+      if (winWhite > 0.0) ink = mix(ink, 0.0, winWhite * smoothstep(0.5, 0.9, ink));
       // 黒い物：白抜き
       float rimW = smoothstep(0.25, 0.5, rim);
       if (darkMat > 0.0) {
