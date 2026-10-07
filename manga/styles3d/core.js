@@ -327,6 +327,8 @@
       return c;
     }
     void main(){
+      // 記号（黒一色の物：遠くの兵、軌跡、配線など）は計算を省く
+      if (vInk.x > 0.94 && vInk.y < 0.5) { gl_FragColor = vec4(vec3(0.0), 1.0); return; }
       vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
       vec3 V = normalize(uCam - vW);
       float tone = vInk.x; float pat = floor(vInk.y + 0.5);
