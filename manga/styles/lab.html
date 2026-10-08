@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>画風ラボ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700;900&family=Zen+Maru+Gothic:wght@700&display=swap">
+<style>
+:root{--bg:#eef0f2;--ink:#16191d;--sub:#5c6873}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181b;--ink:#eef1f4;--sub:#9aa6b0}}
+:root[data-theme="dark"]{--bg:#15181b;--ink:#eef1f4;--sub:#9aa6b0}
+body{margin:0;padding:16px;background:var(--bg);color:var(--ink);font-family:"Zen Kaku Gothic New",sans-serif}
+#out{display:flex;flex-wrap:wrap;gap:16px} canvas{max-width:100%;height:auto;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.15)}
+.cap{font-size:12px;color:var(--sub);max-width:420px;line-height:1.5}
+</style>
+<script src="ink.js"></script><script src="art.js"></script><script src="figure.js"></script><script src="background.js"></script><script src="effects.js"></script><script src="api.js"></script>
+</head>
+<body>
+<h1 style="font-size:20px;margin:0 0 12px">画風ラボ：同じ台本を、いろいろな art で</h1>
+<div id="out"></div>
+<script>
+/* オリジナルの登場人物と、短い台本（3コマ）
+   ツムギ：配達人の少女。ポニーテール、しましまのパーカー、マフラー、かばん
+   ガンテツ：鎧の大男。白いトゲトゲ頭とひげ、剣を持つ門番 */
+const CAST = {
+  tsumugi: { id: 'tsumugi', name: 'ツムギ', species: 'human', age: 'teen', gender: 'f', hair: 'ponytail', hairColor: 'black', outfit: 'hoodie', pattern: 'stripe', items: ['scarf', 'bag'] },
+  gantetsu: { id: 'gantetsu', name: 'ガンテツ', species: 'human', age: 'adult', body: 'round', hair: 'spiky', hairColor: 'white', outfit: 'armor', items: ['beard', 'sword'] },
+};
+const W = 600, H = 860;
+function balloon(ctx, x, y, w, h, text, tail, shout) {
+  ctx.save(); ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  if (shout) { const n = 18; for (let i = 0; i <= n; i++) { const a = i / n * Math.PI * 2, r = i % 2 ? 0.8 : 1.08; const px = x + Math.cos(a) * w / 2 * r, py = y + Math.sin(a) * h / 2 * r; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } }
+  else ctx.ellipse(x, y, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  if (tail) { ctx.beginPath(); ctx.moveTo(x - 8, y + h * 0.4); ctx.lineTo(tail[0], tail[1]); ctx.lineTo(x + 8, y + h * 0.42); ctx.fill(); ctx.stroke(); ctx.fillRect(x - 9, y + h * 0.36, 18, 6); }
+  ctx.fillStyle = '#000'; ctx.font = '700 15px "Zen Kaku Gothic New",sans-serif'; ctx.textAlign = 'center';
+  const cols = text.split('\n'); cols.forEach((col, i) => { [...col].forEach((ch, j) => ctx.fillText(ch, x + (cols.length - 1) * 9 - i * 18, y - (col.length - 1) * 8.5 + j * 17 + 5)); });
+  ctx.restore();
+}
+function renderSample(art, title) {
+  const M = window.MangaInk; art = M.normalizeArt(art);
+  const c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; const ctx = c.getContext('2d'); ctx.scale(2, 2);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const gap = 10, m = 24;
+  const p1 = { x: m, y: m, w: W - m * 2, h: 330 }, p2 = { x: m, y: m + 330 + gap, w: (W - m * 2 - gap) * 0.48, h: 250 }, p3 = { x: p2.x + p2.w + gap, y: p2.y, w: W - m * 2 - gap - p2.w, h: 250 };
+  const p4 = { x: m, y: p2.y + 250 + gap, w: W - m * 2, h: H - (p2.y + 250 + gap) - m - 18 };
+  const clip = (b, fn) => { ctx.save(); ctx.beginPath(); ctx.rect(b.x, b.y, b.w, b.h); ctx.clip(); ctx.fillStyle = '#fff'; ctx.fillRect(b.x, b.y, b.w, b.h); fn(); ctx.restore(); };
+  // 1コマ目：街を走るツムギと、門の前で腕を組むガンテツ
+  clip(p1, () => {
+    M.drawBackground(ctx, { name: 'street', time: 'day', weather: 'clear', horizon: 0.55, shot: 'long' }, p1, art);
+    const met = M.metrics(CAST.gantetsu, art);
+    const r1 = M.drawCharacter(ctx, CAST.gantetsu, 'armscross', 'smug', { footX: p1.x + p1.w * 0.76, footY: p1.y + p1.h - 14, unit: 2.55, facing: -1, panel: p1 }, art);
+    M.drawEffect(ctx, { name: 'speed', phase: 'under', heads: [] }, { x: p1.x, y: p1.y + p1.h * 0.35, w: p1.w * 0.55, h: p1.h * 0.65 }, art);
+    const r0 = M.drawCharacter(ctx, CAST.tsumugi, 'run', 'determined', { footX: p1.x + p1.w * 0.3, footY: p1.y + p1.h - 22, unit: 2.25, facing: 1, panel: p1 }, art);
+    balloon(ctx, p1.x + p1.w * 0.12, p1.y + 70, 64, 96, 'とどけ\nもの\nです！', [r0.head.x - 20, r0.head.y - 20]);
+    M.sfx(ctx, 'ダダッ', p1.x + p1.w * 0.38, p1.y + p1.h * 0.82, 26, art);
+  });
+  M.drawFrame(ctx, p1, art);
+  // 2コマ目：ガンテツが剣を構えて止める
+  clip(p2, () => {
+    M.drawBackground(ctx, { name: 'street', time: 'day', horizon: 0.7, shot: 'bust' }, p2, art);
+    M.drawEffect(ctx, { name: 'focus', phase: 'under', focus: { x: p2.x + p2.w * 0.5, y: p2.y + p2.h * 0.35 } }, p2, art);
+    const met = M.metrics(CAST.gantetsu, art); const unit = p2.h * 0.5 / Math.max(met.R * 2.6, 20);
+    const r = M.drawCharacter(ctx, CAST.gantetsu, 'guard', 'angry', { footX: p2.x + p2.w * 0.55, footY: p2.y + p2.h, unit, facing: -1, panel: p2, headAt: { x: p2.x + p2.w * 0.58, y: p2.y + p2.h * 0.4 } }, art);
+    balloon(ctx, p2.x + 40, p2.y + 66, 54, 104, '通行証\nは！', [r.head.x - 30, r.head.y], true);
+  });
+  M.drawFrame(ctx, p2, art);
+  // 3コマ目：ツムギ、びっくり
+  clip(p3, () => {
+    M.drawBackground(ctx, { name: 'plain' }, p3, art);
+    M.drawEffect(ctx, { name: art.sparkle > 0.6 ? 'betaflash' : 'focus', phase: 'under', focus: { x: p3.x + p3.w * 0.5, y: p3.y + p3.h * 0.4 } }, p3, art);
+    const met = M.metrics(CAST.tsumugi, art); const unit = p3.h * 0.42 / Math.max(met.R * 2.6, 20);
+    const r = M.drawCharacter(ctx, CAST.tsumugi, 'surprise', 'shock', { footX: p3.x + p3.w * 0.5, footY: p3.y + p3.h, unit, facing: 0, panel: p3, headAt: { x: p3.x + p3.w * 0.5, y: p3.y + p3.h * 0.42 } }, art);
+    M.drawEffect(ctx, { name: 'sweat', heads: [r.head] }, p3, art);
+    M.sfx(ctx, 'ギクッ', p3.x + 14, p3.y + 30, 28, art);
+  });
+  M.drawFrame(ctx, p3, art);
+  // 4コマ目：門の前、ふたりの全身（静かな引き）
+  clip(p4, () => {
+    M.drawBackground(ctx, { name: 'field', time: 'evening', horizon: 0.62, shot: 'long' }, p4, art);
+    M.drawCharacter(ctx, CAST.tsumugi, 'hold', 'smile', { footX: p4.x + p4.w * 0.38, footY: p4.y + p4.h - 12, unit: 1.35, facing: 1, panel: p4, hold: 'letter' }, art);
+    M.drawCharacter(ctx, CAST.gantetsu, 'think', 'embarrassed', { footX: p4.x + p4.w * 0.6, footY: p4.y + p4.h - 10, unit: 1.45, facing: -1, panel: p4, hold: 'none' }, art);
+    M.drawEffect(ctx, { name: 'sparkle', phase: 'over', heads: [] }, { x: p4.x, y: p4.y, w: p4.w, h: p4.h * 0.5 }, art);
+  });
+  M.drawFrame(ctx, p4, art);
+  ctx.fillStyle = '#333'; ctx.font = '700 12px "Zen Kaku Gothic New",sans-serif'; ctx.textAlign = 'left'; ctx.fillText(title || '', m, H - 10);
+  return c;
+}
+function artLabel(a) { return `等身${a.headRatio.toFixed(1)} 崩${a.deform.toFixed(1)} 目${a.eyeStyle}/${a.eyeSize.toFixed(1)} 線${a.line.weight.toFixed(1)}/${a.line.taper.toFixed(1)}/揺${a.line.jitter.toFixed(1)}/荒${a.line.roughness.toFixed(1)} 斜${a.hatching.toFixed(1)}/${a.crossHatch.toFixed(1)} ベタ${a.black.toFixed(1)} トーン${a.toneKind}${a.tone.toFixed(1)} 描${a.detail.toFixed(1)} パ${a.perspective.toFixed(1)} 動${a.dynamism.toFixed(1)} キ${a.sparkle.toFixed(1)} 柔${a.softness.toFixed(1)} 粒${a.grain.toFixed(1)} 枠${a.panelFrame}${a.rough ? ' ネーム' : ''}`; }
+function grid(canvases, cols, scale = 0.5) {
+  const w = canvases[0].width * scale, h = canvases[0].height * scale, g = 16;
+  const rows = Math.ceil(canvases.length / cols);
+  const c = document.createElement('canvas'); c.width = cols * w + (cols + 1) * g; c.height = rows * h + (rows + 1) * g; const ctx = c.getContext('2d');
+  ctx.fillStyle = '#d9dde1'; ctx.fillRect(0, 0, c.width, c.height);
+  canvases.forEach((cv, i) => ctx.drawImage(cv, g + (i % cols) * (w + g), g + Math.floor(i / cols) * (h + g), w, h));
+  return c;
+}
+function rng(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+window.LAB = { CAST, renderSample, artLabel, grid, rng };
+async function ready() { try { await document.fonts.load('40px "Dela Gothic One"'); await document.fonts.load('700 16px "Zen Kaku Gothic New"'); } catch (e) {} }
+window.LAB.ready = ready();
+// ページで見るとき：プリセット＋ランダム
+(async () => {
+  await window.LAB.ready;
+  if (location.hash === '#none') return;
+  const out = document.getElementById('out'); const P = window.MangaInk.presets;
+  for (const k of Object.keys(P)) { const a = window.MangaInk.normalizeArt(P[k]); const d = document.createElement('div'); const c = renderSample(a, k); c.style.width = '420px'; d.append(c); const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = k + '：' + artLabel(a); d.append(cap); out.append(d); await new Promise(r => setTimeout(r)); }
+})();
+</script>
+</body>
+</html>
