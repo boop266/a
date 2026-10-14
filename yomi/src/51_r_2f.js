@@ -2,7 +2,7 @@
 ROOMS.w2corr = {
   name: '2階 西廊下', fl: '2F', map: [0, 0, 3, 18], w: 2.6, d: 18, h: 3.2,
   floor: 'parquet', wall: 'paper_blue', wain: 'wainscot', wainH: 1.0, ceil: 'plaster', rev: 0.35, thunder: true,
-  ambience: { rain: 0.7, wind: 0.5, drone: 0.25 }, amb: ['#2c3440', 0.5], fog: ['#05070a', 0.045],
+  ambience: { rain: 0.7, wind: 0.5, drone: 0.25 }, amb: ['#2c3440', 2.8], fog: ['#05070a', 0.045],
   doors: [
     { id: 'E', p: [1.3, 6.5], type: 'wood', to: ['hall', 'BW'] },
     { id: 'N', p: [0, -9], type: 'wood', to: ['bed', 'S'], lock: { key: 'hawk' } },
@@ -19,6 +19,7 @@ ROOMS.w2corr = {
   build(c) { // 窓の両脇の重たいカーテン
     for (const z of [-6.2, -2.6, 1.0, 4.6]) for (const s of [-1, 1]) c.g.box(M('velvet_r'), -1.2, 1.55, z + s * 0.78, 0.08, 3.0, 0.32);
   },
+  items: [{ id: 'hg_ammo', n: 10, x: 0.92, z: 7.75, y: 0.92, key: 'w2_ammo' }],
   looks: [{ p: [-1.0, 1.0], r: 1.0, t: '窓の外は、森と雨と闇だけだ。\n稲光のたびに、木々の間に何かの影が動いた気がする。' }, { p: [-1.0, -2.6], r: 1.0, t: '窓の下の地面に、四つ足の足跡がいくつも残っている。' }],
   cams: [
     { p: [1.0, 2.8, -0.3], t: [-0.4, 0.8, 8.0], fov: 54, z: [-1.3, 2.4, 1.3, 9] },
@@ -86,7 +87,7 @@ const GALLERY = [
 ROOMS.gallery = {
   name: '肖像画の回廊', fl: '2F', map: [32, -2, 3, 20], w: 3, d: 20, h: 3.4,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.45,
-  ambience: { rain: 0.15, drone: 0.45 }, amb: ['#2c302a', 0.42], fog: ['#060705', 0.045],
+  ambience: { rain: 0.15, drone: 0.45 }, amb: ['#2c302a', 4.6], fog: ['#060705', 0.045],
   doors: [{ id: 'W', p: [-1.5, 8.5], type: 'wood', to: ['hall', 'BE'], lock: { key: 'snake' } }, { id: 'N', p: [0, -10], type: 'wood', to: ['library', 'S'] }],
   props: [
     { k: 'runner', x: -0.2, z: 0, L: 19, w: 1.2 },
@@ -122,7 +123,7 @@ ROOMS.gallery = {
 ROOMS.library = {
   name: '図書室', fl: '2F', map: [29, -11, 10, 8], w: 10, d: 8, h: 4.6,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.0, ceil: 'ceil', rev: 0.3, thunder: true,
-  ambience: { rain: 0.35, clock: 0.6, drone: 0.25 }, amb: ['#2e3428', 0.5], fog: ['#050604', 0.035],
+  ambience: { rain: 0.35, clock: 0.6, drone: 0.25 }, amb: ['#2e3428', 5.4], fog: ['#050604', 0.035],
   doors: [{ id: 'S', p: [3.5, 4], type: 'wood', to: ['gallery', 'N'] }],
   wins: [{ p: [-5, -0.2], w: 1.2, y: 1.2, h: 2.2 }],
   props: [

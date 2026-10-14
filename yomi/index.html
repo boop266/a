@@ -654,7 +654,9 @@ function gbMesh(fn) { const g = new GB(); fn(g); return g.build(new THREE.Group(
 // 黄泉還：描く土台。3Dは低い解像度で描いて、ディザをかけて拡大（初代の頃の手ざわり）
 const GLC = document.getElementById('gl'), UIC = document.getElementById('ui'), UX = UIC.getContext('2d');
 const VW = { x: 0, y: 0, w: 640, h: 480, W: 640, H: 480, dpr: 1, portrait: false, side: 0, iw: 400, ih: 300 };
-const OPT = Object.assign({ ctrl: 'easy', door: 'normal', gfx: 'retro', bgm: 0.7, sfx: 0.9 }, (() => { try { return JSON.parse(localStorage.getItem('yomi_opt') || '{}'); } catch (e) { return {}; } })());
+// 文字や画面（メニュー）を描く枠。横持ち・パソコンでは絵と同じ4:3。縦持ちでは横幅いっぱい・縦に長く（文字を読める大きさに）
+const UB = { x: 0, y: 0, w: 640, h: 480, u: 4.8 };
+const OPT = Object.assign({ ctrl: 'easy', door: 'normal', gfx: 'retro', bgm: 0.7, sfx: 0.9, bright: 2 }, (() => { try { return JSON.parse(localStorage.getItem('yomi_opt') || '{}'); } catch (e) { return {}; } })());
 function saveOpt() { try { localStorage.setItem('yomi_opt', JSON.stringify(OPT)); } catch (e) { } }
 const RD = { r: null, rt: null, post: null, pcam: null, pscene: null, U: null };
 function initRender() {
@@ -662,16 +664,17 @@ function initRender() {
   r.setPixelRatio(1); r.toneMapping = THREE.NoToneMapping; r.outputColorSpace = THREE.LinearSRGBColorSpace; r.autoClear = true;
   RD.r = r;
   RD.rt = new THREE.WebGLRenderTarget(400, 300, { type: THREE.HalfFloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
-  RD.U = { tex: { value: RD.rt.texture }, res: { value: new THREE.Vector2(400, 300) }, fade: { value: 0 }, red: { value: 0 }, time: { value: 0 }, flash: { value: 0 }, grainAmt: { value: 0.035 }, levels: { value: 32 }, gray: { value: 0 }, vig: { value: 0.9 } };
+  RD.U = { tex: { value: RD.rt.texture }, res: { value: new THREE.Vector2(400, 300) }, fade: { value: 0 }, red: { value: 0 }, time: { value: 0 }, flash: { value: 0 }, grainAmt: { value: 0.035 }, levels: { value: 32 }, gray: { value: 0 }, vig: { value: 0.9 }, gam: { value: 0.8 } };
   RD.post = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
     uniforms: RD.U, depthTest: false, depthWrite: false,
     vertexShader: 'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-    fragmentShader: `uniform sampler2D tex;uniform vec2 res;uniform float fade,red,time,flash,grainAmt,levels,gray,vig;varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tex;uniform vec2 res;uniform float fade,red,time,flash,grainAmt,levels,gray,vig,gam;varying vec2 vUv;
 float b2(vec2 a){a=floor(a);return fract(dot(a,vec2(.5,a.y*.75)));}
 float b4(vec2 a){return b2(.5*a)*.25+b2(a);}
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){vec3 c=texture2D(tex,vUv).rgb;
  c=mix(c*12.92,1.055*pow(max(c,vec3(0.)),vec3(1./2.4))-.055,step(vec3(.0031308),c));
+ c=pow(max(c,vec3(0.)),vec3(gam));
  vec2 q=vUv-.5;c*=1.-dot(q,q)*vig;
  c+=(h(floor(vUv*res)+fract(time)*61.)-.5)*grainAmt;
  float l=dot(c,vec3(.299,.587,.114));c=mix(c,vec3(l),gray);
@@ -688,11 +691,13 @@ function layout() {
   if (W / H > 4 / 3) { VW.h = H; VW.w = Math.floor(H * 4 / 3); VW.x = Math.floor((W - VW.w) / 2); VW.y = 0; }
   else { VW.w = W; VW.h = Math.floor(W * 3 / 4); VW.x = 0; VW.y = VW.portrait ? Math.max(0, Math.floor(H * 0.06)) : Math.floor((H - VW.h) / 2); }
   VW.side = VW.x;
+  if (VW.portrait) { const u = W / 96; UB.x = 0; UB.y = VW.y; UB.w = W; UB.h = Math.min(H - VW.y - 6, Math.round(u * 150)); UB.u = u; }
+  else { UB.x = VW.x; UB.y = VW.y; UB.w = VW.w; UB.h = VW.h; UB.u = VW.h / 100; }
   const crisp = OPT.gfx === 'crisp';
   VW.iw = crisp ? Math.min(1280, Math.round(VW.w * dpr)) : 400; VW.ih = Math.round(VW.iw * 3 / 4);
   GLC.style.left = VW.x + 'px'; GLC.style.top = VW.y + 'px'; GLC.style.width = VW.w + 'px'; GLC.style.height = VW.h + 'px';
   GLC.style.imageRendering = crisp ? 'auto' : 'pixelated';
-  if (RD.r) { RD.r.setSize(VW.iw, VW.ih, false); RD.rt.setSize(VW.iw, VW.ih); RD.U.res.value.set(VW.iw, VW.ih); RD.U.levels.value = crisp ? 0 : 32; RD.U.grainAmt.value = crisp ? 0.02 : 0.035; }
+  if (RD.r) { RD.U.gam.value = [1.0, 0.9, 0.8, 0.72, 0.64][OPT.bright ?? 2]; RD.r.setSize(VW.iw, VW.ih, false); RD.rt.setSize(VW.iw, VW.ih); RD.U.res.value.set(VW.iw, VW.ih); RD.U.levels.value = crisp ? 0 : 32; RD.U.grainAmt.value = crisp ? 0.02 : 0.035; }
   UIC.width = Math.round(W * dpr); UIC.height = Math.round(H * dpr); UX.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (typeof layoutTouch === 'function') layoutTouch();
 }
@@ -1371,8 +1376,8 @@ PROPS.typewriter = (c, o) => { place(c, o, 0.55, 0.32, 0.9, g => { const w = W('
   const k = CL('#1a1a1c'), m = W('metal'); g.box(k, 0, 0.82, 0.02, 0.44, 0.14, 0.34); g.box(k, 0, 0.9, -0.1, 0.44, 0.08, 0.12); g.cylX(CL('#0e0e10'), -0.27, 0.95, -0.1, 0.035, 0.54, 6); g.plate(W('note'), 0, 1.04, -0.12, 0.24, 0.2, '+z');
   for (let r = 0; r < 4; r++) for (let i = 0; i < 9; i++) g.box(CL('#dcd6c6'), -0.16 + i * 0.04, 0.9 - r * 0.02, 0.08 + r * 0.035, 0.022, 0.012, 0.022);
   g.cyl(CL('#30302c'), 0.38, 0.745, 0.15, 0.04, 0.05, 6);
-}, { t: null }); c.act(o.x, o.z, 0.9, 'type', { y: o.y || 0 }); };
-PROPS.itembox = (c, o) => { place(c, o, 0.5, 0.3, 0.6, g => { const w = W('wood'), ir = W('iron'); g.box(w, 0, 0.25, 0, 1.0, 0.5, 0.56); g.box(w, 0, 0.53, -0.02, 1.02, 0.08, 0.6); for (const x of [-0.35, 0.35]) { g.box(ir, x, 0.28, 0.285, 0.06, 0.54, 0.01); g.box(ir, x, 0.57, 0, 0.06, 0.02, 0.62); } g.box(W('brass'), 0, 0.42, 0.29, 0.1, 0.12, 0.02); }, { t: null }); c.act(o.x, o.z, 0.85, 'box', { y: o.y || 0 }); };
+}, { t: null }); c.act(o.x, o.z, 1.0, 'type', { y: o.y || 0 }); };
+PROPS.itembox = (c, o) => { place(c, o, 0.5, 0.3, 0.6, g => { const w = W('wood'), ir = W('iron'); g.box(w, 0, 0.25, 0, 1.0, 0.5, 0.56); g.box(w, 0, 0.53, -0.02, 1.02, 0.08, 0.6); for (const x of [-0.35, 0.35]) { g.box(ir, x, 0.28, 0.285, 0.06, 0.54, 0.01); g.box(ir, x, 0.57, 0, 0.06, 0.02, 0.62); } g.box(W('brass'), 0, 0.42, 0.29, 0.1, 0.12, 0.02); }, { t: null }); c.act(o.x, o.z, 1.0, 'box', { y: o.y || 0 }); };
 PROPS.shelf = (c, o) => { const L = o.L || 1.2; place(c, o, L / 2, 0.18, 1.8, g => { const w = W('wood'); for (let k = 0; k < 4; k++) g.box(w, 0, 0.1 + k * 0.5, 0, L, 0.03, 0.34); for (const s of [-1, 1]) g.box(w, s * (L / 2 - 0.02), 0.9, 0, 0.04, 1.8, 0.34); const rr = mkRng(hashStr('sh' + o.x + o.z)); for (let k = 0; k < 4; k++) for (let i = 0; i < 4; i++) if (rr() < 0.7) { const col = pick(['#5a4a30', '#3a5040', '#6a6050', '#2a3a50', '#704030'], rr); g.cyl(CL(col), -L / 2 + 0.15 + i * (L - 0.3) / 3 + (rr() - 0.5) * 0.08, 0.115 + k * 0.5, (rr() - 0.5) * 0.12, 0.05 + rr() * 0.03, 0.12 + rr() * 0.15, 6); } }, { t: o.t || '棚。瓶の中身は、ほとんどが空だ。' }); };
 // ── 厨房 ──
 PROPS.stove = (c, o) => { place(c, o, 0.8, 0.38, 1.0, g => { const ir = W('iron'), b = W('brass'); g.box(ir, 0, 0.45, 0, 1.6, 0.9, 0.72); g.box(CL('#141416'), 0, 0.92, 0, 1.64, 0.04, 0.76); for (const x of [-0.5, 0, 0.5]) g.cyl(CL('#0c0c0e'), x, 0.94, 0.08, 0.13, 0.02, 8); g.box(ir, 0, 1.4, -0.33, 1.6, 0.9, 0.06); g.box(CL('#2a2a2c'), -0.35, 0.4, 0.365, 0.6, 0.5, 0.01, { no: '-z' }); g.box(b, -0.35, 0.68, 0.38, 0.4, 0.03, 0.03); g.box(CL('#2a2a2c'), 0.42, 0.4, 0.365, 0.5, 0.5, 0.01, { no: '-z' }); g.cyl(ir, 0.5, 0.96, 0.12, 0.16, 0.2, 8, { r2: 0.15 }); }, { t: null }); };
@@ -1771,6 +1776,7 @@ function aimUpdate(dt, cam) {
   if (OPT.ctrl === 'tank') { if (abs(IN.mx) > 0.3) { PL.ang -= IN.mx * 2.2 * dt; PL.tgt = null; } }
   else if (IN.mag > 0.35) { const b = camBasis(cam), dx = b.rx * IN.mx + b.fx * IN.my, dz = b.rz * IN.mx + b.fz * IN.my, ta = Math.atan2(dx, dz); if (!PL.tgt || abs(angDiff(Math.atan2(PL.tgt.x - PL.x, PL.tgt.z - PL.z), ta)) > 0.5) { PL.tgt = null; PL.ang = angTo(PL.ang, ta, 7 * dt); } }
   if (PL.tgt && (PL.tgt.dead || PL.tgt.hp <= 0)) PL.tgt = pickTarget();
+  if (!PL.tgt && IN.mag < 0.35 && OPT.ctrl !== 'tank') { PL.reT = (PL.reT || 0) - dt; if (PL.reT <= 0) { PL.reT = 0.2; PL.tgt = pickTarget(); } } // スティックを離していれば、前の敵をまた狙う
   let pitch = 0;
   if (PL.tgt) { const e = PL.tgt, ta = Math.atan2(e.x - PL.x, e.z - PL.z); PL.ang = angTo(PL.ang, ta, 8 * dt); const d = hyp(e.x - PL.x, e.z - PL.z); pitch = Math.atan2((e.y + e.aimY) - (PL.y + 1.35), Math.max(0.6, d)); }
   if (OPT.ctrl === 'tank' && abs(IN.my) > 0.4) pitch = IN.my > 0 ? 0.5 : -0.6;
@@ -1883,7 +1889,12 @@ function useDoor(d) {
     else if (L.bar === 'this') { ask(L.msg || 'かんぬきが掛かっている。外しますか？', ['はい', 'いいえ'], i => { if (i) return; G.open[key] = true; AU.sfx('unlock'); say('かんぬきを外した。'); }); return; }
     else if (L.key) {
       const kid = Object.keys(ITEMS).find(k => ITEMS[k].lock === L.key);
-      if (invHas(kid)) { G.open[key] = true; AU.sfx('unlock'); say(`${ITEMS[kid].name}を使った。`); storyUnlock(R.id, d.id, kid); return; }
+      if (invHas(kid)) {
+        G.open[key] = true; AU.sfx('unlock'); storyUnlock(R.id, d.id, kid);
+        // もう使う扉のない鍵は、その場で捨てるか聞く（持ち物の枠をあけるため）
+        say(`${ITEMS[kid].name}を使った。`, () => { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); });
+        return;
+      }
       AU.sfx('locked', { x: d.pos[0], z: d.pos[1] }); G.lockSeen[key] = true;
       say(L.msg || { hawk: '鍵がかかっている。\n鍵穴の上に、鷹の紋章が彫られている。', snake: '鍵がかかっている。\n鍵穴の上に、蛇の紋章が彫られている。', wolf: '鍵がかかっている。\n硝子越しに、緑の葉が見える。取っ手に狼の紋章。', base: '鍵がかかっている。錆びた大きな錠前だ。', id: '扉の横に、カード読み取り機がある。' }[L.key] || '鍵がかかっている。'); return;
     }
@@ -1924,7 +1935,7 @@ const ESPEC = {
   crawler: { hp: 45, rad: 0.36, hy: [0, 0.55], aimY: 0.25, model: 'worker' },
   dog: { hp: 36, rad: 0.36, hy: [0, 0.85], aimY: 0.5 },
   spider: { hp: 110, rad: 0.62, hy: [0, 1.0], aimY: 0.55 },
-  brute: { hp: 400, rad: 0.48, hy: [0, 2.3], aimY: 1.7, model: 'gardener' },
+  brute: { hp: 520, rad: 0.48, hy: [0, 2.3], aimY: 1.7, model: 'gardener' },
   hunter: { hp: 170, rad: 0.38, hy: [0, 1.6], aimY: 1.0, model: 'hunter' },
   boss1: { hp: 950, rad: 0.58, hy: [0, 2.7], aimY: 1.9, model: 'boss' },
   boss2: { hp: 700, rad: 0.58, hy: [0, 2.7], aimY: 1.9, model: 'boss' },
@@ -1991,7 +2002,9 @@ const AI = {
       case 'lie': e.anim = 'lie'; if (e.alert && d < 2.2) { setState(e, 'rise', 'rise'); AU.sfx('moan2', { x: e.x, z: e.z }); } break;
       case 'down': e.anim = 'down'; if (e.at > 1.9) setState(e, 'rise', 'rise'); break;
       case 'rise': e.anim = 'rise'; if (e.at > 1.1) setState(e, 'chase', 'walk'); break;
+      case 'feed': e.anim = 'eat'; facePlayer(e, dt, 2); break; // 倒れた主人公に、かがみこむ
       case 'chase': {
+        if (PL.dead && d < 1.7) { setState(e, 'feed', 'eat'); if (rnd() < 0.5) AU.sfx('flesh', { x: e.x, z: e.z }); break; }
         e.anim = d < 2.2 ? 'reach' : 'walk';
         if (e.hitT > 0.35) break; // よろけている間は止まる
         const facing = abs(angDiff(e.ang, Math.atan2(PL.x - e.x, PL.z - e.z)));
@@ -2098,7 +2111,7 @@ function damageEnemy(e, dmg, o = {}) {
     else if (e.state === 'chase') moveActor(G.room, e, -Math.sin(e.ang) * 0.08, -Math.cos(e.ang) * 0.08, 'enemy');
   } else if (t === 'crawler') { if (o.w === 'sg' || o.w === 'mg') setState(e, 'down', 'crawl'); }
   else if (t === 'dog') { AU.sfx('yelp', { x: e.x, z: e.z }); const a = Math.atan2(e.x - PL.x, e.z - PL.z); moveActor(G.room, e, Math.sin(a) * 0.5, Math.cos(a) * 0.5, 'enemy'); if (e.state !== 'window') setState(e, 'hit', 'run'); }
-  else if (t === 'brute' || t === 'hunter' || t.startsWith('boss')) { e.stag += dmg; const lim = t === 'hunter' ? 45 : t === 'brute' ? 95 : 140; if (e.stag > lim && !['charge', 'lunge', 'leap'].includes(e.state)) { e.stag = 0; setState(e, 'stagger', 'stagger'); } if (t === 'hunter' && e.state === 'idle') { setState(e, 'run', 'hunt'); } }
+  else if (t === 'brute' || t === 'hunter' || t.startsWith('boss')) { e.stag += dmg; const lim = t === 'hunter' ? 45 : t === 'brute' ? 150 : 140; if (e.stag > lim && !['charge', 'lunge', 'leap'].includes(e.state)) { e.stag = 0; setState(e, 'stagger', 'stagger'); } if (t === 'hunter' && e.state === 'idle') { setState(e, 'run', 'hunt'); } }
   if (e.hp <= 0) killEnemy(e, o);
 }
 function decap(e) { const hd = e.h.J.head; if (hd) hd.visible = false; bleed(e.x, e.y + 1.65, e.z, 26); AU.sfx('splat', { x: e.x, z: e.z }); e.nohead = true; }
@@ -2170,7 +2183,7 @@ const CUT = { gen: null, wait: 0, cond: null, movers: [], onEnd: null, skip: nul
 function runCut(fn, onEnd, skip) { G.mode = 'cut'; CUT.gen = fn(); CUT.wait = 0; CUT.cond = null; CUT.movers = []; CUT.onEnd = onEnd || null; CUT.skip = skip || null; CUT.skippable = false; CUT.t = 0; PL.aimT = 0; setWeapon(PL.h, null); PL.st.mode = 'idle'; cutAdvance(); }
 function skipCut() { const f = CUT.skip; CUT.gen = null; CUT.skip = null; G.msg = null; G.msgQ = []; G.card = null; AU.sfx('cancel'); if (f) f(); endCut(); }
 // 飛ばす印（右上の ▶▶）：押せる場面のときだけ
-function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = VW.x + VW.w - w - u * 3, y = VW.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
+function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = UB.x + UB.w - w - u * 3, y = UB.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
 function cutStep(dt) {
   CUT.t += dt;
   if (CUT.skip && CUT.t > 1.2 && (IN.e.esc || IN.e.menu || (!G.msg && !G.card && uiTap()))) { skipCut(); return; }
@@ -2210,7 +2223,7 @@ function npcShoot(n, tx, tz) { n.ang = Math.atan2(tx - n.x, tz - n.z); n.aim = t
 // 大きな文字の札（オープニングの語り）
 function textCard(pages) { G.card = { pages, i: 0, t: 0 }; return () => !G.card; }
 function cardUpdate(dt) { const c = G.card; c.t += dt; if ((IN.e.ok || IN.e.act || IN.e.cancel || IN.ptr.length) && c.t > 0.6 || c.t > 9) { c.i++; c.t = 0; if (c.i >= c.pages.length) G.card = null; } }
-function drawCard() { const c = G.card; if (!c) return; const u = U(); UX.fillStyle = '#000'; UX.fillRect(VW.x, VW.y, VW.w, VW.h); const a = Math.min(1, c.t * 1.5); UX.globalAlpha = a; const lines = wrapText(c.pages[c.i], VW.w * 0.78, u * 3.8, FONT_MIN); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h / 2 - (lines.length - 1) * u * 3.2 + i * u * 6.4, u * 3.8, '#d8d0bc', { a: 'center', f: FONT_MIN })); UX.globalAlpha = 1; }
+function drawCard() { const c = G.card; if (!c) return; const u = U(); UX.fillStyle = '#000'; UX.fillRect(UB.x, UB.y, UB.w, UB.h); const a = Math.min(1, c.t * 1.5); UX.globalAlpha = a; const lines = wrapText(c.pages[c.i], UB.w * 0.78, u * 3.8, FONT_MIN); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h / 2 - (lines.length - 1) * u * 3.2 + i * u * 6.4, u * 3.8, '#d8d0bc', { a: 'center', f: FONT_MIN })); UX.globalAlpha = 1; }
 // ── オープニング ──
 function startOpening() {
   G.mode = 'cut'; G.npcs = []; G.fade = 1;
@@ -2228,17 +2241,20 @@ function startOpening() {
     hy.ang = 0; yield 0.25; npcShoot(hy, dog.x, dog.z); AU.sfx('yelp', { x: dog.x, z: dog.z }); dm.done = true; poseDog(d1, { anim: 'dead', t: 0, seed: 0 }, 10); yield 0.5; hy.aim = false; setWeapon(hy.h, null);
     AU.sfx('door', {}); yield 0.8; G.fadeTo = 1; yield 1.0;
     // ホールの中へ
-    clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.6, ang: PI }); G.mode = 'cut'; const hy2 = addNpc('haya', -0.6, 5.9, PI);
-    AU.sfx('doorshut', {}); camNormal(); G.fadeTo = 0; yield 1.4;
-    hy2.ang = 0; yield 0.6; say('早瀬「……隊長は」'); yield 'msg'; yield 0.4;
+    clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 6.3, ang: PI }); G.mode = 'cut'; const hy2 = addNpc('haya', -0.6, 6.4, PI);
+    // 二階の回廊から見下ろす：二人が転がりこんでくる
+    camAt([-4.8, 5.6, -3.4], [0.2, 0.9, 5.4], 50); G.fadeTo = 0; moveTo(PL, 0.45, 4.7, 2.6); moveTo(hy2, -0.55, 4.9, 2.4); yield 0.9; AU.sfx('doorshut', {}); yield 1.6;
+    // 二人を横から（後ろに大階段）
+    camAt([0.05, 1.62, 6.92], [-0.05, 1.25, 3.0], 54); hy2.ang = Math.atan2(0.45 - -0.55, 4.7 - 4.9); PL.ang = Math.atan2(-0.55 - 0.45, 4.9 - 4.7); yield 0.6;
+    say('早瀬「……隊長は」'); yield 'msg'; yield 0.4;
     say('遼「……夜明けまで、ここで持ちこたえるしかない」'); yield 'msg'; yield 0.8;
     AU.sfx('hg', { x: -14, z: -1, vol: 0.5, rev: 1 }); yield 1.2; hy2.ang = -PI / 2; yield 0.6;
     say('早瀬「今の……銃声だ。西の奥」'); yield 'msg';
     say('早瀬「三浦たちかもしれない。見てくる。お前はここを動くな」'); yield 'msg';
-    moveTo(hy2, -6.9, -1.2, 2.4); yield () => !CUT.movers.length; AU.sfx('door', { x: -8, z: -1.2, vol: 0.6 }); hy2.h.root.visible = false; hy2.sh.visible = false; yield 1.0; AU.sfx('doorshut', { x: -8, z: -1.2, vol: 0.5 });
-    yield 1.6; clearNpcs(); setFlag('opening');
-  }, () => { G.fadeTo = 0; clearNpcs(); G.time = 0; setFlag('opening'); },
-  () => { clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.6, ang: PI }); G.camOv = null; G.fade = 1; });
+    camAt([5.4, 2.4, 5.2], [-6.0, 1.2, -1.0], 56); moveTo(hy2, -6.9, -1.2, 2.4); yield () => !CUT.movers.length; AU.sfx('door', { x: -8, z: -1.2, vol: 0.6 }); hy2.h.root.visible = false; hy2.sh.visible = false; yield 1.0; AU.sfx('doorshut', { x: -8, z: -1.2, vol: 0.5 });
+    PL.ang = -PI / 2 - 0.4; yield 1.6; clearNpcs(); setFlag('opening');
+  }, () => { G.fadeTo = 0; clearNpcs(); G.time = 0; setFlag('opening'); G.camOv = null; G.cam = pickCam(G.room, null, PL.x, PL.z, PL.y); },
+  () => { clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.0, ang: PI }); G.camOv = null; G.fade = 1; });
 }
 // ── 部屋に入ったとき ──
 function storyEnter(id) {
@@ -2337,6 +2353,7 @@ function doAct(a, useId) {
       if (!flag('cabOpen')) { if (!invHas('key_hunt')) { say('硝子戸の銃の棚。中に、散弾銃が一挺だけ掛けてある。\n鍵がかかっている。'); return; } setFlag('cabOpen'); invTake('key_hunt'); AU.sfx('unlock'); if (c) c.pivot.rotation.y = -1.6; say('狩猟用の鍵で、銃の棚が開いた。'); return; }
       ask('散弾銃がある。持っていきますか？', ['はい', 'いいえ'], i => { if (i) return; if (!canFit('sg', 1)) { say('持ち物がいっぱいで、持てない。'); return; } invAdd('sg', 1); G.taken.shotgun = true; G.mag.sg = 4; AU.sfx('pick'); say('ショットガンを手に入れた。\n弾が4発、込められている。', () => storyPick('shotgun', 'sg')); }); return; }
     case 'desk_drawer': if (G.taken.deskammo) { say('引き出しの中は、もう空っぽだ。'); return; } give('hg_ammo', 10, 'deskammo', '机の引き出しに、ハンドガンの弾が入っていた。'); return;
+    case 'dining_drawer': if (G.taken.dinammo) { say('食器棚の引き出し。銀の匙が並んでいる。'); return; } give('hg_ammo', 10, 'dinammo', '食器棚の引き出しの奥に、ハンドガンの弾の箱があった。\n先発隊の誰かが、ここに隠したらしい。'); return;
     case 'ecorr_cab': if (G.taken.ecab) { say('飾り棚。銀の燭台が並んでいるだけだ。'); return; } give('herb_r', 1, 'ecab', '飾り棚の奥に、乾いた赤い薬草がしまってあった。'); return;
     case 'valve':
       if (flag('valve')) { say('弁は、固く閉まっている。'); return; }
@@ -2431,12 +2448,12 @@ function passUpdate() {
 function passKey(k) { const s = G.ui; if (k === '←') s.text = s.text.slice(0, -1); else if (k === '決定') { passSubmit(); return; } else if (s.text.length < 10) s.text += k; AU.sfx('tick'); }
 function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。'); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
 function drawPass() {
-  const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  txt('合言葉を入力してください', VW.x + VW.w / 2, VW.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
-  UX.strokeStyle = '#40c070'; UX.strokeRect(VW.x + VW.w / 2 - u * 30, VW.y + u * 17, u * 60, u * 10); txt(s.text + ((G.t * 2 % 1) < 0.5 ? '_' : ''), VW.x + VW.w / 2, VW.y + u * 24.5, u * 6, '#a0ffc0', { a: 'center', f: 'monospace', w: 700 });
+  const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  txt('合言葉を入力してください', UB.x + UB.w / 2, UB.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
+  UX.strokeStyle = '#40c070'; UX.strokeRect(UB.x + UB.w / 2 - u * 30, UB.y + u * 17, u * 60, u * 10); txt(s.text + ((G.t * 2 % 1) < 0.5 ? '_' : ''), UB.x + UB.w / 2, UB.y + u * 24.5, u * 6, '#a0ffc0', { a: 'center', f: 'monospace', w: 700 });
   const cols = 7, kw = u * 12, kh = u * 9;
-  PASS_KEYS.forEach((k, i) => { const x = VW.x + VW.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = VW.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }); });
-  txt('もどる', VW.x + VW.w / 2, VW.y + VW.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(VW.x + VW.w / 2 - u * 10, VW.y + VW.h - u * 9, u * 20, u * 7, () => { G.ui = null; });
+  PASS_KEYS.forEach((k, i) => { const x = UB.x + UB.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = UB.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }); });
+  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 10, UB.y + UB.h - u * 9, u * 20, u * 7, () => { G.ui = null; });
 }
 // ── 早瀬 ──
 function hayaAct() {
@@ -2513,8 +2530,8 @@ function endStep(dt) {
   if (G.endT > 7 + G.endPages.length * 6 + 2 || (G.endT > 8 && IN.e.cancel)) finishGame();
 }
 function drawEnd() {
-  if (G.endI < 0 || G.endI >= G.endPages.length) return; const u = U(), t = (G.endT - 7) % 6, a = Math.min(1, t, 6 - t); UX.globalAlpha = Math.max(0, a); UX.fillStyle = 'rgba(0,0,0,0.45)'; UX.fillRect(VW.x, VW.y + VW.h * 0.62, VW.w, VW.h * 0.3);
-  const lines = wrapText(G.endPages[G.endI], VW.w * 0.86, u * 3.6, FONT_MIN); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h * 0.7 + i * u * 5.6, u * 3.6, '#f4ecd8', { a: 'center', f: FONT_MIN, sh: true })); UX.globalAlpha = 1;
+  if (G.endI < 0 || G.endI >= G.endPages.length) return; const u = U(), t = (G.endT - 7) % 6, a = Math.min(1, t, 6 - t); UX.globalAlpha = Math.max(0, a); UX.fillStyle = 'rgba(0,0,0,0.45)'; UX.fillRect(UB.x, UB.y + UB.h * 0.62, UB.w, UB.h * 0.3);
+  const lines = wrapText(G.endPages[G.endI], UB.w * 0.86, u * 3.6, FONT_MIN); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h * 0.7 + i * u * 5.6, u * 3.6, '#f4ecd8', { a: 'center', f: FONT_MIN, sh: true })); UX.globalAlpha = 1;
 }
 function finishGame() {
   const t = G.time, haya = flag('hayaSaved');
@@ -2530,9 +2547,11 @@ const FONT_UI = '"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Meiryo"
 const FONT_MIN = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","MS PMincho",serif';
 const UIR = []; // 押せる場所
 function uiBlocking() { return !!(G.ui || G.msg || G.mode === 'title' || G.mode === 'dead' || G.mode === 'end'); }
-function U() { return VW.h / 100; }
+function U() { return UB.u; }
 function rr(x, y, w, h, r) { UX.beginPath(); UX.moveTo(x + r, y); UX.arcTo(x + w, y, x + w, y + h, r); UX.arcTo(x + w, y + h, x, y + h, r); UX.arcTo(x, y + h, x, y, r); UX.arcTo(x, y, x + w, y, r); UX.closePath(); }
 function txt(s, x, y, size, col = '#e8e2d4', o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; UX.fillStyle = col; UX.textAlign = o.a || 'left'; UX.textBaseline = o.b || 'alphabetic'; if (o.sh) { UX.fillStyle = 'rgba(0,0,0,0.7)'; UX.fillText(s, x + size * 0.06, y + size * 0.06); UX.fillStyle = col; } UX.fillText(s, x, y); }
+// 幅に収まるよう、文字を小さくして書く
+function fitTxt(s, x, y, maxW, size, col, o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; const w = UX.measureText(s).width; txt(s, x, y, w > maxW ? Math.max(8, size * maxW / w) : size, col, o); }
 function hit(x, y, w, h, fn) { UIR.push({ x, y, w, h, fn }); }
 function uiTap() { for (const p of IN.ptr) for (let i = UIR.length - 1; i >= 0; i--) { const r = UIR[i]; if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { r.fn(); return true; } } return false; }
 function wrapText(s, maxW, size, font = FONT_UI) { UX.font = `500 ${size}px ${font}`; const out = []; for (const para of s.split('\n')) { let line = ''; for (const ch of para) { if (UX.measureText(line + ch).width > maxW && line) { if ('、。」）'.includes(ch)) { line += ch; out.push(line); line = ''; continue; } out.push(line); line = ch; } else line += ch; } out.push(line); } return out; }
@@ -2562,7 +2581,8 @@ function msgUpdate(dt) {
 function msgChoose(i) { const m = G.msg; AU.sfx(i === 0 ? 'ok' : 'cancel'); msgClose(); if (m.o.ccb) m.o.ccb(i); }
 function msgClose() { const m = G.msg; G.msg = G.msgQ.length ? G.msgQ.shift() : null; if (m.cb) m.cb(); }
 function drawMsg() {
-  const m = G.msg; if (!m) return; const u = U(), x = VW.x + u * 4, w = VW.w - u * 8, h = u * 24, y = VW.y + VW.h - h - u * 3;
+  const m = G.msg; if (!m) return; const u = U(); let x = UB.x + u * 4, w = UB.w - u * 8, h = u * 24, y = UB.y + UB.h - h - u * 3;
+  if (VW.portrait && !G.ui) { x = 8; w = VW.W - 16; h = Math.min(VW.H - VW.y - VW.h - 16, u * 34); y = VW.y + VW.h + 10; } // 縦持ち：絵の下に
   UX.fillStyle = 'rgba(0,0,0,0.78)'; rr(x, y, w, h, u * 1.2); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.35)'; UX.lineWidth = 1; UX.stroke();
   const size = Math.max(13, u * 4.2), s = m.pages[m.i].slice(0, Math.floor(m.ch));
   const lines = wrapText(s, w - u * 8, size, m.o.min ? FONT_MIN : FONT_UI);
@@ -2574,7 +2594,7 @@ function drawMsg() {
 }
 // ── 字幕（場面の間の短い言葉） ──
 function sub(t, dur = 3) { G.sub = { t, life: dur, max: dur }; }
-function drawSub(dt) { const s = G.sub; if (!s) return; s.life -= dt; if (s.life <= 0) { G.sub = null; return; } const u = U(), a = Math.min(1, s.life * 2, (s.max - s.life) * 3); UX.globalAlpha = a; const size = Math.max(13, u * 4); const lines = wrapText(s.t, VW.w * 0.85, size); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h * 0.86 + i * size * 1.4, size, '#f2ead8', { a: 'center', sh: true })); UX.globalAlpha = 1; }
+function drawSub(dt) { const s = G.sub; if (!s) return; s.life -= dt; if (s.life <= 0) { G.sub = null; return; } const u = U(), a = Math.min(1, s.life * 2, (s.max - s.life) * 3); UX.globalAlpha = a; const size = Math.max(13, u * 4); const lines = wrapText(s.t, UB.w * 0.85, size); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h * 0.86 + i * size * 1.4, size, '#f2ead8', { a: 'center', sh: true })); UX.globalAlpha = 1; }
 // ── 指のボタン ──
 function drawTouch() {
   if (!IN.touch || G.ui || G.msg || G.mode !== 'play') return;
@@ -2592,7 +2612,7 @@ function drawTouch() {
   }
 }
 // ── 脱出の残り時間 ──
-function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, VW.x + VW.w / 2, VW.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
+function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
 // ── タイトル ──
 const TITLE = { sel: 0, t: 0, phase: 'press', cam: null };
 function titleUpdate(dt) {
@@ -2605,13 +2625,13 @@ function titleUpdate(dt) {
 }
 function titleItems() { const it = [['はじめから', () => { AU.sfx('ok'); startNewGame(); }]]; if (hasSave()) it.push(['つづきから', () => { AU.sfx('ok'); openLoad(); }]); it.push(['設定', () => { AU.sfx('ok'); openOpts(); }]); if (G.unlockInf) it.push([`おまけ：弾数無限　${G.useInf ? 'ON' : 'OFF'}`, () => { G.useInf = !G.useInf; AU.sfx('tick'); }]); return it; }
 function drawTitle() {
-  const u = U(), cx = VW.x + VW.w / 2, a = Math.min(1, TITLE.t / 2.5);
-  UX.fillStyle = `rgba(0,0,0,${0.35})`; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  UX.globalAlpha = a; txt('黄泉還', cx, VW.y + u * 34, u * 17, '#d8cfb8', { a: 'center', f: FONT_MIN, w: 700, sh: true });
-  txt('―  Y O M I G A E R I  ―', cx, VW.y + u * 43, u * 3.4, '#9a2a22', { a: 'center', f: FONT_MIN, w: 600 }); UX.globalAlpha = 1;
-  if (TITLE.phase === 'press') { if ((TITLE.t * 1.2) % 1 < 0.65) txt(IN.touch ? '画面にふれてください' : 'なにかボタンを押してください', cx, VW.y + u * 72, u * 4, '#cfc6b0', { a: 'center' }); }
-  else titleItems().forEach(([s, fn], i) => { const y = VW.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }); });
-  txt('ⓒ 黄泉還　Claude', cx, VW.y + VW.h - u * 3, u * 2.2, '#5a544a', { a: 'center' });
+  const u = U(), cx = UB.x + UB.w / 2, a = Math.min(1, TITLE.t / 2.5);
+  UX.fillStyle = `rgba(0,0,0,${0.35})`; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  UX.globalAlpha = a; txt('黄泉還', cx, UB.y + u * 34, u * 17, '#d8cfb8', { a: 'center', f: FONT_MIN, w: 700, sh: true });
+  txt('―  Y O M I G A E R I  ―', cx, UB.y + u * 43, u * 3.4, '#9a2a22', { a: 'center', f: FONT_MIN, w: 600 }); UX.globalAlpha = 1;
+  if (TITLE.phase === 'press') { if ((TITLE.t * 1.2) % 1 < 0.65) txt(IN.touch ? '画面にふれてください' : 'なにかボタンを押してください', cx, UB.y + u * 72, u * 4, '#cfc6b0', { a: 'center' }); }
+  else titleItems().forEach(([s, fn], i) => { const y = UB.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }); });
+  txt('ⓒ 黄泉還　Claude', cx, UB.y + UB.h - u * 3, u * 2.2, '#5a544a', { a: 'center' });
 }
 // ── 死んだとき ──
 function deadUpdate(dt) {
@@ -2625,10 +2645,10 @@ function deadUpdate(dt) {
 }
 function deadChoose(i) { AU.sfx('ok'); RD.U.gray.value = 0; RD.U.red.value = 0; G.deathMus = false; const items = hasSave() ? ['load', 'title'] : ['title']; if (items[i] === 'load') openLoad(true); else toTitle(); }
 function drawDead() {
-  const u = U(), cx = VW.x + VW.w / 2, a = clamp((G.deathT - 1.2) / 1.5, 0, 1);
-  UX.fillStyle = `rgba(0,0,0,${a * 0.55})`; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  UX.globalAlpha = a; txt('YOU DIED', cx, VW.y + VW.h * 0.45, u * 13, '#a8100c', { a: 'center', f: FONT_MIN, w: 700 }); UX.globalAlpha = 1;
-  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = VW.y + VW.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }); }); }
+  const u = U(), cx = UB.x + UB.w / 2, a = clamp((G.deathT - 1.2) / 1.5, 0, 1);
+  UX.fillStyle = `rgba(0,0,0,${a * 0.55})`; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  UX.globalAlpha = a; txt('YOU DIED', cx, UB.y + UB.h * 0.45, u * 13, '#a8100c', { a: 'center', f: FONT_MIN, w: 700 }); UX.globalAlpha = 1;
+  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = UB.y + UB.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }); }); }
 }
 function toTitle() { G.mode = 'title'; G.ui = null; G.msg = null; G.msgQ = []; G.timer = null; TITLE.phase = 'menu'; TITLE.t = 3; TITLE.sel = 0; enterTitleScene(); AU.music('title'); }
 // ── 画面の上に重ねる：赤い傷・暗転 ──
@@ -2733,44 +2753,50 @@ function ecg(x, y, w, h, cond, t) {
   for (let i = 0; i <= 100; i++) { const px = x + w * i / 100, ph = ((i / 100) * 2 - t * sp) % 1, p = ph < 0 ? ph + 1 : ph; let v = 0; if (p > 0.4 && p < 0.44) v = -0.15; else if (p >= 0.44 && p < 0.47) v = 0.85; else if (p >= 0.47 && p < 0.5) v = -0.45; else if (p > 0.58 && p < 0.66) v = 0.15 * Math.sin((p - 0.58) / 0.08 * PI); const py = y + h / 2 - v * h * 0.45; if (i) UX.lineTo(px, py); else UX.moveTo(px, py); }
   UX.stroke();
 }
-function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, VW.y, 0, VW.y + VW.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(VW.x, VW.y, VW.w, VW.h); txt(title, VW.x + u * 4, VW.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
+function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); txt(title, UB.x + u * 4, UB.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
 function drawTabs(cur) {
-  const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = VW.y + u * 2.5;
-  tabs.forEach(([k, s], i) => { const x = VW.x + VW.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
+  const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = UB.y + u * 2.5;
+  tabs.forEach(([k, s], i) => { const x = UB.x + UB.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
+}
+// 持ち物の画面の並び：横持ち・パソコンは左に状態と装備、右に8つの枠。縦持ちは上に状態と装備、下に8つの枠
+function menuGeom() {
+  const u = U(), W = UB.w / u, port = W < 110;
+  if (!port) { const cw = (W - 52 - 4 - 1.5) / 2; return { u, st: [4, 12, 44, 22], eq: [4, 37, 44, 20], kn: [4, 59, 44, 8], gx: 52, gy: 12, cw, ch: 12.1 }; }
+  return { u, st: [4, 12, 43, 22], eq: [49, 12, 43, 22], kn: [4, 36.5, 88, 8], gx: 4, gy: 47, cw: 43.25, ch: 12.6 };
 }
 function drawMenu() {
   const m = G.ui, u = U(); if (m.tab === 'file') return drawFiles(m); if (m.tab === 'map') return drawMap(m);
   drawMenuBG('持ち物'); drawTabs('item');
-  const cond = hpCond();
-  // 状態
-  const sx = VW.x + u * 4, sy = VW.y + u * 12; UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * 44, u * 22, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * 40, u * 13, cond, m.t);
-  txt(PL.poison ? '毒' : ['良好', '注意', '危険'][cond], sx + u * 2, sy + u * 20, u * 4.2, PL.poison ? '#c080ff' : ['#50f090', '#f0d850', '#ff5040'][cond], { w: 700 }); txt('CONDITION', sx + u * 42, sy + u * 20, u * 2.4, '#6a7a6a', { a: 'right' });
+  const cond = hpCond(), Gm = menuGeom(), X = v => UB.x + v * u, Y = v => UB.y + v * u;
+  // 状態（心電図）
+  { const [x0, y0, w0, h0] = Gm.st, sx = X(x0), sy = Y(y0); UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * w0, u * h0, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * (w0 - 4), u * (h0 - 9), cond, m.t);
+    txt(PL.poison ? '毒' : ['良好', '注意', '危険'][cond], sx + u * 2, sy + u * (h0 - 2), u * 4.2, PL.poison ? '#c080ff' : ['#50f090', '#f0d850', '#ff5040'][cond], { w: 700 }); txt('CONDITION', sx + u * (w0 - 2), sy + u * (h0 - 2), u * 2.4, '#6a7a6a', { a: 'right' }); }
   // 装備
-  const ex = sx, ey = sy + u * 25; UX.fillStyle = 'rgba(30,20,10,0.6)'; rr(ex, ey, u * 44, u * 20, u); UX.fill();
-  const w = G.eq; if (w && (w === 'knife' || invHas(w))) { if (w !== 'knife') UX.drawImage(thumb(w), ex + u, ey + u, u * 18, u * 18); txt(ITEMS[w].name, ex + u * 20, ey + u * 7, u * 3.6, '#e8dcc0'); if (ITEMS[w].ammo) { txt(`${G.mag[w] || 0}`, ex + u * 20, ey + u * 15, u * 6, (G.mag[w] || 0) ? '#f0e0b0' : '#ff5040', { w: 700, f: 'monospace' }); txt(`/ ${invCount(ITEMS[w].ammo)}${G.inf && w === 'hg' ? ' ∞' : ''}`, ex + u * 31, ey + u * 15, u * 3.2, '#a89880', { f: 'monospace' }); } } else txt('装備なし', ex + u * 20, ey + u * 11, u * 3.4, '#888');
+  { const [x0, y0, w0, h0] = Gm.eq, ex = X(x0), ey = Y(y0), ts = Math.min(18, h0 - 2); UX.fillStyle = 'rgba(30,20,10,0.6)'; rr(ex, ey, u * w0, u * h0, u); UX.fill();
+    const w = G.eq, tx = ex + u * (ts + 2); if (w && (w === 'knife' || invHas(w))) { if (w !== 'knife') UX.drawImage(thumb(w), ex + u, ey + u * (h0 - ts) / 2, u * ts, u * ts); fitTxt(ITEMS[w].name, tx, ey + u * 7, ex + u * w0 - tx - u, u * 3.6, '#e8dcc0'); if (ITEMS[w].ammo) { txt(`${G.mag[w] || 0}`, tx, ey + u * (h0 - 5), u * 6, (G.mag[w] || 0) ? '#f0e0b0' : '#ff5040', { w: 700, f: 'monospace' }); txt(`/ ${invCount(ITEMS[w].ammo)}${G.inf && w === 'hg' ? ' ∞' : ''}`, tx + u * 11, ey + u * (h0 - 5), u * 3.2, '#a89880', { f: 'monospace' }); } } else txt('装備なし', tx, ey + u * h0 / 2 + u, u * 3.4, '#888'); }
   // ナイフの持ちかえ
-  const kx = ex, ky = ey + u * 22, kw = u * 44, kh = u * 8, ks = m.sel === INV_N && !m.act; UX.fillStyle = ks ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.05)'; rr(kx, ky, kw, kh, u); UX.fill(); txt(G.eq === 'knife' ? '銃に持ちかえる' : 'ナイフに持ちかえる', kx + kw / 2, ky + u * 5.4, u * 3.2, '#d8d0c0', { a: 'center' }); hit(kx, ky, kw, kh, () => menuPick(INV_N));
+  { const [x0, y0, w0, h0] = Gm.kn, kx = X(x0), ky = Y(y0), kw = u * w0, kh = u * h0, ks = m.sel === INV_N && !m.act; UX.fillStyle = ks ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.05)'; rr(kx, ky, kw, kh, u); UX.fill(); txt(G.eq === 'knife' ? '銃に持ちかえる' : 'ナイフに持ちかえる', kx + kw / 2, ky + kh * 0.67, u * 3.2, '#d8d0c0', { a: 'center' }); hit(kx, ky, kw, kh, () => menuPick(INV_N)); }
   // 8つの枠
-  const gx = VW.x + u * 52, gy = VW.y + u * 12, cs = u * 19.5;
+  const gx = X(Gm.gx), gy = Y(Gm.gy), cw = u * Gm.cw, h = u * Gm.ch;
   for (let i = 0; i < INV_N; i++) {
-    const x = gx + (i % 2) * (cs + u * 1.5) + (i % 2 ? 0 : 0), y = gy + Math.floor(i / 2) * (cs * 0.62 + u * 1.2), h = cs * 0.62, s = G.inv[i], on = m.sel === i;
-    UX.fillStyle = on ? 'rgba(160,30,30,0.6)' : m.comb === i ? 'rgba(160,120,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, cs, h, u * 0.8); UX.fill(); UX.strokeStyle = on ? '#e0b080' : 'rgba(200,190,160,0.25)'; UX.stroke();
-    if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y + h / 2 - u * 5.5, u * 11, u * 11); txt(ITEMS[s.id].name.replace(/（.*）/, ''), x + u * 12, y + u * 4.6, u * 2.4, '#d8d0c0'); if (ITEMS[s.id].stack) txt(String(s.n), x + cs - u * 1.2, y + h - u * 1.6, u * 3.6, '#f0e0a0', { a: 'right', w: 700, f: 'monospace' }); if (s.id === G.eq) txt('E', x + cs - u * 1.2, y + u * 4.2, u * 3, '#ff8060', { a: 'right', w: 700 }); }
-    hit(x, y, cs, h, () => menuPick(i));
+    const x = gx + (i % 2) * (cw + u * 1.5), y = gy + Math.floor(i / 2) * (h + u * 1.2), s = G.inv[i], on = m.sel === i;
+    UX.fillStyle = on ? 'rgba(160,30,30,0.6)' : m.comb === i ? 'rgba(160,120,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, cw, h, u * 0.8); UX.fill(); UX.strokeStyle = on ? '#e0b080' : 'rgba(200,190,160,0.25)'; UX.stroke();
+    if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y + h / 2 - u * 5.5, u * 11, u * 11); fitTxt(ITEMS[s.id].name.replace(/（.*）/, ''), x + u * 12, y + u * 4.8, cw - u * 13, u * 2.8, '#d8d0c0'); if (ITEMS[s.id].stack) txt(String(s.n), x + cw - u * 1.2, y + h - u * 1.6, u * 3.6, '#f0e0a0', { a: 'right', w: 700, f: 'monospace' }); if (s.id === G.eq) txt('E', x + cw - u * 1.2, y + h - u * 1.6, u * 3, '#ff8060', { a: 'right', w: 700 }); }
+    hit(x, y, cw, h, () => menuPick(i));
   }
   // 説明
-  const s = m.sel < INV_N ? G.inv[m.sel] : null, dy = VW.y + VW.h - u * 17;
-  UX.fillStyle = 'rgba(0,0,0,0.55)'; rr(VW.x + u * 4, dy, VW.w - u * 8, u * 14, u); UX.fill();
-  if (m.comb != null) txt('組み合わせる相手を選んでください', VW.x + u * 7, dy + u * 8.5, u * 3.4, '#f0c870');
-  else if (s) { txt(ITEMS[s.id].name, VW.x + u * 7, dy + u * 5.5, u * 3.6, '#f0e0c0', { w: 700 }); const ln = wrapText(ITEMS[s.id].desc, VW.w - u * 16, u * 3); ln.slice(0, 2).forEach((l, i) => txt(l, VW.x + u * 7, dy + u * 9.8 + i * u * 3.8, u * 3, '#c8c0b0')); }
+  const s = m.sel < INV_N ? G.inv[m.sel] : null, dy = UB.y + UB.h - u * 17;
+  UX.fillStyle = 'rgba(0,0,0,0.55)'; rr(UB.x + u * 4, dy, UB.w - u * 8, u * 14, u); UX.fill();
+  if (m.comb != null) txt('組み合わせる相手を選んでください', UB.x + u * 7, dy + u * 8.5, u * 3.4, '#f0c870');
+  else if (s) { txt(ITEMS[s.id].name, UB.x + u * 7, dy + u * 5.5, u * 3.6, '#f0e0c0', { w: 700 }); const ln = wrapText(ITEMS[s.id].desc, UB.w - u * 16, u * 3); ln.slice(0, 2).forEach((l, i) => txt(l, UB.x + u * 7, dy + u * 9.8 + i * u * 3.8, u * 3, '#c8c0b0')); }
   // 動作の小窓
-  if (m.act) { const ax = gx + u * 6, ay = gy + u * 6, aw = u * 28, ah = u * 7; m.act.forEach(([lab, k], i) => { const y = ay + i * (ah + u * 0.6), on = i === m.asel; UX.fillStyle = on ? 'rgba(170,40,30,0.95)' : 'rgba(20,16,14,0.95)'; rr(ax, y, aw, ah, u * 0.8); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(lab, ax + aw / 2, y + ah * 0.68, u * 3.4, '#fff', { a: 'center' }); hit(ax, y, aw, ah, () => { m.asel = i; menuDo(k); }); }); hit(VW.x, VW.y, VW.w, VW.h, () => { m.act = null; }); UIR.unshift(UIR.pop()); }
+  if (m.act) { const ax = gx + u * 6, ay = gy + u * 6, aw = u * 28, ah = u * 7; m.act.forEach(([lab, k], i) => { const y = ay + i * (ah + u * 0.6), on = i === m.asel; UX.fillStyle = on ? 'rgba(170,40,30,0.95)' : 'rgba(20,16,14,0.95)'; rr(ax, y, aw, ah, u * 0.8); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(lab, ax + aw / 2, y + ah * 0.68, u * 3.4, '#fff', { a: 'center' }); hit(ax, y, aw, ah, () => { m.asel = i; menuDo(k); }); }); hit(UB.x, UB.y, UB.w, UB.h, () => { m.act = null; }); UIR.unshift(UIR.pop()); }
   if (m.ex) drawExamine(m.ex);
 }
 function drawExamine(ex) {
-  const u = U(); ex.t += 1 / 60; UX.fillStyle = 'rgba(0,0,0,0.88)'; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  const size = u * 46, cx = VW.x + VW.w / 2, cy = VW.y + u * 36; UX.save(); UX.translate(cx, cy); UX.scale(Math.cos(ex.t * 1.2) * 0.25 + 0.95, 1); UX.drawImage(thumb(ex.id), -size / 2, -size / 2, size, size); UX.restore();
-  const it = ITEMS[ex.id]; txt(it.name, cx, VW.y + u * 66, u * 4.4, '#f0e0c0', { a: 'center', w: 700 }); wrapText(it.desc, VW.w - u * 20, u * 3.4).forEach((l, i) => txt(l, cx, VW.y + u * 74 + i * u * 4.6, u * 3.4, '#d0c8b8', { a: 'center' }));
+  const u = U(); ex.t += 1 / 60; UX.fillStyle = 'rgba(0,0,0,0.88)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  const size = u * 46, cx = UB.x + UB.w / 2, cy = UB.y + u * 36; UX.save(); UX.translate(cx, cy); UX.scale(Math.cos(ex.t * 1.2) * 0.25 + 0.95, 1); UX.drawImage(thumb(ex.id), -size / 2, -size / 2, size, size); UX.restore();
+  const it = ITEMS[ex.id]; txt(it.name, cx, UB.y + u * 66, u * 4.4, '#f0e0c0', { a: 'center', w: 700 }); wrapText(it.desc, UB.w - u * 20, u * 3.4).forEach((l, i) => txt(l, cx, UB.y + u * 74 + i * u * 4.6, u * 3.4, '#d0c8b8', { a: 'center' }));
 }
 // ── ファイル ──
 function openFile(id) { G.ui = { k: 'menu', tab: 'file', fsel: Math.max(0, G.files.indexOf(id)), page: 0, solo: true, t: 0 }; AU.sfx('ok'); }
@@ -2792,19 +2818,19 @@ function filesUpdate(m) {
 function drawFiles(m) {
   const u = U(); drawMenuBG('ファイル'); if (!m.solo) drawTabs('file');
   if (m.page != null) {
-    const f = FILES[G.files[m.fsel]], px = VW.x + u * 10, py = VW.y + u * 11, pw = VW.w - u * 20, ph = VW.h - u * 22;
+    const f = FILES[G.files[m.fsel]], px = UB.x + u * 10, py = UB.y + u * 11, pw = UB.w - u * 20, ph = UB.h - u * 22;
     const g = UX.createLinearGradient(px, py, px + pw, py + ph); g.addColorStop(0, '#d6ccb2'); g.addColorStop(1, '#bfb090'); UX.fillStyle = g; UX.fillRect(px, py, pw, ph);
     UX.fillStyle = 'rgba(90,60,30,0.08)'; for (let i = 0; i < 6; i++) UX.fillRect(px + (i * 97 % pw), py, 2, ph);
     txt(f.t, px + pw / 2, py + u * 7, u * 4.2, '#2a1e12', { a: 'center', f: FONT_MIN, w: 700 });
     const lines = wrapText(f.p[m.page], pw - u * 12, u * 3.5, FONT_MIN); lines.forEach((l, i) => txt(l, px + u * 6, py + u * 15 + i * u * 5.2, u * 3.5, '#2a2018', { f: FONT_MIN }));
     txt(`${m.page + 1} / ${f.p.length}`, px + pw / 2, py + ph - u * 3, u * 2.8, '#5a4a38', { a: 'center' });
-    if (m.page > 0) { txt('◀', px + u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' }); hit(VW.x, py, u * 14, ph, () => { m.page--; AU.sfx('tick'); }); }
+    if (m.page > 0) { txt('◀', px + u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' }); hit(UB.x, py, u * 14, ph, () => { m.page--; AU.sfx('tick'); }); }
     hit(px + pw - u * 14, py, u * 24, ph, () => { if (m.page < f.p.length - 1) { m.page++; AU.sfx('tick'); } else { m.page = null; if (m.solo) G.ui = null; } });
     if (m.page < f.p.length - 1) txt('▶', px + pw - u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' });
     return;
   }
-  if (!G.files.length) { txt('まだ何も見つけていない。', VW.x + VW.w / 2, VW.y + VW.h / 2, u * 3.6, '#888', { a: 'center' }); return; }
-  G.files.forEach((id, i) => { const y = VW.y + u * (14 + i * 6.8), on = i === m.fsel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(VW.x + u * 6, y - u * 4.6, VW.w - u * 12, u * 6.2); } txt(FILES[id].t, VW.x + u * 10, y, u * 3.6, on ? '#fff' : '#c8bca8', { f: FONT_MIN }); hit(VW.x + u * 6, y - u * 4.6, VW.w - u * 12, u * 6.2, () => { m.fsel = i; m.page = 0; AU.sfx('ok'); }); });
+  if (!G.files.length) { txt('まだ何も見つけていない。', UB.x + UB.w / 2, UB.y + UB.h / 2, u * 3.6, '#888', { a: 'center' }); return; }
+  G.files.forEach((id, i) => { const y = UB.y + u * (14 + i * 6.8), on = i === m.fsel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(UB.x + u * 6, y - u * 4.6, UB.w - u * 12, u * 6.2); } txt(FILES[id].t, UB.x + u * 10, y, u * 3.6, on ? '#fff' : '#c8bca8', { f: FONT_MIN }); hit(UB.x + u * 6, y - u * 4.6, UB.w - u * 12, u * 6.2, () => { m.fsel = i; m.page = 0; AU.sfx('ok'); }); });
 }
 // ── 地図 ──
 function mapUpdate(m) {
@@ -2817,11 +2843,11 @@ function mapUpdate(m) {
 function mapFloors() { return ['1F', '2F', 'B1', 'LAB'].filter(f => G.maps[f] || Object.keys(G.visited).some(r => ROOMS[r] && ROOMS[r].fl === f)); }
 function drawMap(m) {
   const u = U(); drawMenuBG('地図'); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
-  const fls = mapFloors(); fls.forEach((f, i) => { const x = VW.x + u * 4, y = VW.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
+  const fls = mapFloors(); fls.forEach((f, i) => { const x = UB.x + u * 4, y = UB.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
   const rooms = Object.keys(ROOMS).filter(r => ROOMS[r].fl === fl && ROOMS[r].map && (G.maps[fl] || G.visited[r]));
   if (!rooms.length) return;
   const all = rooms.map(r => ROOMS[r].map), x0 = Math.min(...all.map(a => a[0])), y0 = Math.min(...all.map(a => a[1])), x1 = Math.max(...all.map(a => a[0] + a[2])), y1 = Math.max(...all.map(a => a[1] + a[3]));
-  const ax = VW.x + u * 30, ay = VW.y + u * 12, aw = VW.w - u * 34, ah = VW.h - u * 18, sc = Math.min(aw / (x1 - x0), ah / (y1 - y0)), ox = ax + (aw - (x1 - x0) * sc) / 2, oy = ay + (ah - (y1 - y0) * sc) / 2;
+  const ax = UB.x + u * 30, ay = UB.y + u * 12, aw = UB.w - u * 34, ah = UB.h - u * 18, sc = Math.min(aw / (x1 - x0), ah / (y1 - y0)), ox = ax + (aw - (x1 - x0) * sc) / 2, oy = ay + (ah - (y1 - y0) * sc) / 2;
   for (const r of rooms) {
     const a = ROOMS[r].map, X = ox + (a[0] - x0) * sc, Y = oy + (a[1] - y0) * sc, W2 = a[2] * sc, H2 = a[3] * sc, here = r === G.rid, vis = G.visited[r];
     UX.fillStyle = here ? 'rgba(200,60,40,0.55)' : vis ? 'rgba(60,110,90,0.55)' : 'rgba(80,80,80,0.25)'; UX.fillRect(X, Y, W2, H2); UX.strokeStyle = vis ? '#a8d0b8' : '#706858'; UX.lineWidth = 1.5; UX.strokeRect(X, Y, W2, H2);
@@ -2849,12 +2875,12 @@ function boxMove(side, i) {
 }
 function drawBox() {
   const b = G.ui, u = U(); drawMenuBG('アイテムボックス');
-  txt('持ち物', VW.x + u * 6, VW.y + u * 13, u * 3.2, '#a8a090'); txt('ボックス', VW.x + VW.w / 2 + u * 2, VW.y + u * 13, u * 3.2, '#a8a090');
+  txt('持ち物', UB.x + u * 6, UB.y + u * 13, u * 3.2, '#a8a090'); txt('ボックス', UB.x + UB.w / 2 + u * 2, UB.y + u * 13, u * 3.2, '#a8a090');
   const rowH = u * 7.2;
-  for (let i = 0; i < INV_N; i++) { const s = G.inv[i], x = VW.x + u * 4, y = VW.y + u * 15 + i * rowH, w = VW.w / 2 - u * 6, on = b.side === 0 && b.sel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } hit(x, y, w, rowH - u * 0.8, () => { b.side = 0; b.sel = i; boxMove(0, i); }); }
+  for (let i = 0; i < INV_N; i++) { const s = G.inv[i], x = UB.x + u * 4, y = UB.y + u * 15 + i * rowH, w = UB.w / 2 - u * 6, on = b.side === 0 && b.sel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } hit(x, y, w, rowH - u * 0.8, () => { b.side = 0; b.sel = i; boxMove(0, i); }); }
   const start = Math.max(0, b.bsel - 7);
-  for (let k = 0; k < Math.min(9, G.box.length + 1); k++) { const i = start + k; if (i > G.box.length) break; const s = G.box[i], x = VW.x + VW.w / 2 + u * 2, y = VW.y + u * 15 + k * rowH, w = VW.w / 2 - u * 6, on = b.side === 1 && b.bsel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } else txt('（空き）', x + u * 3, y + rowH * 0.62, u * 2.8, '#6a6458'); hit(x, y, w, rowH - u * 0.8, () => { b.side = 1; b.bsel = i; boxMove(1, i); }); }
-  const cx = VW.x + VW.w - u * 16; UX.fillStyle = 'rgba(255,255,255,0.08)'; rr(cx, VW.y + u * 2.5, u * 12, u * 6, u); UX.fill(); txt('閉じる', cx + u * 6, VW.y + u * 6.8, u * 3, '#d8d0c0', { a: 'center' }); hit(cx, VW.y + u * 2.5, u * 12, u * 6, () => { G.ui = null; AU.sfx('cancel'); });
+  for (let k = 0; k < Math.min(9, G.box.length + 1); k++) { const i = start + k; if (i > G.box.length) break; const s = G.box[i], x = UB.x + UB.w / 2 + u * 2, y = UB.y + u * 15 + k * rowH, w = UB.w / 2 - u * 6, on = b.side === 1 && b.bsel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } else txt('（空き）', x + u * 3, y + rowH * 0.62, u * 2.8, '#6a6458'); hit(x, y, w, rowH - u * 0.8, () => { b.side = 1; b.bsel = i; boxMove(1, i); }); }
+  const cx = UB.x + UB.w - u * 16; UX.fillStyle = 'rgba(255,255,255,0.08)'; rr(cx, UB.y + u * 2.5, u * 12, u * 6, u); UX.fill(); txt('閉じる', cx + u * 6, UB.y + u * 6.8, u * 3, '#d8d0c0', { a: 'center' }); hit(cx, UB.y + u * 2.5, u * 12, u * 6, () => { G.ui = null; AU.sfx('cancel'); });
 }
 // ── 記録（タイプライター）と読み込み ──
 const SLOTS = 3;
@@ -2877,12 +2903,12 @@ function slotPick(i) {
 }
 function drawSlots() {
   const s = G.ui, u = U(); drawMenuBG(s.k === 'save' ? 'どこに記録しますか' : 'どの記録から始めますか');
-  for (let i = 0; i < SLOTS; i++) { const d = readSlot(i), x = VW.x + u * 8, y = VW.y + u * (16 + i * 22), w = VW.w - u * 16, h = u * 18, on = i === s.sel; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, w, h, u); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.3)'; UX.stroke();
+  for (let i = 0; i < SLOTS; i++) { const d = readSlot(i), x = UB.x + u * 8, y = UB.y + u * (16 + i * 22), w = UB.w - u * 16, h = u * 18, on = i === s.sel; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, w, h, u); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.3)'; UX.stroke();
     txt(`記録 ${i + 1}`, x + u * 4, y + u * 7, u * 3.6, '#e8dcc0', { w: 700 });
     if (d) { txt(d.place, x + u * 4, y + u * 13, u * 3.4, '#d0c8b8'); txt(`遊んだ時間 ${fmtTime(d.time)}　記録 ${d.saves}回`, x + w - u * 4, y + u * 7, u * 2.8, '#a8a090', { a: 'right' }); const dt = new Date(d.when); txt(`${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`, x + w - u * 4, y + u * 13, u * 2.8, '#8a8478', { a: 'right' }); }
     else txt('―　なし　―', x + w / 2, y + u * 11, u * 3, '#6a6458', { a: 'center' });
     hit(x, y, w, h, () => { s.sel = i; slotPick(i); }); }
-  txt('もどる', VW.x + VW.w / 2, VW.y + VW.h - u * 5, u * 3.2, '#a8a090', { a: 'center' }); hit(VW.x + VW.w / 2 - u * 12, VW.y + VW.h - u * 10, u * 24, u * 8, () => { G.ui = null; AU.sfx('cancel'); if (s.fromDeath) toTitle(); });
+  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 5, u * 3.2, '#a8a090', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 12, UB.y + UB.h - u * 10, u * 24, u * 8, () => { G.ui = null; AU.sfx('cancel'); if (s.fromDeath) toTitle(); });
 }
 function loadGame(d) {
   newGame(); Object.assign(G, { inv: d.inv, box: d.box, eq: d.eq, lastGun: d.lastGun, mag: d.mag, flags: d.flags, taken: d.taken, killed: d.killed, open: d.open, files: d.files, maps: d.maps, visited: d.visited, time: d.time, saves: d.saves, heals: d.heals, kills: d.kills || 0, shots: d.shots || 0, corpses: d.corpses || [], drops: d.drops || {}, lockSeen: d.lockSeen || {}, inf: !!d.inf, timer: null });
@@ -2895,6 +2921,7 @@ function optList() { return [
   ['操作', OPT.ctrl === 'tank' ? 'ラジコン（上で前進・左右で回る）' : 'かんたん（倒した方向に進む）', d => { OPT.ctrl = OPT.ctrl === 'tank' ? 'easy' : 'tank'; }],
   ['扉を開ける場面', OPT.door === 'short' ? '短く' : 'ふつう', d => { OPT.door = OPT.door === 'short' ? 'normal' : 'short'; }],
   ['画面', OPT.gfx === 'crisp' ? 'くっきり' : 'あの頃の粗さ', d => { OPT.gfx = OPT.gfx === 'crisp' ? 'retro' : 'crisp'; layout(); }],
+  ['画面の明るさ', '■'.repeat((OPT.bright ?? 2) + 1) + '□'.repeat(4 - (OPT.bright ?? 2)), d => { OPT.bright = clamp((OPT.bright ?? 2) + d, 0, 4); layout(); }],
   ['音楽の大きさ', '■'.repeat(Math.round(OPT.bgm * 10)) + '□'.repeat(10 - Math.round(OPT.bgm * 10)), d => { OPT.bgm = clamp(Math.round((OPT.bgm + d * 0.1) * 10) / 10, 0, 1); AU.vol(); }],
   ['効果音の大きさ', '■'.repeat(Math.round(OPT.sfx * 10)) + '□'.repeat(10 - Math.round(OPT.sfx * 10)), d => { OPT.sfx = clamp(Math.round((OPT.sfx + d * 0.1) * 10) / 10, 0, 1); AU.vol(); AU.sfx('tick'); }],
   ['操作の説明', '', () => { G.ui.help = !G.ui.help; }],
@@ -2910,16 +2937,16 @@ function optsUpdate() {
 }
 function drawOpts() {
   const o = G.ui, u = U(); drawMenuBG('設定');
-  if (o.help) { const L = ['【キーボード】', '移動：WASD・矢印　走る：Shift', '構える：J（押している間）／マウス右', '撃つ：構えながら K・Space・マウス左', '調べる：E・Space・Enter', '持ち物：Tab・I　地図：M　弾を込める：R', '【ゲームパッド】', 'スティック：移動　B：走る　LT：構える', 'RT・X：撃つ　A：調べる　Y：持ち物', '【スマホ】左で動く（大きく倒すと走る）', '右の◎で構え、構えながら手のボタンで撃つ', 'つかまれたら、なんでもいいから連打']; L.forEach((s, i) => txt(s, VW.x + u * 8, VW.y + u * (15 + i * 6), u * 3.2, s.startsWith('【') ? '#f0c890' : '#d8d0c0')); return; }
-  optList().forEach(([k, v, fn], i) => { const y = VW.y + u * (16 + i * 10), on = i === o.sel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(VW.x + u * 6, y - u * 5.5, VW.w - u * 12, u * 8); } txt(k, VW.x + u * 9, y, u * 3.6, on ? '#fff' : '#c8bca8'); txt(v, VW.x + VW.w - u * 9, y, u * 3, '#e8d0a0', { a: 'right' }); hit(VW.x + u * 6, y - u * 5.5, VW.w - u * 12, u * 8, () => { o.sel = i; fn(1); saveOpt(); AU.sfx('tick'); }); });
+  if (o.help) { const L = ['【キーボード】', '移動：WASD・矢印　走る：Shift', '構える：J（押している間）／マウス右', '撃つ：構えながら K・Space・マウス左', '調べる：E・Space・Enter', '持ち物：Tab・I　地図：M　弾を込める：R', '【ゲームパッド】', 'スティック：移動　B：走る　LT：構える', 'RT・X：撃つ　A：調べる　Y：持ち物', '【スマホ】左で動く（大きく倒すと走る）', '右の◎で構え、構えながら手のボタンで撃つ', 'つかまれたら、なんでもいいから連打']; L.forEach((s, i) => txt(s, UB.x + u * 8, UB.y + u * (15 + i * 6), u * 3.2, s.startsWith('【') ? '#f0c890' : '#d8d0c0')); return; }
+  optList().forEach(([k, v, fn], i) => { const y = UB.y + u * (16 + i * 10), on = i === o.sel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(UB.x + u * 6, y - u * 5.5, UB.w - u * 12, u * 8); } txt(k, UB.x + u * 9, y, u * 3.6, on ? '#fff' : '#c8bca8'); txt(v, UB.x + UB.w - u * 9, y, u * 3, '#e8d0a0', { a: 'right' }); hit(UB.x + u * 6, y - u * 5.5, UB.w - u * 12, u * 8, () => { o.sel = i; fn(1); saveOpt(); AU.sfx('tick'); }); });
 }
 // ── 成績 ──
 function drawResults() {
-  const r = G.ui, u = U(); drawMenuBG('記録'); const cx = VW.x + VW.w / 2;
+  const r = G.ui, u = U(); drawMenuBG('記録'); const cx = UB.x + UB.w / 2;
   const rows = [['クリア時間', fmtTime(r.time)], ['記録した回数', r.saves + '回'], ['使った回復', r.heals + '個'], ['倒した数', r.kills + ''], ['早瀬', r.haya ? '生還' : '帰らなかった']];
-  rows.forEach(([k, v], i) => { txt(k, cx - u * 4, VW.y + u * (22 + i * 8), u * 3.6, '#a8a090', { a: 'right' }); txt(v, cx + u * 4, VW.y + u * (22 + i * 8), u * 3.8, '#f0e0c0', { w: 700 }); });
-  txt('評価', cx, VW.y + u * 70, u * 3.4, '#a8a090', { a: 'center' }); txt(r.rank, cx, VW.y + u * 84, u * 13, { S: '#ffd060', A: '#e8e0d0', B: '#b0a890', C: '#8a7a6a' }[r.rank], { a: 'center', f: FONT_MIN, w: 700 });
-  if (r.note) txt(r.note, cx, VW.y + u * 93, u * 2.8, '#d0a070', { a: 'center' });
+  rows.forEach(([k, v], i) => { txt(k, cx - u * 4, UB.y + u * (22 + i * 8), u * 3.6, '#a8a090', { a: 'right' }); txt(v, cx + u * 4, UB.y + u * (22 + i * 8), u * 3.8, '#f0e0c0', { w: 700 }); });
+  txt('評価', cx, UB.y + u * 70, u * 3.4, '#a8a090', { a: 'center' }); txt(r.rank, cx, UB.y + u * 84, u * 13, { S: '#ffd060', A: '#e8e0d0', B: '#b0a890', C: '#8a7a6a' }[r.rank], { a: 'center', f: FONT_MIN, w: 700 });
+  if (r.note) txt(r.note, cx, UB.y + u * 93, u * 2.8, '#d0a070', { a: 'center' });
 }
 function resultsUpdate() { if (G.ui.t === undefined) G.ui.t = 0; G.ui.t += 1 / 60; if (G.ui.t > 1.5 && (IN.e.ok || IN.e.act || IN.e.cancel || IN.ptr.length)) { G.ui = null; toTitle(); } }
 
@@ -2948,8 +2975,9 @@ ROOMS.hall = {
   name: '玄関ホール', fl: '1F', map: [16, 8, 16, 14], w: 16, d: 14, h: 7.2,
   floor: 'parquet', wall: 'paper_cream', wain: 'wainscot', wainH: 1.2, ceil: 'ceil', music: '', rev: 0.55,
   ambience: { rain: 0.25, drone: 0.25 }, amb: ['#56483c', 0.5], fog: ['#0b0907', 0.03],
-  floors: [{ r: [-8, -7, 8, 7], y: 0 }, { r: [-1.6, -3.8, 1.6, 1.8], y: 3.6, y2: 0, ax: 'z' }, { r: [-8, -7, 8, -3.8], y: 3.6 }],
-  blocks: [{ r: [-1.75, -3.8, 1.75, 0.95], y: 0, tall: true }, { r: [-8, -3.98, -1.6, -3.74], y: 3.6 }, { r: [1.6, -3.98, 8, -3.74], y: 3.6 },
+  // 一階の床は、階段の下を除く（階段の上り口で、床と段がまざらないように）
+  floors: [{ r: [-8, -7, -1.6, 7], y: 0 }, { r: [1.6, -7, 8, 7], y: 0 }, { r: [-1.6, 1.8, 1.6, 7], y: 0 }, { r: [-1.6, -7, 1.6, -3.8], y: 0 }, { r: [-1.6, -3.8, 1.6, 1.8], y: 3.6, y2: 0, ax: 'z' }, { r: [-8, -7, 8, -3.8], y: 3.6 }],
+  blocks: [{ r: [-1.75, -3.8, 1.75, 0.95], y: 0, tall: true, only: 'sight' }, { r: [-8, -3.98, -1.6, -3.74], y: 3.6 }, { r: [1.6, -3.98, 8, -3.74], y: 3.6 },
     { r: [-2.65, -4.15, -2.15, -3.65], y: 0, tall: true }, { r: [2.15, -4.15, 2.65, -3.65], y: 0, tall: true }],
   stepAt: (x, z, y) => abs(x) < 0.95 && z > -3.8 ? 'carpet' : null,
   doors: [
@@ -3031,7 +3059,7 @@ ROOMS.dining = {
     { k: 'blood', x: -5.5, z: -1.6, s: 1.0, tex: 'smear', a: 0.4 },
   ],
   looks: [{ p: [0, 3.6], r: 1.3, t: '雨が窓を叩いている。外は真っ暗で、何も見えない。' }, { p: [4, 3.6], r: 1.0, t: '窓に、自分の顔が映っている。その後ろには、誰もいない。……いないはずだ。' }],
-  acts: [{ p: [2.6, -3.25], r: 1.0, id: 'clock', items: ['gear'] }],
+  acts: [{ p: [2.6, -3.25], r: 1.0, id: 'clock', items: ['gear'] }, { p: [-2.2, -3.25], r: 0.9, id: 'dining_drawer' }],
   items: [{ id: 'file', file: 'invite', x: 3.1, z: 0.5, y: 0.79, key: 'f_invite' }],
   cams: [
     { p: [6.5, 3.3, 3.5], t: [-2.6, 0.5, -1.2], fov: 56, z: [-7, -4, 1.0, 4] },
@@ -3074,7 +3102,7 @@ ROOMS.servant = {
   doors: [{ id: 'E', p: [2.2, 0], type: 'wood', to: ['wcorr', 'W'] }],
   wins: [{ p: [-2.2, -1.0], w: 0.9, y: 1.1, h: 1.3 }],
   props: [
-    { k: 'typewriter', x: 0.7, z: -2.22, r: 0 }, { k: 'itembox', x: -1.82, z: 1.0, r: 1 },
+    { k: 'typewriter', x: 0.7, z: -2.22, r: 0 }, { k: 'itembox', x: -1.82, z: -0.55, r: 1 },
     { k: 'cot', x: -1.5, z: 1.45, r: 0, noblock: false, t: '使用人の寝台。枕もとに、編みかけの手袋が置いてある。' },
     { k: 'shelf', x: 1.2, z: 2.45, r: 2, L: 1.2, t: '棚。家族の写真が一枚、伏せて置いてある。' },
     { k: 'sconce', x: 2.17, z: -1.6, r: 3, i: 3.2, c: '#ffd8a0' },
@@ -3094,7 +3122,7 @@ ROOMS.kitchen = {
     { k: 'sink', x: 3.65, z: -1.0, r: 3 }, { k: 'shelf', x: 3.78, z: 1.6, r: 3, L: 1.4, t: '食料の棚。缶詰の中身が、どれも膨らんでいる。' },
     { k: 'shelf', x: -3.78, z: -2.3, r: 1, L: 1.2 }, { k: 'barrel', x: -3.3, z: 2.9 }, { k: 'barrel', x: -2.6, z: 3.0, t: '樽に、塩漬けの何かが入っている。' },
     { k: 'blood', x: 0.9, z: 1.7, s: 1.6 }, { k: 'blood', x: -2.2, z: 2.2, s: 1.3 },
-    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 3.5, c: '#d8e0ff', fl: 0.3 }, { k: 'bulb', x: 0.4, z: 0.6, y: 3.3, i: 7, c: '#f0f2ff', fl: 0.12 },
+    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 2.6, c: '#d8e0ff', fl: 0.3 }, { k: 'bulb', x: 0.4, z: 0.6, y: 3.3, i: 4.6, c: '#f0f2ff', fl: 0.12 },
   ],
   build(c) { const b = makeCorpse('servant', 'back'); b.position.set(-2.3, 0, 2.35); b.rotation.y = -0.4; c.add(b); c.look(-2.3, 2.3, 0.9, '女中の亡骸。前掛けに「ヨネ」と刺繍がある。'); c.R.dyn.horse = null; },
   acts: [{ p: [1.25, -2.5], r: 0.85, id: 'oven' }],
@@ -3139,7 +3167,7 @@ ROOMS.ecorr = {
 ROOMS.study = {
   name: '書斎', fl: '1F', map: [35, 9, 7, 7], w: 7, d: 7, h: 3.4,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.2,
-  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#363c32', 0.56], fog: ['#060705', 0.035], lights: [{ p: [2.8, 2.1, -0.6], c: '#8aa0d0', i: 3.2, d: 7 }],
+  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#363c32', 4.0], fog: ['#060705', 0.035], lights: [{ p: [2.8, 2.1, -0.6], c: '#8aa0d0', i: 3.2, d: 7 }],
   doors: [{ id: 'W', p: [-3.5, 1], type: 'wood', to: ['ecorr', 'E'], lock: { key: 'hawk' } }],
   wins: [{ p: [3.5, -0.6], w: 1.3, y: 1.0, h: 2.0 }],
   props: [
@@ -3205,7 +3233,7 @@ ROOMS.green = {
 ROOMS.w2corr = {
   name: '2階 西廊下', fl: '2F', map: [0, 0, 3, 18], w: 2.6, d: 18, h: 3.2,
   floor: 'parquet', wall: 'paper_blue', wain: 'wainscot', wainH: 1.0, ceil: 'plaster', rev: 0.35, thunder: true,
-  ambience: { rain: 0.7, wind: 0.5, drone: 0.25 }, amb: ['#2c3440', 0.5], fog: ['#05070a', 0.045],
+  ambience: { rain: 0.7, wind: 0.5, drone: 0.25 }, amb: ['#2c3440', 2.8], fog: ['#05070a', 0.045],
   doors: [
     { id: 'E', p: [1.3, 6.5], type: 'wood', to: ['hall', 'BW'] },
     { id: 'N', p: [0, -9], type: 'wood', to: ['bed', 'S'], lock: { key: 'hawk' } },
@@ -3222,6 +3250,7 @@ ROOMS.w2corr = {
   build(c) { // 窓の両脇の重たいカーテン
     for (const z of [-6.2, -2.6, 1.0, 4.6]) for (const s of [-1, 1]) c.g.box(M('velvet_r'), -1.2, 1.55, z + s * 0.78, 0.08, 3.0, 0.32);
   },
+  items: [{ id: 'hg_ammo', n: 10, x: 0.92, z: 7.75, y: 0.92, key: 'w2_ammo' }],
   looks: [{ p: [-1.0, 1.0], r: 1.0, t: '窓の外は、森と雨と闇だけだ。\n稲光のたびに、木々の間に何かの影が動いた気がする。' }, { p: [-1.0, -2.6], r: 1.0, t: '窓の下の地面に、四つ足の足跡がいくつも残っている。' }],
   cams: [
     { p: [1.0, 2.8, -0.3], t: [-0.4, 0.8, 8.0], fov: 54, z: [-1.3, 2.4, 1.3, 9] },
@@ -3289,7 +3318,7 @@ const GALLERY = [
 ROOMS.gallery = {
   name: '肖像画の回廊', fl: '2F', map: [32, -2, 3, 20], w: 3, d: 20, h: 3.4,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.45,
-  ambience: { rain: 0.15, drone: 0.45 }, amb: ['#2c302a', 0.42], fog: ['#060705', 0.045],
+  ambience: { rain: 0.15, drone: 0.45 }, amb: ['#2c302a', 4.6], fog: ['#060705', 0.045],
   doors: [{ id: 'W', p: [-1.5, 8.5], type: 'wood', to: ['hall', 'BE'], lock: { key: 'snake' } }, { id: 'N', p: [0, -10], type: 'wood', to: ['library', 'S'] }],
   props: [
     { k: 'runner', x: -0.2, z: 0, L: 19, w: 1.2 },
@@ -3325,7 +3354,7 @@ ROOMS.gallery = {
 ROOMS.library = {
   name: '図書室', fl: '2F', map: [29, -11, 10, 8], w: 10, d: 8, h: 4.6,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.0, ceil: 'ceil', rev: 0.3, thunder: true,
-  ambience: { rain: 0.35, clock: 0.6, drone: 0.25 }, amb: ['#2e3428', 0.5], fog: ['#050604', 0.035],
+  ambience: { rain: 0.35, clock: 0.6, drone: 0.25 }, amb: ['#2e3428', 5.4], fog: ['#050604', 0.035],
   doors: [{ id: 'S', p: [3.5, 4], type: 'wood', to: ['gallery', 'N'] }],
   wins: [{ p: [-5, -0.2], w: 1.2, y: 1.2, h: 2.2 }],
   props: [
@@ -3389,7 +3418,7 @@ ROOMS.cellar = {
 ROOMS.boiler = {
   name: 'ボイラー室', fl: 'B1', map: [20, 8, 10, 8], w: 10, d: 8, h: 4.0,
   floor: 'concrete', wall: 'brick', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'concrete', rev: 0.5, music: 'dread',
-  ambience: { boiler: 1, drone: 0.3, water: 0.3 }, amb: ['#3a2a20', 0.5], fog: ['#050302', 0.05],
+  ambience: { boiler: 1, drone: 0.3, water: 0.3 }, amb: ['#3a2a20', 2.75], fog: ['#050302', 0.05],
   doors: [
     { id: 'W', p: [-5, 2.6], type: 'iron', to: ['cellar', 'E'] }, { id: 'N', p: [2.6, -4], type: 'wood', to: ['keeper', 'S'] },
     { id: 'E', p: [5, -1.2], type: 'iron', to: ['tunnel', 'S'], lock: { flag: 'f:valve', msg: '扉の隙間から、熱い蒸気が噴き出している。\nとても通れない。' } },
@@ -3409,7 +3438,7 @@ ROOMS.boiler = {
     c.anim((t) => { const on = !flag('valve'); grp.visible = on; if (on) mats.forEach((p, i) => { p.position.x = -((t * 1.4 + i * 0.4) % 2.4); p.material.opacity = 0.25 * (1 - (-p.position.x) / 2.4); p.scale.setScalar(0.6 + (-p.position.x) * 0.5); }); });
     c.look(4.4, -1.2, 1.0, () => flag('valve') ? '蒸気は止まっている。扉の取っ手が、まだ温かい。' : '扉の隙間から、白い蒸気が音をたてて噴き出している。');
   },
-  items: [{ id: 'hg_ammo', n: 10, x: 0.3, z: 3.4, y: 0.89, key: 'boi_ammo' }, { id: 'herb_g', x: -4.3, z: -3.4, key: 'boi_h1' }],
+  items: [{ id: 'hg_ammo', n: 10, x: 0.3, z: 3.4, y: 0.89, key: 'boi_ammo' }, { id: 'sg_ammo', n: 7, x: 1.0, z: 3.45, y: 0.89, key: 'boi_sg' }, { id: 'herb_g', x: -4.3, z: -3.4, key: 'boi_h1' }],
   cams: [
     { p: [4.6, 3.6, 3.6], t: [-2.0, 0.6, -1.4], fov: 60, z: [-5, -0.8, 0.8, 4] },
     { p: [-4.6, 3.6, 3.6], t: [2.6, 0.6, -1.4], fov: 60, z: [0.8, -4, 5, 4] },
@@ -3436,7 +3465,7 @@ ROOMS.keeper = {
 ROOMS.tunnel = {
   name: '地下通路', fl: 'B1', map: [30, -8, 3, 24], rects: [[-1.4, -12, 1.4, 12]], h: 3.0,
   floor: 'concrete', wall: 'concrete', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'concrete', rev: 0.7, music: 'dread',
-  ambience: { water: 1, drone: 0.4, hum: 0.3 }, amb: ['#3a4242', 0.62], fog: ['#030405', 0.055],
+  ambience: { water: 1, drone: 0.4, hum: 0.3 }, amb: ['#3a4242', 1.4], fog: ['#030405', 0.055],
   floors: [{ r: [-0.62, -12, 1.4, 12], y: 0 }],
   doors: [{ id: 'S', p: [0.4, 12], type: 'iron', to: ['boiler', 'E'] }, { id: 'N', p: [0.4, -12], type: 'elev', to: ['lab_sec', 'S'], fx: 'elev' }],
   props: [
@@ -3477,7 +3506,7 @@ ROOMS.lab_sec = {
   props: [
     { k: 'console', x: 0.2, z: -2.58, r: 0, L: 3.6, t: '監視用の画面が並んでいる。どの画面にも、誰もいない廊下が映っている。\n……ひとつだけ、画面の前を何かが横切った。' },
     { k: 'typewriter', x: -2.42, z: -0.5, r: 1 }, { k: 'itembox', x: 2.45, z: 2.25, r: 3 }, { k: 'locker', x: 2.75, z: -1.0, r: 3, n: 2 },
-    { k: 'chair', x: 0.2, z: -1.6, r: 2, t: null }, { k: 'fluor', x: 0, z: 0, y: 2.95, i: 6 }, { k: 'extinguisher', x: -2.8, z: 2.6 },
+    { k: 'chair', x: 0.2, z: -1.6, r: 2, t: null }, { k: 'fluor', x: 0, z: 0, y: 2.95, i: 4.8 }, { k: 'extinguisher', x: -2.8, z: 2.6 },
   ],
   items: [{ id: 'ribbon', n: 2, x: -2.5, z: -0.05, y: 0.75, key: 'ls_rib' }, { id: 'hg_ammo', n: 15, x: 2.75, z: -1.0, y: 1.92, key: 'ls_ammo' }, { id: 'file', file: 'guard', x: -0.6, z: -2.35, y: 1.06, key: 'f_guard' }, { id: 'map', map: 'LAB', x: 1.0, z: -2.35, y: 1.06, key: 'maplab' }],
   cams: [{ p: [2.6, 2.6, 2.6], t: [-1.2, 0.5, -1.3], fov: 64 }, { p: [-2.6, 2.6, 2.6], t: [1.3, 0.5, -1.2], fov: 64 }, { p: [-2.6, 2.7, -2.6], t: [1.2, 0.4, 1.6], fov: 64 }, { p: [2.6, 2.7, -2.6], t: [-1.2, 0.4, 1.6], fov: 64 }],
@@ -3492,7 +3521,7 @@ ROOMS.lab_corr = {
     { id: 'N', p: [0, -10], type: 'lab', w: 1.6, to: ['lab_core', 'S'], lock: { flag: 'f:password', msg: '分厚い隔壁だ。横に、合言葉を打ち込む端末がある。' } },
   ],
   props: [
-    { k: 'fluor', x: 0, z: 7, y: 2.95, i: 5 }, { k: 'fluor', x: 0, z: 1.5, y: 2.95, i: 4.5, fl: 0.6, id: 'flick' }, { k: 'fluor', x: 0, z: -4.5, y: 2.95, i: 4.5 }, { k: 'fluor', x: 0, z: -8.6, y: 2.95, i: 3.5, c: '#ffd8d0' },
+    { k: 'fluor', x: 0, z: 7, y: 2.95, i: 3.8 }, { k: 'fluor', x: 0, z: 1.5, y: 2.95, i: 3.4, fl: 0.6, id: 'flick' }, { k: 'fluor', x: 0, z: -4.5, y: 2.95, i: 3.4 }, { k: 'fluor', x: 0, z: -8.6, y: 2.95, i: 2.7, c: '#ffd8d0' },
     { k: 'gurney', x: -0.85, z: 3.0, r: 0 }, { k: 'extinguisher', x: 1.3, z: 8.8 },
     { k: 'wallblood', x: -1.47, z: -5.5, r: 1, yc: 1.1, s: 1.2, t: '壁に、四本の深い爪の跡。人の手でつけられるものではない。' },
     { k: 'blood', x: 0.3, z: -6.4, s: 1.4 }, { k: 'blood', x: -0.4, z: 1.0, s: 1.0, tex: 'smear', a: 1.57 },
@@ -3519,7 +3548,7 @@ ROOMS.lab_res = {
     { k: 'labbench', x: 0.4, z: -1.0, L: 3.0 }, { k: 'labbench', x: 0.4, z: 1.8, L: 3.0, t: '実験台。顕微鏡をのぞくと、黒い糸のようなものが、まだ蠢いていた。' },
     { k: 'synth', x: 2.4, z: -3.55, r: 0 }, { k: 'crt', x: 3.45, z: 1.6, r: 3, t: '端末。「被験体　Y-01　覚醒度　97%」の文字が点滅している。' },
     { k: 'locker', x: -3.75, z: -2.6, r: 1, n: 3 }, { k: 'painting', x: -1.4, z: -3.96, tex: 'note', w: 1.6, h: 0.9, yc: 1.7, frame: 'metal', t: '白板。化学式と、「時間がない」という走り書き。' },
-    { k: 'fluor', x: -1.2, z: 0, y: 2.95, i: 5 }, { k: 'fluor', x: 2.2, z: 0.5, y: 2.95, i: 4, fl: 0.2 }, { k: 'chair', x: 3.0, z: 1.6, r: 1, t: null },
+    { k: 'fluor', x: -1.2, z: 0, y: 2.95, i: 4 }, { k: 'fluor', x: 2.2, z: 0.5, y: 2.95, i: 3.2, fl: 0.2 }, { k: 'chair', x: 3.0, z: 1.6, r: 1, t: null },
   ],
   items: [{ id: 'reagB', x: 1.1, z: 1.8, y: 0.95, key: 'reagB' }, { id: 'file', file: 'research', x: -0.4, z: -1.0, y: 0.95, key: 'f_research' }, { id: 'file', file: 'kuga', x: 3.3, z: 1.2, y: 0.75, key: 'f_kuga' }, { id: 'spray', x: -3.7, z: -1.9, y: 1.92, key: 'res_spray' }, { id: 'hg_ammo', n: 15, x: -0.9, z: 1.9, y: 0.95, key: 'res_ammo' }],
   cams: [
@@ -3623,7 +3652,7 @@ ROOMS.lab_core = {
 ROOMS.lab_exit = {
   name: '搬出路', fl: 'LAB', map: [15, -30, 3, 26], w: 3, d: 28, h: 3.4,
   floor: 'grate', wall: 'metal', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'metal', rev: 0.6, music: 'escape',
-  ambience: { hum: 0.6, alarm: 1, drone: 0.2 }, amb: ['#3a2a2a', 0.5], fog: ['#060303', 0.05],
+  ambience: { hum: 0.6, alarm: 1, drone: 0.2 }, amb: ['#3a2a2a', 0.82], fog: ['#060303', 0.05],
   doors: [{ id: 'S', p: [0, 14], type: 'elev', lock: { story: '昇降機は、もう動かない。前へ進むしかない。' } }, { id: 'N', p: [0, -14], type: 'elev', to: ['heliport', 'S'], fx: 'elev' }],
   props: [
     { k: 'alarmlamp', x: 1.45, z: 9, y: 2.9 }, { k: 'alarmlamp', x: -1.45, z: 1, y: 2.9 }, { k: 'alarmlamp', x: 1.45, z: -7, y: 2.9 },
@@ -3758,7 +3787,8 @@ function playStep(dt) {
 function step(dt) {
   G.t += dt; inPoll(dt);
   if (G.fadeTo != null) { G.fade += Math.sign(G.fadeTo - G.fade) * dt * 2.2; if (abs(G.fade - G.fadeTo) < dt * 2.3) { G.fade = G.fadeTo; G.fadeTo = null; } }
-  if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(); else if (k === 'pass') passUpdate(); }
+  if (G.msg && G.ui && (G.ui.k === 'menu' || G.ui.k === 'box')) msgUpdate(dt); // 持ち物の画面の上に出た伝言は、先に閉じる
+  else if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(); else if (k === 'pass') passUpdate(); }
   else if (G.mode === 'title') titleUpdate(dt);
   else if (G.card) cardUpdate(dt);
   else if (G.mode === 'cut') { if (G.msg) msgUpdate(dt); cutStep(dt); } // 場面の中の伝言は、人物を動かしたまま待つ

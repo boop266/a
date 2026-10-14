@@ -30,7 +30,7 @@ ROOMS.cellar = {
 ROOMS.boiler = {
   name: 'ボイラー室', fl: 'B1', map: [20, 8, 10, 8], w: 10, d: 8, h: 4.0,
   floor: 'concrete', wall: 'brick', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'concrete', rev: 0.5, music: 'dread',
-  ambience: { boiler: 1, drone: 0.3, water: 0.3 }, amb: ['#3a2a20', 0.5], fog: ['#050302', 0.05],
+  ambience: { boiler: 1, drone: 0.3, water: 0.3 }, amb: ['#3a2a20', 2.75], fog: ['#050302', 0.05],
   doors: [
     { id: 'W', p: [-5, 2.6], type: 'iron', to: ['cellar', 'E'] }, { id: 'N', p: [2.6, -4], type: 'wood', to: ['keeper', 'S'] },
     { id: 'E', p: [5, -1.2], type: 'iron', to: ['tunnel', 'S'], lock: { flag: 'f:valve', msg: '扉の隙間から、熱い蒸気が噴き出している。\nとても通れない。' } },
@@ -50,7 +50,7 @@ ROOMS.boiler = {
     c.anim((t) => { const on = !flag('valve'); grp.visible = on; if (on) mats.forEach((p, i) => { p.position.x = -((t * 1.4 + i * 0.4) % 2.4); p.material.opacity = 0.25 * (1 - (-p.position.x) / 2.4); p.scale.setScalar(0.6 + (-p.position.x) * 0.5); }); });
     c.look(4.4, -1.2, 1.0, () => flag('valve') ? '蒸気は止まっている。扉の取っ手が、まだ温かい。' : '扉の隙間から、白い蒸気が音をたてて噴き出している。');
   },
-  items: [{ id: 'hg_ammo', n: 10, x: 0.3, z: 3.4, y: 0.89, key: 'boi_ammo' }, { id: 'herb_g', x: -4.3, z: -3.4, key: 'boi_h1' }],
+  items: [{ id: 'hg_ammo', n: 10, x: 0.3, z: 3.4, y: 0.89, key: 'boi_ammo' }, { id: 'sg_ammo', n: 7, x: 1.0, z: 3.45, y: 0.89, key: 'boi_sg' }, { id: 'herb_g', x: -4.3, z: -3.4, key: 'boi_h1' }],
   cams: [
     { p: [4.6, 3.6, 3.6], t: [-2.0, 0.6, -1.4], fov: 60, z: [-5, -0.8, 0.8, 4] },
     { p: [-4.6, 3.6, 3.6], t: [2.6, 0.6, -1.4], fov: 60, z: [0.8, -4, 5, 4] },
@@ -77,7 +77,7 @@ ROOMS.keeper = {
 ROOMS.tunnel = {
   name: '地下通路', fl: 'B1', map: [30, -8, 3, 24], rects: [[-1.4, -12, 1.4, 12]], h: 3.0,
   floor: 'concrete', wall: 'concrete', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'concrete', rev: 0.7, music: 'dread',
-  ambience: { water: 1, drone: 0.4, hum: 0.3 }, amb: ['#3a4242', 0.62], fog: ['#030405', 0.055],
+  ambience: { water: 1, drone: 0.4, hum: 0.3 }, amb: ['#3a4242', 1.4], fog: ['#030405', 0.055],
   floors: [{ r: [-0.62, -12, 1.4, 12], y: 0 }],
   doors: [{ id: 'S', p: [0.4, 12], type: 'iron', to: ['boiler', 'E'] }, { id: 'N', p: [0.4, -12], type: 'elev', to: ['lab_sec', 'S'], fx: 'elev' }],
   props: [

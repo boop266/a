@@ -93,44 +93,50 @@ function ecg(x, y, w, h, cond, t) {
   for (let i = 0; i <= 100; i++) { const px = x + w * i / 100, ph = ((i / 100) * 2 - t * sp) % 1, p = ph < 0 ? ph + 1 : ph; let v = 0; if (p > 0.4 && p < 0.44) v = -0.15; else if (p >= 0.44 && p < 0.47) v = 0.85; else if (p >= 0.47 && p < 0.5) v = -0.45; else if (p > 0.58 && p < 0.66) v = 0.15 * Math.sin((p - 0.58) / 0.08 * PI); const py = y + h / 2 - v * h * 0.45; if (i) UX.lineTo(px, py); else UX.moveTo(px, py); }
   UX.stroke();
 }
-function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, VW.y, 0, VW.y + VW.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(VW.x, VW.y, VW.w, VW.h); txt(title, VW.x + u * 4, VW.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
+function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); txt(title, UB.x + u * 4, UB.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
 function drawTabs(cur) {
-  const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = VW.y + u * 2.5;
-  tabs.forEach(([k, s], i) => { const x = VW.x + VW.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
+  const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = UB.y + u * 2.5;
+  tabs.forEach(([k, s], i) => { const x = UB.x + UB.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
+}
+// 持ち物の画面の並び：横持ち・パソコンは左に状態と装備、右に8つの枠。縦持ちは上に状態と装備、下に8つの枠
+function menuGeom() {
+  const u = U(), W = UB.w / u, port = W < 110;
+  if (!port) { const cw = (W - 52 - 4 - 1.5) / 2; return { u, st: [4, 12, 44, 22], eq: [4, 37, 44, 20], kn: [4, 59, 44, 8], gx: 52, gy: 12, cw, ch: 12.1 }; }
+  return { u, st: [4, 12, 43, 22], eq: [49, 12, 43, 22], kn: [4, 36.5, 88, 8], gx: 4, gy: 47, cw: 43.25, ch: 12.6 };
 }
 function drawMenu() {
   const m = G.ui, u = U(); if (m.tab === 'file') return drawFiles(m); if (m.tab === 'map') return drawMap(m);
   drawMenuBG('持ち物'); drawTabs('item');
-  const cond = hpCond();
-  // 状態
-  const sx = VW.x + u * 4, sy = VW.y + u * 12; UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * 44, u * 22, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * 40, u * 13, cond, m.t);
-  txt(PL.poison ? '毒' : ['良好', '注意', '危険'][cond], sx + u * 2, sy + u * 20, u * 4.2, PL.poison ? '#c080ff' : ['#50f090', '#f0d850', '#ff5040'][cond], { w: 700 }); txt('CONDITION', sx + u * 42, sy + u * 20, u * 2.4, '#6a7a6a', { a: 'right' });
+  const cond = hpCond(), Gm = menuGeom(), X = v => UB.x + v * u, Y = v => UB.y + v * u;
+  // 状態（心電図）
+  { const [x0, y0, w0, h0] = Gm.st, sx = X(x0), sy = Y(y0); UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * w0, u * h0, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * (w0 - 4), u * (h0 - 9), cond, m.t);
+    txt(PL.poison ? '毒' : ['良好', '注意', '危険'][cond], sx + u * 2, sy + u * (h0 - 2), u * 4.2, PL.poison ? '#c080ff' : ['#50f090', '#f0d850', '#ff5040'][cond], { w: 700 }); txt('CONDITION', sx + u * (w0 - 2), sy + u * (h0 - 2), u * 2.4, '#6a7a6a', { a: 'right' }); }
   // 装備
-  const ex = sx, ey = sy + u * 25; UX.fillStyle = 'rgba(30,20,10,0.6)'; rr(ex, ey, u * 44, u * 20, u); UX.fill();
-  const w = G.eq; if (w && (w === 'knife' || invHas(w))) { if (w !== 'knife') UX.drawImage(thumb(w), ex + u, ey + u, u * 18, u * 18); txt(ITEMS[w].name, ex + u * 20, ey + u * 7, u * 3.6, '#e8dcc0'); if (ITEMS[w].ammo) { txt(`${G.mag[w] || 0}`, ex + u * 20, ey + u * 15, u * 6, (G.mag[w] || 0) ? '#f0e0b0' : '#ff5040', { w: 700, f: 'monospace' }); txt(`/ ${invCount(ITEMS[w].ammo)}${G.inf && w === 'hg' ? ' ∞' : ''}`, ex + u * 31, ey + u * 15, u * 3.2, '#a89880', { f: 'monospace' }); } } else txt('装備なし', ex + u * 20, ey + u * 11, u * 3.4, '#888');
+  { const [x0, y0, w0, h0] = Gm.eq, ex = X(x0), ey = Y(y0), ts = Math.min(18, h0 - 2); UX.fillStyle = 'rgba(30,20,10,0.6)'; rr(ex, ey, u * w0, u * h0, u); UX.fill();
+    const w = G.eq, tx = ex + u * (ts + 2); if (w && (w === 'knife' || invHas(w))) { if (w !== 'knife') UX.drawImage(thumb(w), ex + u, ey + u * (h0 - ts) / 2, u * ts, u * ts); fitTxt(ITEMS[w].name, tx, ey + u * 7, ex + u * w0 - tx - u, u * 3.6, '#e8dcc0'); if (ITEMS[w].ammo) { txt(`${G.mag[w] || 0}`, tx, ey + u * (h0 - 5), u * 6, (G.mag[w] || 0) ? '#f0e0b0' : '#ff5040', { w: 700, f: 'monospace' }); txt(`/ ${invCount(ITEMS[w].ammo)}${G.inf && w === 'hg' ? ' ∞' : ''}`, tx + u * 11, ey + u * (h0 - 5), u * 3.2, '#a89880', { f: 'monospace' }); } } else txt('装備なし', tx, ey + u * h0 / 2 + u, u * 3.4, '#888'); }
   // ナイフの持ちかえ
-  const kx = ex, ky = ey + u * 22, kw = u * 44, kh = u * 8, ks = m.sel === INV_N && !m.act; UX.fillStyle = ks ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.05)'; rr(kx, ky, kw, kh, u); UX.fill(); txt(G.eq === 'knife' ? '銃に持ちかえる' : 'ナイフに持ちかえる', kx + kw / 2, ky + u * 5.4, u * 3.2, '#d8d0c0', { a: 'center' }); hit(kx, ky, kw, kh, () => menuPick(INV_N));
+  { const [x0, y0, w0, h0] = Gm.kn, kx = X(x0), ky = Y(y0), kw = u * w0, kh = u * h0, ks = m.sel === INV_N && !m.act; UX.fillStyle = ks ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.05)'; rr(kx, ky, kw, kh, u); UX.fill(); txt(G.eq === 'knife' ? '銃に持ちかえる' : 'ナイフに持ちかえる', kx + kw / 2, ky + kh * 0.67, u * 3.2, '#d8d0c0', { a: 'center' }); hit(kx, ky, kw, kh, () => menuPick(INV_N)); }
   // 8つの枠
-  const gx = VW.x + u * 52, gy = VW.y + u * 12, cs = u * 19.5;
+  const gx = X(Gm.gx), gy = Y(Gm.gy), cw = u * Gm.cw, h = u * Gm.ch;
   for (let i = 0; i < INV_N; i++) {
-    const x = gx + (i % 2) * (cs + u * 1.5) + (i % 2 ? 0 : 0), y = gy + Math.floor(i / 2) * (cs * 0.62 + u * 1.2), h = cs * 0.62, s = G.inv[i], on = m.sel === i;
-    UX.fillStyle = on ? 'rgba(160,30,30,0.6)' : m.comb === i ? 'rgba(160,120,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, cs, h, u * 0.8); UX.fill(); UX.strokeStyle = on ? '#e0b080' : 'rgba(200,190,160,0.25)'; UX.stroke();
-    if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y + h / 2 - u * 5.5, u * 11, u * 11); txt(ITEMS[s.id].name.replace(/（.*）/, ''), x + u * 12, y + u * 4.6, u * 2.4, '#d8d0c0'); if (ITEMS[s.id].stack) txt(String(s.n), x + cs - u * 1.2, y + h - u * 1.6, u * 3.6, '#f0e0a0', { a: 'right', w: 700, f: 'monospace' }); if (s.id === G.eq) txt('E', x + cs - u * 1.2, y + u * 4.2, u * 3, '#ff8060', { a: 'right', w: 700 }); }
-    hit(x, y, cs, h, () => menuPick(i));
+    const x = gx + (i % 2) * (cw + u * 1.5), y = gy + Math.floor(i / 2) * (h + u * 1.2), s = G.inv[i], on = m.sel === i;
+    UX.fillStyle = on ? 'rgba(160,30,30,0.6)' : m.comb === i ? 'rgba(160,120,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, cw, h, u * 0.8); UX.fill(); UX.strokeStyle = on ? '#e0b080' : 'rgba(200,190,160,0.25)'; UX.stroke();
+    if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y + h / 2 - u * 5.5, u * 11, u * 11); fitTxt(ITEMS[s.id].name.replace(/（.*）/, ''), x + u * 12, y + u * 4.8, cw - u * 13, u * 2.8, '#d8d0c0'); if (ITEMS[s.id].stack) txt(String(s.n), x + cw - u * 1.2, y + h - u * 1.6, u * 3.6, '#f0e0a0', { a: 'right', w: 700, f: 'monospace' }); if (s.id === G.eq) txt('E', x + cw - u * 1.2, y + h - u * 1.6, u * 3, '#ff8060', { a: 'right', w: 700 }); }
+    hit(x, y, cw, h, () => menuPick(i));
   }
   // 説明
-  const s = m.sel < INV_N ? G.inv[m.sel] : null, dy = VW.y + VW.h - u * 17;
-  UX.fillStyle = 'rgba(0,0,0,0.55)'; rr(VW.x + u * 4, dy, VW.w - u * 8, u * 14, u); UX.fill();
-  if (m.comb != null) txt('組み合わせる相手を選んでください', VW.x + u * 7, dy + u * 8.5, u * 3.4, '#f0c870');
-  else if (s) { txt(ITEMS[s.id].name, VW.x + u * 7, dy + u * 5.5, u * 3.6, '#f0e0c0', { w: 700 }); const ln = wrapText(ITEMS[s.id].desc, VW.w - u * 16, u * 3); ln.slice(0, 2).forEach((l, i) => txt(l, VW.x + u * 7, dy + u * 9.8 + i * u * 3.8, u * 3, '#c8c0b0')); }
+  const s = m.sel < INV_N ? G.inv[m.sel] : null, dy = UB.y + UB.h - u * 17;
+  UX.fillStyle = 'rgba(0,0,0,0.55)'; rr(UB.x + u * 4, dy, UB.w - u * 8, u * 14, u); UX.fill();
+  if (m.comb != null) txt('組み合わせる相手を選んでください', UB.x + u * 7, dy + u * 8.5, u * 3.4, '#f0c870');
+  else if (s) { txt(ITEMS[s.id].name, UB.x + u * 7, dy + u * 5.5, u * 3.6, '#f0e0c0', { w: 700 }); const ln = wrapText(ITEMS[s.id].desc, UB.w - u * 16, u * 3); ln.slice(0, 2).forEach((l, i) => txt(l, UB.x + u * 7, dy + u * 9.8 + i * u * 3.8, u * 3, '#c8c0b0')); }
   // 動作の小窓
-  if (m.act) { const ax = gx + u * 6, ay = gy + u * 6, aw = u * 28, ah = u * 7; m.act.forEach(([lab, k], i) => { const y = ay + i * (ah + u * 0.6), on = i === m.asel; UX.fillStyle = on ? 'rgba(170,40,30,0.95)' : 'rgba(20,16,14,0.95)'; rr(ax, y, aw, ah, u * 0.8); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(lab, ax + aw / 2, y + ah * 0.68, u * 3.4, '#fff', { a: 'center' }); hit(ax, y, aw, ah, () => { m.asel = i; menuDo(k); }); }); hit(VW.x, VW.y, VW.w, VW.h, () => { m.act = null; }); UIR.unshift(UIR.pop()); }
+  if (m.act) { const ax = gx + u * 6, ay = gy + u * 6, aw = u * 28, ah = u * 7; m.act.forEach(([lab, k], i) => { const y = ay + i * (ah + u * 0.6), on = i === m.asel; UX.fillStyle = on ? 'rgba(170,40,30,0.95)' : 'rgba(20,16,14,0.95)'; rr(ax, y, aw, ah, u * 0.8); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(lab, ax + aw / 2, y + ah * 0.68, u * 3.4, '#fff', { a: 'center' }); hit(ax, y, aw, ah, () => { m.asel = i; menuDo(k); }); }); hit(UB.x, UB.y, UB.w, UB.h, () => { m.act = null; }); UIR.unshift(UIR.pop()); }
   if (m.ex) drawExamine(m.ex);
 }
 function drawExamine(ex) {
-  const u = U(); ex.t += 1 / 60; UX.fillStyle = 'rgba(0,0,0,0.88)'; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  const size = u * 46, cx = VW.x + VW.w / 2, cy = VW.y + u * 36; UX.save(); UX.translate(cx, cy); UX.scale(Math.cos(ex.t * 1.2) * 0.25 + 0.95, 1); UX.drawImage(thumb(ex.id), -size / 2, -size / 2, size, size); UX.restore();
-  const it = ITEMS[ex.id]; txt(it.name, cx, VW.y + u * 66, u * 4.4, '#f0e0c0', { a: 'center', w: 700 }); wrapText(it.desc, VW.w - u * 20, u * 3.4).forEach((l, i) => txt(l, cx, VW.y + u * 74 + i * u * 4.6, u * 3.4, '#d0c8b8', { a: 'center' }));
+  const u = U(); ex.t += 1 / 60; UX.fillStyle = 'rgba(0,0,0,0.88)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  const size = u * 46, cx = UB.x + UB.w / 2, cy = UB.y + u * 36; UX.save(); UX.translate(cx, cy); UX.scale(Math.cos(ex.t * 1.2) * 0.25 + 0.95, 1); UX.drawImage(thumb(ex.id), -size / 2, -size / 2, size, size); UX.restore();
+  const it = ITEMS[ex.id]; txt(it.name, cx, UB.y + u * 66, u * 4.4, '#f0e0c0', { a: 'center', w: 700 }); wrapText(it.desc, UB.w - u * 20, u * 3.4).forEach((l, i) => txt(l, cx, UB.y + u * 74 + i * u * 4.6, u * 3.4, '#d0c8b8', { a: 'center' }));
 }
 // ── ファイル ──
 function openFile(id) { G.ui = { k: 'menu', tab: 'file', fsel: Math.max(0, G.files.indexOf(id)), page: 0, solo: true, t: 0 }; AU.sfx('ok'); }
@@ -152,19 +158,19 @@ function filesUpdate(m) {
 function drawFiles(m) {
   const u = U(); drawMenuBG('ファイル'); if (!m.solo) drawTabs('file');
   if (m.page != null) {
-    const f = FILES[G.files[m.fsel]], px = VW.x + u * 10, py = VW.y + u * 11, pw = VW.w - u * 20, ph = VW.h - u * 22;
+    const f = FILES[G.files[m.fsel]], px = UB.x + u * 10, py = UB.y + u * 11, pw = UB.w - u * 20, ph = UB.h - u * 22;
     const g = UX.createLinearGradient(px, py, px + pw, py + ph); g.addColorStop(0, '#d6ccb2'); g.addColorStop(1, '#bfb090'); UX.fillStyle = g; UX.fillRect(px, py, pw, ph);
     UX.fillStyle = 'rgba(90,60,30,0.08)'; for (let i = 0; i < 6; i++) UX.fillRect(px + (i * 97 % pw), py, 2, ph);
     txt(f.t, px + pw / 2, py + u * 7, u * 4.2, '#2a1e12', { a: 'center', f: FONT_MIN, w: 700 });
     const lines = wrapText(f.p[m.page], pw - u * 12, u * 3.5, FONT_MIN); lines.forEach((l, i) => txt(l, px + u * 6, py + u * 15 + i * u * 5.2, u * 3.5, '#2a2018', { f: FONT_MIN }));
     txt(`${m.page + 1} / ${f.p.length}`, px + pw / 2, py + ph - u * 3, u * 2.8, '#5a4a38', { a: 'center' });
-    if (m.page > 0) { txt('◀', px + u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' }); hit(VW.x, py, u * 14, ph, () => { m.page--; AU.sfx('tick'); }); }
+    if (m.page > 0) { txt('◀', px + u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' }); hit(UB.x, py, u * 14, ph, () => { m.page--; AU.sfx('tick'); }); }
     hit(px + pw - u * 14, py, u * 24, ph, () => { if (m.page < f.p.length - 1) { m.page++; AU.sfx('tick'); } else { m.page = null; if (m.solo) G.ui = null; } });
     if (m.page < f.p.length - 1) txt('▶', px + pw - u * 3, py + ph / 2, u * 5, '#6a5a40', { a: 'center' });
     return;
   }
-  if (!G.files.length) { txt('まだ何も見つけていない。', VW.x + VW.w / 2, VW.y + VW.h / 2, u * 3.6, '#888', { a: 'center' }); return; }
-  G.files.forEach((id, i) => { const y = VW.y + u * (14 + i * 6.8), on = i === m.fsel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(VW.x + u * 6, y - u * 4.6, VW.w - u * 12, u * 6.2); } txt(FILES[id].t, VW.x + u * 10, y, u * 3.6, on ? '#fff' : '#c8bca8', { f: FONT_MIN }); hit(VW.x + u * 6, y - u * 4.6, VW.w - u * 12, u * 6.2, () => { m.fsel = i; m.page = 0; AU.sfx('ok'); }); });
+  if (!G.files.length) { txt('まだ何も見つけていない。', UB.x + UB.w / 2, UB.y + UB.h / 2, u * 3.6, '#888', { a: 'center' }); return; }
+  G.files.forEach((id, i) => { const y = UB.y + u * (14 + i * 6.8), on = i === m.fsel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(UB.x + u * 6, y - u * 4.6, UB.w - u * 12, u * 6.2); } txt(FILES[id].t, UB.x + u * 10, y, u * 3.6, on ? '#fff' : '#c8bca8', { f: FONT_MIN }); hit(UB.x + u * 6, y - u * 4.6, UB.w - u * 12, u * 6.2, () => { m.fsel = i; m.page = 0; AU.sfx('ok'); }); });
 }
 // ── 地図 ──
 function mapUpdate(m) {
@@ -177,11 +183,11 @@ function mapUpdate(m) {
 function mapFloors() { return ['1F', '2F', 'B1', 'LAB'].filter(f => G.maps[f] || Object.keys(G.visited).some(r => ROOMS[r] && ROOMS[r].fl === f)); }
 function drawMap(m) {
   const u = U(); drawMenuBG('地図'); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
-  const fls = mapFloors(); fls.forEach((f, i) => { const x = VW.x + u * 4, y = VW.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
+  const fls = mapFloors(); fls.forEach((f, i) => { const x = UB.x + u * 4, y = UB.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
   const rooms = Object.keys(ROOMS).filter(r => ROOMS[r].fl === fl && ROOMS[r].map && (G.maps[fl] || G.visited[r]));
   if (!rooms.length) return;
   const all = rooms.map(r => ROOMS[r].map), x0 = Math.min(...all.map(a => a[0])), y0 = Math.min(...all.map(a => a[1])), x1 = Math.max(...all.map(a => a[0] + a[2])), y1 = Math.max(...all.map(a => a[1] + a[3]));
-  const ax = VW.x + u * 30, ay = VW.y + u * 12, aw = VW.w - u * 34, ah = VW.h - u * 18, sc = Math.min(aw / (x1 - x0), ah / (y1 - y0)), ox = ax + (aw - (x1 - x0) * sc) / 2, oy = ay + (ah - (y1 - y0) * sc) / 2;
+  const ax = UB.x + u * 30, ay = UB.y + u * 12, aw = UB.w - u * 34, ah = UB.h - u * 18, sc = Math.min(aw / (x1 - x0), ah / (y1 - y0)), ox = ax + (aw - (x1 - x0) * sc) / 2, oy = ay + (ah - (y1 - y0) * sc) / 2;
   for (const r of rooms) {
     const a = ROOMS[r].map, X = ox + (a[0] - x0) * sc, Y = oy + (a[1] - y0) * sc, W2 = a[2] * sc, H2 = a[3] * sc, here = r === G.rid, vis = G.visited[r];
     UX.fillStyle = here ? 'rgba(200,60,40,0.55)' : vis ? 'rgba(60,110,90,0.55)' : 'rgba(80,80,80,0.25)'; UX.fillRect(X, Y, W2, H2); UX.strokeStyle = vis ? '#a8d0b8' : '#706858'; UX.lineWidth = 1.5; UX.strokeRect(X, Y, W2, H2);
@@ -209,12 +215,12 @@ function boxMove(side, i) {
 }
 function drawBox() {
   const b = G.ui, u = U(); drawMenuBG('アイテムボックス');
-  txt('持ち物', VW.x + u * 6, VW.y + u * 13, u * 3.2, '#a8a090'); txt('ボックス', VW.x + VW.w / 2 + u * 2, VW.y + u * 13, u * 3.2, '#a8a090');
+  txt('持ち物', UB.x + u * 6, UB.y + u * 13, u * 3.2, '#a8a090'); txt('ボックス', UB.x + UB.w / 2 + u * 2, UB.y + u * 13, u * 3.2, '#a8a090');
   const rowH = u * 7.2;
-  for (let i = 0; i < INV_N; i++) { const s = G.inv[i], x = VW.x + u * 4, y = VW.y + u * 15 + i * rowH, w = VW.w / 2 - u * 6, on = b.side === 0 && b.sel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } hit(x, y, w, rowH - u * 0.8, () => { b.side = 0; b.sel = i; boxMove(0, i); }); }
+  for (let i = 0; i < INV_N; i++) { const s = G.inv[i], x = UB.x + u * 4, y = UB.y + u * 15 + i * rowH, w = UB.w / 2 - u * 6, on = b.side === 0 && b.sel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } hit(x, y, w, rowH - u * 0.8, () => { b.side = 0; b.sel = i; boxMove(0, i); }); }
   const start = Math.max(0, b.bsel - 7);
-  for (let k = 0; k < Math.min(9, G.box.length + 1); k++) { const i = start + k; if (i > G.box.length) break; const s = G.box[i], x = VW.x + VW.w / 2 + u * 2, y = VW.y + u * 15 + k * rowH, w = VW.w / 2 - u * 6, on = b.side === 1 && b.bsel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } else txt('（空き）', x + u * 3, y + rowH * 0.62, u * 2.8, '#6a6458'); hit(x, y, w, rowH - u * 0.8, () => { b.side = 1; b.bsel = i; boxMove(1, i); }); }
-  const cx = VW.x + VW.w - u * 16; UX.fillStyle = 'rgba(255,255,255,0.08)'; rr(cx, VW.y + u * 2.5, u * 12, u * 6, u); UX.fill(); txt('閉じる', cx + u * 6, VW.y + u * 6.8, u * 3, '#d8d0c0', { a: 'center' }); hit(cx, VW.y + u * 2.5, u * 12, u * 6, () => { G.ui = null; AU.sfx('cancel'); });
+  for (let k = 0; k < Math.min(9, G.box.length + 1); k++) { const i = start + k; if (i > G.box.length) break; const s = G.box[i], x = UB.x + UB.w / 2 + u * 2, y = UB.y + u * 15 + k * rowH, w = UB.w / 2 - u * 6, on = b.side === 1 && b.bsel === i; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.04)'; rr(x, y, w, rowH - u * 0.8, u * 0.6); UX.fill(); if (s) { UX.drawImage(thumb(s.id), x + u * 0.5, y, rowH - u, rowH - u); txt(ITEMS[s.id].name, x + rowH + u, y + rowH * 0.62, u * 3, '#e0d8c8'); if (ITEMS[s.id].stack) txt(String(s.n), x + w - u * 2, y + rowH * 0.62, u * 3.2, '#f0e0a0', { a: 'right', f: 'monospace' }); } else txt('（空き）', x + u * 3, y + rowH * 0.62, u * 2.8, '#6a6458'); hit(x, y, w, rowH - u * 0.8, () => { b.side = 1; b.bsel = i; boxMove(1, i); }); }
+  const cx = UB.x + UB.w - u * 16; UX.fillStyle = 'rgba(255,255,255,0.08)'; rr(cx, UB.y + u * 2.5, u * 12, u * 6, u); UX.fill(); txt('閉じる', cx + u * 6, UB.y + u * 6.8, u * 3, '#d8d0c0', { a: 'center' }); hit(cx, UB.y + u * 2.5, u * 12, u * 6, () => { G.ui = null; AU.sfx('cancel'); });
 }
 // ── 記録（タイプライター）と読み込み ──
 const SLOTS = 3;
@@ -237,12 +243,12 @@ function slotPick(i) {
 }
 function drawSlots() {
   const s = G.ui, u = U(); drawMenuBG(s.k === 'save' ? 'どこに記録しますか' : 'どの記録から始めますか');
-  for (let i = 0; i < SLOTS; i++) { const d = readSlot(i), x = VW.x + u * 8, y = VW.y + u * (16 + i * 22), w = VW.w - u * 16, h = u * 18, on = i === s.sel; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, w, h, u); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.3)'; UX.stroke();
+  for (let i = 0; i < SLOTS; i++) { const d = readSlot(i), x = UB.x + u * 8, y = UB.y + u * (16 + i * 22), w = UB.w - u * 16, h = u * 18, on = i === s.sel; UX.fillStyle = on ? 'rgba(150,30,30,0.6)' : 'rgba(255,255,255,0.05)'; rr(x, y, w, h, u); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.3)'; UX.stroke();
     txt(`記録 ${i + 1}`, x + u * 4, y + u * 7, u * 3.6, '#e8dcc0', { w: 700 });
     if (d) { txt(d.place, x + u * 4, y + u * 13, u * 3.4, '#d0c8b8'); txt(`遊んだ時間 ${fmtTime(d.time)}　記録 ${d.saves}回`, x + w - u * 4, y + u * 7, u * 2.8, '#a8a090', { a: 'right' }); const dt = new Date(d.when); txt(`${dt.getMonth() + 1}/${dt.getDate()} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`, x + w - u * 4, y + u * 13, u * 2.8, '#8a8478', { a: 'right' }); }
     else txt('―　なし　―', x + w / 2, y + u * 11, u * 3, '#6a6458', { a: 'center' });
     hit(x, y, w, h, () => { s.sel = i; slotPick(i); }); }
-  txt('もどる', VW.x + VW.w / 2, VW.y + VW.h - u * 5, u * 3.2, '#a8a090', { a: 'center' }); hit(VW.x + VW.w / 2 - u * 12, VW.y + VW.h - u * 10, u * 24, u * 8, () => { G.ui = null; AU.sfx('cancel'); if (s.fromDeath) toTitle(); });
+  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 5, u * 3.2, '#a8a090', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 12, UB.y + UB.h - u * 10, u * 24, u * 8, () => { G.ui = null; AU.sfx('cancel'); if (s.fromDeath) toTitle(); });
 }
 function loadGame(d) {
   newGame(); Object.assign(G, { inv: d.inv, box: d.box, eq: d.eq, lastGun: d.lastGun, mag: d.mag, flags: d.flags, taken: d.taken, killed: d.killed, open: d.open, files: d.files, maps: d.maps, visited: d.visited, time: d.time, saves: d.saves, heals: d.heals, kills: d.kills || 0, shots: d.shots || 0, corpses: d.corpses || [], drops: d.drops || {}, lockSeen: d.lockSeen || {}, inf: !!d.inf, timer: null });
@@ -255,6 +261,7 @@ function optList() { return [
   ['操作', OPT.ctrl === 'tank' ? 'ラジコン（上で前進・左右で回る）' : 'かんたん（倒した方向に進む）', d => { OPT.ctrl = OPT.ctrl === 'tank' ? 'easy' : 'tank'; }],
   ['扉を開ける場面', OPT.door === 'short' ? '短く' : 'ふつう', d => { OPT.door = OPT.door === 'short' ? 'normal' : 'short'; }],
   ['画面', OPT.gfx === 'crisp' ? 'くっきり' : 'あの頃の粗さ', d => { OPT.gfx = OPT.gfx === 'crisp' ? 'retro' : 'crisp'; layout(); }],
+  ['画面の明るさ', '■'.repeat((OPT.bright ?? 2) + 1) + '□'.repeat(4 - (OPT.bright ?? 2)), d => { OPT.bright = clamp((OPT.bright ?? 2) + d, 0, 4); layout(); }],
   ['音楽の大きさ', '■'.repeat(Math.round(OPT.bgm * 10)) + '□'.repeat(10 - Math.round(OPT.bgm * 10)), d => { OPT.bgm = clamp(Math.round((OPT.bgm + d * 0.1) * 10) / 10, 0, 1); AU.vol(); }],
   ['効果音の大きさ', '■'.repeat(Math.round(OPT.sfx * 10)) + '□'.repeat(10 - Math.round(OPT.sfx * 10)), d => { OPT.sfx = clamp(Math.round((OPT.sfx + d * 0.1) * 10) / 10, 0, 1); AU.vol(); AU.sfx('tick'); }],
   ['操作の説明', '', () => { G.ui.help = !G.ui.help; }],
@@ -270,15 +277,15 @@ function optsUpdate() {
 }
 function drawOpts() {
   const o = G.ui, u = U(); drawMenuBG('設定');
-  if (o.help) { const L = ['【キーボード】', '移動：WASD・矢印　走る：Shift', '構える：J（押している間）／マウス右', '撃つ：構えながら K・Space・マウス左', '調べる：E・Space・Enter', '持ち物：Tab・I　地図：M　弾を込める：R', '【ゲームパッド】', 'スティック：移動　B：走る　LT：構える', 'RT・X：撃つ　A：調べる　Y：持ち物', '【スマホ】左で動く（大きく倒すと走る）', '右の◎で構え、構えながら手のボタンで撃つ', 'つかまれたら、なんでもいいから連打']; L.forEach((s, i) => txt(s, VW.x + u * 8, VW.y + u * (15 + i * 6), u * 3.2, s.startsWith('【') ? '#f0c890' : '#d8d0c0')); return; }
-  optList().forEach(([k, v, fn], i) => { const y = VW.y + u * (16 + i * 10), on = i === o.sel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(VW.x + u * 6, y - u * 5.5, VW.w - u * 12, u * 8); } txt(k, VW.x + u * 9, y, u * 3.6, on ? '#fff' : '#c8bca8'); txt(v, VW.x + VW.w - u * 9, y, u * 3, '#e8d0a0', { a: 'right' }); hit(VW.x + u * 6, y - u * 5.5, VW.w - u * 12, u * 8, () => { o.sel = i; fn(1); saveOpt(); AU.sfx('tick'); }); });
+  if (o.help) { const L = ['【キーボード】', '移動：WASD・矢印　走る：Shift', '構える：J（押している間）／マウス右', '撃つ：構えながら K・Space・マウス左', '調べる：E・Space・Enter', '持ち物：Tab・I　地図：M　弾を込める：R', '【ゲームパッド】', 'スティック：移動　B：走る　LT：構える', 'RT・X：撃つ　A：調べる　Y：持ち物', '【スマホ】左で動く（大きく倒すと走る）', '右の◎で構え、構えながら手のボタンで撃つ', 'つかまれたら、なんでもいいから連打']; L.forEach((s, i) => txt(s, UB.x + u * 8, UB.y + u * (15 + i * 6), u * 3.2, s.startsWith('【') ? '#f0c890' : '#d8d0c0')); return; }
+  optList().forEach(([k, v, fn], i) => { const y = UB.y + u * (16 + i * 10), on = i === o.sel; if (on) { UX.fillStyle = 'rgba(150,30,30,0.55)'; UX.fillRect(UB.x + u * 6, y - u * 5.5, UB.w - u * 12, u * 8); } txt(k, UB.x + u * 9, y, u * 3.6, on ? '#fff' : '#c8bca8'); txt(v, UB.x + UB.w - u * 9, y, u * 3, '#e8d0a0', { a: 'right' }); hit(UB.x + u * 6, y - u * 5.5, UB.w - u * 12, u * 8, () => { o.sel = i; fn(1); saveOpt(); AU.sfx('tick'); }); });
 }
 // ── 成績 ──
 function drawResults() {
-  const r = G.ui, u = U(); drawMenuBG('記録'); const cx = VW.x + VW.w / 2;
+  const r = G.ui, u = U(); drawMenuBG('記録'); const cx = UB.x + UB.w / 2;
   const rows = [['クリア時間', fmtTime(r.time)], ['記録した回数', r.saves + '回'], ['使った回復', r.heals + '個'], ['倒した数', r.kills + ''], ['早瀬', r.haya ? '生還' : '帰らなかった']];
-  rows.forEach(([k, v], i) => { txt(k, cx - u * 4, VW.y + u * (22 + i * 8), u * 3.6, '#a8a090', { a: 'right' }); txt(v, cx + u * 4, VW.y + u * (22 + i * 8), u * 3.8, '#f0e0c0', { w: 700 }); });
-  txt('評価', cx, VW.y + u * 70, u * 3.4, '#a8a090', { a: 'center' }); txt(r.rank, cx, VW.y + u * 84, u * 13, { S: '#ffd060', A: '#e8e0d0', B: '#b0a890', C: '#8a7a6a' }[r.rank], { a: 'center', f: FONT_MIN, w: 700 });
-  if (r.note) txt(r.note, cx, VW.y + u * 93, u * 2.8, '#d0a070', { a: 'center' });
+  rows.forEach(([k, v], i) => { txt(k, cx - u * 4, UB.y + u * (22 + i * 8), u * 3.6, '#a8a090', { a: 'right' }); txt(v, cx + u * 4, UB.y + u * (22 + i * 8), u * 3.8, '#f0e0c0', { w: 700 }); });
+  txt('評価', cx, UB.y + u * 70, u * 3.4, '#a8a090', { a: 'center' }); txt(r.rank, cx, UB.y + u * 84, u * 13, { S: '#ffd060', A: '#e8e0d0', B: '#b0a890', C: '#8a7a6a' }[r.rank], { a: 'center', f: FONT_MIN, w: 700 });
+  if (r.note) txt(r.note, cx, UB.y + u * 93, u * 2.8, '#d0a070', { a: 'center' });
 }
 function resultsUpdate() { if (G.ui.t === undefined) G.ui.t = 0; G.ui.t += 1 / 60; if (G.ui.t > 1.5 && (IN.e.ok || IN.e.act || IN.e.cancel || IN.ptr.length)) { G.ui = null; toTitle(); } }

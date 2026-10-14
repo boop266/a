@@ -22,8 +22,9 @@ ROOMS.hall = {
   name: '玄関ホール', fl: '1F', map: [16, 8, 16, 14], w: 16, d: 14, h: 7.2,
   floor: 'parquet', wall: 'paper_cream', wain: 'wainscot', wainH: 1.2, ceil: 'ceil', music: '', rev: 0.55,
   ambience: { rain: 0.25, drone: 0.25 }, amb: ['#56483c', 0.5], fog: ['#0b0907', 0.03],
-  floors: [{ r: [-8, -7, 8, 7], y: 0 }, { r: [-1.6, -3.8, 1.6, 1.8], y: 3.6, y2: 0, ax: 'z' }, { r: [-8, -7, 8, -3.8], y: 3.6 }],
-  blocks: [{ r: [-1.75, -3.8, 1.75, 0.95], y: 0, tall: true }, { r: [-8, -3.98, -1.6, -3.74], y: 3.6 }, { r: [1.6, -3.98, 8, -3.74], y: 3.6 },
+  // 一階の床は、階段の下を除く（階段の上り口で、床と段がまざらないように）
+  floors: [{ r: [-8, -7, -1.6, 7], y: 0 }, { r: [1.6, -7, 8, 7], y: 0 }, { r: [-1.6, 1.8, 1.6, 7], y: 0 }, { r: [-1.6, -7, 1.6, -3.8], y: 0 }, { r: [-1.6, -3.8, 1.6, 1.8], y: 3.6, y2: 0, ax: 'z' }, { r: [-8, -7, 8, -3.8], y: 3.6 }],
+  blocks: [{ r: [-1.75, -3.8, 1.75, 0.95], y: 0, tall: true, only: 'sight' }, { r: [-8, -3.98, -1.6, -3.74], y: 3.6 }, { r: [1.6, -3.98, 8, -3.74], y: 3.6 },
     { r: [-2.65, -4.15, -2.15, -3.65], y: 0, tall: true }, { r: [2.15, -4.15, 2.65, -3.65], y: 0, tall: true }],
   stepAt: (x, z, y) => abs(x) < 0.95 && z > -3.8 ? 'carpet' : null,
   doors: [
@@ -105,7 +106,7 @@ ROOMS.dining = {
     { k: 'blood', x: -5.5, z: -1.6, s: 1.0, tex: 'smear', a: 0.4 },
   ],
   looks: [{ p: [0, 3.6], r: 1.3, t: '雨が窓を叩いている。外は真っ暗で、何も見えない。' }, { p: [4, 3.6], r: 1.0, t: '窓に、自分の顔が映っている。その後ろには、誰もいない。……いないはずだ。' }],
-  acts: [{ p: [2.6, -3.25], r: 1.0, id: 'clock', items: ['gear'] }],
+  acts: [{ p: [2.6, -3.25], r: 1.0, id: 'clock', items: ['gear'] }, { p: [-2.2, -3.25], r: 0.9, id: 'dining_drawer' }],
   items: [{ id: 'file', file: 'invite', x: 3.1, z: 0.5, y: 0.79, key: 'f_invite' }],
   cams: [
     { p: [6.5, 3.3, 3.5], t: [-2.6, 0.5, -1.2], fov: 56, z: [-7, -4, 1.0, 4] },
@@ -148,7 +149,7 @@ ROOMS.servant = {
   doors: [{ id: 'E', p: [2.2, 0], type: 'wood', to: ['wcorr', 'W'] }],
   wins: [{ p: [-2.2, -1.0], w: 0.9, y: 1.1, h: 1.3 }],
   props: [
-    { k: 'typewriter', x: 0.7, z: -2.22, r: 0 }, { k: 'itembox', x: -1.82, z: 1.0, r: 1 },
+    { k: 'typewriter', x: 0.7, z: -2.22, r: 0 }, { k: 'itembox', x: -1.82, z: -0.55, r: 1 },
     { k: 'cot', x: -1.5, z: 1.45, r: 0, noblock: false, t: '使用人の寝台。枕もとに、編みかけの手袋が置いてある。' },
     { k: 'shelf', x: 1.2, z: 2.45, r: 2, L: 1.2, t: '棚。家族の写真が一枚、伏せて置いてある。' },
     { k: 'sconce', x: 2.17, z: -1.6, r: 3, i: 3.2, c: '#ffd8a0' },
@@ -168,7 +169,7 @@ ROOMS.kitchen = {
     { k: 'sink', x: 3.65, z: -1.0, r: 3 }, { k: 'shelf', x: 3.78, z: 1.6, r: 3, L: 1.4, t: '食料の棚。缶詰の中身が、どれも膨らんでいる。' },
     { k: 'shelf', x: -3.78, z: -2.3, r: 1, L: 1.2 }, { k: 'barrel', x: -3.3, z: 2.9 }, { k: 'barrel', x: -2.6, z: 3.0, t: '樽に、塩漬けの何かが入っている。' },
     { k: 'blood', x: 0.9, z: 1.7, s: 1.6 }, { k: 'blood', x: -2.2, z: 2.2, s: 1.3 },
-    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 3.5, c: '#d8e0ff', fl: 0.3 }, { k: 'bulb', x: 0.4, z: 0.6, y: 3.3, i: 7, c: '#f0f2ff', fl: 0.12 },
+    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 2.6, c: '#d8e0ff', fl: 0.3 }, { k: 'bulb', x: 0.4, z: 0.6, y: 3.3, i: 4.6, c: '#f0f2ff', fl: 0.12 },
   ],
   build(c) { const b = makeCorpse('servant', 'back'); b.position.set(-2.3, 0, 2.35); b.rotation.y = -0.4; c.add(b); c.look(-2.3, 2.3, 0.9, '女中の亡骸。前掛けに「ヨネ」と刺繍がある。'); c.R.dyn.horse = null; },
   acts: [{ p: [1.25, -2.5], r: 0.85, id: 'oven' }],
@@ -213,7 +214,7 @@ ROOMS.ecorr = {
 ROOMS.study = {
   name: '書斎', fl: '1F', map: [35, 9, 7, 7], w: 7, d: 7, h: 3.4,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.2,
-  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#363c32', 0.56], fog: ['#060705', 0.035], lights: [{ p: [2.8, 2.1, -0.6], c: '#8aa0d0', i: 3.2, d: 7 }],
+  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#363c32', 4.0], fog: ['#060705', 0.035], lights: [{ p: [2.8, 2.1, -0.6], c: '#8aa0d0', i: 3.2, d: 7 }],
   doors: [{ id: 'W', p: [-3.5, 1], type: 'wood', to: ['ecorr', 'E'], lock: { key: 'hawk' } }],
   wins: [{ p: [3.5, -0.6], w: 1.3, y: 1.0, h: 2.0 }],
   props: [

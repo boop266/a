@@ -111,6 +111,7 @@ function aimUpdate(dt, cam) {
   if (OPT.ctrl === 'tank') { if (abs(IN.mx) > 0.3) { PL.ang -= IN.mx * 2.2 * dt; PL.tgt = null; } }
   else if (IN.mag > 0.35) { const b = camBasis(cam), dx = b.rx * IN.mx + b.fx * IN.my, dz = b.rz * IN.mx + b.fz * IN.my, ta = Math.atan2(dx, dz); if (!PL.tgt || abs(angDiff(Math.atan2(PL.tgt.x - PL.x, PL.tgt.z - PL.z), ta)) > 0.5) { PL.tgt = null; PL.ang = angTo(PL.ang, ta, 7 * dt); } }
   if (PL.tgt && (PL.tgt.dead || PL.tgt.hp <= 0)) PL.tgt = pickTarget();
+  if (!PL.tgt && IN.mag < 0.35 && OPT.ctrl !== 'tank') { PL.reT = (PL.reT || 0) - dt; if (PL.reT <= 0) { PL.reT = 0.2; PL.tgt = pickTarget(); } } // スティックを離していれば、前の敵をまた狙う
   let pitch = 0;
   if (PL.tgt) { const e = PL.tgt, ta = Math.atan2(e.x - PL.x, e.z - PL.z); PL.ang = angTo(PL.ang, ta, 8 * dt); const d = hyp(e.x - PL.x, e.z - PL.z); pitch = Math.atan2((e.y + e.aimY) - (PL.y + 1.35), Math.max(0.6, d)); }
   if (OPT.ctrl === 'tank' && abs(IN.my) > 0.4) pitch = IN.my > 0 ? 0.5 : -0.6;
@@ -223,7 +224,12 @@ function useDoor(d) {
     else if (L.bar === 'this') { ask(L.msg || 'かんぬきが掛かっている。外しますか？', ['はい', 'いいえ'], i => { if (i) return; G.open[key] = true; AU.sfx('unlock'); say('かんぬきを外した。'); }); return; }
     else if (L.key) {
       const kid = Object.keys(ITEMS).find(k => ITEMS[k].lock === L.key);
-      if (invHas(kid)) { G.open[key] = true; AU.sfx('unlock'); say(`${ITEMS[kid].name}を使った。`); storyUnlock(R.id, d.id, kid); return; }
+      if (invHas(kid)) {
+        G.open[key] = true; AU.sfx('unlock'); storyUnlock(R.id, d.id, kid);
+        // もう使う扉のない鍵は、その場で捨てるか聞く（持ち物の枠をあけるため）
+        say(`${ITEMS[kid].name}を使った。`, () => { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); });
+        return;
+      }
       AU.sfx('locked', { x: d.pos[0], z: d.pos[1] }); G.lockSeen[key] = true;
       say(L.msg || { hawk: '鍵がかかっている。\n鍵穴の上に、鷹の紋章が彫られている。', snake: '鍵がかかっている。\n鍵穴の上に、蛇の紋章が彫られている。', wolf: '鍵がかかっている。\n硝子越しに、緑の葉が見える。取っ手に狼の紋章。', base: '鍵がかかっている。錆びた大きな錠前だ。', id: '扉の横に、カード読み取り機がある。' }[L.key] || '鍵がかかっている。'); return;
     }

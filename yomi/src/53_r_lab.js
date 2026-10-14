@@ -11,7 +11,7 @@ ROOMS.lab_sec = {
   props: [
     { k: 'console', x: 0.2, z: -2.58, r: 0, L: 3.6, t: '監視用の画面が並んでいる。どの画面にも、誰もいない廊下が映っている。\n……ひとつだけ、画面の前を何かが横切った。' },
     { k: 'typewriter', x: -2.42, z: -0.5, r: 1 }, { k: 'itembox', x: 2.45, z: 2.25, r: 3 }, { k: 'locker', x: 2.75, z: -1.0, r: 3, n: 2 },
-    { k: 'chair', x: 0.2, z: -1.6, r: 2, t: null }, { k: 'fluor', x: 0, z: 0, y: 2.95, i: 6 }, { k: 'extinguisher', x: -2.8, z: 2.6 },
+    { k: 'chair', x: 0.2, z: -1.6, r: 2, t: null }, { k: 'fluor', x: 0, z: 0, y: 2.95, i: 4.8 }, { k: 'extinguisher', x: -2.8, z: 2.6 },
   ],
   items: [{ id: 'ribbon', n: 2, x: -2.5, z: -0.05, y: 0.75, key: 'ls_rib' }, { id: 'hg_ammo', n: 15, x: 2.75, z: -1.0, y: 1.92, key: 'ls_ammo' }, { id: 'file', file: 'guard', x: -0.6, z: -2.35, y: 1.06, key: 'f_guard' }, { id: 'map', map: 'LAB', x: 1.0, z: -2.35, y: 1.06, key: 'maplab' }],
   cams: [{ p: [2.6, 2.6, 2.6], t: [-1.2, 0.5, -1.3], fov: 64 }, { p: [-2.6, 2.6, 2.6], t: [1.3, 0.5, -1.2], fov: 64 }, { p: [-2.6, 2.7, -2.6], t: [1.2, 0.4, 1.6], fov: 64 }, { p: [2.6, 2.7, -2.6], t: [-1.2, 0.4, 1.6], fov: 64 }],
@@ -26,7 +26,7 @@ ROOMS.lab_corr = {
     { id: 'N', p: [0, -10], type: 'lab', w: 1.6, to: ['lab_core', 'S'], lock: { flag: 'f:password', msg: '分厚い隔壁だ。横に、合言葉を打ち込む端末がある。' } },
   ],
   props: [
-    { k: 'fluor', x: 0, z: 7, y: 2.95, i: 5 }, { k: 'fluor', x: 0, z: 1.5, y: 2.95, i: 4.5, fl: 0.6, id: 'flick' }, { k: 'fluor', x: 0, z: -4.5, y: 2.95, i: 4.5 }, { k: 'fluor', x: 0, z: -8.6, y: 2.95, i: 3.5, c: '#ffd8d0' },
+    { k: 'fluor', x: 0, z: 7, y: 2.95, i: 3.8 }, { k: 'fluor', x: 0, z: 1.5, y: 2.95, i: 3.4, fl: 0.6, id: 'flick' }, { k: 'fluor', x: 0, z: -4.5, y: 2.95, i: 3.4 }, { k: 'fluor', x: 0, z: -8.6, y: 2.95, i: 2.7, c: '#ffd8d0' },
     { k: 'gurney', x: -0.85, z: 3.0, r: 0 }, { k: 'extinguisher', x: 1.3, z: 8.8 },
     { k: 'wallblood', x: -1.47, z: -5.5, r: 1, yc: 1.1, s: 1.2, t: '壁に、四本の深い爪の跡。人の手でつけられるものではない。' },
     { k: 'blood', x: 0.3, z: -6.4, s: 1.4 }, { k: 'blood', x: -0.4, z: 1.0, s: 1.0, tex: 'smear', a: 1.57 },
@@ -53,7 +53,7 @@ ROOMS.lab_res = {
     { k: 'labbench', x: 0.4, z: -1.0, L: 3.0 }, { k: 'labbench', x: 0.4, z: 1.8, L: 3.0, t: '実験台。顕微鏡をのぞくと、黒い糸のようなものが、まだ蠢いていた。' },
     { k: 'synth', x: 2.4, z: -3.55, r: 0 }, { k: 'crt', x: 3.45, z: 1.6, r: 3, t: '端末。「被験体　Y-01　覚醒度　97%」の文字が点滅している。' },
     { k: 'locker', x: -3.75, z: -2.6, r: 1, n: 3 }, { k: 'painting', x: -1.4, z: -3.96, tex: 'note', w: 1.6, h: 0.9, yc: 1.7, frame: 'metal', t: '白板。化学式と、「時間がない」という走り書き。' },
-    { k: 'fluor', x: -1.2, z: 0, y: 2.95, i: 5 }, { k: 'fluor', x: 2.2, z: 0.5, y: 2.95, i: 4, fl: 0.2 }, { k: 'chair', x: 3.0, z: 1.6, r: 1, t: null },
+    { k: 'fluor', x: -1.2, z: 0, y: 2.95, i: 4 }, { k: 'fluor', x: 2.2, z: 0.5, y: 2.95, i: 3.2, fl: 0.2 }, { k: 'chair', x: 3.0, z: 1.6, r: 1, t: null },
   ],
   items: [{ id: 'reagB', x: 1.1, z: 1.8, y: 0.95, key: 'reagB' }, { id: 'file', file: 'research', x: -0.4, z: -1.0, y: 0.95, key: 'f_research' }, { id: 'file', file: 'kuga', x: 3.3, z: 1.2, y: 0.75, key: 'f_kuga' }, { id: 'spray', x: -3.7, z: -1.9, y: 1.92, key: 'res_spray' }, { id: 'hg_ammo', n: 15, x: -0.9, z: 1.9, y: 0.95, key: 'res_ammo' }],
   cams: [
@@ -157,7 +157,7 @@ ROOMS.lab_core = {
 ROOMS.lab_exit = {
   name: '搬出路', fl: 'LAB', map: [15, -30, 3, 26], w: 3, d: 28, h: 3.4,
   floor: 'grate', wall: 'metal', ceil: 'concrete', trim: 'iron', base: false, crown: false, step: 'metal', rev: 0.6, music: 'escape',
-  ambience: { hum: 0.6, alarm: 1, drone: 0.2 }, amb: ['#3a2a2a', 0.5], fog: ['#060303', 0.05],
+  ambience: { hum: 0.6, alarm: 1, drone: 0.2 }, amb: ['#3a2a2a', 0.82], fog: ['#060303', 0.05],
   doors: [{ id: 'S', p: [0, 14], type: 'elev', lock: { story: '昇降機は、もう動かない。前へ進むしかない。' } }, { id: 'N', p: [0, -14], type: 'elev', to: ['heliport', 'S'], fx: 'elev' }],
   props: [
     { k: 'alarmlamp', x: 1.45, z: 9, y: 2.9 }, { k: 'alarmlamp', x: -1.45, z: 1, y: 2.9 }, { k: 'alarmlamp', x: 1.45, z: -7, y: 2.9 },

@@ -3,9 +3,11 @@ const FONT_UI = '"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Meiryo"
 const FONT_MIN = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP","MS PMincho",serif';
 const UIR = []; // 押せる場所
 function uiBlocking() { return !!(G.ui || G.msg || G.mode === 'title' || G.mode === 'dead' || G.mode === 'end'); }
-function U() { return VW.h / 100; }
+function U() { return UB.u; }
 function rr(x, y, w, h, r) { UX.beginPath(); UX.moveTo(x + r, y); UX.arcTo(x + w, y, x + w, y + h, r); UX.arcTo(x + w, y + h, x, y + h, r); UX.arcTo(x, y + h, x, y, r); UX.arcTo(x, y, x + w, y, r); UX.closePath(); }
 function txt(s, x, y, size, col = '#e8e2d4', o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; UX.fillStyle = col; UX.textAlign = o.a || 'left'; UX.textBaseline = o.b || 'alphabetic'; if (o.sh) { UX.fillStyle = 'rgba(0,0,0,0.7)'; UX.fillText(s, x + size * 0.06, y + size * 0.06); UX.fillStyle = col; } UX.fillText(s, x, y); }
+// 幅に収まるよう、文字を小さくして書く
+function fitTxt(s, x, y, maxW, size, col, o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; const w = UX.measureText(s).width; txt(s, x, y, w > maxW ? Math.max(8, size * maxW / w) : size, col, o); }
 function hit(x, y, w, h, fn) { UIR.push({ x, y, w, h, fn }); }
 function uiTap() { for (const p of IN.ptr) for (let i = UIR.length - 1; i >= 0; i--) { const r = UIR[i]; if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { r.fn(); return true; } } return false; }
 function wrapText(s, maxW, size, font = FONT_UI) { UX.font = `500 ${size}px ${font}`; const out = []; for (const para of s.split('\n')) { let line = ''; for (const ch of para) { if (UX.measureText(line + ch).width > maxW && line) { if ('、。」）'.includes(ch)) { line += ch; out.push(line); line = ''; continue; } out.push(line); line = ch; } else line += ch; } out.push(line); } return out; }
@@ -35,7 +37,8 @@ function msgUpdate(dt) {
 function msgChoose(i) { const m = G.msg; AU.sfx(i === 0 ? 'ok' : 'cancel'); msgClose(); if (m.o.ccb) m.o.ccb(i); }
 function msgClose() { const m = G.msg; G.msg = G.msgQ.length ? G.msgQ.shift() : null; if (m.cb) m.cb(); }
 function drawMsg() {
-  const m = G.msg; if (!m) return; const u = U(), x = VW.x + u * 4, w = VW.w - u * 8, h = u * 24, y = VW.y + VW.h - h - u * 3;
+  const m = G.msg; if (!m) return; const u = U(); let x = UB.x + u * 4, w = UB.w - u * 8, h = u * 24, y = UB.y + UB.h - h - u * 3;
+  if (VW.portrait && !G.ui) { x = 8; w = VW.W - 16; h = Math.min(VW.H - VW.y - VW.h - 16, u * 34); y = VW.y + VW.h + 10; } // 縦持ち：絵の下に
   UX.fillStyle = 'rgba(0,0,0,0.78)'; rr(x, y, w, h, u * 1.2); UX.fill(); UX.strokeStyle = 'rgba(200,190,160,0.35)'; UX.lineWidth = 1; UX.stroke();
   const size = Math.max(13, u * 4.2), s = m.pages[m.i].slice(0, Math.floor(m.ch));
   const lines = wrapText(s, w - u * 8, size, m.o.min ? FONT_MIN : FONT_UI);
@@ -47,7 +50,7 @@ function drawMsg() {
 }
 // ── 字幕（場面の間の短い言葉） ──
 function sub(t, dur = 3) { G.sub = { t, life: dur, max: dur }; }
-function drawSub(dt) { const s = G.sub; if (!s) return; s.life -= dt; if (s.life <= 0) { G.sub = null; return; } const u = U(), a = Math.min(1, s.life * 2, (s.max - s.life) * 3); UX.globalAlpha = a; const size = Math.max(13, u * 4); const lines = wrapText(s.t, VW.w * 0.85, size); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h * 0.86 + i * size * 1.4, size, '#f2ead8', { a: 'center', sh: true })); UX.globalAlpha = 1; }
+function drawSub(dt) { const s = G.sub; if (!s) return; s.life -= dt; if (s.life <= 0) { G.sub = null; return; } const u = U(), a = Math.min(1, s.life * 2, (s.max - s.life) * 3); UX.globalAlpha = a; const size = Math.max(13, u * 4); const lines = wrapText(s.t, UB.w * 0.85, size); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h * 0.86 + i * size * 1.4, size, '#f2ead8', { a: 'center', sh: true })); UX.globalAlpha = 1; }
 // ── 指のボタン ──
 function drawTouch() {
   if (!IN.touch || G.ui || G.msg || G.mode !== 'play') return;
@@ -65,7 +68,7 @@ function drawTouch() {
   }
 }
 // ── 脱出の残り時間 ──
-function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, VW.x + VW.w / 2, VW.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
+function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
 // ── タイトル ──
 const TITLE = { sel: 0, t: 0, phase: 'press', cam: null };
 function titleUpdate(dt) {
@@ -78,13 +81,13 @@ function titleUpdate(dt) {
 }
 function titleItems() { const it = [['はじめから', () => { AU.sfx('ok'); startNewGame(); }]]; if (hasSave()) it.push(['つづきから', () => { AU.sfx('ok'); openLoad(); }]); it.push(['設定', () => { AU.sfx('ok'); openOpts(); }]); if (G.unlockInf) it.push([`おまけ：弾数無限　${G.useInf ? 'ON' : 'OFF'}`, () => { G.useInf = !G.useInf; AU.sfx('tick'); }]); return it; }
 function drawTitle() {
-  const u = U(), cx = VW.x + VW.w / 2, a = Math.min(1, TITLE.t / 2.5);
-  UX.fillStyle = `rgba(0,0,0,${0.35})`; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  UX.globalAlpha = a; txt('黄泉還', cx, VW.y + u * 34, u * 17, '#d8cfb8', { a: 'center', f: FONT_MIN, w: 700, sh: true });
-  txt('―  Y O M I G A E R I  ―', cx, VW.y + u * 43, u * 3.4, '#9a2a22', { a: 'center', f: FONT_MIN, w: 600 }); UX.globalAlpha = 1;
-  if (TITLE.phase === 'press') { if ((TITLE.t * 1.2) % 1 < 0.65) txt(IN.touch ? '画面にふれてください' : 'なにかボタンを押してください', cx, VW.y + u * 72, u * 4, '#cfc6b0', { a: 'center' }); }
-  else titleItems().forEach(([s, fn], i) => { const y = VW.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }); });
-  txt('ⓒ 黄泉還　Claude', cx, VW.y + VW.h - u * 3, u * 2.2, '#5a544a', { a: 'center' });
+  const u = U(), cx = UB.x + UB.w / 2, a = Math.min(1, TITLE.t / 2.5);
+  UX.fillStyle = `rgba(0,0,0,${0.35})`; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  UX.globalAlpha = a; txt('黄泉還', cx, UB.y + u * 34, u * 17, '#d8cfb8', { a: 'center', f: FONT_MIN, w: 700, sh: true });
+  txt('―  Y O M I G A E R I  ―', cx, UB.y + u * 43, u * 3.4, '#9a2a22', { a: 'center', f: FONT_MIN, w: 600 }); UX.globalAlpha = 1;
+  if (TITLE.phase === 'press') { if ((TITLE.t * 1.2) % 1 < 0.65) txt(IN.touch ? '画面にふれてください' : 'なにかボタンを押してください', cx, UB.y + u * 72, u * 4, '#cfc6b0', { a: 'center' }); }
+  else titleItems().forEach(([s, fn], i) => { const y = UB.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }); });
+  txt('ⓒ 黄泉還　Claude', cx, UB.y + UB.h - u * 3, u * 2.2, '#5a544a', { a: 'center' });
 }
 // ── 死んだとき ──
 function deadUpdate(dt) {
@@ -98,10 +101,10 @@ function deadUpdate(dt) {
 }
 function deadChoose(i) { AU.sfx('ok'); RD.U.gray.value = 0; RD.U.red.value = 0; G.deathMus = false; const items = hasSave() ? ['load', 'title'] : ['title']; if (items[i] === 'load') openLoad(true); else toTitle(); }
 function drawDead() {
-  const u = U(), cx = VW.x + VW.w / 2, a = clamp((G.deathT - 1.2) / 1.5, 0, 1);
-  UX.fillStyle = `rgba(0,0,0,${a * 0.55})`; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  UX.globalAlpha = a; txt('YOU DIED', cx, VW.y + VW.h * 0.45, u * 13, '#a8100c', { a: 'center', f: FONT_MIN, w: 700 }); UX.globalAlpha = 1;
-  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = VW.y + VW.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }); }); }
+  const u = U(), cx = UB.x + UB.w / 2, a = clamp((G.deathT - 1.2) / 1.5, 0, 1);
+  UX.fillStyle = `rgba(0,0,0,${a * 0.55})`; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  UX.globalAlpha = a; txt('YOU DIED', cx, UB.y + UB.h * 0.45, u * 13, '#a8100c', { a: 'center', f: FONT_MIN, w: 700 }); UX.globalAlpha = 1;
+  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = UB.y + UB.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }); }); }
 }
 function toTitle() { G.mode = 'title'; G.ui = null; G.msg = null; G.msgQ = []; G.timer = null; TITLE.phase = 'menu'; TITLE.t = 3; TITLE.sel = 0; enterTitleScene(); AU.music('title'); }
 // ── 画面の上に重ねる：赤い傷・暗転 ──

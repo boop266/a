@@ -5,7 +5,7 @@ const CUT = { gen: null, wait: 0, cond: null, movers: [], onEnd: null, skip: nul
 function runCut(fn, onEnd, skip) { G.mode = 'cut'; CUT.gen = fn(); CUT.wait = 0; CUT.cond = null; CUT.movers = []; CUT.onEnd = onEnd || null; CUT.skip = skip || null; CUT.skippable = false; CUT.t = 0; PL.aimT = 0; setWeapon(PL.h, null); PL.st.mode = 'idle'; cutAdvance(); }
 function skipCut() { const f = CUT.skip; CUT.gen = null; CUT.skip = null; G.msg = null; G.msgQ = []; G.card = null; AU.sfx('cancel'); if (f) f(); endCut(); }
 // 飛ばす印（右上の ▶▶）：押せる場面のときだけ
-function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = VW.x + VW.w - w - u * 3, y = VW.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
+function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = UB.x + UB.w - w - u * 3, y = UB.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
 function cutStep(dt) {
   CUT.t += dt;
   if (CUT.skip && CUT.t > 1.2 && (IN.e.esc || IN.e.menu || (!G.msg && !G.card && uiTap()))) { skipCut(); return; }
@@ -45,7 +45,7 @@ function npcShoot(n, tx, tz) { n.ang = Math.atan2(tx - n.x, tz - n.z); n.aim = t
 // 大きな文字の札（オープニングの語り）
 function textCard(pages) { G.card = { pages, i: 0, t: 0 }; return () => !G.card; }
 function cardUpdate(dt) { const c = G.card; c.t += dt; if ((IN.e.ok || IN.e.act || IN.e.cancel || IN.ptr.length) && c.t > 0.6 || c.t > 9) { c.i++; c.t = 0; if (c.i >= c.pages.length) G.card = null; } }
-function drawCard() { const c = G.card; if (!c) return; const u = U(); UX.fillStyle = '#000'; UX.fillRect(VW.x, VW.y, VW.w, VW.h); const a = Math.min(1, c.t * 1.5); UX.globalAlpha = a; const lines = wrapText(c.pages[c.i], VW.w * 0.78, u * 3.8, FONT_MIN); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h / 2 - (lines.length - 1) * u * 3.2 + i * u * 6.4, u * 3.8, '#d8d0bc', { a: 'center', f: FONT_MIN })); UX.globalAlpha = 1; }
+function drawCard() { const c = G.card; if (!c) return; const u = U(); UX.fillStyle = '#000'; UX.fillRect(UB.x, UB.y, UB.w, UB.h); const a = Math.min(1, c.t * 1.5); UX.globalAlpha = a; const lines = wrapText(c.pages[c.i], UB.w * 0.78, u * 3.8, FONT_MIN); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h / 2 - (lines.length - 1) * u * 3.2 + i * u * 6.4, u * 3.8, '#d8d0bc', { a: 'center', f: FONT_MIN })); UX.globalAlpha = 1; }
 // ── オープニング ──
 function startOpening() {
   G.mode = 'cut'; G.npcs = []; G.fade = 1;
@@ -63,17 +63,20 @@ function startOpening() {
     hy.ang = 0; yield 0.25; npcShoot(hy, dog.x, dog.z); AU.sfx('yelp', { x: dog.x, z: dog.z }); dm.done = true; poseDog(d1, { anim: 'dead', t: 0, seed: 0 }, 10); yield 0.5; hy.aim = false; setWeapon(hy.h, null);
     AU.sfx('door', {}); yield 0.8; G.fadeTo = 1; yield 1.0;
     // ホールの中へ
-    clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.6, ang: PI }); G.mode = 'cut'; const hy2 = addNpc('haya', -0.6, 5.9, PI);
-    AU.sfx('doorshut', {}); camNormal(); G.fadeTo = 0; yield 1.4;
-    hy2.ang = 0; yield 0.6; say('早瀬「……隊長は」'); yield 'msg'; yield 0.4;
+    clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 6.3, ang: PI }); G.mode = 'cut'; const hy2 = addNpc('haya', -0.6, 6.4, PI);
+    // 二階の回廊から見下ろす：二人が転がりこんでくる
+    camAt([-4.8, 5.6, -3.4], [0.2, 0.9, 5.4], 50); G.fadeTo = 0; moveTo(PL, 0.45, 4.7, 2.6); moveTo(hy2, -0.55, 4.9, 2.4); yield 0.9; AU.sfx('doorshut', {}); yield 1.6;
+    // 二人を横から（後ろに大階段）
+    camAt([0.05, 1.62, 6.92], [-0.05, 1.25, 3.0], 54); hy2.ang = Math.atan2(0.45 - -0.55, 4.7 - 4.9); PL.ang = Math.atan2(-0.55 - 0.45, 4.9 - 4.7); yield 0.6;
+    say('早瀬「……隊長は」'); yield 'msg'; yield 0.4;
     say('遼「……夜明けまで、ここで持ちこたえるしかない」'); yield 'msg'; yield 0.8;
     AU.sfx('hg', { x: -14, z: -1, vol: 0.5, rev: 1 }); yield 1.2; hy2.ang = -PI / 2; yield 0.6;
     say('早瀬「今の……銃声だ。西の奥」'); yield 'msg';
     say('早瀬「三浦たちかもしれない。見てくる。お前はここを動くな」'); yield 'msg';
-    moveTo(hy2, -6.9, -1.2, 2.4); yield () => !CUT.movers.length; AU.sfx('door', { x: -8, z: -1.2, vol: 0.6 }); hy2.h.root.visible = false; hy2.sh.visible = false; yield 1.0; AU.sfx('doorshut', { x: -8, z: -1.2, vol: 0.5 });
-    yield 1.6; clearNpcs(); setFlag('opening');
-  }, () => { G.fadeTo = 0; clearNpcs(); G.time = 0; setFlag('opening'); },
-  () => { clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.6, ang: PI }); G.camOv = null; G.fade = 1; });
+    camAt([5.4, 2.4, 5.2], [-6.0, 1.2, -1.0], 56); moveTo(hy2, -6.9, -1.2, 2.4); yield () => !CUT.movers.length; AU.sfx('door', { x: -8, z: -1.2, vol: 0.6 }); hy2.h.root.visible = false; hy2.sh.visible = false; yield 1.0; AU.sfx('doorshut', { x: -8, z: -1.2, vol: 0.5 });
+    PL.ang = -PI / 2 - 0.4; yield 1.6; clearNpcs(); setFlag('opening');
+  }, () => { G.fadeTo = 0; clearNpcs(); G.time = 0; setFlag('opening'); G.camOv = null; G.cam = pickCam(G.room, null, PL.x, PL.z, PL.y); },
+  () => { clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.0, ang: PI }); G.camOv = null; G.fade = 1; });
 }
 // ── 部屋に入ったとき ──
 function storyEnter(id) {
@@ -172,6 +175,7 @@ function doAct(a, useId) {
       if (!flag('cabOpen')) { if (!invHas('key_hunt')) { say('硝子戸の銃の棚。中に、散弾銃が一挺だけ掛けてある。\n鍵がかかっている。'); return; } setFlag('cabOpen'); invTake('key_hunt'); AU.sfx('unlock'); if (c) c.pivot.rotation.y = -1.6; say('狩猟用の鍵で、銃の棚が開いた。'); return; }
       ask('散弾銃がある。持っていきますか？', ['はい', 'いいえ'], i => { if (i) return; if (!canFit('sg', 1)) { say('持ち物がいっぱいで、持てない。'); return; } invAdd('sg', 1); G.taken.shotgun = true; G.mag.sg = 4; AU.sfx('pick'); say('ショットガンを手に入れた。\n弾が4発、込められている。', () => storyPick('shotgun', 'sg')); }); return; }
     case 'desk_drawer': if (G.taken.deskammo) { say('引き出しの中は、もう空っぽだ。'); return; } give('hg_ammo', 10, 'deskammo', '机の引き出しに、ハンドガンの弾が入っていた。'); return;
+    case 'dining_drawer': if (G.taken.dinammo) { say('食器棚の引き出し。銀の匙が並んでいる。'); return; } give('hg_ammo', 10, 'dinammo', '食器棚の引き出しの奥に、ハンドガンの弾の箱があった。\n先発隊の誰かが、ここに隠したらしい。'); return;
     case 'ecorr_cab': if (G.taken.ecab) { say('飾り棚。銀の燭台が並んでいるだけだ。'); return; } give('herb_r', 1, 'ecab', '飾り棚の奥に、乾いた赤い薬草がしまってあった。'); return;
     case 'valve':
       if (flag('valve')) { say('弁は、固く閉まっている。'); return; }
@@ -266,12 +270,12 @@ function passUpdate() {
 function passKey(k) { const s = G.ui; if (k === '←') s.text = s.text.slice(0, -1); else if (k === '決定') { passSubmit(); return; } else if (s.text.length < 10) s.text += k; AU.sfx('tick'); }
 function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。'); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
 function drawPass() {
-  const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(VW.x, VW.y, VW.w, VW.h);
-  txt('合言葉を入力してください', VW.x + VW.w / 2, VW.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
-  UX.strokeStyle = '#40c070'; UX.strokeRect(VW.x + VW.w / 2 - u * 30, VW.y + u * 17, u * 60, u * 10); txt(s.text + ((G.t * 2 % 1) < 0.5 ? '_' : ''), VW.x + VW.w / 2, VW.y + u * 24.5, u * 6, '#a0ffc0', { a: 'center', f: 'monospace', w: 700 });
+  const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
+  txt('合言葉を入力してください', UB.x + UB.w / 2, UB.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
+  UX.strokeStyle = '#40c070'; UX.strokeRect(UB.x + UB.w / 2 - u * 30, UB.y + u * 17, u * 60, u * 10); txt(s.text + ((G.t * 2 % 1) < 0.5 ? '_' : ''), UB.x + UB.w / 2, UB.y + u * 24.5, u * 6, '#a0ffc0', { a: 'center', f: 'monospace', w: 700 });
   const cols = 7, kw = u * 12, kh = u * 9;
-  PASS_KEYS.forEach((k, i) => { const x = VW.x + VW.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = VW.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }); });
-  txt('もどる', VW.x + VW.w / 2, VW.y + VW.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(VW.x + VW.w / 2 - u * 10, VW.y + VW.h - u * 9, u * 20, u * 7, () => { G.ui = null; });
+  PASS_KEYS.forEach((k, i) => { const x = UB.x + UB.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = UB.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }); });
+  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 10, UB.y + UB.h - u * 9, u * 20, u * 7, () => { G.ui = null; });
 }
 // ── 早瀬 ──
 function hayaAct() {
@@ -348,8 +352,8 @@ function endStep(dt) {
   if (G.endT > 7 + G.endPages.length * 6 + 2 || (G.endT > 8 && IN.e.cancel)) finishGame();
 }
 function drawEnd() {
-  if (G.endI < 0 || G.endI >= G.endPages.length) return; const u = U(), t = (G.endT - 7) % 6, a = Math.min(1, t, 6 - t); UX.globalAlpha = Math.max(0, a); UX.fillStyle = 'rgba(0,0,0,0.45)'; UX.fillRect(VW.x, VW.y + VW.h * 0.62, VW.w, VW.h * 0.3);
-  const lines = wrapText(G.endPages[G.endI], VW.w * 0.86, u * 3.6, FONT_MIN); lines.forEach((l, i) => txt(l, VW.x + VW.w / 2, VW.y + VW.h * 0.7 + i * u * 5.6, u * 3.6, '#f4ecd8', { a: 'center', f: FONT_MIN, sh: true })); UX.globalAlpha = 1;
+  if (G.endI < 0 || G.endI >= G.endPages.length) return; const u = U(), t = (G.endT - 7) % 6, a = Math.min(1, t, 6 - t); UX.globalAlpha = Math.max(0, a); UX.fillStyle = 'rgba(0,0,0,0.45)'; UX.fillRect(UB.x, UB.y + UB.h * 0.62, UB.w, UB.h * 0.3);
+  const lines = wrapText(G.endPages[G.endI], UB.w * 0.86, u * 3.6, FONT_MIN); lines.forEach((l, i) => txt(l, UB.x + UB.w / 2, UB.y + UB.h * 0.7 + i * u * 5.6, u * 3.6, '#f4ecd8', { a: 'center', f: FONT_MIN, sh: true })); UX.globalAlpha = 1;
 }
 function finishGame() {
   const t = G.time, haya = flag('hayaSaved');

@@ -4,7 +4,7 @@ const ESPEC = {
   crawler: { hp: 45, rad: 0.36, hy: [0, 0.55], aimY: 0.25, model: 'worker' },
   dog: { hp: 36, rad: 0.36, hy: [0, 0.85], aimY: 0.5 },
   spider: { hp: 110, rad: 0.62, hy: [0, 1.0], aimY: 0.55 },
-  brute: { hp: 400, rad: 0.48, hy: [0, 2.3], aimY: 1.7, model: 'gardener' },
+  brute: { hp: 520, rad: 0.48, hy: [0, 2.3], aimY: 1.7, model: 'gardener' },
   hunter: { hp: 170, rad: 0.38, hy: [0, 1.6], aimY: 1.0, model: 'hunter' },
   boss1: { hp: 950, rad: 0.58, hy: [0, 2.7], aimY: 1.9, model: 'boss' },
   boss2: { hp: 700, rad: 0.58, hy: [0, 2.7], aimY: 1.9, model: 'boss' },
@@ -71,7 +71,9 @@ const AI = {
       case 'lie': e.anim = 'lie'; if (e.alert && d < 2.2) { setState(e, 'rise', 'rise'); AU.sfx('moan2', { x: e.x, z: e.z }); } break;
       case 'down': e.anim = 'down'; if (e.at > 1.9) setState(e, 'rise', 'rise'); break;
       case 'rise': e.anim = 'rise'; if (e.at > 1.1) setState(e, 'chase', 'walk'); break;
+      case 'feed': e.anim = 'eat'; facePlayer(e, dt, 2); break; // 倒れた主人公に、かがみこむ
       case 'chase': {
+        if (PL.dead && d < 1.7) { setState(e, 'feed', 'eat'); if (rnd() < 0.5) AU.sfx('flesh', { x: e.x, z: e.z }); break; }
         e.anim = d < 2.2 ? 'reach' : 'walk';
         if (e.hitT > 0.35) break; // よろけている間は止まる
         const facing = abs(angDiff(e.ang, Math.atan2(PL.x - e.x, PL.z - e.z)));
@@ -178,7 +180,7 @@ function damageEnemy(e, dmg, o = {}) {
     else if (e.state === 'chase') moveActor(G.room, e, -Math.sin(e.ang) * 0.08, -Math.cos(e.ang) * 0.08, 'enemy');
   } else if (t === 'crawler') { if (o.w === 'sg' || o.w === 'mg') setState(e, 'down', 'crawl'); }
   else if (t === 'dog') { AU.sfx('yelp', { x: e.x, z: e.z }); const a = Math.atan2(e.x - PL.x, e.z - PL.z); moveActor(G.room, e, Math.sin(a) * 0.5, Math.cos(a) * 0.5, 'enemy'); if (e.state !== 'window') setState(e, 'hit', 'run'); }
-  else if (t === 'brute' || t === 'hunter' || t.startsWith('boss')) { e.stag += dmg; const lim = t === 'hunter' ? 45 : t === 'brute' ? 95 : 140; if (e.stag > lim && !['charge', 'lunge', 'leap'].includes(e.state)) { e.stag = 0; setState(e, 'stagger', 'stagger'); } if (t === 'hunter' && e.state === 'idle') { setState(e, 'run', 'hunt'); } }
+  else if (t === 'brute' || t === 'hunter' || t.startsWith('boss')) { e.stag += dmg; const lim = t === 'hunter' ? 45 : t === 'brute' ? 150 : 140; if (e.stag > lim && !['charge', 'lunge', 'leap'].includes(e.state)) { e.stag = 0; setState(e, 'stagger', 'stagger'); } if (t === 'hunter' && e.state === 'idle') { setState(e, 'run', 'hunt'); } }
   if (e.hp <= 0) killEnemy(e, o);
 }
 function decap(e) { const hd = e.h.J.head; if (hd) hd.visible = false; bleed(e.x, e.y + 1.65, e.z, 26); AU.sfx('splat', { x: e.x, z: e.z }); e.nohead = true; }
