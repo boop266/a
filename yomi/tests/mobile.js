@@ -7,7 +7,7 @@
 const path = require('path'), fs = require('fs'); const { execFileSync } = require('child_process');
 const { chromium } = require(path.join(execFileSync('npm', ['root', '-g']).toString().trim(), 'playwright'));
 const out = process.argv[2] || null; if (out) fs.mkdirSync(out, { recursive: true });
-const FILE = 'file://' + path.resolve(__dirname, '..', 'index.html') + '?seed=5';
+const FILE = 'file://' + (process.env.YOMI_FILE || path.resolve(__dirname, '..', 'index.html')) + '?seed=5'; // YOMI_FILE：ほかの置き場の版（公開用の写し など）を試すとき
 (async () => {
   const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=user-gesture-required'] });
   let bad = 0;
