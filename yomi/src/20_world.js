@@ -122,7 +122,7 @@ function buildRoom(id) {
     (openings.get(s) || openings.set(s, []).get(s)).push({ t0: t - w / 2, t1: t + w / 2, y0: y, y1: y + h, win: wd });
   }
   const trimM = M(D.trim || 'wood_d'), baseH = 0.16;
-  for (const s of R.segs) {
+  for (const s of (D.noWalls ? [] : R.segs)) {
     const horiz = s.a[1] === s.b[1], lo = horiz ? Math.min(s.a[0], s.b[0]) : Math.min(s.a[1], s.b[1]), hi = horiz ? Math.max(s.a[0], s.b[0]) : Math.max(s.a[1], s.b[1]);
     const ops = (openings.get(s) || []).sort((a, b) => a.t0 - b.t0);
     const P = (t, y) => horiz ? [t, y, s.a[1]] : [s.a[0], y, t];

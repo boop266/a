@@ -49,6 +49,11 @@ const TG = {
     g.fillStyle = 'rgba(30,25,20,0.8)'; g.fillRect(0, 0, 128, 1); g.fillRect(0, 64, 128, 1); g.fillRect(0, 0, 1, 128); g.fillRect(64, 0, 1, 128);
     grain(c, 8, r); return { c, m: 1.8 };
   },
+  marble_w(r) { // 柱や胸像用の白い大理石（市松なし）
+    const c = cnv(64, 64), g = ctx2(c); g.fillStyle = '#d2cbbd'; g.fillRect(0, 0, 64, 64);
+    for (let v = 0; v < 6; v++) { let x = r() * 64, y = r() * 64; g.strokeStyle = `rgba(120,110,100,${0.2 + r() * 0.3})`; g.lineWidth = r() < 0.3 ? 1.2 : 0.6; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 12; k++) { x += (r() - 0.3) * 8; y += (r() - 0.5) * 8; g.lineTo(x, y); } g.stroke(); }
+    grain(c, 8, r); return { c, m: 1.2 };
+  },
   carpet(r) {
     const c = cnv(64, 64), g = ctx2(c); g.fillStyle = '#5c0f16'; g.fillRect(0, 0, 64, 64);
     g.strokeStyle = 'rgba(30,4,8,0.6)'; g.lineWidth = 2; for (let k = -64; k < 128; k += 16) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 64, 64); g.stroke(); g.beginPath(); g.moveTo(k + 64, 0); g.lineTo(k, 64); g.stroke(); }
@@ -175,6 +180,7 @@ const TG = {
     return { c, m: 1 };
   },
   nightsky(r) { const c = cnv(64, 128), g = ctx2(c), gr = g.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#05070d'); gr.addColorStop(0.7, '#0e1524'); gr.addColorStop(1, '#141c2a'); g.fillStyle = gr; g.fillRect(0, 0, 64, 128); stains(c, 10, r, 'rgba(60,70,90,', 0.05, 0.15); return { c, m: 1 }; },
+  puff(r) { const c = cnv(32, 32), g = ctx2(c), gr = g.createRadialGradient(16, 16, 1, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return { c, m: 1 }; },
   rain(r) { const c = cnv(32, 64), g = ctx2(c); for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(190,210,235,${0.15 + r() * 0.35})`; const x = r() * 32, y = r() * 64; g.fillRect(x, y, 1, 3 + r() * 9); } return { c, m: 1 }; },
   // ── 研究所 ──
   screen(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#062014'; g.fillRect(0, 0, 32, 32); g.fillStyle = 'rgba(90,255,150,0.75)'; for (let y = 3; y < 30; y += 4) { const w = 4 + r() * 22; g.fillRect(3, y, w, 1); } grain(c, 20, r); return { c, m: 1 }; },
@@ -182,7 +188,7 @@ const TG = {
   liquid(r) { const c = cnv(32, 64), g = ctx2(c), gr = g.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, '#3fd0b0'); gr.addColorStop(1, '#0b5a48'); g.fillStyle = gr; g.fillRect(0, 0, 32, 64); for (let i = 0; i < 20; i++) { g.fillStyle = 'rgba(220,255,240,0.5)'; g.beginPath(); g.arc(r() * 32, r() * 64, 0.5 + r() * 1.5, 0, TAU); g.fill(); } return { c, m: 1 }; },
   hazard(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#c8a01c'; g.fillRect(0, 0, 32, 32); g.fillStyle = '#151515'; for (let k = -32; k < 64; k += 12) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 6, 0); g.lineTo(k + 38, 32); g.lineTo(k + 32, 32); g.fill(); } grain(c, 14, r); return { c, m: 0.6 }; },
   // ── 布・肌 ──
-  uniform(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#26324a'; g.fillRect(0, 0, 32, 32); grain(c, 18, r); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 15, 32, 1); return { c, m: 0.4 }; },
+  uniform(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#3a4b68'; g.fillRect(0, 0, 32, 32); grain(c, 18, r); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 15, 32, 1); return { c, m: 0.4 }; },
   vest(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#17191c'; g.fillRect(0, 0, 32, 32); g.fillStyle = '#25282c'; g.fillRect(3, 10, 11, 9); g.fillRect(18, 10, 11, 9); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(3, 10, 11, 1); g.fillRect(18, 10, 11, 1); grain(c, 12, r); return { c, m: 0.4 }; },
   labcoat(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#c9c6bb'; g.fillRect(0, 0, 32, 32); grain(c, 14, r); stains(c, 4, r, 'rgba(110,10,10,', 0.2, 0.5); return { c, m: 0.5 }; },
   servant(r) { const c = cnv(32, 32), g = ctx2(c); g.fillStyle = '#1e1c22'; g.fillRect(0, 0, 32, 32); grain(c, 12, r); stains(c, 3, r, 'rgba(90,10,10,', 0.2, 0.4); return { c, m: 0.5 }; },
@@ -272,5 +278,5 @@ function T(name) {
   else if (name.startsWith('face_')) c = drawFace(name.slice(5), r);
   else throw new Error('テクスチャがない: ' + name);
   t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
-  t.colorSpace = THREE.SRGBColorSpace; t.userData.m = m; TEXC[name] = t; return t;
+  t.colorSpace = THREE.SRGBColorSpace; t.userData.m = m; t.name = name; TEXC[name] = t; return t;
 }

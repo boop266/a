@@ -12,7 +12,7 @@ const ESPEC = {
 function spawnEnemy(R, d) {
   const S = ESPEC[d.t]; let h;
   if (d.t === 'dog') h = makeDog(); else if (d.t === 'spider') h = makeSpider(); else h = makeHuman(d.k || S.model);
-  const e = { def: d, t: d.t, key: d.key, h, x: d.x, z: d.z, y: d.y != null ? d.y : (floorAt(R, d.x, d.z, 0) ?? 0), ang: d.r != null ? d.r : rnd() * TAU, rad: S.rad, hy: S.hy, aimY: S.aimY,
+  const e = { def: d, type: d.t, key: d.key, h, x: d.x, z: d.z, y: d.y != null ? d.y : (floorAt(R, d.x, d.z, 0) ?? 0), ang: d.r != null ? d.r : rnd() * TAU, rad: S.rad, hy: S.hy, aimY: S.aimY,
     hp: d.hp || S.hp, max: d.hp || S.hp, state: d.st || 'idle', anim: 'idle', at: 0, t: 0, seed: rnd() * 100, spd: d.spd || (0.55 + rnd() * 0.4), cd: 0.8 + rnd(), alert: !!d.alert, path: null, pathT: 0, hitT: 0, stag: 0, groanT: 2 + rnd() * 5, sense: d.sense || 9 };
   if (d.t === 'zombie' || d.t === 'crawler') e.anim = { eat: 'eat', lie: 'lie', crawl: 'crawl', sit: 'sit' }[e.state] || 'idle';
   if (d.t === 'crawler') { e.state = 'crawl'; e.anim = 'crawl'; e.spd = 0.4; }
@@ -26,7 +26,7 @@ function spawnEnemy(R, d) {
   return e;
 }
 function pose(e, dt) {
-  if (e.t === 'dog') poseDog(e.h, e, dt); else if (e.t === 'spider') poseSpider(e.h, e, dt); else poseZombie(e.h, e, dt);
+  if (e.type === 'dog') poseDog(e.h, e, dt); else if (e.type === 'spider') poseSpider(e.h, e, dt); else poseZombie(e.h, e, dt);
 }
 function addCorpse(R, c) { const m = c.kind === 'dog' ? (() => { const d = makeDog(); poseDog(d, { anim: 'dead', t: 0, seed: 0 }, 10); return d.root; })() : c.kind === 'spider' ? (() => { const s = makeSpider(); poseSpider(s, { anim: 'dead', t: 0, seed: 0 }, 1); return s.root; })() : makeCorpse(c.model || 'servant', 'back'); m.position.set(c.x, c.y || 0, c.z); m.rotation.y = c.ang; if (c.nohead) m.traverse(o => { }); R.scene.add(m); }
 // ── 動き：まっすぐ行けるなら直に、行けなければ道を探す ──
@@ -55,9 +55,9 @@ function updEnemy(e, dt) {
   if (e.dead) { if (e.anim !== 'dead') e.anim = 'dead'; pose(e, dt); place(); return; }
   if (e.def.hidden && !e.revealed) return;
   const dx = PL.x - e.x, dz = PL.z - e.z, d = hyp(dx, dz);
-  if (!e.alert && !e.script && (sees(e, d) && d < 6.5 || d < 2.0 || (PL.st.mode === 'run' && d < 5.5))) { e.alert = true; if (e.t === 'zombie') AU.sfx('groan', { x: e.x, z: e.z, v: 1.2 }); }
-  if (!e.dead && (e.t === 'zombie' || e.t === 'crawler')) { e.groanT -= dt; if (e.groanT <= 0) { e.groanT = 3 + rnd() * 6; if (d < 14) AU.sfx('groan', { x: e.x, z: e.z, v: e.alert ? 1 : 0.6 }); } }
-  if (!e.script) AI[e.t](e, dt, d);
+  if (!e.alert && !e.script && (sees(e, d) && d < 6.5 || d < 2.0 || (PL.st.mode === 'run' && d < 5.5))) { e.alert = true; if (e.type === 'zombie') AU.sfx('groan', { x: e.x, z: e.z, v: 1.2 }); }
+  if (!e.dead && (e.type === 'zombie' || e.type === 'crawler')) { e.groanT -= dt; if (e.groanT <= 0) { e.groanT = 3 + rnd() * 6; if (d < 14) AU.sfx('groan', { x: e.x, z: e.z, v: e.alert ? 1 : 0.6 }); } }
+  if (!e.script) AI[e.type](e, dt, d);
   pose(e, dt); place();
   function place() { e.h.root.position.set(e.x, e.y, e.z); e.h.root.rotation.y = e.ang; if (e.sh) { e.sh.position.set(e.x, e.y + 0.012, e.z); e.sh.visible = e.h.root.visible; } }
 }
@@ -67,7 +67,7 @@ const AI = {
     switch (e.state) {
       case 'idle': case 'sit': e.anim = e.state === 'sit' ? 'sit' : 'idle'; if (e.alert) setState(e, e.state === 'sit' ? 'rise' : 'chase', e.state === 'sit' ? 'rise' : 'walk'); break;
       case 'eat': e.anim = 'eat'; if (e.alert) { setState(e, 'turn', 'turn'); AU.sfx('groan', { x: e.x, z: e.z, v: 1.3 }); } break;
-      case 'turn': if (e.at > 1.6) setState(e, 'rise', 'rise'); break;
+      case 'turn': e.ty = clamp(angDiff(e.ang, Math.atan2(PL.x - e.x, PL.z - e.z)), -2.3, 2.3); if (e.at > 1.6) { e.ang += e.ty * 0.5; setState(e, 'rise', 'rise'); } break;
       case 'lie': e.anim = 'lie'; if (e.alert && d < 2.2) { setState(e, 'rise', 'rise'); AU.sfx('moan2', { x: e.x, z: e.z }); } break;
       case 'down': e.anim = 'down'; if (e.at > 1.9) setState(e, 'rise', 'rise'); break;
       case 'rise': e.anim = 'rise'; if (e.at > 1.1) setState(e, 'chase', 'walk'); break;
@@ -170,7 +170,7 @@ function damageEnemy(e, dmg, o = {}) {
   e.hp -= dmg; e.alert = true; e.hitT = Math.min(1, e.hitT + (o.knock || 0.2) + 0.2);
   AU.sfx('flesh', { x: e.x, z: e.z }); bleed(e.x, e.y + (o.y != null ? o.y : e.aimY), e.z, o.w === 'sg' ? 10 : 6);
   if (o.burn) e.burn = 4;
-  const t = e.t;
+  const t = e.type;
   if (t === 'zombie') {
     if (e.state === 'lie' || e.state === 'sit') setState(e, 'rise', 'rise');
     if (o.w === 'sg' && o.dist < 2.4 && o.pitch > 0.05 && rnd() < 0.5) { decap(e); e.hp = 0; }
@@ -185,9 +185,9 @@ function decap(e) { const hd = e.h.J.head; if (hd) hd.visible = false; bleed(e.x
 function killEnemy(e, o = {}) {
   if (e.dead) return; e.dead = true; e.hp = 0; setState(e, 'dead', 'dead'); if (PL.grab === e) PL.grab = null; if (PL.tgt === e) PL.tgt = null;
   if (e.key) G.killed[e.key] = true; G.kills++;
-  const snd = { dog: 'yelp', spider: 'hiss', brute: 'roar', hunter: 'screech', boss1: 'roar', boss2: 'roar' }[e.t] || 'moan2'; AU.sfx(snd, { x: e.x, z: e.z });
+  const snd = { dog: 'yelp', spider: 'hiss', brute: 'roar', hunter: 'screech', boss1: 'roar', boss2: 'roar' }[e.type] || 'moan2'; AU.sfx(snd, { x: e.x, z: e.z });
   if (e.h.body) e.h.body.position.y = 0;
   const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), M('blood', { at: 0.3 })); pool.rotation.x = -PI / 2; pool.position.set(e.x - Math.sin(e.ang) * 0.6, e.y + 0.014, e.z - Math.cos(e.ang) * 0.6); G.room.scene.add(pool);
-  if (e.key && !e.t.startsWith('boss')) (G.corpses = G.corpses || []).push({ room: G.rid, x: e.x, z: e.z, y: e.y, ang: e.ang, kind: e.t === 'dog' ? 'dog' : e.t === 'spider' ? 'spider' : 'human', model: e.h.key });
+  if (e.key && !e.type.startsWith('boss')) (G.corpses = G.corpses || []).push({ room: G.rid, x: e.x, z: e.z, y: e.y, ang: e.ang, kind: e.type === 'dog' ? 'dog' : e.type === 'spider' ? 'spider' : 'human', model: e.h.key, nohead: !!e.nohead });
   if (typeof storyKill === 'function') storyKill(e);
 }

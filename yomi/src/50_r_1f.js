@@ -24,7 +24,7 @@ ROOMS.hall = {
   ambience: { rain: 0.25, drone: 0.25 }, amb: ['#56483c', 0.5], fog: ['#0b0907', 0.03],
   floors: [{ r: [-8, -7, 8, 7], y: 0 }, { r: [-1.6, -3.8, 1.6, 1.8], y: 3.6, y2: 0, ax: 'z' }, { r: [-8, -7, 8, -3.8], y: 3.6 }],
   blocks: [{ r: [-1.75, -3.8, 1.75, 0.95], y: 0, tall: true }, { r: [-8, -3.98, -1.6, -3.74], y: 3.6 }, { r: [1.6, -3.98, 8, -3.74], y: 3.6 },
-    { r: [-5.75, -4.15, -5.25, -3.65], y: 0, tall: true }, { r: [-2.65, -4.15, -2.15, -3.65], y: 0, tall: true }, { r: [2.15, -4.15, 2.65, -3.65], y: 0, tall: true }, { r: [5.25, -4.15, 5.75, -3.65], y: 0, tall: true }],
+    { r: [-2.65, -4.15, -2.15, -3.65], y: 0, tall: true }, { r: [2.15, -4.15, 2.65, -3.65], y: 0, tall: true }],
   stepAt: (x, z, y) => abs(x) < 0.95 && z > -3.8 ? 'carpet' : null,
   doors: [
     { id: 'S', p: [0, 7], w: 2.2, type: 'double', h: 3.0, lock: { story: () => flag('dogsOut') ? '扉の向こうで、まだ何かが唸っている。\n……今は、外へは出られない。' : '外で、犬が唸っている。\n今は出られない。' } },
@@ -36,7 +36,7 @@ ROOMS.hall = {
   wins: [{ p: [-5, 7], w: 1.3, y: 1.0, h: 2.6 }, { p: [5, 7], w: 1.3, y: 1.0, h: 2.6 }, { p: [-4, 7], w: 1.0, y: 4.6, h: 1.6 }, { p: [4, 7], w: 1.0, y: 4.6, h: 1.6 }],
   props: [
     { k: 'runner', x: 0, z: 4.4, L: 5.2, w: 1.8 }, { k: 'runner', x: 0, y: 3.6, z: -5.4, L: 3.2, w: 1.6, r: 1 },
-    { k: 'statue', x: -3.4, z: 4.6, r: 1 }, { k: 'statue', x: 3.4, z: 4.6, r: 3, t: '中が空っぽの甲冑。兜の隙間から、蜘蛛の巣が垂れている。' },
+    { k: 'statue', x: -2.6, z: 2.7, r: 1 }, { k: 'statue', x: 2.6, z: 2.7, r: 3, t: '中が空っぽの甲冑。兜の隙間から、蜘蛛の巣が垂れている。' },
     { k: 'chandelier', x: 0, y: 6.4, z: 1.5, s: 1.4, i: 26, d: 18, chain: 0.8 },
     { k: 'sconce', x: -7.95, z: 2.6, r: 1, i: 3 }, { k: 'sconce', x: 7.95, z: 2.6, r: 3, i: 3 }, { k: 'sconce', x: -7.95, z: -5.6, r: 1, i: 2.2, off: true },
     { k: 'painting', x: 0, z: -6.95, tex: 'pt_p3', w: 1.5, h: 1.9, yc: 5.55, frame: 'brass', t: '鷲尾弦一郎男爵の肖像画。\n落ちくぼんだ目が、階段の下をじっと見下ろしている。' },
@@ -47,13 +47,13 @@ ROOMS.hall = {
     { k: 'blood', x: -6.9, z: -0.4, s: 1.2, tex: 'smear', a: 1.4, t: '血の跡が、食堂の扉の下へと続いている。' },
   ],
   build(c) {
-    const g = c.g, pm = M('parquet'), wd = M('wood_d'), mb = M('marble');
+    const g = c.g, pm = M('parquet'), wd = M('wood_d'), mb = M('marble_w');
     // 二階の回廊（床・裏・前の縁）
     g.quad(pm, [-8, 3.6, -3.8], [8, 3.6, -3.8], [8, 3.6, -7], [-8, 3.6, -7], [[-8 / 1.6, 3.8 / 1.6], [8 / 1.6, 3.8 / 1.6], [8 / 1.6, 7 / 1.6], [-8 / 1.6, 7 / 1.6]]);
     g.quad(M('ceil'), [-8, 3.4, -7], [8, 3.4, -7], [8, 3.4, -3.8], [-8, 3.4, -3.8], [[-4, -3.5], [4, -3.5], [4, -1.9], [-4, -1.9]]);
     g.box(wd, 0, 3.5, -3.8, 16, 0.22, 0.1, { no: '-z' });
     balus(c, -8, -3.85, -1.62, -3.85, 3.6); balus(c, 1.62, -3.85, 8, -3.85, 3.6);
-    for (const x of [-5.5, -2.4, 2.4, 5.5]) { g.cyl(mb, x, 0, -3.9, 0.2, 3.4, 8); g.box(mb, x, 0.1, -3.9, 0.5, 0.2, 0.5); g.box(mb, x, 3.32, -3.9, 0.5, 0.16, 0.5); }
+    for (const x of [-2.4, 2.4]) { g.cyl(mb, x, 0, -3.9, 0.2, 3.4, 8); g.box(mb, x, 0.1, -3.9, 0.5, 0.2, 0.5); g.box(mb, x, 3.32, -3.9, 0.5, 0.16, 0.5); }
     stairsZ(c, -1.6, 1.6, 1.8, -3.8, 3.6, 18);
     // 階段下の壁（中は物置）
     g.quad(M('wainscot'), [-1.6, 0, 0.95], [1.6, 0, 0.95], [1.6, 0.4, 0.95], [-1.6, 0.4, 0.95], [[0, 0], [3, 0], [3, 0.35], [0, 0.35]]);
@@ -66,7 +66,7 @@ ROOMS.hall = {
     { p: [0, -1.5], r: 1.1, t: '階段の下に、小さな扉の跡がある。釘で打ちつけられて、開かない。' },
   ],
   cams: [
-    { p: [4.6, 2.3, 6.5], t: [-0.6, 2.4, -3.2], fov: 56, z: [-8, -0.6, 8, 7], lv: [-0.5, 0.45] },
+    { p: [6.3, 2.5, 6.5], t: [-1.0, 2.2, -3.0], fov: 58, z: [-8, -0.6, 8, 7], lv: [-0.5, 0.45] },
     { p: [-7.3, 3.1, -6.4], t: [1.2, 0.6, 2.6], fov: 58, z: [-8, -7, 0, -0.6], lv: [-0.5, 0.45] },
     { p: [7.3, 3.1, -6.4], t: [-1.2, 0.6, 2.6], fov: 58, z: [0, -7, 8, -0.6], lv: [-0.5, 0.45] },
     { p: [-5.6, 5.6, 4.6], t: [0.4, 2.0, -1.4], fov: 56, z: [-1.7, -3.8, 1.7, 1.9], lv: [0.4, 3.5] },
@@ -116,7 +116,7 @@ ROOMS.wcorr = {
   ],
   props: [
     { k: 'runner', x: 0, z: 0, L: 11.5, w: 1.0 }, { k: 'runner', x: 3.9, z: -7.2, L: 9.6, w: 1.0, r: 1 },
-    { k: 'sconce', x: -1.17, z: 3.3, r: 1, i: 2 }, { k: 'sconce', x: 1.17, z: -3.0, r: 3, i: 1.6, fl: 0.4 }, { k: 'sconce', x: 6.8, z: -8.37, r: 0, i: 2 },
+    { k: 'sconce', x: -1.17, z: 3.3, r: 1, i: 2.4 }, { k: 'sconce', x: 1.17, z: -3.0, r: 3, i: 1.6, fl: 0.4 }, { k: 'sconce', x: 6.8, z: -8.37, r: 0, i: 2 }, { k: 'sconce', x: -1.17, z: -6.9, r: 1, i: 1.8, fl: 0.15 },
     { k: 'painting', x: 1.17, z: 2.0, r: 3, tex: 'pt_land2', w: 1.1, h: 0.75, t: '冬の山の絵。描かれた木々が、どれも同じ方向に傾いている。' },
     { k: 'vase', x: 8.4, z: -6.5, t: '花瓶。中の水に、髪の毛が一本浮いている。' },
     { k: 'wallblood', x: -1.17, z: -4.5, r: 1, yc: 1.0, t: '壁に、手でこすったような血の跡。' },
@@ -128,9 +128,9 @@ ROOMS.wcorr = {
     { p: [0.85, 2.55, 5.85], t: [-0.1, 0.9, -3.4], fov: 52, z: [-1.2, -1, 1.2, 6] },
     { p: [-0.9, 2.6, -0.6], t: [1.0, 0.6, -7.4], fov: 55, z: [-1.2, -6, 1.2, -1] },
     { p: [-0.95, 2.7, -8.15], t: [8.4, 0.7, -6.8], fov: 54, z: [-1.2, -8.4, 9, -6] },
-    { id: 'turn', p: [2.6, 1.0, -6.35], t: [1.05, 0.9, -7.05], fov: 42, event: true },
+    { id: 'turn', p: [1.35, 1.1, -5.55], t: [0.95, 0.95, -6.95], fov: 44, event: true },
   ],
-  enemies: [{ t: 'zombie', k: 'miura', x: 1.0, z: -6.95, r: 2.2, key: 'wc_z1', st: 'eat', sense: 5 }],
+  enemies: [{ t: 'zombie', k: 'miura', x: 1.0, z: -7.0, r: 1.6, key: 'wc_z1', st: 'eat', sense: 5 }],
 };
 ROOMS.servant = {
   name: '使用人部屋', fl: '1F', map: [-5, 2, 4, 5], w: 4.4, d: 5.2, h: 2.9, save: true,
@@ -146,12 +146,12 @@ ROOMS.servant = {
   ],
   build(c) { c.R.blocks = c.R.blocks.filter(b => !(b.r[0] < -1.7 && b.r[3] > 2.3 && b.r[1] > 0.4)); c.block([-1.95, 0.45, -1.05, 2.4], 0); },
   items: [{ id: 'ribbon', n: 3, x: 1.25, z: -2.15, y: 0.75, key: 'srv_rib' }, { id: 'map', map: '1F', x: 0.1, z: -2.15, y: 0.75, key: 'map1f' }, { id: 'spray', x: 1.0, z: 2.3, y: 0.62, key: 'srv_spray' }, { id: 'file', file: 'servant', x: 1.5, z: 2.3, y: 1.12, key: 'f_servant' }],
-  cams: [{ p: [1.95, 2.45, 2.35], t: [-1.0, 0.7, -1.3], fov: 62 }],
+  cams: [{ p: [1.98, 2.55, 2.42], t: [-1.25, 0.45, -0.85], fov: 68 }],
 };
 ROOMS.kitchen = {
   name: '厨房', fl: '1F', map: [12, 0, 8, 7], w: 8, d: 7, h: 3.3,
   floor: 'tile', wall: 'plaster', wain: 'tile', wainH: 1.4, ceil: 'plaster', rev: 0.35,
-  ambience: { rain: 0.3, drone: 0.35, water: 0.4 }, amb: ['#32383a', 0.45], fog: ['#060707', 0.05],
+  ambience: { rain: 0.3, drone: 0.35, water: 0.4 }, amb: ['#3c4246', 0.6], fog: ['#060707', 0.045],
   doors: [{ id: 'W', p: [-4, -0.5], type: 'wood', to: ['wcorr', 'E'] }, { id: 'S', p: [2.6, 3.5], type: 'iron', to: ['cellar', 'N'], fx: 'stairsdown', lock: { key: 'base', msg: '地下へ降りる扉。錆びた大きな錠前がかかっている。' } }],
   wins: [{ p: [-1.5, -3.5], w: 1.2, y: 1.3, h: 1.2 }],
   props: [
@@ -159,7 +159,7 @@ ROOMS.kitchen = {
     { k: 'sink', x: 3.65, z: -1.0, r: 3 }, { k: 'shelf', x: 3.78, z: 1.6, r: 3, L: 1.4, t: '食料の棚。缶詰の中身が、どれも膨らんでいる。' },
     { k: 'shelf', x: -3.78, z: -2.3, r: 1, L: 1.2 }, { k: 'barrel', x: -3.3, z: 2.9 }, { k: 'barrel', x: -2.6, z: 3.0, t: '樽に、塩漬けの何かが入っている。' },
     { k: 'blood', x: 0.9, z: 1.7, s: 1.6 }, { k: 'blood', x: -2.2, z: 2.2, s: 1.3 },
-    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 3.5, c: '#d8e0ff', fl: 0.3 },
+    { k: 'cagelamp', x: -0.2, z: -3.45, r: 0, y: 2.6, i: 3.5, c: '#d8e0ff', fl: 0.3 }, { k: 'bulb', x: 0.4, z: 0.6, y: 3.3, i: 7, c: '#f0f2ff', fl: 0.12 },
   ],
   build(c) { const b = makeCorpse('servant', 'back'); b.position.set(-2.3, 0, 2.35); b.rotation.y = -0.4; c.add(b); c.look(-2.3, 2.3, 0.9, '女中の亡骸。前掛けに「ヨネ」と刺繍がある。'); c.R.dyn.horse = null; },
   acts: [{ p: [1.25, -2.5], r: 0.85, id: 'oven' }],
@@ -202,7 +202,7 @@ ROOMS.ecorr = {
 ROOMS.study = {
   name: '書斎', fl: '1F', map: [35, 9, 7, 7], w: 7, d: 7, h: 3.4,
   floor: 'parquet_d', wall: 'paper_green', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.2,
-  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#2a3026', 0.4], fog: ['#060705', 0.04],
+  ambience: { rain: 0.4, clock: 0, drone: 0.25 }, amb: ['#363c32', 0.56], fog: ['#060705', 0.035], lights: [{ p: [2.8, 2.1, -0.6], c: '#8aa0d0', i: 3.2, d: 7 }],
   doors: [{ id: 'W', p: [-3.5, 1], type: 'wood', to: ['ecorr', 'E'], lock: { key: 'hawk' } }],
   wins: [{ p: [3.5, -0.6], w: 1.3, y: 1.0, h: 2.0 }],
   props: [
@@ -229,7 +229,7 @@ ROOMS.green = {
     { k: 'bed_soil', x: -3, z: 3, w: 2.4, d: 1.2 }, { k: 'bed_soil', x: 3, z: 3, w: 2.4, d: 1.2, t: '花壇。土の中から、白いものがのぞいている。……骨だ。' }, { k: 'bed_soil', x: -3, z: -3.6, w: 2.4, d: 1.2 }, { k: 'bed_soil', x: 3, z: -3.6, w: 2.4, d: 1.2 },
     { k: 'palm', x: -4.1, z: -5.0 }, { k: 'palm', x: 4.1, z: -5.0, h: 3.0 }, { k: 'palm', x: -4.3, z: 0.6, h: 2.4 }, { k: 'palm', x: 4.3, z: 0.6, h: 2.8 },
     { k: 'fern', x: -3.0, z: 3.0, y: 0.38, s: 0.7, t: null }, { k: 'fern', x: 2.6, z: 3.0, y: 0.38, s: 0.7, t: null }, { k: 'fern', x: -3.3, z: -3.6, y: 0.38, s: 0.8, t: null }, { k: 'fern', x: 3.3, z: -3.5, y: 0.38, s: 0.8, t: null },
-    { k: 'fern', x: -1.6, z: -5.3, s: 1.1 }, { k: 'fern', x: 1.7, z: -5.4, s: 1.2 },
+    { k: 'fern', x: -1.6, z: -5.3, s: 1.4 }, { k: 'fern', x: 1.7, z: -5.4, s: 1.5 }, { k: 'fern', x: -4.4, z: -2.0, s: 1.3, t: null }, { k: 'fern', x: 4.4, z: -2.6, s: 1.2, t: null }, { k: 'fern', x: -4.4, z: 3.6, s: 1.3, t: null }, { k: 'fern', x: 4.4, z: 4.6, s: 1.2, t: null }, { k: 'fern', x: -2.0, z: 5.3, s: 1.0, t: null }, { k: 'fern', x: 2.2, z: 5.3, s: 1.0, t: null }, { k: 'plant', x: 4.3, z: 2.5, s: 1.3 }, { k: 'plant', x: -4.3, z: -1.0, s: 1.2 },
     { k: 'bench', x: 0, z: 4.4, r: 2 }, { k: 'worktable', x: 3.9, z: -1.2, r: 3 },
     { k: 'blood', x: 0.6, z: 1.6, s: 1.2 },
   ],
@@ -246,9 +246,9 @@ ROOMS.green = {
     for (const z of [-6, -3, 0, 3, 6]) { g.box(ir, -2.5, H + 0.3, z, 5.2, 0.05, 0.05); g.box(ir, 2.5, H + 0.3, z, 5.2, 0.05, 0.05); }
     const roof = new THREE.Mesh(new THREE.PlaneGeometry(10.2, 12.2), new THREE.MeshLambertMaterial({ color: '#8ab0b8', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide })); roof.rotation.x = -PI / 2; roof.position.y = H + 0.3; c.add(roof);
     // 外：夜の庭（硝子越しに見える）
-    const om = new THREE.MeshBasicMaterial({ map: T('night'), color: '#7a8aa0', fog: false }); c.R.wins.push({ outM: om, base: om.color.clone() });
+    const om = new THREE.MeshBasicMaterial({ map: T('night'), color: '#2e3848', fog: false }); c.R.wins.push({ outM: om, base: om.color.clone() });
     for (const [x, z, ry, w] of [[0, -9, 0, 26], [0, 9, PI, 26], [-8, 0, PI / 2, 26], [8, 0, -PI / 2, 26]]) { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, 14), om); p.position.set(x, 4, z); p.rotation.y = ry; c.add(p); }
-    const sky = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: T('nightsky'), color: '#8090a8', fog: false })); sky.rotation.x = PI / 2; sky.position.y = 11; c.add(sky);
+    const sky = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: T('nightsky'), color: '#3a4458', fog: false })); sky.rotation.x = PI / 2; sky.position.y = 11; c.add(sky);
   },
   items: [{ id: 'herb_g', x: -3.0, z: 3.0, y: 0.38, key: 'gr_h1' }, { id: 'herb_g', x: 3.2, z: -3.6, y: 0.38, key: 'gr_h2' }, { id: 'herb_r', x: -3.2, z: -3.5, y: 0.38, key: 'gr_h3' }, { id: 'file', file: 'gardener', x: 3.75, z: -1.0, y: 0.89, key: 'f_gardener' }],
   cams: [

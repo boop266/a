@@ -1,15 +1,16 @@
 // 黄泉還：入力（キーボード・ゲームパッド・タッチ）を、同じ「動作」にそろえる
-const IN = { mx: 0, my: 0, mag: 0, run: false, aim: false, fireHeld: false, touch: false, last: 'key', e: {}, ptr: [], wheel: 0 };
+const IN = { mx: 0, my: 0, mag: 0, run: false, aim: false, fireHeld: false, touch: false, last: 'key', e: {}, ptr: [], wheel: 0, typed: '' };
 const EDGES = ['act', 'fire', 'menu', 'map', 'esc', 'reload', 'ok', 'cancel', 'up', 'down', 'left', 'right', 'tabL', 'tabR', 'any'];
 for (const k of EDGES) IN.e[k] = 0;
 function inEdge(k) { IN.e[k] = 1; if (k !== 'any') IN.e.any = 1; }
-function inConsume() { for (const k of EDGES) IN.e[k] = 0; IN.ptr.length = 0; IN.wheel = 0; }
+function inConsume() { for (const k of EDGES) IN.e[k] = 0; IN.ptr.length = 0; IN.wheel = 0; IN.typed = ''; }
 const KEYS = {};
 const KMAP = { w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right' };
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase(); IN.last = 'key';
   if (typeof AU !== 'undefined') AU.wake();
   if (['tab', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'backspace'].includes(k)) e.preventDefault();
+  if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) IN.typed += e.key.toUpperCase(); if (k === 'backspace') IN.typed += '<';
   const first = !KEYS[k]; KEYS[k] = true;
   if (KMAP[k]) inEdge(KMAP[k]);
   if (!first) return; // 押しっぱなしの繰り返しは、上下左右だけ

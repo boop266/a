@@ -6,7 +6,7 @@ function M(name, o = {}) {
   const p = {};
   if (name && name !== 'col') p.map = T(name);
   if (o.c) p.color = new THREE.Color(o.c);
-  if (o.e) { p.emissive = new THREE.Color(o.e); if (o.ei != null) p.emissiveIntensity = o.ei; if (o.em) p.emissiveMap = p.map; }
+  if (o.e && !o.basic) { p.emissive = new THREE.Color(o.e); if (o.ei != null) p.emissiveIntensity = o.ei; if (o.em) p.emissiveMap = p.map; }
   if (o.t) { p.transparent = true; p.opacity = o.t; p.depthWrite = !!o.dw; }
   if (o.at) p.alphaTest = o.at;
   if (o.ds) p.side = THREE.DoubleSide;

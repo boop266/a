@@ -14,7 +14,7 @@ const HSPEC = {
   hunter: { hunter: true, skin: 'skin_h', face: 'face_hunter', shirt: 'skin_h', pants: 'skin_h', boot: '#3a4a26', glove: 'skin_h', scale: 1.05, bulk: 1.1, claws: true },
   boss: { boss: true, skin: 'skin_boss', face: 'face_z', shirt: 'skin_boss', pants: '#2a2a2e', boot: '#3a3030', glove: 'skin_boss', scale: 1.45, bulk: 1.25, claws: true },
 };
-function hMat(v) { return v.startsWith('#') ? M('col', { c: v }) : M(v); }
+function hMat(v) { return v.startsWith('#') ? M('col', { c: v, e: v, ei: 0.22 }) : M(v, { e: '#ffffff', em: true, ei: 0.2 }); }
 function makeHuman(key) {
   const sp = HSPEC[key], S = sp.scale || 1, B = sp.bulk || 1, root = new THREE.Group(), body = new THREE.Group(); root.add(body); body.scale.setScalar(S);
   const J = {}, meshes = [];
@@ -31,8 +31,8 @@ function makeHuman(key) {
   if (sp.patch) bx(ch, M('col', { c: sp.patch }), 0.08, 0.06, 0.01, -0.1, 0.2, 0.123);
   const nk = mk('neck', ch, 0, 0.3, 0); bx(nk, skin, 0.09, 0.09, 0.09, 0, 0.03, 0);
   const hd = mk('head', nk, 0, 0.07, 0);
-  const hm = [hair, hair, hair, skin, M(sp.face), hair].map((m, i) => (i === 0 || i === 1) && sp.hs === 'bald' ? skin : m);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.24, 0.22), sp.hs === 'bald' || sp.hunter || sp.boss ? [skin, skin, skin, skin, M(sp.face), skin] : hm); head.position.set(0, 0.12, 0.01); hd.add(head); meshes.push(head);
+  const hm = [hair, hair, hair, skin, M(sp.face, { e: '#ffffff', em: true, ei: 0.25 }), hair].map((m, i) => (i === 0 || i === 1) && sp.hs === 'bald' ? skin : m);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.24, 0.22), sp.hs === 'bald' || sp.hunter || sp.boss ? [skin, skin, skin, skin, M(sp.face, { e: '#ffffff', em: true, ei: 0.25 }), skin] : hm); head.position.set(0, 0.12, 0.01); hd.add(head); meshes.push(head);
   if (sp.hs === 'short' || sp.hs === 'pony' || sp.hs === 'bun') bx(hd, hair, 0.215, 0.07, 0.23, 0, 0.245, 0);
   if (sp.hs === 'pony') bx(hd, hair, 0.07, 0.22, 0.06, 0, 0.12, -0.13);
   if (sp.hs === 'bun') bx(hd, hair, 0.11, 0.1, 0.08, 0, 0.2, -0.13);
@@ -134,7 +134,7 @@ function poseZombie(h, e, dt) {
       P.bz = s * 0.08; P.spine = [0.22, s * 0.1, 0]; P.head = [0.2, 0, -s * 0.25 + 0.2];
       const up = e.anim === 'reach' ? -1.55 : -1.25; P.uaL = [up + Math.sin(t * 2.1) * 0.12, 0, -0.1]; P.uaR = [up + Math.cos(t * 1.9) * 0.12, 0, 0.1]; P.faL = [-0.2, 0, 0]; P.faR = [-0.25, 0, 0]; P.py = -Math.abs(s) * 0.03; break; }
     case 'eat': P.py = -0.5; P.thL = [-1.75, 0, 0.1]; P.thR = [-1.4, 0, -0.1]; P.shL = [2.1, 0, 0]; P.shR = [2.0, 0, 0]; P.ftL = [-0.4, 0, 0]; P.spine = [0.7, 0, 0]; P.chest = [0.3, 0, 0]; P.head = [0.4 + Math.sin(t * 9) * 0.15, 0, 0]; P.uaL = [-0.9, 0, -0.2]; P.uaR = [-0.9, 0, 0.2]; P.faL = [-0.9, 0, 0]; P.faR = [-0.9, 0, 0]; break;
-    case 'turn': P.py = -0.5; P.thL = [-1.75, 0, 0.1]; P.thR = [-1.4, 0, -0.1]; P.shL = [2.1, 0, 0]; P.shR = [2.0, 0, 0]; P.spine = [0.4, 0.6, 0]; P.chest = [0.1, 0.4, 0]; P.head = [0.05, 0.9, 0.2]; P.uaL = [-0.6, 0, -0.2]; P.uaR = [-0.6, 0, 0.2]; P.faL = [-0.9, 0, 0]; P.faR = [-0.9, 0, 0]; break;
+    case 'turn': { const ty = e.ty || 1.5; P.py = -0.5; P.thL = [-1.75, 0, 0.1]; P.thR = [-1.4, 0, -0.1]; P.shL = [2.1, 0, 0]; P.shR = [2.0, 0, 0]; P.spine = [0.4, ty * 0.3, 0]; P.chest = [0.1, ty * 0.25, 0]; P.head = [0.0, ty * 0.45, 0.2]; } P.uaL = [-0.6, 0, -0.2]; P.uaR = [-0.6, 0, 0.2]; P.faL = [-0.9, 0, 0]; P.faR = [-0.9, 0, 0]; break;
     case 'grab': P.uaL = [-1.5, 0, -0.25]; P.uaR = [-1.5, 0, 0.25]; P.faL = [-0.5, 0, 0]; P.faR = [-0.5, 0, 0]; P.spine = [0.35, 0, 0]; P.head = [0.4 + Math.sin(t * 12) * 0.1, 0, 0]; P.thL = [-0.3, 0, 0]; P.shL = [0.3, 0, 0]; break;
     case 'stagger': P.spine = [-0.45, 0, 0.15]; P.head = [-0.4, 0, 0.3]; P.uaL = [0.3, 0, 0.7]; P.uaR = [0.2, 0, -0.7]; P.thR = [0.3, 0, 0]; P.shR = [0.3, 0, 0]; break;
     case 'down': case 'dead': P.bx = -PI / 2; P.by = 0.13; P.uaL = [-0.3, 0, 1.0]; P.uaR = [-2.6, 0, -0.4]; P.thL = [-0.15, 0, 0.12]; P.thR = [0.1, 0, -0.1]; P.head = [0.3, e.seed % 1 > 0.5 ? 0.7 : -0.7, 0]; break;
