@@ -1,9 +1,15 @@
 // 黄泉還：出来事・仕掛け・場面（オープニングからエンディングまで）
 // ── 場面の進め方：yield 秒数／yield 'msg'（伝言を閉じるまで）／yield ()=>条件 ──
-const CUT = { gen: null, wait: 0, cond: null, movers: [], onEnd: null };
-function runCut(fn, onEnd) { G.mode = 'cut'; CUT.gen = fn(); CUT.wait = 0; CUT.cond = null; CUT.movers = []; CUT.onEnd = onEnd || null; PL.aimT = 0; setWeapon(PL.h, null); PL.st.mode = 'idle'; cutAdvance(); }
+const CUT = { gen: null, wait: 0, cond: null, movers: [], onEnd: null, skip: null, t: 0 };
+// skip：飛ばしたときに、場面の終わりの状態へそろえる関数（オープニングだけ）
+function runCut(fn, onEnd, skip) { G.mode = 'cut'; CUT.gen = fn(); CUT.wait = 0; CUT.cond = null; CUT.movers = []; CUT.onEnd = onEnd || null; CUT.skip = skip || null; CUT.skippable = false; CUT.t = 0; PL.aimT = 0; setWeapon(PL.h, null); PL.st.mode = 'idle'; cutAdvance(); }
+function skipCut() { const f = CUT.skip; CUT.gen = null; CUT.skip = null; G.msg = null; G.msgQ = []; G.card = null; AU.sfx('cancel'); if (f) f(); endCut(); }
+// 飛ばす印（右上の ▶▶）：押せる場面のときだけ
+function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = VW.x + VW.w - w - u * 3, y = VW.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
 function cutStep(dt) {
-  updRoom(dt); updFx(dt); G.t;
+  CUT.t += dt;
+  if (CUT.skip && CUT.t > 1.2 && (IN.e.esc || IN.e.menu || (!G.msg && !G.card && uiTap()))) { skipCut(); return; }
+  updRoom(dt); updFx(dt);
   for (const m of CUT.movers) { const a = m.a, dx = m.x - a.x, dz = m.z - a.z, d = hyp(dx, dz); if (d < 0.08) { m.done = true; continue; } const s = Math.min(d, m.spd * dt); a.x += dx / d * s; a.z += dz / d * s; a.ang = angTo(a.ang, Math.atan2(dx, dz), 8 * dt); if (a.y != null && G.room) { const y = floorAt(G.room, a.x, a.z, a.y); if (y != null) a.y = y; } }
   CUT.movers = CUT.movers.filter(m => { if (m.done && m.onDone) m.onDone(); return !m.done; });
   // 主人公と、人物と、敵の姿勢
@@ -66,7 +72,8 @@ function startOpening() {
     say('早瀬「三浦たちかもしれない。見てくる。お前はここを動くな」'); yield 'msg';
     moveTo(hy2, -6.9, -1.2, 2.4); yield () => !CUT.movers.length; AU.sfx('door', { x: -8, z: -1.2, vol: 0.6 }); hy2.h.root.visible = false; hy2.sh.visible = false; yield 1.0; AU.sfx('doorshut', { x: -8, z: -1.2, vol: 0.5 });
     yield 1.6; clearNpcs(); setFlag('opening');
-  }, () => { G.fade = 0; G.fadeTo = null; clearNpcs(); G.time = 0; setFlag('opening'); });
+  }, () => { G.fadeTo = 0; clearNpcs(); G.time = 0; setFlag('opening'); },
+  () => { clearNpcs(); G.cutDog = null; enterRoom('hall', { x: 0.5, z: 5.6, ang: PI }); G.camOv = null; G.fade = 1; });
 }
 // ── 部屋に入ったとき ──
 function storyEnter(id) {
@@ -112,9 +119,9 @@ function evBrute() {
 function evTank() {
   setFlag('hunters'); const h = G.en.find(e => e.key === 'cult_h1'); const T2 = G.room.dyn.t2;
   runCut(function* () {
-    camEv('tank'); yield 0.8; AU.sfx('creak', { x: -1, z: -2.3 }); yield 0.7; AU.sfx('glass', { x: -1, z: -2.3 }); AU.sfx('shock');
-    if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } particles(-1.0, 1.4, -2.0, 30, '#8ae8c8', 4, 0.9);
-    if (h) { h.def.hidden = false; h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; h.x = -1.0; h.z = -1.6; }
+    camEv('tank'); yield 0.8; AU.sfx('creak', { x: -1.5, z: -2.95 }); yield 0.7; AU.sfx('glass', { x: -1.5, z: -2.95 }); AU.sfx('shock');
+    if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } particles(-1.5, 1.4, -2.5, 30, '#8ae8c8', 4, 0.9);
+    if (h) { h.def.hidden = false; h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; h.x = -1.5; h.z = -2.1; }
     yield 0.6; if (h) { h.anim = 'roar'; AU.sfx('screech', { x: h.x, z: h.z }); } yield 1.2;
     if (h) { h.script = false; h.alert = true; setState(h, 'run', 'hunt'); } camNormal();
   });
@@ -284,7 +291,6 @@ function coreAct() {
       const c = G.room.dyn.core; c.glass.visible = false; c.liq.visible = false; c.body.visible = false; c.L.base = 3; particles(0, 2.0, -0.9, 40, '#8ad8ff', 5, 1.0);
       const b = G.en.find(e => e.key === 'boss1'); if (b) { b.def.hidden = false; b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; b.x = 0; b.z = 0.0; b.ang = 0; }
       AU.sfx('roar', { x: 0, z: 0 }); yield 2.0; camNormal(); if (b) { b.script = false; b.alert = true; setState(b, 'walk', 'walk'); } AU.music('boss');
-      G.room.blocks = G.room.blocks.filter(bk => !(bk.tall && bk.r[0] < -2 && bk.r[2] > 2 && bk.r[1] < -4));
     });
   });
 }

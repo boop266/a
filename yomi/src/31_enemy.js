@@ -189,5 +189,5 @@ function killEnemy(e, o = {}) {
   if (e.h.body) e.h.body.position.y = 0;
   const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), M('blood', { at: 0.3 })); pool.rotation.x = -PI / 2; pool.position.set(e.x - Math.sin(e.ang) * 0.6, e.y + 0.014, e.z - Math.cos(e.ang) * 0.6); G.room.scene.add(pool);
   if (e.key && !e.type.startsWith('boss')) (G.corpses = G.corpses || []).push({ room: G.rid, x: e.x, z: e.z, y: e.y, ang: e.ang, kind: e.type === 'dog' ? 'dog' : e.type === 'spider' ? 'spider' : 'human', model: e.h.key, nohead: !!e.nohead });
-  if (typeof storyKill === 'function') storyKill(e);
+  storyKill(e);
 }

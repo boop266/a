@@ -39,7 +39,7 @@ function enterRoom(id, sp) {
   G.cam = null; G.cam = pickCam(R, null, PL.x, PL.z, PL.y); G.ctrl = null;
   AU.setAmb(R.D.ambience); AU.room(R.D.rev != null ? R.D.rev : 0.25); AU.music(R.D.music || '');
   R.lightningT = 4 + rnd() * 8;
-  if (typeof storyEnter === 'function') storyEnter(id);
+  storyEnter(id);
 }
 function blobShadow(r) { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 12), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.42, depthWrite: false })); m.rotation.x = -PI / 2; m.renderOrder = 1; m.userData.keep = true; return m; }
 function spawnPickup(R, it) {
@@ -208,7 +208,7 @@ function pickupPrompt(p) {
   ask(`${nm}がある。\n拾いますか？`, ['はい', 'いいえ'], i => {
     if (i !== 0) return;
     if (!canFit(id, n)) { say('持ち物がいっぱいで、これ以上持てない。'); return; }
-    PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); if (typeof storyPick === 'function') storyPick(p.key, id); };
+    PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); storyPick(p.key, id); };
   });
 }
 function takePickup(p) { G.taken[p.key] = true; const R = G.room; R.scene.remove(p.mdl); R.pick = R.pick.filter(q => q !== p); if (G.drops && G.drops[p.key]) delete G.drops[p.key]; }
@@ -223,7 +223,7 @@ function useDoor(d) {
     else if (L.bar === 'this') { ask(L.msg || 'かんぬきが掛かっている。外しますか？', ['はい', 'いいえ'], i => { if (i) return; G.open[key] = true; AU.sfx('unlock'); say('かんぬきを外した。'); }); return; }
     else if (L.key) {
       const kid = Object.keys(ITEMS).find(k => ITEMS[k].lock === L.key);
-      if (invHas(kid)) { G.open[key] = true; AU.sfx('unlock'); say(`${ITEMS[kid].name}を使った。`, () => { if (L.key === 'id') return; }); if (typeof storyUnlock === 'function') storyUnlock(R.id, d.id, kid); return; }
+      if (invHas(kid)) { G.open[key] = true; AU.sfx('unlock'); say(`${ITEMS[kid].name}を使った。`); storyUnlock(R.id, d.id, kid); return; }
       AU.sfx('locked', { x: d.pos[0], z: d.pos[1] }); G.lockSeen[key] = true;
       say(L.msg || { hawk: '鍵がかかっている。\n鍵穴の上に、鷹の紋章が彫られている。', snake: '鍵がかかっている。\n鍵穴の上に、蛇の紋章が彫られている。', wolf: '鍵がかかっている。\n硝子越しに、緑の葉が見える。取っ手に狼の紋章。', base: '鍵がかかっている。錆びた大きな錠前だ。', id: '扉の横に、カード読み取り機がある。' }[L.key] || '鍵がかかっている。'); return;
     }

@@ -4,7 +4,7 @@ function resetPlayerModel() {
   if (PL.h && PL.h.root.parent) PL.h.root.parent.remove(PL.h.root);
   PL.h = makeHuman('ryo'); PL.st = { t: 0, mode: 'idle', hp: PL.hp }; PL.dead = false; PL.aimT = 0; PL.tgt = null; PL.grab = null;
 }
-function startNewGame() { newGame(); resetPlayerModel(); G.ui = null; TITLE.phase = 'menu'; if (typeof startOpening === 'function' && !QS.has('skipop')) startOpening(); else { G.mode = 'play'; enterRoom(QS.get('room') || 'hall', { x: 0, z: 5.5, ang: PI }); } }
+function startNewGame() { newGame(); resetPlayerModel(); G.ui = null; TITLE.phase = 'menu'; if (!QS.has('skipop')) startOpening(); else { G.mode = 'play'; enterRoom(QS.get('room') || 'hall', { x: 0, z: 5.5, ang: PI }); } }
 // タイトルの後ろ：雨の前庭を、ゆっくり見上げる
 function enterTitleScene() {
   if (!ROOMS.yard) return; if (G.titleRoom) disposeRoom(G.titleRoom);
@@ -22,23 +22,24 @@ function playStep(dt) {
   G.time += dt;
   if (!PL.dead && !PL.grab) { if (IN.e.menu) { openMenu('item'); return; } if (IN.e.map) { openMenu('map'); return; } if (IN.e.esc) { openOpts(); return; } }
   updPlayer(dt); updEnemies(dt); updRoom(dt); updFx(dt);
-  if (typeof storyTick === 'function') storyTick(dt);
+  for (const n of G.npcs || []) if (!G.helper || n !== G.helper.n) updNpc(n, dt);
+  storyTick(dt);
   if (!G.camOv && G.room) { const prev = G.cam; G.cam = pickCam(G.room, G.cam, PL.x, PL.z, PL.y); }
-  if (G.timer) { G.timer.left -= dt; if (G.timer.left <= 30 && !G.timer.warn) { G.timer.warn = true; } if (G.timer.left <= 0 && !PL.dead) { G.timer.left = 0; if (typeof timerOut === 'function') timerOut(); } }
+  if (G.timer) { G.timer.left -= dt; if (G.timer.left <= 30 && !G.timer.warn) { G.timer.warn = true; } if (G.timer.left <= 0 && !PL.dead) { G.timer.left = 0; timerOut(); } }
   if (PL.dead && PL.st.deadT > 1.2 && G.mode === 'play') { G.mode = 'dead'; G.deathT = 0; G.dsel = 0; }
 }
 function step(dt) {
   G.t += dt; inPoll(dt);
   if (G.fadeTo != null) { G.fade += Math.sign(G.fadeTo - G.fade) * dt * 2.2; if (abs(G.fade - G.fadeTo) < dt * 2.3) { G.fade = G.fadeTo; G.fadeTo = null; } }
-  if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(); }
+  if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(); else if (k === 'pass') passUpdate(); }
   else if (G.mode === 'title') titleUpdate(dt);
+  else if (G.card) cardUpdate(dt);
+  else if (G.mode === 'cut') { if (G.msg) msgUpdate(dt); cutStep(dt); } // 場面の中の伝言は、人物を動かしたまま待つ
   else if (G.msg) msgUpdate(dt);
   else if (G.mode === 'play') playStep(dt);
   else if (G.mode === 'door' && G.doorFx) updDoorFx(G.doorFx, dt);
-  else if (G.mode === 'cut') { if (typeof cutStep === 'function') cutStep(dt); }
   else if (G.mode === 'dead') { updPlayer(dt); updEnemies(dt); updRoom(dt); updFx(dt); deadUpdate(dt); }
-  else if (G.mode === 'end') { if (typeof endStep === 'function') endStep(dt); }
-  if (G.mode === 'cut' && G.msg) { /* 場面の中の伝言は cutStep が待つ */ }
+  else if (G.mode === 'end') endStep(dt);
   // 音：聞く人とカメラ
   const cam = curCam(); if (cam && G.room) { const b = camBasis(cam); AU.lis = { x: PL.x, z: PL.z, cx: cam.position.x, cz: cam.position.z, rx: b.rx, rz: b.rz }; }
   if (AU.on) { AU.ambTick(dt, G.t); AU.musTick(); }
@@ -56,8 +57,10 @@ function render(dt) {
   }
   if (G.mode === 'title' && !G.ui) drawTitle();
   if (G.mode === 'dead') drawDead();
-  if (G.ui) { const k = G.ui.k; if (k === 'menu') drawMenu(); else if (k === 'box') drawBox(); else if (k === 'save' || k === 'load') drawSlots(); else if (k === 'opts') drawOpts(); else if (k === 'results') drawResults(); }
-  if (G.mode === 'end' && typeof drawEnd === 'function') drawEnd();
+  if (G.mode === 'end') drawEnd();
+  if (G.card) drawCard();
+  if (G.mode === 'cut') drawSkip();
+  if (G.ui) { const k = G.ui.k; if (k === 'menu') drawMenu(); else if (k === 'box') drawBox(); else if (k === 'save' || k === 'load') drawSlots(); else if (k === 'opts') drawOpts(); else if (k === 'results') drawResults(); else if (k === 'pass') drawPass(); }
   drawTimer(); drawSub(dt); drawMsg(); drawTouch();
 }
 function frame(now) {

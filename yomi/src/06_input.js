@@ -94,6 +94,7 @@ function inPoll(dt) {
     for (let i = 0; i < 17; i++) P[i] = B(i);
     break;
   }
+  if (IN.bot) { mx = IN.bot.mx || 0; my = IN.bot.my || 0; run = !!IN.bot.run; aim = !!IN.bot.aim; } // 通しプレイの自動操作（テストだけで使う）
   const m = hyp(mx, my); if (m > 1) { mx /= m; my /= m; }
   IN.mx = mx; IN.my = my; IN.mag = Math.min(1, m); IN.run = run; IN.aim = aim;
 }

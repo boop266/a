@@ -181,8 +181,11 @@ function buildRoom(id) {
   for (const l of D.looks || []) R.looks.push(Object.assign({ y: 0 }, l));
   for (const a of D.acts || []) R.acts.push(Object.assign({ y: 0 }, a));
   for (const b of D.blocks || []) ctx.block(b.r, b.y || 0, b);
-  R.cams = (D.cams || []).map(c => { const cam = new THREE.PerspectiveCamera(c.fov || 55, 4 / 3, 0.05, 90); cam.position.set(...c.p); cam.lookAt(...c.t); cam.updateMatrixWorld(); return Object.assign({ cam }, c); });
+  R.cams = (D.cams || []).map((c, i) => { const cam = new THREE.PerspectiveCamera(c.fov || 55, 4 / 3, 0.05, 90); cam.position.set(...c.p); cam.lookAt(...c.t); cam.updateMatrixWorld(); cam.updateProjectionMatrix(); return Object.assign({ cam, i }, c); });
   R.nav = buildNav(R);
+  // 見通しを遮る物（この時点で場面にある、動かない形だけ。人や拾い物はまだ入っていない）
+  scene.updateMatrixWorld(true); R.solids = []; scene.traverse(o => { if (!o.isMesh || !o.visible) return; const m = o.material; if (m.transparent && (m.opacity < 0.6 || !m.depthWrite)) return; if (m.side === THREE.BackSide || m.alphaTest > 0) return; R.solids.push(o); }); // 葉や張り紙（透ける物）は遮らない
+  R.seeCache = new Map();
   return R;
 }
 function splitBy(lo, hi, ops) { const out = []; let cur = lo; for (const o of ops.sort((a, b) => a.t0 - b.t0)) { const a = clamp(o.t0, lo, hi), b = clamp(o.t1, lo, hi); if (a > cur) out.push([cur, a]); cur = Math.max(cur, b); } if (cur < hi) out.push([cur, hi]); return out; }
@@ -281,14 +284,37 @@ function findPath(R, sx, sz, sy, tx, tz, rad = 0.3, maxN = 2500) {
   }
   return null;
 }
-// ── カメラの選び方：今のカメラの範囲にいれば続ける。出たら範囲に入っている最初のカメラへ ──
+// ── カメラの選び方 ──
+// 受け持ち（z/zs/lv）は「この場所はこのカメラで見せたい」という希望。ただし主人公が映らないなら使わない。
+// 今のカメラが受け持ちの中で主人公を映せていれば、切り替えない（切り替えすぎない）。
 function camZoneHas(c, x, z, y) {
   const zs = c.zs || (c.z ? [c.z] : null); if (!zs) return true;
   if (c.lv && (y < c.lv[0] || y > c.lv[1])) return false;
   return zs.some(r => inR(r, x, z));
 }
+const _cv = new THREE.Vector3(), _cp = new THREE.Vector3(), _crc = new THREE.Raycaster();
+// 映るか：胴が画面の内にあって、胴か頭のどちらかが壁や家具に隠れていない（床の格子ごとに覚える）
+function camSees(R, c, x, z, y) {
+  const qx = Math.round(x * 4), qz = Math.round(z * 4), qy = Math.round(y * 4), key = c.i + ',' + qx + ',' + qz + ',' + qy;
+  let v = R.seeCache.get(key); if (v === undefined) { v = camSeesAt(R, c, qx / 4, qz / 4, qy / 4); R.seeCache.set(key, v); } return v;
+}
+const SEE_PTS = [[0, 1.1], [0, 1.55], [-0.2, 1.2], [0.2, 1.2], [0, 0.6]]; // 体の5か所（横にずらすのは、カメラから見た左右）
+function camSeesAt(R, c, x, z, y) {
+  const cam = c.cam; _cv.set(x, y + 1.1, z).project(cam);
+  if (_cv.z > 1 || _cv.z < -1 || abs(_cv.x) > 0.9 || abs(_cv.y) > 0.92) return false;
+  const dx = x - cam.position.x, dz = z - cam.position.z, dl = hyp(dx, dz) || 1, sx = -dz / dl, sz = dx / dl;
+  let open = 0;
+  for (const [s, h] of SEE_PTS) { _cp.set(x + sx * s, y + h, z + sz * s).sub(cam.position); const L = _cp.length(); _crc.set(cam.position, _cp.normalize()); _crc.near = 0.05; _crc.far = L - 0.3; if (!_crc.intersectObjects(R.solids, false).length && ++open >= 2) return true; }
+  return false; // 5か所のうち2か所以上見えていれば「映っている」（細い柱や棒の陰はよい）
+}
 function pickCam(R, cur, x, z, y) {
-  if (cur && camZoneHas(cur, x, z, y)) return cur;
-  for (const c of R.cams) if (!c.event && camZoneHas(c, x, z, y)) return c;
-  let best = R.cams.find(c => !c.event) || R.cams[0], bd = 1e9; for (const c of R.cams) { if (c.event) continue; const d = hyp(c.p[0] - x, c.p[2] - z); if (d < bd) { bd = d; best = c; } } return best;
+  const cams = R.cams.filter(c => !c.event); if (!cams.length) return R.cams[0] || null;
+  if (cur && cur.event) cur = null;
+  if (cur && camZoneHas(cur, x, z, y) && camSees(R, cur, x, z, y)) return cur;
+  for (const c of cams) if (camZoneHas(c, x, z, y) && camSees(R, c, x, z, y)) return c;
+  if (cur && camSees(R, cur, x, z, y)) return cur; // 受け持ちのカメラが映せないときは、映せるカメラで
+  for (const c of cams) if (camSees(R, c, x, z, y)) return c;
+  if (cur && camZoneHas(cur, x, z, y)) return cur; // どれも映せない所（テストで無くす）
+  for (const c of cams) if (camZoneHas(c, x, z, y)) return c;
+  let best = cams[0], bd = 1e9; for (const c of cams) { const d = hyp(c.p[0] - x, c.p[2] - z); if (d < bd) { bd = d; best = c; } } return best;
 }
