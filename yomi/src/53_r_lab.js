@@ -87,7 +87,7 @@ ROOMS.lab_cult = {
     { p: [4.6, 3.3, -3.6], t: [1.0, 0.6, 3.0], fov: 60, z: [1.4, 1.6, 5, 4] },
     { id: 'tank', p: [0.6, 1.5, 0.4], t: [-1.5, 1.3, -2.95], fov: 50, event: true },
   ],
-  enemies: [{ t: 'hunter', x: -1.5, z: -2.95, r: 0, key: 'cult_h1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'hunter', x: -1.5, z: -2.95, r: 0, key: 'cult_h1', hidden: true, st: 'idle', revealIf: 'f:hunters', revealAt: [-1.5, -1.9] }],
 };
 ROOMS.lab_cell = {
   name: '隔離房', fl: 'LAB', map: [9, -9, 8, 6], w: 8, d: 6, h: 3.0,
@@ -102,14 +102,14 @@ ROOMS.lab_cell = {
   ],
   build(c) { const b = makeCorpse('guard', 'sit'); b.position.set(1.9, 0, 2.55); b.rotation.y = PI; c.add(b); c.look(1.9, 2.3, 1.0, '警備員の亡骸。壁にもたれて座りこんでいる。\n自分で、自分の頭を撃ったらしい。'); },
   acts: [{ p: [0, -1.55], r: 1.1, id: 'hayase', items: ['serum'] }],
-  items: [{ id: 'mg', x: 1.4, z: 2.1, key: 'magnum' }, { id: 'mg_ammo', n: 6, x: 2.4, z: 1.7, key: 'mg_a1' }, { id: 'herb_g', x: -3.3, z: 2.4, key: 'cell_h1' }],
+  items: [{ id: 'mg', x: 1.4, z: 2.1, key: 'magnum' }, { id: 'mg_ammo', n: 6, x: 2.4, z: 1.7, key: 'mg_a1' }, { id: 'herb_g', x: -3.3, z: 2.4, key: 'cell_h1' }, { id: 'hg_ammo', n: 15, x: 0.8, z: -2.2, key: 'haya_ammo' }],
   cams: [
     { p: [3.6, 2.6, 2.6], t: [-1.0, 0.7, -1.6], fov: 62, z: [-4, -3, 0.5, 1.8] },
     { p: [-3.6, 2.6, 2.6], t: [1.0, 0.7, -1.6], fov: 62, z: [0.5, -3, 4, 1.8] },
     { p: [0.0, 2.7, -2.75], t: [0.0, 0.4, 2.6], fov: 62, z: [-4, 1.6, 4, 3] },
     { id: 'haya', p: [0.9, 1.3, 0.2], t: [0, 0.8, -2.2], fov: 46, event: true },
   ],
-  enemies: [{ t: 'zombie', k: 'res', x: -2.6, z: -1.8, r: 0, key: 'cell_z1', sense: 6 }],
+  enemies: [{ t: 'zombie', k: 'res', x: -2.6, z: -1.6, r: 0, key: 'cell_z1', sense: 6 }],
 };
 ROOMS.lab_core = {
   name: '最深部', fl: 'LAB', map: [3, -24, 12, 14], w: 12, d: 14, h: 6.0,
@@ -140,7 +140,7 @@ ROOMS.lab_core = {
     // 水槽の裏：ポンプと配管の塊（奥の壁まで）
     g.box(m, 0, 1.4, -5.9, 4.4, 2.8, 2.2); g.box(ir, 0, 2.9, -5.9, 4.0, 0.2, 2.0); for (const x of [-1.5, -0.5, 0.5, 1.5]) g.cyl(ir, x, 2.9, -6.4, 0.18, 2.6, 8); g.box(CL('#1a1e22'), 0, 0.9, -4.79, 2.6, 1.2, 0.02); for (let k = 0; k < 6; k++) g.box(CL(k % 2 ? '#40ff60' : '#ff4030', k % 2 ? '#20c040' : '#c02010'), -1.0 + k * 0.4, 1.3, -4.78, 0.06, 0.04, 0.01);
     c.block([-2.25, -7, 2.25, -4.7], 0, { tall: true });
-    if (flag('boss1')) { liq.visible = false; glass.visible = false; body.visible = false; L.base = 2; }
+    if (flag('alarm')) { liq.visible = false; glass.visible = false; body.visible = false; L.base = 2; }
   },
   acts: [{ p: [2.3, 1.6], r: 0.95, id: 'core_term' }],
   looks: [{ p: [0, -0.2], r: 1.2, t: () => flag('boss1') ? '水槽は砕け散っている。' : '巨大な水槽。中に浮かぶ白い巨体は、人の形をしている。\n胸に、古い軍服の切れ端が貼りついている。' }],
@@ -152,7 +152,7 @@ ROOMS.lab_core = {
     { p: [-5.6, 4.6, -0.6], t: [3.0, 0.8, 4.6], fov: 60, z: [-0.5, 2.8, 6, 7] },
     { id: 'boss', p: [0.6, 1.4, 2.4], t: [0, 2.6, -2.6], fov: 58, event: true },
   ],
-  enemies: [{ t: 'boss1', x: 0, z: -0.2, r: 0, key: 'boss1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'boss1', x: 0, z: -0.2, r: 0, key: 'boss1', hidden: true, st: 'idle', revealIf: 'f:alarm', revealAt: [0, 0.3] }],
 };
 ROOMS.lab_exit = {
   name: '搬出路', fl: 'LAB', map: [15, -30, 3, 26], w: 3, d: 28, h: 3.4,

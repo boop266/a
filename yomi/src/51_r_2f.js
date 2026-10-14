@@ -6,7 +6,7 @@ ROOMS.w2corr = {
   doors: [
     { id: 'E', p: [1.3, 6.5], type: 'wood', to: ['hall', 'BW'] },
     { id: 'N', p: [0, -9], type: 'wood', to: ['bed', 'S'], lock: { key: 'hawk' } },
-    { id: 'C', p: [1.3, -3], type: 'wood', to: ['child', 'W'] },
+    { id: 'C', p: [1.3, -3], type: 'wood', to: ['child', 'W'] }, { id: 'D', p: [1.3, 2.0], type: 'wood', to: ['shosei', 'W'] },
     { id: 'S', p: [0, 9], type: 'wood', to: ['wcorr', 'N'], fx: 'stairsdown', lock: { bar: 'this', msg: '階段室の扉だ。こちら側から、かんぬきが掛かっている。\n外しますか？' } },
   ],
   wins: [{ p: [-1.3, -6.2], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, -2.6], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, 1.0], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, 4.6], w: 1.15, y: 0.85, h: 2.1 }],
@@ -30,7 +30,7 @@ ROOMS.w2corr = {
   enemies: [{ t: 'dog', x: -0.3, z: 1.0, key: 'w2_d1', cond: 'f:dogs', alert: true }, { t: 'dog', x: -0.3, z: -2.6, key: 'w2_d2', cond: 'f:dogs', alert: true }],
 };
 ROOMS.bed = {
-  name: '寝室', fl: '2F', map: [-4, -9, 8, 7], w: 8, d: 7, h: 3.6,
+  name: '寝室', fl: '2F', map: [-2.5, -7, 8, 7], w: 8, d: 7, h: 3.6,
   floor: 'parquet_d', wall: 'paper_red', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.2, thunder: true,
   ambience: { rain: 0.5, drone: 0.3 }, amb: ['#4a3636', 0.62], fog: ['#080505', 0.03],
   doors: [{ id: 'S', p: [-2.6, 3.5], type: 'wood', to: ['w2corr', 'N'], lock: { key: 'hawk' } }],
@@ -55,10 +55,10 @@ ROOMS.bed = {
     { p: [-3.7, 3.25, 1.0], t: [-2.6, 0.5, -3.4], fov: 60, z: [-4, -3.5, -2.0, -0.6] },
     { id: 'ward', p: [0.6, 1.6, 0.8], t: [3.4, 1.2, 1.7], fov: 52, event: true },
   ],
-  enemies: [{ t: 'zombie', k: 'servant', x: 3.45, z: 1.7, r: -PI / 2, key: 'bed_z1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'zombie', k: 'servant', x: 3.45, z: 1.7, r: -PI / 2, key: 'bed_z1', hidden: true, st: 'idle', revealIf: 'f:wardrobe', revealAt: [2.92, 1.7] }],
 };
 ROOMS.child = {
-  name: '子ども部屋', fl: '2F', map: [3, -3, 6, 6], w: 6, d: 6, h: 3.2,
+  name: '子ども部屋', fl: '2F', map: [3, 3, 6, 6], w: 6, d: 6, h: 3.2,
   floor: 'parquet', wall: 'paper_child', wain: 'wainscot', wainH: 0.9, ceil: 'plaster', rev: 0.15, thunder: true,
   ambience: { rain: 0.45, drone: 0.15, wind: 0.25 }, amb: ['#3a4250', 0.52], hemi: ['#8090b0', '#302820', 0.25], fog: ['#06070a', 0.035],
   doors: [{ id: 'W', p: [-3, 1.0], type: 'wood', to: ['w2corr', 'C'] }],
@@ -78,6 +78,22 @@ ROOMS.child = {
     { p: [2.7, 2.8, 2.7], t: [-1.2, 0.5, -1.3], fov: 62, z: [-3, -3, 3, 0.3] },
     { p: [-2.7, 2.8, -2.7], t: [1.3, 0.5, 1.6], fov: 62, z: [-3, 0.3, 3, 3] },
   ],
+};
+// 書生部屋：住みこみの書生が使っていた小部屋。二階で、ただひとつ落ち着ける場所
+ROOMS.shosei = {
+  name: '書生部屋', fl: '2F', map: [3, 9.6, 4.4, 4.4], w: 4.4, d: 4.4, h: 2.9, save: true,
+  floor: 'parquet', wall: 'paper_cream', wain: 'wainscot', wainH: 1.0, ceil: 'plaster', music: 'save', rev: 0.15,
+  ambience: { rain: 0.4, drone: 0 }, amb: ['#5a4a38', 0.55], fog: ['#0a0806', 0.03],
+  doors: [{ id: 'W', p: [-2.2, -0.45], type: 'wood', to: ['w2corr', 'D'] }],
+  wins: [{ p: [2.2, -0.6], w: 0.9, y: 1.1, h: 1.3 }],
+  props: [
+    { k: 'typewriter', x: 0.7, z: -1.88, r: 0 }, { k: 'itembox', x: 1.82, z: 1.2, r: 3 },
+    { k: 'bookshelf', x: -1.15, z: -1.98, r: 0, L: 1.5, h: 2.2, t: '法律と医学の本が、ぎっしり並んでいる。\n一冊に「神代製薬　研究補助」の名刺が挟まっていた。' },
+    { k: 'cot', x: -1.55, z: 1.3, r: 0, t: '書生の寝床。枕の下に、故郷の母親からの手紙が入っていた。\n「お屋敷の仕事は、つらくはありませんか」' },
+    { k: 'sconce', x: 0.3, z: 2.17, r: 2, i: 3.0, c: '#ffd8a0' },
+  ],
+  items: [{ id: 'ribbon', n: 2, x: 1.25, z: -1.82, y: 0.75, key: 'sho_rib' }, { id: 'herb_g', x: -1.8, z: -1.0, key: 'sho_h1' }],
+  cams: [{ p: [1.95, 2.5, 1.95], t: [-1.1, 0.45, -1.0], fov: 68 }, { p: [1.95, 2.5, -1.95], t: [-1.2, 0.45, 1.2], fov: 68 }, { p: [-1.95, 2.5, 1.95], t: [1.2, 0.45, -1.2], fov: 68 }],
 };
 // 肖像画の回廊：壁に並ぶ順（北←→南）と、生まれた順
 const GALLERY = [
@@ -151,5 +167,5 @@ ROOMS.library = {
     { p: [-4.6, 4.2, 3.6], t: [2.7, 0.6, -1.2], fov: 58, z: [-0.8, -4, 5, 2.0] },
     { p: [0.4, 4.2, -3.4], t: [0.2, 0.5, 3.6], fov: 62, z: [-5, 1.8, 5, 4] },
   ],
-  enemies: [{ t: 'zombie', k: 'servant', x: -3.2, z: 2.9, r: 0.6, key: 'lib_z1' }, { t: 'zombie', k: 'butler', x: 2.6, z: -2.2, r: 2.6, key: 'lib_z2' }],
+  enemies: [{ t: 'zombie', k: 'servant', x: -3.2, z: 2.9, r: 0.6, key: 'lib_z1' }, { t: 'zombie', k: 'butler', x: 2.75, z: -2.3, r: 2.6, key: 'lib_z2' }],
 };

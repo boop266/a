@@ -188,14 +188,19 @@ function updFx(dt) {
   G.fx = G.fx.filter(f => f.life > 0);
 }
 // ── 調べる ──
+// ボタンで選ばれる物：届く物のうち、まっすぐ向いている物（タイプライターの横のリボンより、正面のタイプライター）。
+// ほぼ同じ向きなら 拾う物 → 調べる所 → 扉 の順（時計の中に出た鍵は、時計より先に拾う）。壁や家具の説明は、ほかに何もないときだけ
+function actTarget() {
+  const R = G.room, fx = Math.sin(PL.ang), fz = Math.cos(PL.ang); let best = null, bs = 1e9;
+  const consider = (pri, d, dx, dz, o) => { const a = d < 0.3 ? 0 : Math.acos(clamp((dx * fx + dz * fz) / d, -1, 1)); const s = d * 0.5 + a + pri * 0.3 + (pri === 3 ? 100 : 0); if (s < bs) { best = o; bs = s; } };
+  for (const p of R.pick) { const dx = p.x - PL.x, dz = p.z - PL.z, d = hyp(dx, dz); if (d < 1.05 && p.y - PL.y < 2.1 && p.y - PL.y > -1.4 && (d < 0.5 || (dx * fx + dz * fz) / d > 0.35)) consider(0, d, dx, dz, { k: 'pick', p }); }
+  for (const a of R.acts) { if (a.cond && !condOK(a.cond)) continue; const dx = a.p[0] - PL.x, dz = a.p[1] - PL.z, d = hyp(dx, dz); if (d < a.r && abs((a.y || 0) - PL.y) < 1.2 && (d < 0.45 || (dx * fx + dz * fz) / d > 0.25)) consider(1, d, dx, dz, { k: 'act', a }); }
+  for (const dr of R.doors) { const dx = dr.pos[0] - PL.x, dz = dr.pos[1] - PL.z, d = hyp(dx, dz); if (d < 1.15 && abs(dr.y - PL.y) < 0.8 && (fx * -dr.n[0] + fz * -dr.n[1]) > 0.45) consider(2, d, dx, dz, { k: 'door', d: dr }); }
+  for (const l of R.looks) { if (l.cond && !condOK(l.cond)) continue; const dx = l.p[0] - PL.x, dz = l.p[1] - PL.z, d = hyp(dx, dz); if (d < l.r && abs((l.y || 0) - PL.y) < 1.2 && (d < 0.4 || (dx * fx + dz * fz) / d > 0.3)) consider(3, d, dx, dz, { k: 'look', l }); }
+  return best;
+}
 function interact() {
-  const R = G.room, fx = Math.sin(PL.ang), fz = Math.cos(PL.ang); let best = null, bp = 9, bd = 9;
-  const consider = (pri, d, o) => { if (pri < bp || (pri === bp && d < bd)) { best = o; bp = pri; bd = d; } };
-  for (const p of R.pick) { const dx = p.x - PL.x, dz = p.z - PL.z, d = hyp(dx, dz); if (d < 1.05 && abs(p.y - PL.y) < 1.4 && (d < 0.5 || (dx * fx + dz * fz) / d > 0.35)) consider(0, d, { k: 'pick', p }); }
-  for (const a of R.acts) { if (a.cond && !condOK(a.cond)) continue; const dx = a.p[0] - PL.x, dz = a.p[1] - PL.z, d = hyp(dx, dz); if (d < a.r && abs((a.y || 0) - PL.y) < 1.2 && (d < 0.45 || (dx * fx + dz * fz) / d > 0.25)) consider(1, d, { k: 'act', a }); }
-  for (const dr of R.doors) { const dx = dr.pos[0] - PL.x, dz = dr.pos[1] - PL.z, d = hyp(dx, dz); if (d < 1.15 && abs(dr.y - PL.y) < 0.8 && (fx * -dr.n[0] + fz * -dr.n[1]) > 0.45) consider(2, d, { k: 'door', d: dr }); }
-  for (const l of R.looks) { if (l.cond && !condOK(l.cond)) continue; const dx = l.p[0] - PL.x, dz = l.p[1] - PL.z, d = hyp(dx, dz); if (d < l.r && abs((l.y || 0) - PL.y) < 1.2 && (d < 0.4 || (dx * fx + dz * fz) / d > 0.3)) consider(3, d, { k: 'look', l }); }
-  if (!best) return;
+  const best = actTarget(); if (!best) return;
   if (best.k === 'pick') pickupPrompt(best.p);
   else if (best.k === 'act') doAct(best.a);
   else if (best.k === 'door') useDoor(best.d);
@@ -206,12 +211,26 @@ function pickupPrompt(p) {
   if (id === 'file') { takePickup(p); G.files.push(p.file); AU.sfx('pick'); say(`「${FILES[p.file].t}」を見つけた。`, () => openFile(p.file)); return; }
   if (id === 'map') { takePickup(p); G.maps[p.map] = true; AU.sfx('pick'); say(`${FLOORS[p.map]}の地図を手に入れた。`); return; }
   const it = ITEMS[id], n = p.n || 1, nm = it.name + (it.stack ? `（${n}）` : '');
-  ask(`${nm}がある。\n拾いますか？`, ['はい', 'いいえ'], i => {
-    if (i !== 0) return;
-    if (!canFit(id, n)) { say('持ち物がいっぱいで、これ以上持てない。'); return; }
-    PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); storyPick(p.key, id); };
-  });
+  ask(`${nm}がある。\n拾いますか？`, ['はい', 'いいえ'], i => { if (i === 0) { if (canFit(id, n)) pickUp(p); else fullPick(p); } });
 }
+function pickUp(p, then) { const id = p.id, n = p.n || 1; PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); storyPick(p.key, id); if (then) then(); }; }
+// 持ち物がいっぱいのとき：もう使わない鍵があれば、捨てて拾う。武器なら、手に持っている武器をここに置いて持ちかえる
+// （置いた武器は床に残り、またここで拾える。引き返せない屋上で、投げ落とされた武器を拾えなくなることがない）
+function fullPick(p) {
+  const it = ITEMS[p.id], done = G.inv.find(s => s && ITEMS[s.id].kind === 'key' && keyDone(s.id));
+  if (done) { ask(`持ち物がいっぱいだ。\nもう使わない${ITEMS[done.id].name}を捨てて、拾いますか？`, ['捨てて拾う', 'やめる'], i => { if (i) return; invTake(done.id); AU.sfx('ok'); pickUp(p); }); return; }
+  const w = G.eq, slot = G.inv.findIndex(s => s && s.id === w);
+  if (it.kind === 'weapon' && slot >= 0) {
+    ask(`持ち物がいっぱいだ。\n${ITEMS[w].name}をここに置いて、\n${it.name}に持ちかえますか？`, ['持ちかえる', 'やめる'], i => {
+      if (i) return; G.inv[slot] = null; const k = 'put_' + w, d = { room: G.rid, id: w, x: PL.x, z: PL.z, y: PL.y }; delete G.taken[k]; (G.drops = G.drops || {})[k] = d; spawnPickup(G.room, Object.assign({ key: k }, d));
+      pickUp(p, () => { G.eq = p.id; });
+    });
+    return;
+  }
+  say('持ち物がいっぱいで、これ以上持てない。');
+}
+// もう使う所のない鍵は、使ったその場で捨てるか聞く（持ち物の枠をあけるため）
+function offerDiscard(kid) { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); }
 function takePickup(p) { G.taken[p.key] = true; const R = G.room; R.scene.remove(p.mdl); R.pick = R.pick.filter(q => q !== p); if (G.drops && G.drops[p.key]) delete G.drops[p.key]; }
 // ── 扉 ──
 function doorPair(rid, d) { return [rid + ':' + d.id, d.to ? d.to[0] + ':' + d.to[1] : ''].sort().join('|'); }
@@ -226,8 +245,7 @@ function useDoor(d) {
       const kid = Object.keys(ITEMS).find(k => ITEMS[k].lock === L.key);
       if (invHas(kid)) {
         G.open[key] = true; AU.sfx('unlock'); storyUnlock(R.id, d.id, kid);
-        // もう使う扉のない鍵は、その場で捨てるか聞く（持ち物の枠をあけるため）
-        say(`${ITEMS[kid].name}を使った。`, () => { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); });
+        say(`${ITEMS[kid].name}を使った。`, () => offerDiscard(kid));
         return;
       }
       AU.sfx('locked', { x: d.pos[0], z: d.pos[1] }); G.lockSeen[key] = true;

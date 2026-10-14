@@ -84,7 +84,9 @@ function storyEnter(id) {
   if (id === 'child' && !flag('horse')) { setFlag('horse'); const h = G.room.dyn.horse; if (h) h.rock = 5; AU.sfx('creak', { x: -1.5, z: -1.6, delay: 0.4 }); }
   if (id === 'lab_cell' && !flag('boss1')) { const n = addNpc('haya', 0, -2.35, 0, 'sit'); n.y = 0; }
   if (id === 'heliport' && !flag('boss2')) heliEnter();
-  if (id === 'lab_core' && flag('boss1')) { const c = G.room.dyn.core; c.liq.visible = c.glass.visible = c.body.visible = false; }
+  if (id === 'lab_core' && flag('alarm')) { const c = G.room.dyn.core; c.liq.visible = c.glass.visible = c.body.visible = false; }
+  if (id === 'bed' && flag('wardrobe')) { const W = G.room.dyn.wardrobe; if (W) { W.doors[0].rotation.y = 1.7; W.doors[1].rotation.y = -1.7; } }
+  if (id === 'lab_cult' && flag('hunters')) { const T2 = G.room.dyn.t2; if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } }
   if (id === 'hall' && flag('clock') && !flag('hallZ')) { setFlag('hallZ'); AU.sfx('groan', { x: 3, z: 1, v: 1.2, delay: 0.6 }); }
 }
 // ── 毎こま：場所と条件で起こる出来事 ──
@@ -124,7 +126,7 @@ function evTank() {
   runCut(function* () {
     camEv('tank'); yield 0.8; AU.sfx('creak', { x: -1.5, z: -2.95 }); yield 0.7; AU.sfx('glass', { x: -1.5, z: -2.95 }); AU.sfx('shock');
     if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } particles(-1.5, 1.4, -2.5, 30, '#8ae8c8', 4, 0.9);
-    if (h) { h.def.hidden = false; h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; h.x = -1.5; h.z = -2.1; }
+    if (h) { h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; [h.x, h.z] = h.def.revealAt; }
     yield 0.6; if (h) { h.anim = 'roar'; AU.sfx('screech', { x: h.x, z: h.z }); } yield 1.2;
     if (h) { h.script = false; h.alert = true; setState(h, 'run', 'hunt'); } camNormal();
   });
@@ -138,11 +140,12 @@ function storyKill(e) {
 function storyUnlock(rid, did, kid) {
   const opened = k => Object.keys(G.open).filter(p => p.includes(k));
   if (kid === 'key_hawk' && G.open[doorPair('ecorr', ROOMS.ecorr.doors.find(d => d.id === 'E'))] && G.open[doorPair('w2corr', ROOMS.w2corr.doors.find(d => d.id === 'N'))]) setFlag('hawkdone');
+  if (kid === 'idcard' && flag('password')) setFlag('iddone'); // IDカード：隔離房の扉と、合言葉の端末の両方で使い終わり
   if (kid === 'key_snake') setFlag('snakedone'); if (kid === 'key_wolf') setFlag('wolfdone'); if (kid === 'key_base') setFlag('basedone');
 }
 function storyPick(key, id) {
   if (key === 'shotgun') { setFlag('shotgun'); const c = G.room.dyn.cabinet; if (c) c.gun.visible = false; AU.sfx('crash', { x: -4, z: 1, delay: 1.2, vol: 0.6 }); say('東の廊下のほうで、何かが倒れる音がした。'); }
-  if (key === 'snakekey') setTimeout(() => { }, 0);
+  if (key === 'magnum') G.mag.mg = Math.max(G.mag.mg || 0, 5); // 警備員が一発だけ使った回転式拳銃：残りの5発が込めてある
 }
 // ── 調べる仕掛け ──
 function doAct(a, useId) {
@@ -205,7 +208,7 @@ function evWardrobe() {
   runCut(function* () {
     yield 0.6; AU.sfx('creak', { x: 3.6, z: 1.7 }); yield 0.9; camEv('ward'); AU.sfx('crash', { x: 3.6, z: 1.7 }); AU.sfx('shock');
     if (W) { W.doors[0].rotation.y = 1.7; W.doors[1].rotation.y = -1.7; }
-    if (z) { z.def.hidden = false; z.revealed = true; z.h.root.visible = true; z.targetable = true; z.solid = true; z.x = 3.1; z.alert = true; setState(z, 'chase', 'walk'); AU.sfx('groan', { x: z.x, z: z.z, v: 1.6 }); }
+    if (z) { z.revealed = true; z.h.root.visible = true; z.targetable = true; z.solid = true; [z.x, z.z] = z.def.revealAt; z.alert = true; setState(z, 'chase', 'walk'); AU.sfx('groan', { x: z.x, z: z.z, v: 1.6 }); }
     yield 1.4; camNormal();
   });
 }
@@ -268,7 +271,7 @@ function passUpdate() {
   if (IN.e.cancel && !KEYS.backspace) { G.ui = null; AU.sfx('cancel'); }
 }
 function passKey(k) { const s = G.ui; if (k === '←') s.text = s.text.slice(0, -1); else if (k === '決定') { passSubmit(); return; } else if (s.text.length < 10) s.text += k; AU.sfx('tick'); }
-function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。'); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
+function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); if (G.open[doorPair('lab_corr', ROOMS.lab_corr.doors.find(d => d.id === 'E2'))]) setFlag('iddone'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。', () => offerDiscard('idcard')); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
 function drawPass() {
   const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
   txt('合言葉を入力してください', UB.x + UB.w / 2, UB.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
@@ -281,19 +284,20 @@ function drawPass() {
 function hayaAct() {
   if (flag('hayaSaved')) { say('早瀬は壁にもたれて、目を閉じている。\n呼吸は落ち着いている。'); return; }
   if (invHas('serum')) { ask('早瀬に、血清を打ちますか？', ['打つ', 'やめる'], i => { if (i) return; invTake('serum'); setFlag('hayaSaved'); runCut(function* () { camEv('haya'); yield 0.8; AU.sfx('flesh', { x: 0, z: -2.3, vol: 0.3 }); yield 1.2; say('早瀬「……っ。……効いてきた」'); yield 'msg'; say('早瀬「少し休めば、動ける。……先に行け、遼。必ず追いつく」'); yield 'msg'; camNormal(); }); }); return; }
-  if (!flag('hayaMet')) { setFlag('hayaMet'); runCut(function* () { camEv('haya'); yield 1.0; say('早瀬「……遼か」'); yield 'msg'; say('早瀬「噛まれた。……熱が、ひどい」'); yield 'msg'; say('早瀬「俺のことはいい。……行け」'); yield 'msg'; camNormal(); }); return; }
+  if (!flag('hayaMet')) { setFlag('hayaMet'); runCut(function* () { camEv('haya'); yield 1.0; say('早瀬「……遼か」'); yield 'msg'; say('早瀬「噛まれた。……熱が、ひどい」'); yield 'msg'; say('早瀬「弾は……そこに置いた。俺には、もう要らない。持っていけ」'); yield 'msg'; say('早瀬「俺のことはいい。……行け」'); yield 'msg'; camNormal(); }); return; }
   say('早瀬の呼吸が浅い。額に触れると、ひどく熱い。');
 }
 // ── 最深部：救難信号とヨミ ──
 function coreAct() {
   if (flag('boss1')) { say('画面に「自己保存プログラム　作動中」の赤い文字。'); return; }
+  if (flag('alarm')) { say('救難信号は、もう送った。\n画面の向こうで、何かが砕けた跡だけが光っている。'); return; }
   ask('救難信号の送信装置がある。\n信号を送りますか？', ['送る', 'やめる'], i => {
     if (i) return;
     runCut(function* () {
       AU.sfx('beep'); yield 0.4; AU.sfx('beep'); yield 1.0; say('無線「……こちら春日。信号を受けた。\n夜明けに、屋上のヘリポートへ向かう。持ちこたえろ」'); yield 'msg';
       setFlag('alarm'); AU.setAmb(Object.assign({}, G.room.D.ambience, { alarm: 1 })); yield 0.8; camEv('boss'); AU.sfx('creak', {}); yield 1.0; AU.sfx('glass', {}); AU.sfx('shock');
       const c = G.room.dyn.core; c.glass.visible = false; c.liq.visible = false; c.body.visible = false; c.L.base = 3; particles(0, 2.0, -0.9, 40, '#8ad8ff', 5, 1.0);
-      const b = G.en.find(e => e.key === 'boss1'); if (b) { b.def.hidden = false; b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; b.x = 0; b.z = 0.0; b.ang = 0; }
+      const b = G.en.find(e => e.key === 'boss1'); if (b) { b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; [b.x, b.z] = b.def.revealAt; b.ang = 0; }
       AU.sfx('roar', { x: 0, z: 0 }); yield 2.0; camNormal(); if (b) { b.script = false; b.alert = true; setState(b, 'walk', 'walk'); } AU.music('boss');
     });
   });
@@ -314,7 +318,7 @@ function heliEnter() {
   runCut(function* () {
     camAt([4, 2.2, 7.5], [-2, 3, -6], 55); AU.sfx('heli', { vol: 0.4 }); yield 1.0; say('無線「見えた。屋上だな！　いま降りる——」'); yield 'msg';
     AU.sfx('crash', {}); AU.sfx('shock'); G.shakeT = 0.8; yield 0.5;
-    const b = G.en.find(e => e.key === 'boss2'); if (b) { b.def.hidden = false; b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; b.x = 0; b.z = -6; b.ang = 0; }
+    const b = G.en.find(e => e.key === 'boss2'); if (b) { b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; [b.x, b.z] = b.def.revealAt; b.ang = 0; }
     camEv('sky'); AU.sfx('roar', { x: 0, z: -6 }); yield 2.0; say('無線「なんだ、あれは……！　近づけない！」'); yield 'msg'; camNormal();
     if (b) { b.script = false; b.alert = true; setState(b, 'walk', 'walk'); } AU.music('boss');
   });

@@ -16,6 +16,7 @@ const ROUTE = `[
   { go: 'dining' }, { act: 'clock' }, { pick: 'hawkkey', req: true },
   // ── 2階 ──
   { go: 'hall' }, { clear: true }, { go: 'w2corr' },
+  { go: 'shosei' }, { pick: 'sho_rib' }, { pick: 'sho_h1' }, { tidy: true }, { box: true, takeRibbon: true }, { save: 0 }, { box: true },
   { go: 'child' }, { act: 'toychest' }, { pick: 'f_sayo' },
   { go: 'bed' }, { act: 'vanity' }, { clear: true }, { pick: 'bed_h1' }, { pick: 'f_yukino' },
   { go: 'w2corr' }, { clear: true }, { pick: 'w2_ammo' },
@@ -40,11 +41,11 @@ const ROUTE = `[
   { go: 'lab_res' }, { clear: true }, { pick: 'reagB', req: true }, { pick: 'f_research' }, { pick: 'f_kuga' }, { pick: 'res_spray' }, { pick: 'res_ammo' },
   { go: 'lab_cult' }, { clear: true }, { pick: 'idcard', req: true }, { pick: 'reagA', req: true }, { pick: 'cult_sg' },
   { go: 'lab_res' }, { act: 'synth' },
-  { go: 'lab_cell' }, { clear: true }, { pick: 'magnum' }, { pick: 'mg_a1' }, { pick: 'cell_h1' },
-  { act: 'hayase' }, { act: 'hayase' },
   { go: 'lab_corr' }, { clear: true }, { act: 'terminal' },
-  { go: 'lab_core' }, { act: 'core_term' }, { boss: 'boss1' },
-  { go: 'lab_exit' }, { clear: true }, { go: 'heliport' }, { boss: 'boss2' },
+  { go: 'lab_cell' }, { clear: true }, { pick: 'magnum', want: true }, { pick: 'mg_a1', want: true }, { pick: 'cell_h1' },
+  { act: 'hayase' }, { act: 'hayase' }, { pick: 'haya_ammo', want: true },
+  { go: 'lab_core' }, { heal: 85 }, { heal: 85 }, { act: 'core_term' }, { boss: 'boss1' },
+  { go: 'lab_exit' }, { clear: true }, { heal: 70 }, { go: 'heliport' }, { boss: 'boss2' },
   { ending: true },
 ]`;
 (async () => {
@@ -75,14 +76,14 @@ const ROUTE = `[
       if (st.done || errs.length > 20) break;
       if ((Date.now() - t0) / 60000 > limitMin) { console.log('  時間切れ（テストの）'); break; }
     }
-    const res = await p.evaluate(() => ({ result: BOT.result, deaths: BOT.deaths, fail: BOT.fail, i: BOT.i, n: BOT.route.length, time: fmtTime(G.time), kills: G.kills, shots: BOT.shots, hurt: BOT.hurt, saves: G.saves, mode: G.mode, haya: flag('hayaSaved') }));
+    const res = await p.evaluate(() => ({ result: BOT.result, deaths: BOT.deaths, fail: BOT.fail, i: BOT.i, n: BOT.route.length, time: fmtTime(G.time), kills: G.kills, shots: BOT.shots, hurt: BOT.hurt, saves: G.saves, mode: G.mode, haya: flag('hayaSaved'), inv: G.inv.map(q => q ? q.id + (q.n > 1 ? 'x' + q.n : '') : '-').join(' ') }));
     console.log(`${label}: ${JSON.stringify(res)}`); return res;
   };
   // 前半：はじめから（血清を打つ）
   const A = await runPhase('A', `BOT.route = ${ROUTE}; BOT.opts = { haya: true }; BOT.titleGo = 'はじめから'; G.mode = 'title'; TITLE.phase = 'press';`, 25);
   // 後半：つづきから（記録2）→ 血清を打たない
   const routeB = `(() => { const r = ${ROUTE}; const k = r.findIndex(t => t.save === 1); return r.slice(k + 1); })()`;
-  const B2 = await runPhase('B', `BOT.route = ${routeB}; BOT.i = 0; BOT.co = null; BOT.done = false; BOT.fail = null; BOT.result = null; BOT.opts = { haya: false }; BOT.saveIdx = [0, 0, 0]; BOT.loadSlot = 1; BOT.titleGo = 'つづきから'; BOT.deaths = 0;`, 15);
+  const B2 = await runPhase('B', `if (G.mode !== 'title') toTitle(); BOT.route = ${routeB}; BOT.i = 0; BOT.co = null; BOT.done = false; BOT.fail = null; BOT.result = null; BOT.opts = { haya: false }; BOT.saveIdx = [0, 0, 0]; BOT.loadSlot = 1; BOT.titleGo = 'つづきから'; BOT.deaths = 0; BOT.passive = false; BOT.noFight = false; BOT.deadSeen = false; BOT.healCo = BOT.equipCo = BOT.grabCo = null;`, 15);
   // 時間切れで死ぬか（脱出の残り時間）
   const timer = await p.evaluate(() => { YOMI.go('lab_exit', 0, 12); G.timer = { left: 1.5 }; PL.hp = 100; PL.dead = false; for (let k = 0; k < 60 * 4; k++) step(1 / 60); return { dead: PL.dead, why: G.deathWhy, mode: G.mode }; });
   console.log('時間切れ:', JSON.stringify(timer));

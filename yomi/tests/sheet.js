@@ -6,5 +6,6 @@ const files = fs.readdirSync(dir).filter(f => f.endsWith('.png') && (!pre || pre
 (async () => {
   const b = await chromium.launch(); const w = cols * 400 + 20; const p = await b.newPage({ viewport: { width: w, height: 400 } });
   const html = `<body style="margin:0;background:#111;color:#ddd;font:14px sans-serif;display:grid;grid-template-columns:repeat(${cols},400px);gap:4px;padding:6px">` + files.map(f => `<div><img src="file://${path.resolve(dir, f)}" style="width:400px;display:block"><div>${f}</div></div>`).join('') + '</body>';
-  await p.setContent(html); await p.waitForTimeout(400); await p.screenshot({ path: out, fullPage: true }); await b.close(); console.log(files.length, 'images');
+  // 写真と同じフォルダに置いたページとして開く（空のページからは、手元の画像を読めない）
+  const page = path.resolve(dir, '_sheet.html'); fs.writeFileSync(page, html); await p.goto('file://' + page); await p.waitForTimeout(400); fs.unlinkSync(page); await p.screenshot({ path: out, fullPage: true }); await b.close(); console.log(files.length, 'images');
 })();

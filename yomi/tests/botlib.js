@@ -65,6 +65,8 @@ window.BOT = (() => {
     for (let r = rmin; r <= rmax + 1e-6; r += 0.06) for (let k = 0; k < 24; k++) { const a = k / 24 * TAU, x = tx + Math.sin(a) * r, z = tz + Math.cos(a) * r; const y = stand(x, z, ty != null ? ty : PL.y); if (y == null || (ty != null && abs(y - ty) > 0.6)) continue; const s = r * 3 + hyp(x - PL.x, z - PL.z) * 0.15; if (s < bd) { bd = s; best = [x, z, y]; } }
     return best;
   }
+  // 持ち物と、込めてある弾（記録用）
+  const invStr = () => G.inv.map(q => q ? q.id + (q.n > 1 ? '×' + q.n : '') : '-').join(' ') + '　弾 ' + Object.entries(G.mag).filter(([w, n]) => invHas(w)).map(([w, n]) => w + n).join(' ');
   // ── 敵 ──
   function threats() {
     const out = [];
@@ -73,7 +75,8 @@ window.BOT = (() => {
       const d = hyp(e.x - PL.x, e.z - PL.z), t = e.type, big = t === 'brute' || t === 'hunter' || t.startsWith('boss');
       const see = lineClear(G.room, PL.x, PL.z, e.x, e.z, PL.y);
       let th = false;
-      if (big) th = (e.alert || d < 6) && d < 16; else if (t === 'dog') th = d < 9; else if (t === 'spider') th = (e.alert && d < 8) || d < 3; else th = (e.alert || d < 2.6) && d < 6.5 && (see || d < 2);
+      // 大きな敵：気づいていて、見えている（槽の中で眠っている物は相手にしない）
+      if (big) th = e.alert && d < 16 && (see || d < 4); else if (t === 'dog') th = d < 9; else if (t === 'spider') th = (e.alert && d < 8) || d < 3; else th = (e.alert || d < 2.6) && d < 6.5 && (see || d < 2);
       if (th) out.push({ e, d, see });
     }
     return out.sort((a, b) => a.d - b.d);
@@ -81,19 +84,41 @@ window.BOT = (() => {
   const WPREF = { zombie: ['hg', 'sg'], crawler: ['hg', 'sg'], dog: ['hg', 'sg'], spider: ['hg', 'sg'], hunter: ['sg', 'hg', 'mg'], brute: ['sg', 'hg', 'mg'], boss1: ['mg', 'sg', 'hg'], boss2: ['gl', 'mg', 'sg', 'hg'] };
   const hasAmmo = w => w === 'knife' || (invHas(w) && ((G.mag[w] || 0) > 0 || invCount(ITEMS[w].ammo) > 0 || (w === 'hg' && G.inf)));
   function wantWeapon(t) { for (const w of WPREF[t] || ['hg', 'sg']) if (hasAmmo(w)) return w; for (const w of ['hg', 'sg', 'mg', 'gl']) if (hasAmmo(w)) return w; return 'knife'; }
-  function fight(T) {
-    const e = T.e, d = T.d, t = e.type;
+  // 逃げる向き：敵から離れる向きのうち、先が広く開いている向き（壁や家具の角へ追いこまれない）
+  function openDir(away) {
+    let best = null, bs = -1e9;
+    for (let k = 0; k < 16; k++) { const a = away + (k < 8 ? k : k - 16) / 16 * TAU, fx = Math.sin(a), fz = Math.cos(a); let L = 0; for (let r = 0.35; r <= 4; r += 0.35) { if (!segClear(PL.x, PL.z, PL.y, PL.x + fx * r, PL.z + fz * r)) break; L = r; }
+      if (L < 1.0) continue; const sc = L + Math.cos(a - away) * 2.2; if (sc > bs) { bs = sc; best = a; } }
+    return best;
+  }
+  function fight(T0, all) {
+    const e = T0.e, d = T0.d, t = e.type;
     if (PL.grab) { key('any'); idle(); return; }
-    const kd = { zombie: 1.45, crawler: 1.1, dog: 0, spider: 1.7, hunter: 2.2, brute: 3.2, boss1: 3.6, boss2: 3.6 }[t] || 1.4;
-    if (d < kd && PL.hurtT <= 0) { // 近すぎる：走って離れる
-      const away = Math.atan2(PL.x - e.x, PL.z - e.z);
-      for (const off of [0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, 2.1, -2.1, 2.7, -2.7]) { const a = away + off, tx = PL.x + Math.sin(a) * 1.4, tz = PL.z + Math.cos(a) * 1.4; if (segClear(PL.x, PL.z, PL.y, tx, tz)) { stickTo(Math.sin(a), Math.cos(a), true); return; } }
+    const go = a => { stickTo(Math.sin(a), Math.cos(a), true); };
+    const away = Math.atan2(PL.x - e.x, PL.z - e.z), big = t === 'brute' || t.startsWith('boss');
+    // 大きな敵の大技はよける：身構え・突進は横へ（いま居る側へ）、振りかぶりは広い方へ下がる
+    if (big && PL.hurtT <= 0) {
+      if (['brace', 'lunge', 'charge'].includes(e.state)) { const side = (PL.x - e.x) * Math.cos(e.ang) - (PL.z - e.z) * Math.sin(e.ang) >= 0 ? 1 : -1; for (const a of [e.ang + side * PI / 2, e.ang - side * PI / 2]) { const o = openDir(a); if (o != null && abs(angDiff(o, a)) < 1.0) { go(o); return; } } }
+      if (e.state === 'windup' && d < 3.4) { const o = openDir(away); if (o != null) { B.kiteT = B.t + 0.5; B.kiteA = o; go(o); return; } }
+    }
+    // 近すぎる：しばらく走って間をあける（すぐ構えなおすと、構え終わる前にまた詰められる）。
+    // 大きな敵が振り終わり・ひるみの間は、離れずに撃つ
+    const kd = { zombie: 1.45, crawler: 1.1, dog: 0, spider: 1.7, hunter: 2.2, brute: 2.6, boss1: 2.7, boss2: 2.7 }[t] || 1.4;
+    const opening = big && ['swing', 'stagger', 'roar'].includes(e.state);
+    if (PL.hurtT <= 0 && !opening) {
+      if (B.kiteT > B.t && B.kiteE === e && d < kd + 1.6) { if (B.t - (B.kiteAT || 0) > 0.25) { B.kiteAT = B.t; const o = openDir(away); if (o != null) B.kiteA = o; } go(B.kiteA); return; }
+      if (d < kd) { const o = openDir(away); if (o != null) { B.kiteE = e; B.kiteT = B.t + (big ? 0.9 : 0.5); B.kiteA = o; B.kiteAT = B.t; go(o); return; } }
     }
     const w = G.eq; if (w !== 'knife' && (G.mag[w] || 0) <= 0 && !invCount(ITEMS[w].ammo) && !(w === 'hg' && G.inf)) { idle(); return; }
-    const ta = Math.atan2(e.x - PL.x, e.z - PL.z), dA = angDiff(PL.ang, ta);
+    // 撃つ相手は、ゲームが自動で狙っている相手（脅威のうちの一体なら）。狙っていなければ、いちばん近い敵へ向ける
+    const tq = all.find(q => q.e === PL.tgt) || T0, te = tq.e;
+    const ta = Math.atan2(te.x - PL.x, te.z - PL.z), dA = angDiff(PL.ang, ta);
     IN.bot = { mx: 0, my: 0, run: false, aim: true };
-    if (PL.tgt !== e && abs(dA) > 0.2) { const [mx, my] = stickVec(Math.sin(ta), Math.cos(ta)); IN.bot.mx = mx; IN.bot.my = my; }
-    if (PL.aimT > 0.18 && PL.cd <= 0 && abs(dA) < 0.3 && (T.see || d < 2.5)) { key('fire'); B.shots++; }
+    if (tq === T0 && PL.tgt !== e && abs(dA) > 0.2) { const [mx, my] = stickVec(Math.sin(ta), Math.cos(ta)); IN.bot.mx = mx; IN.bot.my = my; }
+    // 当たる向きになってから撃つ（遠いほど細かく合わせる）。散弾は近いほど効くので、寄ってくる相手は引きつけてから
+    const tol = Math.min(0.3, Math.atan2(te.rad + 0.05, Math.max(0.6, tq.d)) * (w === 'sg' ? 1.5 : 0.85));
+    const inRange = w !== 'sg' || tq.d < 4.8 || te.type === 'brute' || te.type.startsWith('boss');
+    if (PL.aimT > 0.18 && PL.cd <= 0 && abs(dA) < tol && inRange && (tq.see || tq.d < 2.5)) { key('fire'); B.shots++; }
   }
   // ── 持ち物の画面を、ボタンで動かす（コルーチン） ──
   function* openMenuCo() { for (let k = 0; k < 30 && !(G.ui && G.ui.k === 'menu'); k++) { if (!G.msg && G.mode === 'play' && PL.actT <= 0 && PL.reloadT <= 0 && !PL.grab && PL.hurtT <= 0) key('menu'); yield; } if (!(G.ui && G.ui.k === 'menu')) return false; yield; return true; }
@@ -145,17 +170,26 @@ window.BOT = (() => {
       const ok = yield* interactCo(d.pos[0], d.pos[1], d.y, 0.8, '扉 ' + did, { at: [sp[0], sp[1], d.y], face: [d.pos[0], d.pos[1]] });
       yield* waitCalmCo(30);
       if (G.rid === rid0) { if (!ok) { say_('扉を通れない：' + did); } yield; }
-      else say_('→ ' + G.rid);
+      else say_('→ ' + G.rid + '　体力' + PL.hp + '　' + invStr());
     }
     return G.rid === to;
   }
-  function* pickCo(k, req) {
+  // この先、次に箱へ寄るまでに拾う「要る物」の数（そのぶんの枠は、ほかの物で埋めない）
+  function needFree() { let n = 0; for (let k = B.i + 1; k < B.route.length; k++) { const T = B.route[k]; if (T.box) break; if (T.pick && T.req) n++; } return n; }
+  function* pickCo(k, req, want) {
     if (G.taken[k]) return true; const p = G.room.pick.find(q => q.key === k); if (!p) { say_('拾い物が見当たらない：' + k); if (req) B.fail = B.fail || ('拾えない ' + k); return false; }
-    if (p.id !== 'file' && p.id !== 'map' && !canFit(p.id, p.n || 1)) { say_('持ちきれず置いていく：' + k); if (req) B.fail = B.fail || ('持てない ' + k); return false; }
+    const loose = p.id === 'file' || p.id === 'map', fits = loose || canFit(p.id, p.n || 1);
+    // いっぱいでも、もう使わない鍵を捨てるか、武器なら持ちかえて拾える（ゲームがそう聞いてくる）
+    const room = G.inv.some(q => q && ITEMS[q.id].kind === 'key' && keyDone(q.id)) || (ITEMS[p.id] && ITEMS[p.id].kind === 'weapon' && invHas(G.eq));
+    if (!fits && !((req || want) && room)) { say_('持ちきれず置いていく：' + k); if (req) B.fail = B.fail || ('持てない ' + k); return false; }
+    // 先の要る物のために枠をあけておく（重ねられない物を拾うときだけ。ふつうの物は、さらにひとつ余分に）
+    const stacks = ITEMS[p.id] && ITEMS[p.id].stack && G.inv.some(q => q && q.id === p.id && q.n + (p.n || 1) <= ITEMS[p.id].stack);
+    if (!req && fits && !loose && !stacks && invFree() - 1 < (want ? needFree() : Math.max(1, needFree()))) { say_('枠を空けておくため置いていく：' + k); return false; }
     let lv = null; for (const dy of [0, 0.6, 0.95, 1.3, 1.9]) { if (approach(p.x, p.z, p.y - dy, 0.95)) { lv = p.y - dy; break; } }
     if (lv == null) { say_('近づけない：拾う ' + k); if (req) B.fail = B.fail || ('近づけない ' + k); return false; }
     for (let t = 0; t < 3 && !G.taken[k]; t++) { yield* interactCo(p.x, p.z, lv, 0.95, '拾う ' + k); yield* waitCalmCo(20); }
     if (G.taken[k]) say_('拾った：' + (p.id === 'file' ? 'ファイル ' + p.file : p.id === 'map' ? '地図' : ITEMS[p.id].name)); else { say_('拾えなかった：' + k); if (req) B.fail = B.fail || ('拾えない ' + k); }
+    if (G.taken[k] && p.id.startsWith('herb') && invFree() < 2) yield* tidyHerbsCo(); // 薬草は混ぜて枠を空ける
     return !!G.taken[k];
   }
   function* actCo(id, o = {}) {
@@ -170,14 +204,14 @@ window.BOT = (() => {
     const b = G.ui; if (!b || b.k !== 'box') { say_('箱が開かない'); return; }
     const keep = keepSet(); const heals = ['herb_grb', 'herb_gr', 'herb_ggg', 'spray', 'herb_gg', 'herb_gb', 'herb_g', 'herb_b'];
     // 預ける：武器と弾と鍵いがいの物（回復は良い物を2つまで持つ）
-    let healKeep = o.heals != null ? o.heals : 2; const put = [];
+    let healKeep = o.heals != null ? o.heals : 1; const put = [];
     const order = G.inv.map((s, i) => [s, i]).filter(q => q[0]).sort((p, q) => (heals.indexOf(p[0].id) + 99) % 99 - (heals.indexOf(q[0].id) + 99) % 99);
     for (const [s, i] of order) { const it = ITEMS[s.id]; if (keep.has(s.id) || it.kind === 'key') continue; if (it.kind === 'heal' && s.id !== 'herb_r' && s.id !== 'herb_b' && healKeep > 0) { healKeep--; continue; } if (s.id === 'ribbon' && o.keepRibbon) continue; put.push(i); }
     for (const i of put) { if (b.side !== 0) { key('left'); yield; } while (b.sel !== i) { key(b.sel < i ? 'down' : 'up'); yield; } key('ok'); yield; say_('預けた：' + (G.box[G.box.length - 1] || {}).id); }
     // 出す：持っていく武器の弾・回復（足りなければ）・リボン
     const take = id => G.box.findIndex(q => q.id === id);
     const want = [...keep].filter(id => ITEMS[id].kind === 'ammo' || ITEMS[id].kind === 'weapon'); if (o.takeRibbon) want.push('ribbon');
-    let hc = G.inv.filter(s => s && ITEMS[s.id].kind === 'heal' && s.id !== 'herb_r' && s.id !== 'herb_b').length; for (const h of heals) { if (hc >= (o.heals != null ? o.heals : 2)) break; if (h === 'herb_b' || h === 'herb_r') continue; if (take(h) >= 0) { want.push(h); hc++; } }
+    let hc = G.inv.filter(s => s && ITEMS[s.id].kind === 'heal' && s.id !== 'herb_r' && s.id !== 'herb_b').length; for (const h of heals) { if (hc >= (o.heals != null ? o.heals : 1)) break; if (h === 'herb_b' || h === 'herb_r') continue; if (take(h) >= 0) { want.push(h); hc++; } }
     for (const id of want) { const j = take(id); if (j < 0 || invFree() <= 0) continue; if (b.side !== 1) { key('right'); yield; } while (b.bsel !== j) { key(b.bsel < j ? 'down' : 'up'); yield; } key('ok'); yield; say_('出した：' + id); }
     key('cancel'); yield; yield* waitCalmCo(5);
   }
@@ -208,10 +242,10 @@ window.BOT = (() => {
   function* bossCo(k) { const T0 = B.t; while (B.t - T0 < 400) { const b = G.en.find(e => e.key === k); if (G.killed[k] || (b && b.dead)) { say_('倒した：' + k); return true; } if (b && b.h.root.visible && !threats().some(t => t.e === b)) { const ap = approach(b.x, b.z, b.y, 6, 4); if (ap) walk(ap[0], ap[1], ap[2], 0.5, false); } else idle(); yield; } say_('ボスが倒せない：' + k); B.fail = B.fail || ('ボス ' + k); return false; }
   function* dieCo() { say_('（わざと何もしないで、やられる）'); B.noFight = true; B.passive = true; const T0 = B.t; while (!PL.dead && B.t - T0 < 120) { const e = G.en.filter(e => !e.dead).sort((a, b) => hyp(a.x - PL.x, a.z - PL.z) - hyp(b.x - PL.x, b.z - PL.z))[0]; if (e && hyp(e.x - PL.x, e.z - PL.z) > 1.0) { const ap = approach(e.x, e.z, e.y, 1.2, 0.8); if (ap) walk(ap[0], ap[1], ap[2], 0.3, false); } else idle(); yield; } B.noFight = false; B.passive = false; return PL.dead; }
   function* portraitsCo() { for (const idx of [1, 3, 5, 0, 2, 4]) { yield* actCo('portrait', { idx }); if (flag('portraits')) break; } say_(flag('portraits') ? '肖像画：そろった' : '肖像画：失敗'); return flag('portraits'); }
-  function* endingCo() { const T0 = B.t; while (B.t - T0 < 200 && !(G.ui && G.ui.k === 'results')) yield; if (G.ui && G.ui.k === 'results') { const r = G.ui; B.result = { rank: r.rank, time: fmtTime(r.time), saves: r.saves, heals: r.heals, kills: r.kills, haya: r.haya }; say_('成績：' + JSON.stringify(B.result)); B.snapNow = 'results'; for (let k = 0; k < 120; k++) yield; for (let k = 0; k < 60 && G.ui; k++) { key('ok'); yield; } } return G.mode === 'title'; }
+  function* endingCo() { const T0 = B.t; while (B.t - T0 < 200 && !(G.ui && G.ui.k === 'results')) yield; if (G.ui && G.ui.k === 'results') { const r = G.ui; B.result = { rank: r.rank, time: fmtTime(r.time), saves: r.saves, heals: r.heals, kills: r.kills, haya: r.haya }; say_('成績：' + JSON.stringify(B.result)); B.snapNow = 'results'; for (let k = 0; k < 120; k++) yield; } return !!B.result; }
   function taskCo(T) {
-    if (T.go) { if (T.passive && !B.died[T.passive]) B.passive = true; return goCo(T.go); } if (T.pick) return pickCo(T.pick, T.req); if (T.act) return actCo(T.act, T); if (T.clear) return clearCo(T); if (T.box) return boxCo(T); if (T.save != null) return saveCo(T.save);
-    if (T.die) { if (B.died[T.die]) return (function* () { })(); B.died[T.die] = 1; return dieCo(); } if (T.portraits) return portraitsCo(); if (T.boss) return bossCo(T.boss); if (T.ending) return endingCo(); if (T.heal) return healCo(); if (T.tidy) return tidyHerbsCo(); if (T.equip) return equipCo(T.equip);
+    if (T.go) { if (T.passive && !B.died[T.passive]) B.passive = true; return goCo(T.go); } if (T.pick) return pickCo(T.pick, T.req, T.want); if (T.act) return actCo(T.act, T); if (T.clear) return clearCo(T); if (T.box) return boxCo(T); if (T.save != null) return saveCo(T.save);
+    if (T.die) { if (B.died[T.die]) return (function* () { })(); B.died[T.die] = 1; return dieCo(); } if (T.portraits) return portraitsCo(); if (T.boss) return bossCo(T.boss); if (T.ending) return endingCo(); if (T.heal) return (function* () { if (PL.hp < (T.heal === true ? 100 : T.heal) && hasHeal()) { say_('戦いの前に回復'); yield* healCo(); } })(); if (T.tidy) return tidyHerbsCo(); if (T.equip) return equipCo(T.equip);
     if (T.wait) return (function* () { const T0 = B.t; while (B.t - T0 < T.wait) { idle(); yield; } })();
     if (T.fn) return (function* () { T.fn(); yield; })();
     return (function* () { })();
@@ -236,20 +270,26 @@ window.BOT = (() => {
     // 死んだ：最後の記録から
     if (G.mode === 'dead') { if (!B.deadSeen) { B.deadSeen = true; B.deaths++; say_('死んだ（' + (G.deathWhy || '?') + '）'); B.snapNow = 'dead'; } if (G.deathT > 3.4 && (B.frameN % 10 === 0)) key('ok'); return; }
     if (G.ui && G.ui.k === 'load') { if (B.frameN % 8 === 0) { const want = B.loadSlot || 0; if (G.ui.sel !== want) key('down'); else key('ok'); } return; }
-    if (B.deadSeen && G.mode === 'play') { B.deadSeen = false; const back = B.saveIdx[B.loadSlot || 0]; say_('最後の記録から再開 → 手順 ' + back); B.i = back; B.co = null; B.path = null; B.loadSlot = 0; return; }
+    if (B.deadSeen && G.mode === 'title' && !B.titleGo) { B.deadSeen = false; say_('記録がないので、はじめから'); B.i = 0; B.co = null; B.path = null; B.died = {}; B.titleGo = 'はじめから'; return; }
+    if (B.deadSeen && G.mode === 'play') { B.deadSeen = false; const back = B.saveIdx[B.loadSlot || 0] ?? 0; say_('最後の記録から再開 → 手順 ' + back); B.i = back; B.co = null; B.path = null; B.loadSlot = 0; return; }
+    // 成績の画面（ボス戦のあと、結末から自動で出る）：手順を結末まで進めて、成績を記録してから閉じる
+    if (G.ui && G.ui.k === 'results') {
+      if (!(B.task && B.task.ending)) { const k = B.route.findIndex((T, j) => j >= B.i && T.ending); if (k >= 0) { B.i = k; B.task = B.route[k]; B.taskT = B.t; B.co = endingCo(); say_('手順 ' + k + '：' + JSON.stringify(B.task)); } }
+      if (B.co) { const r = B.co.next(); if (r.done) { B.co = null; B.i++; } } else if (B.frameN % 10 === 0) key('ok');
+      return;
+    }
+    if (B.titleGo === 'はじめから' && G.mode !== 'title' && G.mode !== 'boot') B.titleGo = null; // 始まったら、もうタイトルでは押さない
     if (G.mode === 'title') {
       if (B.titleGo && B.frameN % 10 === 0) { if (TITLE.phase === 'press') key('any'); else { const items = titleItems(), want = items.findIndex(q => q[0] === B.titleGo); if (want >= 0 && TITLE.sel !== want) key('down'); else if (want >= 0) { key('ok'); if (B.titleGo === 'つづきから') B.titleGo = null; } } }
       if (!B.titleGo && B.co === null && B.i >= B.route.length) B.done = true;
-      if (B.titleGo === 'はじめから' && G.mode !== 'title') B.titleGo = null;
-      if (G.mode === 'title' && !B.titleGo) { /* 結果のあと */ }
-      if (G.mode !== 'title') B.titleGo = null;
-      if (G.mode === 'title') return;
+      return;
     }
     if (G.card) { if (B.frameN % 40 === 0) key('ok'); return; }
     if (G.ui && G.ui.k === 'menu' && G.ui.solo) { if (B.frameN % 6 === 0) key('ok'); return; } // 読んだファイルをめくる
     if (G.ui && G.ui.k === 'pass') { if (!B.passStep) B.passStep = 1; if (B.passStep === 1) { IN.typed = 'SAYO'; B.passStep = 2; } else if (B.passStep === 2) { key('left'); B.passStep = 3; } else { key('ok'); B.passStep = 0; } return; }
-    if (G.ui && G.ui.k === 'results' && !B.co) return;
-    if (G.rid && G.rid !== B.lastRid) { B.lastRid = G.rid; if (!B.seenRoom[G.rid]) { B.seenRoom[G.rid] = 1; B.snapRoom = G.rid; } }
+    // はじめて入った部屋の写真：扉の暗転が明けてから撮る
+    if (G.rid && G.rid !== B.lastRid) { B.lastRid = G.rid; if (!B.seenRoom[G.rid]) { B.seenRoom[G.rid] = 1; B.pendRoom = G.rid; } }
+    if (B.pendRoom && G.mode === 'play' && G.fade < 0.05 && !G.doorFx && !G.msg) { B.snapRoom = B.pendRoom; B.pendRoom = null; }
     if (G.msg) {
       const m = G.msg, full = m.pages[m.i].length;
       if (m.o.choice && m.ch >= full && m.i === m.pages.length - 1) { const want = choiceFor(m); if ((m.sel || 0) !== want) { if (B.frameN % 3 === 0) key('down'); } else if (B.frameN % 3 === 0) key('ok'); }
@@ -260,13 +300,18 @@ window.BOT = (() => {
     if (G.mode !== 'play') return;
     // 戦い（毎こま、手順より先）
     const T = (B.noFight || B.passive) ? [] : threats(); // わざとやられる間は戦わない
+    // ボス戦の最中に投げ落とされた武器：大技が来ていないうちに拾いに行く
+    const danger = T.length && (['brace', 'lunge', 'charge'].includes(T[0].e.state) || (T[0].e.state === 'windup' && T[0].d < 3.4) || T[0].d < 1.8);
+    if (B.grabCo && danger) B.grabCo = null; // 大技が来たら、いったんよけてから拾いなおす
+    if (!B.grabCo && !danger && T.some(q => q.e.type.startsWith('boss')) && !PL.grab && B.t - (B.grabT || -9) > 1.5) { const q = G.room.pick.find(q => ITEMS[q.id] && ITEMS[q.id].kind === 'weapon' && !invHas(q.id)); if (q) { B.grabT = B.t; B.grabCo = pickCo(q.key, false, true); } }
+    if (B.grabCo) { const r = B.grabCo.next(); if (r.done) B.grabCo = null; else return; }
     if (T.length) {
-      const w = wantWeapon(T[0].e.type);
-      if (w !== G.eq && T[0].d > 3.5 && !B.equipCo && !PL.grab && B.t - (B.equipT || -9) > 3) { B.equipT = B.t; B.equipCo = equipCo(w); } // 持ちかえは3秒に一度まで（だめなら今の武器で戦う）
+      const w = wantWeapon(T[0].e.type), dry = G.eq !== 'knife' && !hasAmmo(G.eq); // 持ち物を開いている間は時間が止まるので、近くても持ちかえてよい（弾切れならすぐ）
+      if (w !== G.eq && !B.equipCo && !PL.grab && B.t - (B.equipT || -9) > (dry ? 0.5 : 3)) { B.equipT = B.t; B.equipCo = equipCo(w); } // 持ちかえは3秒に一度まで（だめなら今の武器で戦う）
       if (B.equipCo) { const r = B.equipCo.next(); if (r.done) B.equipCo = null; return; }
-      if (PL.hp < 34 && T[0].d > 4.5 && hasHeal() && !B.healCo && B.t - (B.healNoT || -9) > 5) B.healCo = healCo();
+      if (PL.hp <= 40 && !PL.grab && hasHeal() && !B.healCo && B.t - (B.healNoT || -9) > 5) B.healCo = healCo(); // 危ない（足も遅くなる）：持ち物の画面は時間が止まるので、近くてもすぐ回復
       if (B.healCo) { const r = B.healCo.next(); if (r.done) { B.healCo = null; if (!r.value) B.healNoT = B.t; } else return; }
-      fight(T[0]); B.fightT += dt; return;
+      fight(T[0], T); B.fightT += dt; return;
     }
     if (B.equipCo) { const r = B.equipCo.next(); if (r.done) B.equipCo = null; return; }
     // 落ち着いているとき：回復・毒消し
@@ -286,7 +331,8 @@ window.BOT = (() => {
   }
   function hasHeal() { return G.inv.some(s => s && ITEMS[s.id].kind === 'heal' && s.id !== 'herb_r' && (s.id !== 'herb_b' || PL.poison) && (ITEMS[s.id].heal > 0 || (ITEMS[s.id].cure && PL.poison))); }
   B.tick = tick; B.findPath3 = findPath3; B.approach = approach;
-  B.frame = dt => { tick(dt); step(dt); if (G.room && PL.hp < (B.lastHp ?? 100)) B.hurt += (B.lastHp ?? 100) - PL.hp; B.lastHp = PL.hp; };
+  // 1こま：ボタンを決めて、ゲームを進める。描かずに進めるので、描くときに進む画面の重ね（傷の赤・暗転）も、ここで同じだけ進める
+  B.frame = dt => { tick(dt); step(dt); drawOverlay(dt); if (G.room && PL.hp < (B.lastHp ?? 100)) B.hurt += (B.lastHp ?? 100) - PL.hp; B.lastHp = PL.hp; };
   B.run = (n, dt = 1 / 60) => { B.snapRoom = null; for (let k = 0; k < n && !B.done && !B.snapNow && !B.snapRoom; k++) B.frame(dt); return B.status(); };
   B.status = () => ({ where: B.where, i: B.i, n: B.route.length, rid: G.rid, mode: G.mode, hp: PL.hp, time: fmtTime(G.time), done: B.done, fail: B.fail, deaths: B.deaths, eq: G.eq, mag: G.mag[G.eq], log: B.log.splice(0), snap: B.snapNow, room: B.snapRoom, inv: G.inv.map(s => s ? s.id + (s.n > 1 ? 'x' + s.n : '') : '-').join(' ') });
   return B;

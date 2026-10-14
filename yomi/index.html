@@ -1358,11 +1358,12 @@ PROPS.bed = (c, o) => { const canopy = !!o.canopy; place(c, o, 0.85, 1.1, canopy
   if (canopy) { for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.box(w, sx * 0.84, 1.2, sz * 1.03, 0.07, 2.4, 0.07); g.box(v, 0, 2.38, 0, 1.8, 0.1, 2.2); for (const sx of [-1, 1]) g.box(v, sx * 0.87, 1.6, -0.6, 0.02, 1.5, 0.6); }
 }, { t: o.t || '大きな寝台。シーツが、人の形に沈んだまま冷えている。' }); };
 PROPS.cot = (c, o) => place(c, o, 0.45, 1.0, 0.6, g => { const m = W('metal'); g.box(m, 0, 0.35, 0, 0.9, 0.05, 1.95); for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.box(m, sx * 0.42, 0.18, sz * 0.92, 0.04, 0.36, 0.04); g.box(W('linen'), 0, 0.43, 0, 0.84, 0.1, 1.9); g.box(CL('#5a5a48'), 0, 0.5, 0.3, 0.86, 0.04, 1.2); }, { t: o.t || '簡易寝台。毛布がくしゃくしゃのままだ。' });
-PROPS.wardrobe = (c, o) => { place(c, o, 0.6, 0.32, 2.2, g => { const w = W('wood_d'); g.box(w, 0, 1.1, -0.02, 1.2, 2.2, 0.56); g.box(w, 0, 2.24, 0, 1.3, 0.1, 0.66); g.box(w, 0, 0.05, 0, 1.25, 0.1, 0.62); }, { t: o.t || '衣装棚。中から、かすかに何かが擦れる音がした……気のせいだろうか。' });
-  // 扉（衣装棚から何か出る出来事で開く）
-  const grp = new THREE.Group(); const p = rotP(o, 0, 0, 0.27); grp.position.set(...p); grp.rotation.y = (o.r || 0) * PI / 2;
-  const doors = []; for (const s of [-1, 1]) { const piv = new THREE.Group(); piv.position.x = s * 0.58; const d = gbMesh(g => { g.box(W('wood'), -s * 0.29, 1.12, 0, 0.57, 2.0, 0.04); g.box(W('wood_d'), -s * 0.29, 1.5, 0.025, 0.42, 0.7, 0.02); g.box(W('wood_d'), -s * 0.29, 0.65, 0.025, 0.42, 0.7, 0.02); g.box(W('brass'), -s * 0.52, 1.1, 0.04, 0.03, 0.12, 0.02); }); piv.add(d); grp.add(piv); doors.push(piv); }
-  c.add(grp); c.R.dyn[o.id || 'wardrobe'] = { doors, open: 0 };
+// 衣装棚：外箱は動かない形、観音開きの扉二枚は動く（中から破られる出来事で開く）
+PROPS.wardrobe = (c, o) => {
+  place(c, o, 0.6, 0.32, 2.2, g => { const w = W('wood_d'); g.box(w, 0, 1.1, -0.26, 1.2, 2.2, 0.06); for (const s of [-1, 1]) g.box(w, s * 0.58, 1.1, -0.01, 0.04, 2.2, 0.56); g.box(w, 0, 2.24, 0, 1.3, 0.1, 0.66); g.box(w, 0, 0.05, 0, 1.25, 0.1, 0.62); g.box(CL('#0c0908'), 0, 1.15, -0.2, 1.12, 2.0, 0.02); g.box(W('wood'), 0, 1.95, -0.05, 1.1, 0.03, 0.03); }, { t: o.t || '衣装棚。中から、かすかに何かが擦れる音がした……気のせいだろうか。' });
+  const grp = new THREE.Group(); grp.position.set(o.x, o.y || 0, o.z); grp.rotation.y = (o.r || 0) * PI / 2; c.add(grp); const doors = [];
+  for (const s of [1, -1]) { const piv = new THREE.Group(); piv.position.set(s * 0.58, 0.12, 0.27); const leaf = gbMesh(gb => { const w = W('wood_d'); gb.box(w, -s * 0.29, 0.98, 0, 0.56, 1.96, 0.04); gb.box(W('wood'), -s * 0.29, 1.3, 0.025, 0.42, 0.7, 0.01, { no: '-z' }); gb.box(W('wood'), -s * 0.29, 0.5, 0.025, 0.42, 0.5, 0.01, { no: '-z' }); gb.box(W('brass'), -s * 0.52, 1.0, 0.035, 0.03, 0.1, 0.02); }); piv.add(leaf); grp.add(piv); doors.push(piv); }
+  c.R.dyn[o.id || 'wardrobe'] = { doors };
 };
 PROPS.vanity = (c, o) => { place(c, o, 0.55, 0.25, 1.9, g => { const w = W('wood_d'); g.box(w, 0, 0.38, 0, 1.1, 0.76, 0.48); g.box(w, 0, 0.78, 0, 1.16, 0.04, 0.52); for (const s of [-1, 1]) for (let k = 0; k < 2; k++) g.box(W('wood'), s * 0.3, 0.2 + k * 0.3, 0.245, 0.4, 0.22, 0.01, { no: '-z' }); g.box(w, 0, 1.35, -0.2, 0.8, 1.1, 0.05); g.plate(CL('#8a9aa0', '#1a2224'), 0, 1.35, -0.17, 0.66, 0.92, '+z'); for (let k = 0; k < 4; k++) g.cyl(CL('#8a6a8a'), -0.35 + k * 0.1, 0.8, 0.1, 0.025, 0.08 + k * 0.02, 5); }, { t: o.t || '鏡台。鏡の中の自分が、ひどく疲れた顔をしている。' }); };
 PROPS.sofa = (c, o) => { const L = o.L || 1.9; place(c, o, L / 2, 0.42, 0.95, g => { const v = W(o.cloth || 'velvet_r'), w = W('wood_d'); g.box(v, 0, 0.3, 0.05, L, 0.32, 0.75); g.box(v, 0, 0.42, 0.05, L - 0.3, 0.12, 0.6); g.box(v, 0, 0.7, -0.32, L, 0.6, 0.18); for (const s of [-1, 1]) g.box(v, s * (L / 2 - 0.08), 0.55, 0.05, 0.16, 0.34, 0.75); for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.box(w, sx * (L / 2 - 0.08), 0.07, sz * 0.32, 0.06, 0.14, 0.06); }, { t: o.t || '天鵞絨の長椅子。座面に、黒い染みが広がっている。' }); };
@@ -1853,14 +1854,19 @@ function updFx(dt) {
   G.fx = G.fx.filter(f => f.life > 0);
 }
 // ── 調べる ──
+// ボタンで選ばれる物：届く物のうち、まっすぐ向いている物（タイプライターの横のリボンより、正面のタイプライター）。
+// ほぼ同じ向きなら 拾う物 → 調べる所 → 扉 の順（時計の中に出た鍵は、時計より先に拾う）。壁や家具の説明は、ほかに何もないときだけ
+function actTarget() {
+  const R = G.room, fx = Math.sin(PL.ang), fz = Math.cos(PL.ang); let best = null, bs = 1e9;
+  const consider = (pri, d, dx, dz, o) => { const a = d < 0.3 ? 0 : Math.acos(clamp((dx * fx + dz * fz) / d, -1, 1)); const s = d * 0.5 + a + pri * 0.3 + (pri === 3 ? 100 : 0); if (s < bs) { best = o; bs = s; } };
+  for (const p of R.pick) { const dx = p.x - PL.x, dz = p.z - PL.z, d = hyp(dx, dz); if (d < 1.05 && p.y - PL.y < 2.1 && p.y - PL.y > -1.4 && (d < 0.5 || (dx * fx + dz * fz) / d > 0.35)) consider(0, d, dx, dz, { k: 'pick', p }); }
+  for (const a of R.acts) { if (a.cond && !condOK(a.cond)) continue; const dx = a.p[0] - PL.x, dz = a.p[1] - PL.z, d = hyp(dx, dz); if (d < a.r && abs((a.y || 0) - PL.y) < 1.2 && (d < 0.45 || (dx * fx + dz * fz) / d > 0.25)) consider(1, d, dx, dz, { k: 'act', a }); }
+  for (const dr of R.doors) { const dx = dr.pos[0] - PL.x, dz = dr.pos[1] - PL.z, d = hyp(dx, dz); if (d < 1.15 && abs(dr.y - PL.y) < 0.8 && (fx * -dr.n[0] + fz * -dr.n[1]) > 0.45) consider(2, d, dx, dz, { k: 'door', d: dr }); }
+  for (const l of R.looks) { if (l.cond && !condOK(l.cond)) continue; const dx = l.p[0] - PL.x, dz = l.p[1] - PL.z, d = hyp(dx, dz); if (d < l.r && abs((l.y || 0) - PL.y) < 1.2 && (d < 0.4 || (dx * fx + dz * fz) / d > 0.3)) consider(3, d, dx, dz, { k: 'look', l }); }
+  return best;
+}
 function interact() {
-  const R = G.room, fx = Math.sin(PL.ang), fz = Math.cos(PL.ang); let best = null, bp = 9, bd = 9;
-  const consider = (pri, d, o) => { if (pri < bp || (pri === bp && d < bd)) { best = o; bp = pri; bd = d; } };
-  for (const p of R.pick) { const dx = p.x - PL.x, dz = p.z - PL.z, d = hyp(dx, dz); if (d < 1.05 && abs(p.y - PL.y) < 1.4 && (d < 0.5 || (dx * fx + dz * fz) / d > 0.35)) consider(0, d, { k: 'pick', p }); }
-  for (const a of R.acts) { if (a.cond && !condOK(a.cond)) continue; const dx = a.p[0] - PL.x, dz = a.p[1] - PL.z, d = hyp(dx, dz); if (d < a.r && abs((a.y || 0) - PL.y) < 1.2 && (d < 0.45 || (dx * fx + dz * fz) / d > 0.25)) consider(1, d, { k: 'act', a }); }
-  for (const dr of R.doors) { const dx = dr.pos[0] - PL.x, dz = dr.pos[1] - PL.z, d = hyp(dx, dz); if (d < 1.15 && abs(dr.y - PL.y) < 0.8 && (fx * -dr.n[0] + fz * -dr.n[1]) > 0.45) consider(2, d, { k: 'door', d: dr }); }
-  for (const l of R.looks) { if (l.cond && !condOK(l.cond)) continue; const dx = l.p[0] - PL.x, dz = l.p[1] - PL.z, d = hyp(dx, dz); if (d < l.r && abs((l.y || 0) - PL.y) < 1.2 && (d < 0.4 || (dx * fx + dz * fz) / d > 0.3)) consider(3, d, { k: 'look', l }); }
-  if (!best) return;
+  const best = actTarget(); if (!best) return;
   if (best.k === 'pick') pickupPrompt(best.p);
   else if (best.k === 'act') doAct(best.a);
   else if (best.k === 'door') useDoor(best.d);
@@ -1871,12 +1877,26 @@ function pickupPrompt(p) {
   if (id === 'file') { takePickup(p); G.files.push(p.file); AU.sfx('pick'); say(`「${FILES[p.file].t}」を見つけた。`, () => openFile(p.file)); return; }
   if (id === 'map') { takePickup(p); G.maps[p.map] = true; AU.sfx('pick'); say(`${FLOORS[p.map]}の地図を手に入れた。`); return; }
   const it = ITEMS[id], n = p.n || 1, nm = it.name + (it.stack ? `（${n}）` : '');
-  ask(`${nm}がある。\n拾いますか？`, ['はい', 'いいえ'], i => {
-    if (i !== 0) return;
-    if (!canFit(id, n)) { say('持ち物がいっぱいで、これ以上持てない。'); return; }
-    PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); storyPick(p.key, id); };
-  });
+  ask(`${nm}がある。\n拾いますか？`, ['はい', 'いいえ'], i => { if (i === 0) { if (canFit(id, n)) pickUp(p); else fullPick(p); } });
 }
+function pickUp(p, then) { const id = p.id, n = p.n || 1; PL.actT = 0.45; PL.st.mode = 'pick'; PL.st.mt = 0; PL.actCb = () => { invAdd(id, n); takePickup(p); AU.sfx('pick'); itemGet(id, n); storyPick(p.key, id); if (then) then(); }; }
+// 持ち物がいっぱいのとき：もう使わない鍵があれば、捨てて拾う。武器なら、手に持っている武器をここに置いて持ちかえる
+// （置いた武器は床に残り、またここで拾える。引き返せない屋上で、投げ落とされた武器を拾えなくなることがない）
+function fullPick(p) {
+  const it = ITEMS[p.id], done = G.inv.find(s => s && ITEMS[s.id].kind === 'key' && keyDone(s.id));
+  if (done) { ask(`持ち物がいっぱいだ。\nもう使わない${ITEMS[done.id].name}を捨てて、拾いますか？`, ['捨てて拾う', 'やめる'], i => { if (i) return; invTake(done.id); AU.sfx('ok'); pickUp(p); }); return; }
+  const w = G.eq, slot = G.inv.findIndex(s => s && s.id === w);
+  if (it.kind === 'weapon' && slot >= 0) {
+    ask(`持ち物がいっぱいだ。\n${ITEMS[w].name}をここに置いて、\n${it.name}に持ちかえますか？`, ['持ちかえる', 'やめる'], i => {
+      if (i) return; G.inv[slot] = null; const k = 'put_' + w, d = { room: G.rid, id: w, x: PL.x, z: PL.z, y: PL.y }; delete G.taken[k]; (G.drops = G.drops || {})[k] = d; spawnPickup(G.room, Object.assign({ key: k }, d));
+      pickUp(p, () => { G.eq = p.id; });
+    });
+    return;
+  }
+  say('持ち物がいっぱいで、これ以上持てない。');
+}
+// もう使う所のない鍵は、使ったその場で捨てるか聞く（持ち物の枠をあけるため）
+function offerDiscard(kid) { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); }
 function takePickup(p) { G.taken[p.key] = true; const R = G.room; R.scene.remove(p.mdl); R.pick = R.pick.filter(q => q !== p); if (G.drops && G.drops[p.key]) delete G.drops[p.key]; }
 // ── 扉 ──
 function doorPair(rid, d) { return [rid + ':' + d.id, d.to ? d.to[0] + ':' + d.to[1] : ''].sort().join('|'); }
@@ -1891,8 +1911,7 @@ function useDoor(d) {
       const kid = Object.keys(ITEMS).find(k => ITEMS[k].lock === L.key);
       if (invHas(kid)) {
         G.open[key] = true; AU.sfx('unlock'); storyUnlock(R.id, d.id, kid);
-        // もう使う扉のない鍵は、その場で捨てるか聞く（持ち物の枠をあけるため）
-        say(`${ITEMS[kid].name}を使った。`, () => { if (keyDone(kid) && invHas(kid)) ask(`${ITEMS[kid].name}は、もう使うことはなさそうだ。\n捨てますか？`, ['捨てる', '持っておく'], i => { if (!i) { invTake(kid); AU.sfx('ok'); } }); });
+        say(`${ITEMS[kid].name}を使った。`, () => offerDiscard(kid));
         return;
       }
       AU.sfx('locked', { x: d.pos[0], z: d.pos[1] }); G.lockSeen[key] = true;
@@ -1950,7 +1969,10 @@ function spawnEnemy(R, d) {
   if (d.t === 'brute') { setWeapon(h, 'shears'); e.spd = 1.25; }
   if (d.t === 'hunter') e.spd = 3.9;
   if (d.t === 'boss1' || d.t === 'boss2') e.spd = d.t === 'boss1' ? 1.15 : 1.9;
-  if (d.hidden) { h.root.visible = false; e.targetable = false; e.solid = false; }
+  // 隠れている敵（衣装棚・培養槽・水槽の中）：出来事がもう起きていれば、外に出た姿で置く（定義は書きかえない）
+  const shown = d.hidden && d.revealIf && condOK(d.revealIf);
+  if (d.hidden && !shown) { h.root.visible = false; e.targetable = false; e.solid = false; }
+  if (shown) { e.revealed = true; e.alert = true; if (d.revealAt) { e.x = d.revealAt[0]; e.z = d.revealAt[1]; e.y = floorAt(R, e.x, e.z, e.y) ?? e.y; } const st = { zombie: ['chase', 'walk'], hunter: ['run', 'hunt'], boss1: ['walk', 'walk'] }[d.t] || ['idle', 'idle']; e.state = st[0]; e.anim = st[1]; }
   h.root.position.set(e.x, e.y, e.z); h.root.rotation.y = e.ang; R.scene.add(h.root);
   e.sh = blobShadow(d.t === 'spider' ? 0.8 : d.t.startsWith('boss') || d.t === 'brute' ? 0.65 : 0.42); e.sh.position.set(e.x, e.y + 0.012, e.z); R.scene.add(e.sh);
   for (let i = 0; i < 6; i++) pose(e, 0.1); // 最初の姿勢になじませる
@@ -1989,8 +2011,16 @@ function updEnemy(e, dt) {
   if (!e.alert && !e.script && (sees(e, d) && d < 6.5 || d < 2.0 || (PL.st.mode === 'run' && d < 5.5))) { e.alert = true; if (e.type === 'zombie') AU.sfx('groan', { x: e.x, z: e.z, v: 1.2 }); }
   if (!e.dead && (e.type === 'zombie' || e.type === 'crawler')) { e.groanT -= dt; if (e.groanT <= 0) { e.groanT = 3 + rnd() * 6; if (d < 14) AU.sfx('groan', { x: e.x, z: e.z, v: e.alert ? 1 : 0.6 }); } }
   if (!e.script) AI[e.type](e, dt, d);
+  unstick(e, dt);
   pose(e, dt); place();
   function place() { e.h.root.position.set(e.x, e.y, e.z); e.h.root.rotation.y = e.ang; if (e.sh) { e.sh.position.set(e.x, e.y + 0.012, e.z); e.sh.visible = e.h.root.visible; } }
+}
+// 家具や壁に体が食いこんでいるとき（椅子に座っていた・衣装棚から出た など）：立ち上がったら、いちばん近い立てる所へ歩み出る
+function unstick(e, dt) {
+  if (e.script || ['sit', 'lie', 'eat', 'idle', 'crouch', 'down'].includes(e.state)) return;
+  if (e.unT == null || e.t - e.unT > 0.5) { e.unT = e.t; e.unTo = null; if (standAt(G.room, e.x, e.z, e.y, e.rad, 'enemy') == null) { for (let r = 0.05; r <= 1.0 && !e.unTo; r += 0.05) for (let k = 0; k < 16; k++) { const a = e.ang + k / 16 * TAU, x = e.x + Math.sin(a) * r, z = e.z + Math.cos(a) * r; if (standAt(G.room, x, z, e.y, e.rad, 'enemy') != null) { e.unTo = [x, z]; break; } } } }
+  if (!e.unTo) return; const dx = e.unTo[0] - e.x, dz = e.unTo[1] - e.z, dd = hyp(dx, dz), st = Math.min(dd, 1.6 * dt);
+  if (dd < 1e-3) { e.unTo = null; return; } e.x += dx / dd * st; e.z += dz / dd * st; const y = floorAt(G.room, e.x, e.z, e.y); if (y != null) e.y = y;
 }
 function setState(e, s, anim) { e.state = s; e.at = 0; if (anim) e.anim = anim; }
 const AI = {
@@ -2087,8 +2117,10 @@ const AI = {
       case 'roar': e.anim = 'roar'; facePlayer(e, dt, 2); if (e.at > 1.6) setState(e, 'walk', 'walk'); break;
       case 'walk': e.anim = 'walk';
         if (d < 2.5 && e.cd <= 0) { setState(e, 'windup', 'windup'); AU.sfx('grunt', { x: e.x, z: e.z }); break; }
-        if (d > 4 && d < 9 && e.cd <= -1 && sees(e, d) && rnd() < dt * 1.5) { setState(e, 'lunge', 'hunt'); AU.sfx('roar', { x: e.x, z: e.z, vol: 0.6 }); e.lx = Math.sin(e.ang); e.lz = Math.cos(e.ang); break; }
+        if (d > 4 && d < 9 && e.cd <= -1 && sees(e, d) && rnd() < dt * 1.5) { setState(e, 'brace', 'roar'); AU.sfx('roar', { x: e.x, z: e.z, vol: 0.6 }); break; }
         chase(e, dt, e.spd * fast, PL.x, PL.z, 2.2 * fast); break;
+      // 突進の前に、立ち止まって身構え、吠える（見てから横へよければ、かわせる。撃ってひるませれば止まる）
+      case 'brace': facePlayer(e, dt, 3); if (e.at > 0.5 / fast) { setState(e, 'lunge', 'hunt'); e.lx = Math.sin(e.ang); e.lz = Math.cos(e.ang); } break;
       case 'windup': facePlayer(e, dt, 3); if (e.at > 0.72 / fast) { setState(e, 'swing', 'swing'); AU.sfx('swing', { x: e.x, z: e.z }); const a = abs(angDiff(e.ang, Math.atan2(PL.x - e.x, PL.z - e.z))); if (d < 2.6 && a < 1.1) hurtPlayer(ph === 1 ? 32 : 36, e.x, e.z, { kb: 5, stun: 0.7, why: 'boss' }); } break;
       case 'swing': if (e.at > 0.75) { e.cd = 1.1 / fast; setState(e, 'walk', 'walk'); } break;
       case 'lunge': { facePlayer(e, dt, 0.8); e.anim = 'hunt'; moveActor(G.room, e, Math.sin(e.ang) * 6.5 * dt, Math.cos(e.ang) * 6.5 * dt, 'enemy'); if (d < 1.2 && !e.hitDone) { e.hitDone = true; hurtPlayer(28, e.x, e.z, { kb: 6, stun: 0.8, why: 'boss' }); } if (e.at > 0.6) { e.hitDone = false; e.cd = 1.6; setState(e, 'walk', 'walk'); } break; }
@@ -2262,7 +2294,9 @@ function storyEnter(id) {
   if (id === 'child' && !flag('horse')) { setFlag('horse'); const h = G.room.dyn.horse; if (h) h.rock = 5; AU.sfx('creak', { x: -1.5, z: -1.6, delay: 0.4 }); }
   if (id === 'lab_cell' && !flag('boss1')) { const n = addNpc('haya', 0, -2.35, 0, 'sit'); n.y = 0; }
   if (id === 'heliport' && !flag('boss2')) heliEnter();
-  if (id === 'lab_core' && flag('boss1')) { const c = G.room.dyn.core; c.liq.visible = c.glass.visible = c.body.visible = false; }
+  if (id === 'lab_core' && flag('alarm')) { const c = G.room.dyn.core; c.liq.visible = c.glass.visible = c.body.visible = false; }
+  if (id === 'bed' && flag('wardrobe')) { const W = G.room.dyn.wardrobe; if (W) { W.doors[0].rotation.y = 1.7; W.doors[1].rotation.y = -1.7; } }
+  if (id === 'lab_cult' && flag('hunters')) { const T2 = G.room.dyn.t2; if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } }
   if (id === 'hall' && flag('clock') && !flag('hallZ')) { setFlag('hallZ'); AU.sfx('groan', { x: 3, z: 1, v: 1.2, delay: 0.6 }); }
 }
 // ── 毎こま：場所と条件で起こる出来事 ──
@@ -2302,7 +2336,7 @@ function evTank() {
   runCut(function* () {
     camEv('tank'); yield 0.8; AU.sfx('creak', { x: -1.5, z: -2.95 }); yield 0.7; AU.sfx('glass', { x: -1.5, z: -2.95 }); AU.sfx('shock');
     if (T2) { T2.glass.visible = false; T2.liq.visible = false; T2.body.visible = false; } particles(-1.5, 1.4, -2.5, 30, '#8ae8c8', 4, 0.9);
-    if (h) { h.def.hidden = false; h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; h.x = -1.5; h.z = -2.1; }
+    if (h) { h.revealed = true; h.h.root.visible = true; h.targetable = true; h.solid = true; h.script = true; h.anim = 'crouch'; [h.x, h.z] = h.def.revealAt; }
     yield 0.6; if (h) { h.anim = 'roar'; AU.sfx('screech', { x: h.x, z: h.z }); } yield 1.2;
     if (h) { h.script = false; h.alert = true; setState(h, 'run', 'hunt'); } camNormal();
   });
@@ -2316,11 +2350,12 @@ function storyKill(e) {
 function storyUnlock(rid, did, kid) {
   const opened = k => Object.keys(G.open).filter(p => p.includes(k));
   if (kid === 'key_hawk' && G.open[doorPair('ecorr', ROOMS.ecorr.doors.find(d => d.id === 'E'))] && G.open[doorPair('w2corr', ROOMS.w2corr.doors.find(d => d.id === 'N'))]) setFlag('hawkdone');
+  if (kid === 'idcard' && flag('password')) setFlag('iddone'); // IDカード：隔離房の扉と、合言葉の端末の両方で使い終わり
   if (kid === 'key_snake') setFlag('snakedone'); if (kid === 'key_wolf') setFlag('wolfdone'); if (kid === 'key_base') setFlag('basedone');
 }
 function storyPick(key, id) {
   if (key === 'shotgun') { setFlag('shotgun'); const c = G.room.dyn.cabinet; if (c) c.gun.visible = false; AU.sfx('crash', { x: -4, z: 1, delay: 1.2, vol: 0.6 }); say('東の廊下のほうで、何かが倒れる音がした。'); }
-  if (key === 'snakekey') setTimeout(() => { }, 0);
+  if (key === 'magnum') G.mag.mg = Math.max(G.mag.mg || 0, 5); // 警備員が一発だけ使った回転式拳銃：残りの5発が込めてある
 }
 // ── 調べる仕掛け ──
 function doAct(a, useId) {
@@ -2383,7 +2418,7 @@ function evWardrobe() {
   runCut(function* () {
     yield 0.6; AU.sfx('creak', { x: 3.6, z: 1.7 }); yield 0.9; camEv('ward'); AU.sfx('crash', { x: 3.6, z: 1.7 }); AU.sfx('shock');
     if (W) { W.doors[0].rotation.y = 1.7; W.doors[1].rotation.y = -1.7; }
-    if (z) { z.def.hidden = false; z.revealed = true; z.h.root.visible = true; z.targetable = true; z.solid = true; z.x = 3.1; z.alert = true; setState(z, 'chase', 'walk'); AU.sfx('groan', { x: z.x, z: z.z, v: 1.6 }); }
+    if (z) { z.revealed = true; z.h.root.visible = true; z.targetable = true; z.solid = true; [z.x, z.z] = z.def.revealAt; z.alert = true; setState(z, 'chase', 'walk'); AU.sfx('groan', { x: z.x, z: z.z, v: 1.6 }); }
     yield 1.4; camNormal();
   });
 }
@@ -2446,7 +2481,7 @@ function passUpdate() {
   if (IN.e.cancel && !KEYS.backspace) { G.ui = null; AU.sfx('cancel'); }
 }
 function passKey(k) { const s = G.ui; if (k === '←') s.text = s.text.slice(0, -1); else if (k === '決定') { passSubmit(); return; } else if (s.text.length < 10) s.text += k; AU.sfx('tick'); }
-function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。'); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
+function passSubmit() { const s = G.ui; G.ui = null; if (s.text === 'SAYO') { setFlag('password'); if (G.open[doorPair('lab_corr', ROOMS.lab_corr.doors.find(d => d.id === 'E2'))]) setFlag('iddone'); AU.sfx('solve'); say('「認証しました」\n重い隔壁が、ゆっくりと開いていく。', () => offerDiscard('idcard')); AU.sfx('elev', { x: 0, z: -10 }); } else { AU.sfx('locked'); say('「合言葉が違います」'); } }
 function drawPass() {
   const s = G.ui, u = U(); UX.fillStyle = 'rgba(0,10,4,0.94)'; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
   txt('合言葉を入力してください', UB.x + UB.w / 2, UB.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
@@ -2459,19 +2494,20 @@ function drawPass() {
 function hayaAct() {
   if (flag('hayaSaved')) { say('早瀬は壁にもたれて、目を閉じている。\n呼吸は落ち着いている。'); return; }
   if (invHas('serum')) { ask('早瀬に、血清を打ちますか？', ['打つ', 'やめる'], i => { if (i) return; invTake('serum'); setFlag('hayaSaved'); runCut(function* () { camEv('haya'); yield 0.8; AU.sfx('flesh', { x: 0, z: -2.3, vol: 0.3 }); yield 1.2; say('早瀬「……っ。……効いてきた」'); yield 'msg'; say('早瀬「少し休めば、動ける。……先に行け、遼。必ず追いつく」'); yield 'msg'; camNormal(); }); }); return; }
-  if (!flag('hayaMet')) { setFlag('hayaMet'); runCut(function* () { camEv('haya'); yield 1.0; say('早瀬「……遼か」'); yield 'msg'; say('早瀬「噛まれた。……熱が、ひどい」'); yield 'msg'; say('早瀬「俺のことはいい。……行け」'); yield 'msg'; camNormal(); }); return; }
+  if (!flag('hayaMet')) { setFlag('hayaMet'); runCut(function* () { camEv('haya'); yield 1.0; say('早瀬「……遼か」'); yield 'msg'; say('早瀬「噛まれた。……熱が、ひどい」'); yield 'msg'; say('早瀬「弾は……そこに置いた。俺には、もう要らない。持っていけ」'); yield 'msg'; say('早瀬「俺のことはいい。……行け」'); yield 'msg'; camNormal(); }); return; }
   say('早瀬の呼吸が浅い。額に触れると、ひどく熱い。');
 }
 // ── 最深部：救難信号とヨミ ──
 function coreAct() {
   if (flag('boss1')) { say('画面に「自己保存プログラム　作動中」の赤い文字。'); return; }
+  if (flag('alarm')) { say('救難信号は、もう送った。\n画面の向こうで、何かが砕けた跡だけが光っている。'); return; }
   ask('救難信号の送信装置がある。\n信号を送りますか？', ['送る', 'やめる'], i => {
     if (i) return;
     runCut(function* () {
       AU.sfx('beep'); yield 0.4; AU.sfx('beep'); yield 1.0; say('無線「……こちら春日。信号を受けた。\n夜明けに、屋上のヘリポートへ向かう。持ちこたえろ」'); yield 'msg';
       setFlag('alarm'); AU.setAmb(Object.assign({}, G.room.D.ambience, { alarm: 1 })); yield 0.8; camEv('boss'); AU.sfx('creak', {}); yield 1.0; AU.sfx('glass', {}); AU.sfx('shock');
       const c = G.room.dyn.core; c.glass.visible = false; c.liq.visible = false; c.body.visible = false; c.L.base = 3; particles(0, 2.0, -0.9, 40, '#8ad8ff', 5, 1.0);
-      const b = G.en.find(e => e.key === 'boss1'); if (b) { b.def.hidden = false; b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; b.x = 0; b.z = 0.0; b.ang = 0; }
+      const b = G.en.find(e => e.key === 'boss1'); if (b) { b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; [b.x, b.z] = b.def.revealAt; b.ang = 0; }
       AU.sfx('roar', { x: 0, z: 0 }); yield 2.0; camNormal(); if (b) { b.script = false; b.alert = true; setState(b, 'walk', 'walk'); } AU.music('boss');
     });
   });
@@ -2492,7 +2528,7 @@ function heliEnter() {
   runCut(function* () {
     camAt([4, 2.2, 7.5], [-2, 3, -6], 55); AU.sfx('heli', { vol: 0.4 }); yield 1.0; say('無線「見えた。屋上だな！　いま降りる——」'); yield 'msg';
     AU.sfx('crash', {}); AU.sfx('shock'); G.shakeT = 0.8; yield 0.5;
-    const b = G.en.find(e => e.key === 'boss2'); if (b) { b.def.hidden = false; b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; b.x = 0; b.z = -6; b.ang = 0; }
+    const b = G.en.find(e => e.key === 'boss2'); if (b) { b.revealed = true; b.h.root.visible = true; b.targetable = true; b.solid = true; b.script = true; b.anim = 'roar'; [b.x, b.z] = b.def.revealAt; b.ang = 0; }
     camEv('sky'); AU.sfx('roar', { x: 0, z: -6 }); yield 2.0; say('無線「なんだ、あれは……！　近づけない！」'); yield 'msg'; camNormal();
     if (b) { b.script = false; b.alert = true; setState(b, 'walk', 'walk'); } AU.music('boss');
   });
@@ -2612,7 +2648,13 @@ function drawTouch() {
   }
 }
 // ── 脱出の残り時間 ──
-function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
+function drawTimer() {
+  if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`;
+  const o = { a: 'center', w: 700, sh: true, f: 'monospace' }, col = t < 30 ? '#ff4030' : '#ffd0a0';
+  // 持ち物などの画面が開いている間（時間は止まっている）：見出しの列の空いている所へ。空きがなければ画面の下の外へ（見出しの文字に重ねない）
+  if (G.ui && G.ui.k !== 'pass') { const x0 = UB.x + u * 18, x1 = UB.x + UB.w - u * 79; if (x1 - x0 >= u * 30) txt(s, (x0 + x1) / 2, UB.y + u * 7.4, u * 4.8, col, o); else if (VW.H - (UB.y + UB.h) >= u * 9) txt(s, UB.x + UB.w / 2, UB.y + UB.h + u * 7, u * 5, col, o); return; }
+  txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, col, o);
+}
 // ── タイトル ──
 const TITLE = { sel: 0, t: 0, phase: 'press', cam: null };
 function titleUpdate(dt) {
@@ -2685,7 +2727,8 @@ function menuAct(id) {
   if (it.kind === 'key' && keyDone(id)) a.push(['捨てる', 'drop']);
   return a;
 }
-function keyDone(id) { const done = { gear: 'f:clock', key_small: 't:snakekey', key_hunt: 't:shotgun', handle: 'f:valve', key_hawk: 'f:hawkdone', key_snake: 'f:snakedone', key_wolf: 'f:wolfdone', key_base: 'f:basedone', reagA: 't:serum', reagB: 't:serum', serum: 'f:hayaSaved' }[id]; return !!done && condOK(done); }
+function keyDone(id) { if (G.visited.lab_exit) return true; // 引き返せない搬出路まで来たら、どの鍵ももう使わない
+  const done = { idcard: 'f:iddone', gear: 'f:clock', key_small: 't:snakekey', key_hunt: 't:shotgun', handle: 'f:valve', key_hawk: 'f:hawkdone', key_snake: 'f:snakedone', key_wolf: 'f:wolfdone', key_base: 'f:basedone', reagA: 't:serum', reagB: 't:serum', serum: 'f:hayaSaved' }[id]; return !!done && condOK(done); }
 function useItem(i) {
   const s = G.inv[i]; if (!s) return; const it = ITEMS[s.id];
   if (it.kind === 'heal') {
@@ -2753,7 +2796,7 @@ function ecg(x, y, w, h, cond, t) {
   for (let i = 0; i <= 100; i++) { const px = x + w * i / 100, ph = ((i / 100) * 2 - t * sp) % 1, p = ph < 0 ? ph + 1 : ph; let v = 0; if (p > 0.4 && p < 0.44) v = -0.15; else if (p >= 0.44 && p < 0.47) v = 0.85; else if (p >= 0.47 && p < 0.5) v = -0.45; else if (p > 0.58 && p < 0.66) v = 0.15 * Math.sin((p - 0.58) / 0.08 * PI); const py = y + h / 2 - v * h * 0.45; if (i) UX.lineTo(px, py); else UX.moveTo(px, py); }
   UX.stroke();
 }
-function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); txt(title, UB.x + u * 4, UB.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
+function drawMenuBG(title, tabs) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); fitTxt(title, UB.x + u * 4, UB.y + u * 7, tabs ? UB.w - u * 83 : UB.w - u * 8, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); } // 縦持ちでは見出しの列が狭いので、つまみ（タブ）に重ならない大きさに
 function drawTabs(cur) {
   const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = UB.y + u * 2.5;
   tabs.forEach(([k, s], i) => { const x = UB.x + UB.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
@@ -2766,7 +2809,7 @@ function menuGeom() {
 }
 function drawMenu() {
   const m = G.ui, u = U(); if (m.tab === 'file') return drawFiles(m); if (m.tab === 'map') return drawMap(m);
-  drawMenuBG('持ち物'); drawTabs('item');
+  drawMenuBG('持ち物', true); drawTabs('item');
   const cond = hpCond(), Gm = menuGeom(), X = v => UB.x + v * u, Y = v => UB.y + v * u;
   // 状態（心電図）
   { const [x0, y0, w0, h0] = Gm.st, sx = X(x0), sy = Y(y0); UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * w0, u * h0, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * (w0 - 4), u * (h0 - 9), cond, m.t);
@@ -2816,7 +2859,7 @@ function filesUpdate(m) {
   if (IN.e.cancel || IN.e.menu) { G.ui = null; AU.sfx('cancel'); }
 }
 function drawFiles(m) {
-  const u = U(); drawMenuBG('ファイル'); if (!m.solo) drawTabs('file');
+  const u = U(); drawMenuBG('ファイル', !m.solo); if (!m.solo) drawTabs('file');
   if (m.page != null) {
     const f = FILES[G.files[m.fsel]], px = UB.x + u * 10, py = UB.y + u * 11, pw = UB.w - u * 20, ph = UB.h - u * 22;
     const g = UX.createLinearGradient(px, py, px + pw, py + ph); g.addColorStop(0, '#d6ccb2'); g.addColorStop(1, '#bfb090'); UX.fillStyle = g; UX.fillRect(px, py, pw, ph);
@@ -2842,7 +2885,7 @@ function mapUpdate(m) {
 }
 function mapFloors() { return ['1F', '2F', 'B1', 'LAB'].filter(f => G.maps[f] || Object.keys(G.visited).some(r => ROOMS[r] && ROOMS[r].fl === f)); }
 function drawMap(m) {
-  const u = U(); drawMenuBG('地図'); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
+  const u = U(); drawMenuBG('地図', true); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
   const fls = mapFloors(); fls.forEach((f, i) => { const x = UB.x + u * 4, y = UB.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
   const rooms = Object.keys(ROOMS).filter(r => ROOMS[r].fl === fl && ROOMS[r].map && (G.maps[fl] || G.visited[r]));
   if (!rooms.length) return;
@@ -3237,7 +3280,7 @@ ROOMS.w2corr = {
   doors: [
     { id: 'E', p: [1.3, 6.5], type: 'wood', to: ['hall', 'BW'] },
     { id: 'N', p: [0, -9], type: 'wood', to: ['bed', 'S'], lock: { key: 'hawk' } },
-    { id: 'C', p: [1.3, -3], type: 'wood', to: ['child', 'W'] },
+    { id: 'C', p: [1.3, -3], type: 'wood', to: ['child', 'W'] }, { id: 'D', p: [1.3, 2.0], type: 'wood', to: ['shosei', 'W'] },
     { id: 'S', p: [0, 9], type: 'wood', to: ['wcorr', 'N'], fx: 'stairsdown', lock: { bar: 'this', msg: '階段室の扉だ。こちら側から、かんぬきが掛かっている。\n外しますか？' } },
   ],
   wins: [{ p: [-1.3, -6.2], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, -2.6], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, 1.0], w: 1.15, y: 0.85, h: 2.1 }, { p: [-1.3, 4.6], w: 1.15, y: 0.85, h: 2.1 }],
@@ -3261,7 +3304,7 @@ ROOMS.w2corr = {
   enemies: [{ t: 'dog', x: -0.3, z: 1.0, key: 'w2_d1', cond: 'f:dogs', alert: true }, { t: 'dog', x: -0.3, z: -2.6, key: 'w2_d2', cond: 'f:dogs', alert: true }],
 };
 ROOMS.bed = {
-  name: '寝室', fl: '2F', map: [-4, -9, 8, 7], w: 8, d: 7, h: 3.6,
+  name: '寝室', fl: '2F', map: [-2.5, -7, 8, 7], w: 8, d: 7, h: 3.6,
   floor: 'parquet_d', wall: 'paper_red', wain: 'wainscot', wainH: 1.1, ceil: 'ceil', rev: 0.2, thunder: true,
   ambience: { rain: 0.5, drone: 0.3 }, amb: ['#4a3636', 0.62], fog: ['#080505', 0.03],
   doors: [{ id: 'S', p: [-2.6, 3.5], type: 'wood', to: ['w2corr', 'N'], lock: { key: 'hawk' } }],
@@ -3286,10 +3329,10 @@ ROOMS.bed = {
     { p: [-3.7, 3.25, 1.0], t: [-2.6, 0.5, -3.4], fov: 60, z: [-4, -3.5, -2.0, -0.6] },
     { id: 'ward', p: [0.6, 1.6, 0.8], t: [3.4, 1.2, 1.7], fov: 52, event: true },
   ],
-  enemies: [{ t: 'zombie', k: 'servant', x: 3.45, z: 1.7, r: -PI / 2, key: 'bed_z1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'zombie', k: 'servant', x: 3.45, z: 1.7, r: -PI / 2, key: 'bed_z1', hidden: true, st: 'idle', revealIf: 'f:wardrobe', revealAt: [2.92, 1.7] }],
 };
 ROOMS.child = {
-  name: '子ども部屋', fl: '2F', map: [3, -3, 6, 6], w: 6, d: 6, h: 3.2,
+  name: '子ども部屋', fl: '2F', map: [3, 3, 6, 6], w: 6, d: 6, h: 3.2,
   floor: 'parquet', wall: 'paper_child', wain: 'wainscot', wainH: 0.9, ceil: 'plaster', rev: 0.15, thunder: true,
   ambience: { rain: 0.45, drone: 0.15, wind: 0.25 }, amb: ['#3a4250', 0.52], hemi: ['#8090b0', '#302820', 0.25], fog: ['#06070a', 0.035],
   doors: [{ id: 'W', p: [-3, 1.0], type: 'wood', to: ['w2corr', 'C'] }],
@@ -3309,6 +3352,22 @@ ROOMS.child = {
     { p: [2.7, 2.8, 2.7], t: [-1.2, 0.5, -1.3], fov: 62, z: [-3, -3, 3, 0.3] },
     { p: [-2.7, 2.8, -2.7], t: [1.3, 0.5, 1.6], fov: 62, z: [-3, 0.3, 3, 3] },
   ],
+};
+// 書生部屋：住みこみの書生が使っていた小部屋。二階で、ただひとつ落ち着ける場所
+ROOMS.shosei = {
+  name: '書生部屋', fl: '2F', map: [3, 9.6, 4.4, 4.4], w: 4.4, d: 4.4, h: 2.9, save: true,
+  floor: 'parquet', wall: 'paper_cream', wain: 'wainscot', wainH: 1.0, ceil: 'plaster', music: 'save', rev: 0.15,
+  ambience: { rain: 0.4, drone: 0 }, amb: ['#5a4a38', 0.55], fog: ['#0a0806', 0.03],
+  doors: [{ id: 'W', p: [-2.2, -0.45], type: 'wood', to: ['w2corr', 'D'] }],
+  wins: [{ p: [2.2, -0.6], w: 0.9, y: 1.1, h: 1.3 }],
+  props: [
+    { k: 'typewriter', x: 0.7, z: -1.88, r: 0 }, { k: 'itembox', x: 1.82, z: 1.2, r: 3 },
+    { k: 'bookshelf', x: -1.15, z: -1.98, r: 0, L: 1.5, h: 2.2, t: '法律と医学の本が、ぎっしり並んでいる。\n一冊に「神代製薬　研究補助」の名刺が挟まっていた。' },
+    { k: 'cot', x: -1.55, z: 1.3, r: 0, t: '書生の寝床。枕の下に、故郷の母親からの手紙が入っていた。\n「お屋敷の仕事は、つらくはありませんか」' },
+    { k: 'sconce', x: 0.3, z: 2.17, r: 2, i: 3.0, c: '#ffd8a0' },
+  ],
+  items: [{ id: 'ribbon', n: 2, x: 1.25, z: -1.82, y: 0.75, key: 'sho_rib' }, { id: 'herb_g', x: -1.8, z: -1.0, key: 'sho_h1' }],
+  cams: [{ p: [1.95, 2.5, 1.95], t: [-1.1, 0.45, -1.0], fov: 68 }, { p: [1.95, 2.5, -1.95], t: [-1.2, 0.45, 1.2], fov: 68 }, { p: [-1.95, 2.5, 1.95], t: [1.2, 0.45, -1.2], fov: 68 }],
 };
 // 肖像画の回廊：壁に並ぶ順（北←→南）と、生まれた順
 const GALLERY = [
@@ -3382,7 +3441,7 @@ ROOMS.library = {
     { p: [-4.6, 4.2, 3.6], t: [2.7, 0.6, -1.2], fov: 58, z: [-0.8, -4, 5, 2.0] },
     { p: [0.4, 4.2, -3.4], t: [0.2, 0.5, 3.6], fov: 62, z: [-5, 1.8, 5, 4] },
   ],
-  enemies: [{ t: 'zombie', k: 'servant', x: -3.2, z: 2.9, r: 0.6, key: 'lib_z1' }, { t: 'zombie', k: 'butler', x: 2.6, z: -2.2, r: 2.6, key: 'lib_z2' }],
+  enemies: [{ t: 'zombie', k: 'servant', x: -3.2, z: 2.9, r: 0.6, key: 'lib_z1' }, { t: 'zombie', k: 'butler', x: 2.75, z: -2.3, r: 2.6, key: 'lib_z2' }],
 };
 
 // ──────── 52_r_b1.js
@@ -3582,7 +3641,7 @@ ROOMS.lab_cult = {
     { p: [4.6, 3.3, -3.6], t: [1.0, 0.6, 3.0], fov: 60, z: [1.4, 1.6, 5, 4] },
     { id: 'tank', p: [0.6, 1.5, 0.4], t: [-1.5, 1.3, -2.95], fov: 50, event: true },
   ],
-  enemies: [{ t: 'hunter', x: -1.5, z: -2.95, r: 0, key: 'cult_h1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'hunter', x: -1.5, z: -2.95, r: 0, key: 'cult_h1', hidden: true, st: 'idle', revealIf: 'f:hunters', revealAt: [-1.5, -1.9] }],
 };
 ROOMS.lab_cell = {
   name: '隔離房', fl: 'LAB', map: [9, -9, 8, 6], w: 8, d: 6, h: 3.0,
@@ -3597,14 +3656,14 @@ ROOMS.lab_cell = {
   ],
   build(c) { const b = makeCorpse('guard', 'sit'); b.position.set(1.9, 0, 2.55); b.rotation.y = PI; c.add(b); c.look(1.9, 2.3, 1.0, '警備員の亡骸。壁にもたれて座りこんでいる。\n自分で、自分の頭を撃ったらしい。'); },
   acts: [{ p: [0, -1.55], r: 1.1, id: 'hayase', items: ['serum'] }],
-  items: [{ id: 'mg', x: 1.4, z: 2.1, key: 'magnum' }, { id: 'mg_ammo', n: 6, x: 2.4, z: 1.7, key: 'mg_a1' }, { id: 'herb_g', x: -3.3, z: 2.4, key: 'cell_h1' }],
+  items: [{ id: 'mg', x: 1.4, z: 2.1, key: 'magnum' }, { id: 'mg_ammo', n: 6, x: 2.4, z: 1.7, key: 'mg_a1' }, { id: 'herb_g', x: -3.3, z: 2.4, key: 'cell_h1' }, { id: 'hg_ammo', n: 15, x: 0.8, z: -2.2, key: 'haya_ammo' }],
   cams: [
     { p: [3.6, 2.6, 2.6], t: [-1.0, 0.7, -1.6], fov: 62, z: [-4, -3, 0.5, 1.8] },
     { p: [-3.6, 2.6, 2.6], t: [1.0, 0.7, -1.6], fov: 62, z: [0.5, -3, 4, 1.8] },
     { p: [0.0, 2.7, -2.75], t: [0.0, 0.4, 2.6], fov: 62, z: [-4, 1.6, 4, 3] },
     { id: 'haya', p: [0.9, 1.3, 0.2], t: [0, 0.8, -2.2], fov: 46, event: true },
   ],
-  enemies: [{ t: 'zombie', k: 'res', x: -2.6, z: -1.8, r: 0, key: 'cell_z1', sense: 6 }],
+  enemies: [{ t: 'zombie', k: 'res', x: -2.6, z: -1.6, r: 0, key: 'cell_z1', sense: 6 }],
 };
 ROOMS.lab_core = {
   name: '最深部', fl: 'LAB', map: [3, -24, 12, 14], w: 12, d: 14, h: 6.0,
@@ -3635,7 +3694,7 @@ ROOMS.lab_core = {
     // 水槽の裏：ポンプと配管の塊（奥の壁まで）
     g.box(m, 0, 1.4, -5.9, 4.4, 2.8, 2.2); g.box(ir, 0, 2.9, -5.9, 4.0, 0.2, 2.0); for (const x of [-1.5, -0.5, 0.5, 1.5]) g.cyl(ir, x, 2.9, -6.4, 0.18, 2.6, 8); g.box(CL('#1a1e22'), 0, 0.9, -4.79, 2.6, 1.2, 0.02); for (let k = 0; k < 6; k++) g.box(CL(k % 2 ? '#40ff60' : '#ff4030', k % 2 ? '#20c040' : '#c02010'), -1.0 + k * 0.4, 1.3, -4.78, 0.06, 0.04, 0.01);
     c.block([-2.25, -7, 2.25, -4.7], 0, { tall: true });
-    if (flag('boss1')) { liq.visible = false; glass.visible = false; body.visible = false; L.base = 2; }
+    if (flag('alarm')) { liq.visible = false; glass.visible = false; body.visible = false; L.base = 2; }
   },
   acts: [{ p: [2.3, 1.6], r: 0.95, id: 'core_term' }],
   looks: [{ p: [0, -0.2], r: 1.2, t: () => flag('boss1') ? '水槽は砕け散っている。' : '巨大な水槽。中に浮かぶ白い巨体は、人の形をしている。\n胸に、古い軍服の切れ端が貼りついている。' }],
@@ -3647,7 +3706,7 @@ ROOMS.lab_core = {
     { p: [-5.6, 4.6, -0.6], t: [3.0, 0.8, 4.6], fov: 60, z: [-0.5, 2.8, 6, 7] },
     { id: 'boss', p: [0.6, 1.4, 2.4], t: [0, 2.6, -2.6], fov: 58, event: true },
   ],
-  enemies: [{ t: 'boss1', x: 0, z: -0.2, r: 0, key: 'boss1', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'boss1', x: 0, z: -0.2, r: 0, key: 'boss1', hidden: true, st: 'idle', revealIf: 'f:alarm', revealAt: [0, 0.3] }],
 };
 ROOMS.lab_exit = {
   name: '搬出路', fl: 'LAB', map: [15, -30, 3, 26], w: 3, d: 28, h: 3.4,
@@ -3734,8 +3793,9 @@ ROOMS.heliport = {
     for (const [x, z, w, d, h] of [[-15, 6, 5, 4, 2.2], [16, -9, 4, 6, 3.0], [-14, -15, 6, 3, 1.6], [15, 14, 3, 3, 1.2]]) g.box(M('metal'), x, -0.6 + h / 2, z, w, h, d);
     for (const [x, z] of [[-12, 12], [12.5, -2], [-17, -4], [6, -16], [-6, 17]]) { g.cyl(M('iron'), x, -0.6, z, 0.5, 1.4, 8); g.cyl(M('metal'), x, 0.8, z, 0.62, 0.15, 8); }
     for (const [x0, z0, x1, z1] of [[-24, 24, 24, 24], [-24, -24, 24, -24], [-24, -24, -24, 24], [24, -24, 24, 24]]) { const L = hyp(x1 - x0, z1 - z0); g.box(M('concrete'), (x0 + x1) / 2, -0.3, (z0 + z1) / 2, abs(x1 - x0) + 0.3, 0.6, abs(z1 - z0) + 0.3); }
-    for (const [x, z] of [[-9, -9], [9, -9], [-9, 9], [9, 9]]) { g.cyl(M('iron'), x, 0, z, 0.05, 2.4, 5); g.ball(M('col', { c: '#ff3020', e: '#ff2010', ei: 1 }), x, 2.45, z, 0.1, 0.1, 0.1, 3); }
-    g.box(M('metal'), 0, 1.3, 10.0, 2.4, 2.6, 1.8); g.box(M('iron'), 0, 2.65, 10.0, 2.6, 0.1, 2.0); // 昇降機の小屋
+    // 赤い標識灯：各辺の中ほどと、昇降機の小屋の屋根（四隅に置くと、四隅のカメラと一直線に並んで画面の真ん中をふさぐ）
+    for (const [x, z] of [[0, -9], [-9, 0], [9, 0]]) { g.cyl(M('iron'), x, 0, z, 0.05, 2.4, 5); g.ball(M('col', { c: '#ff3020', e: '#ff2010', ei: 1 }), x, 2.45, z, 0.1, 0.1, 0.1, 3); }
+    g.box(M('metal'), 0, 1.3, 10.0, 2.4, 2.6, 1.8); g.box(M('iron'), 0, 2.65, 10.0, 2.6, 0.1, 2.0); g.ball(M('col', { c: '#ff3020', e: '#ff2010', ei: 1 }), 0, 2.8, 10.0, 0.1, 0.1, 0.1, 3); // 昇降機の小屋
     // 遠くの山々と、谷の洋館
     // 遠くの山並み（遠いほど霞む）と、朝日
     for (let k = 0; k < 3; k++) for (let i = 0; i < 12; i++) { const a = -PI + i / 11 * TAU * 0.999, d = 70 + k * 18; const col = ['#2c2638', '#4a3e58', '#6a5872'][k]; g.cyl(M('col', { c: col }), Math.cos(a) * d, -42, Math.sin(a) * d, 22 + ((i * 7 + k * 3) % 5) * 5, 44 + ((i * 3 + k) % 4) * 7 - k * 6, 7, { r2: 1.5 }); }
@@ -3750,7 +3810,7 @@ ROOMS.heliport = {
     { p: [-11, 4.2, -11], t: [-2.5, 0.8, -2.5], fov: 62, z: [-9, -9, 0.6, 0.6] },
     { id: 'sky', p: [0, 1.4, 6.5], t: [0, 6, -6], fov: 60, event: true },
   ],
-  enemies: [{ t: 'boss2', x: 0, z: -5, r: 0, key: 'boss2', hidden: true, st: 'idle' }],
+  enemies: [{ t: 'boss2', x: 0, z: -5, r: 0, key: 'boss2', hidden: true, st: 'idle', revealAt: [0, -6] }],
 };
 
 // ──────── 90_main.js

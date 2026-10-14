@@ -68,7 +68,13 @@ function drawTouch() {
   }
 }
 // ── 脱出の残り時間 ──
-function drawTimer() { if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`; txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, t < 30 ? '#ff4030' : '#ffd0a0', { a: 'center', w: 700, sh: true, f: 'monospace' }); }
+function drawTimer() {
+  if (!G.timer || G.mode === 'title') return; const u = U(), t = Math.max(0, G.timer.left); const s = `${String((t / 60) | 0).padStart(2, '0')}:${String((t % 60) | 0).padStart(2, '0')}.${String(((t % 1) * 100) | 0).padStart(2, '0')}`;
+  const o = { a: 'center', w: 700, sh: true, f: 'monospace' }, col = t < 30 ? '#ff4030' : '#ffd0a0';
+  // 持ち物などの画面が開いている間（時間は止まっている）：見出しの列の空いている所へ。空きがなければ画面の下の外へ（見出しの文字に重ねない）
+  if (G.ui && G.ui.k !== 'pass') { const x0 = UB.x + u * 18, x1 = UB.x + UB.w - u * 79; if (x1 - x0 >= u * 30) txt(s, (x0 + x1) / 2, UB.y + u * 7.4, u * 4.8, col, o); else if (VW.H - (UB.y + UB.h) >= u * 9) txt(s, UB.x + UB.w / 2, UB.y + UB.h + u * 7, u * 5, col, o); return; }
+  txt(s, UB.x + UB.w / 2, UB.y + u * 8, u * 6, col, o);
+}
 // ── タイトル ──
 const TITLE = { sel: 0, t: 0, phase: 'press', cam: null };
 function titleUpdate(dt) {

@@ -25,7 +25,8 @@ function menuAct(id) {
   if (it.kind === 'key' && keyDone(id)) a.push(['捨てる', 'drop']);
   return a;
 }
-function keyDone(id) { const done = { gear: 'f:clock', key_small: 't:snakekey', key_hunt: 't:shotgun', handle: 'f:valve', key_hawk: 'f:hawkdone', key_snake: 'f:snakedone', key_wolf: 'f:wolfdone', key_base: 'f:basedone', reagA: 't:serum', reagB: 't:serum', serum: 'f:hayaSaved' }[id]; return !!done && condOK(done); }
+function keyDone(id) { if (G.visited.lab_exit) return true; // 引き返せない搬出路まで来たら、どの鍵ももう使わない
+  const done = { idcard: 'f:iddone', gear: 'f:clock', key_small: 't:snakekey', key_hunt: 't:shotgun', handle: 'f:valve', key_hawk: 'f:hawkdone', key_snake: 'f:snakedone', key_wolf: 'f:wolfdone', key_base: 'f:basedone', reagA: 't:serum', reagB: 't:serum', serum: 'f:hayaSaved' }[id]; return !!done && condOK(done); }
 function useItem(i) {
   const s = G.inv[i]; if (!s) return; const it = ITEMS[s.id];
   if (it.kind === 'heal') {
@@ -93,7 +94,7 @@ function ecg(x, y, w, h, cond, t) {
   for (let i = 0; i <= 100; i++) { const px = x + w * i / 100, ph = ((i / 100) * 2 - t * sp) % 1, p = ph < 0 ? ph + 1 : ph; let v = 0; if (p > 0.4 && p < 0.44) v = -0.15; else if (p >= 0.44 && p < 0.47) v = 0.85; else if (p >= 0.47 && p < 0.5) v = -0.45; else if (p > 0.58 && p < 0.66) v = 0.15 * Math.sin((p - 0.58) / 0.08 * PI); const py = y + h / 2 - v * h * 0.45; if (i) UX.lineTo(px, py); else UX.moveTo(px, py); }
   UX.stroke();
 }
-function drawMenuBG(title) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); txt(title, UB.x + u * 4, UB.y + u * 7, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); }
+function drawMenuBG(title, tabs) { const u = U(); const g = UX.createLinearGradient(0, UB.y, 0, UB.y + UB.h); g.addColorStop(0, 'rgba(8,10,14,0.96)'); g.addColorStop(1, 'rgba(14,8,8,0.96)'); UX.fillStyle = g; UX.fillRect(UB.x, UB.y, UB.w, UB.h); fitTxt(title, UB.x + u * 4, UB.y + u * 7, tabs ? UB.w - u * 83 : UB.w - u * 8, u * 4, '#c8b890', { f: FONT_MIN, w: 700 }); } // 縦持ちでは見出しの列が狭いので、つまみ（タブ）に重ならない大きさに
 function drawTabs(cur) {
   const u = U(), tabs = [['item', 'アイテム'], ['file', 'ファイル'], ['map', '地図'], ['close', '閉じる']]; const w = u * 18, y = UB.y + u * 2.5;
   tabs.forEach(([k, s], i) => { const x = UB.x + UB.w - (tabs.length - i) * (w + u) - u * 2; UX.fillStyle = cur === k ? 'rgba(150,30,30,0.85)' : 'rgba(255,255,255,0.06)'; rr(x, y, w, u * 6, u); UX.fill(); txt(s, x + w / 2, y + u * 4.3, u * 3.2, cur === k ? '#fff' : '#a8a090', { a: 'center' }); hit(x, y, w, u * 6, () => { AU.sfx('tick'); if (k === 'close') { G.ui = null; return; } G.ui.tab = k; G.ui.page = null; G.ui.fsel = 0; G.ui.floor = ROOMS[G.rid].fl; }); });
@@ -106,7 +107,7 @@ function menuGeom() {
 }
 function drawMenu() {
   const m = G.ui, u = U(); if (m.tab === 'file') return drawFiles(m); if (m.tab === 'map') return drawMap(m);
-  drawMenuBG('持ち物'); drawTabs('item');
+  drawMenuBG('持ち物', true); drawTabs('item');
   const cond = hpCond(), Gm = menuGeom(), X = v => UB.x + v * u, Y = v => UB.y + v * u;
   // 状態（心電図）
   { const [x0, y0, w0, h0] = Gm.st, sx = X(x0), sy = Y(y0); UX.fillStyle = 'rgba(0,20,10,0.6)'; rr(sx, sy, u * w0, u * h0, u); UX.fill(); ecg(sx + u * 2, sy + u * 2, u * (w0 - 4), u * (h0 - 9), cond, m.t);
@@ -156,7 +157,7 @@ function filesUpdate(m) {
   if (IN.e.cancel || IN.e.menu) { G.ui = null; AU.sfx('cancel'); }
 }
 function drawFiles(m) {
-  const u = U(); drawMenuBG('ファイル'); if (!m.solo) drawTabs('file');
+  const u = U(); drawMenuBG('ファイル', !m.solo); if (!m.solo) drawTabs('file');
   if (m.page != null) {
     const f = FILES[G.files[m.fsel]], px = UB.x + u * 10, py = UB.y + u * 11, pw = UB.w - u * 20, ph = UB.h - u * 22;
     const g = UX.createLinearGradient(px, py, px + pw, py + ph); g.addColorStop(0, '#d6ccb2'); g.addColorStop(1, '#bfb090'); UX.fillStyle = g; UX.fillRect(px, py, pw, ph);
@@ -182,7 +183,7 @@ function mapUpdate(m) {
 }
 function mapFloors() { return ['1F', '2F', 'B1', 'LAB'].filter(f => G.maps[f] || Object.keys(G.visited).some(r => ROOMS[r] && ROOMS[r].fl === f)); }
 function drawMap(m) {
-  const u = U(); drawMenuBG('地図'); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
+  const u = U(); drawMenuBG('地図', true); drawTabs('map'); const fl = m.floor || ROOMS[G.rid].fl;
   const fls = mapFloors(); fls.forEach((f, i) => { const x = UB.x + u * 4, y = UB.y + u * (14 + i * 8); UX.fillStyle = f === fl ? 'rgba(150,30,30,0.7)' : 'rgba(255,255,255,0.06)'; rr(x, y, u * 22, u * 6.5, u); UX.fill(); txt(FLOORS[f], x + u * 11, y + u * 4.5, u * 2.8, '#e0d8c8', { a: 'center' }); hit(x, y, u * 22, u * 6.5, () => { m.floor = f; AU.sfx('tick'); }); });
   const rooms = Object.keys(ROOMS).filter(r => ROOMS[r].fl === fl && ROOMS[r].map && (G.maps[fl] || G.visited[r]));
   if (!rooms.length) return;

@@ -19,7 +19,10 @@ function spawnEnemy(R, d) {
   if (d.t === 'brute') { setWeapon(h, 'shears'); e.spd = 1.25; }
   if (d.t === 'hunter') e.spd = 3.9;
   if (d.t === 'boss1' || d.t === 'boss2') e.spd = d.t === 'boss1' ? 1.15 : 1.9;
-  if (d.hidden) { h.root.visible = false; e.targetable = false; e.solid = false; }
+  // 隠れている敵（衣装棚・培養槽・水槽の中）：出来事がもう起きていれば、外に出た姿で置く（定義は書きかえない）
+  const shown = d.hidden && d.revealIf && condOK(d.revealIf);
+  if (d.hidden && !shown) { h.root.visible = false; e.targetable = false; e.solid = false; }
+  if (shown) { e.revealed = true; e.alert = true; if (d.revealAt) { e.x = d.revealAt[0]; e.z = d.revealAt[1]; e.y = floorAt(R, e.x, e.z, e.y) ?? e.y; } const st = { zombie: ['chase', 'walk'], hunter: ['run', 'hunt'], boss1: ['walk', 'walk'] }[d.t] || ['idle', 'idle']; e.state = st[0]; e.anim = st[1]; }
   h.root.position.set(e.x, e.y, e.z); h.root.rotation.y = e.ang; R.scene.add(h.root);
   e.sh = blobShadow(d.t === 'spider' ? 0.8 : d.t.startsWith('boss') || d.t === 'brute' ? 0.65 : 0.42); e.sh.position.set(e.x, e.y + 0.012, e.z); R.scene.add(e.sh);
   for (let i = 0; i < 6; i++) pose(e, 0.1); // 最初の姿勢になじませる
@@ -58,8 +61,16 @@ function updEnemy(e, dt) {
   if (!e.alert && !e.script && (sees(e, d) && d < 6.5 || d < 2.0 || (PL.st.mode === 'run' && d < 5.5))) { e.alert = true; if (e.type === 'zombie') AU.sfx('groan', { x: e.x, z: e.z, v: 1.2 }); }
   if (!e.dead && (e.type === 'zombie' || e.type === 'crawler')) { e.groanT -= dt; if (e.groanT <= 0) { e.groanT = 3 + rnd() * 6; if (d < 14) AU.sfx('groan', { x: e.x, z: e.z, v: e.alert ? 1 : 0.6 }); } }
   if (!e.script) AI[e.type](e, dt, d);
+  unstick(e, dt);
   pose(e, dt); place();
   function place() { e.h.root.position.set(e.x, e.y, e.z); e.h.root.rotation.y = e.ang; if (e.sh) { e.sh.position.set(e.x, e.y + 0.012, e.z); e.sh.visible = e.h.root.visible; } }
+}
+// 家具や壁に体が食いこんでいるとき（椅子に座っていた・衣装棚から出た など）：立ち上がったら、いちばん近い立てる所へ歩み出る
+function unstick(e, dt) {
+  if (e.script || ['sit', 'lie', 'eat', 'idle', 'crouch', 'down'].includes(e.state)) return;
+  if (e.unT == null || e.t - e.unT > 0.5) { e.unT = e.t; e.unTo = null; if (standAt(G.room, e.x, e.z, e.y, e.rad, 'enemy') == null) { for (let r = 0.05; r <= 1.0 && !e.unTo; r += 0.05) for (let k = 0; k < 16; k++) { const a = e.ang + k / 16 * TAU, x = e.x + Math.sin(a) * r, z = e.z + Math.cos(a) * r; if (standAt(G.room, x, z, e.y, e.rad, 'enemy') != null) { e.unTo = [x, z]; break; } } } }
+  if (!e.unTo) return; const dx = e.unTo[0] - e.x, dz = e.unTo[1] - e.z, dd = hyp(dx, dz), st = Math.min(dd, 1.6 * dt);
+  if (dd < 1e-3) { e.unTo = null; return; } e.x += dx / dd * st; e.z += dz / dd * st; const y = floorAt(G.room, e.x, e.z, e.y); if (y != null) e.y = y;
 }
 function setState(e, s, anim) { e.state = s; e.at = 0; if (anim) e.anim = anim; }
 const AI = {
@@ -156,8 +167,10 @@ const AI = {
       case 'roar': e.anim = 'roar'; facePlayer(e, dt, 2); if (e.at > 1.6) setState(e, 'walk', 'walk'); break;
       case 'walk': e.anim = 'walk';
         if (d < 2.5 && e.cd <= 0) { setState(e, 'windup', 'windup'); AU.sfx('grunt', { x: e.x, z: e.z }); break; }
-        if (d > 4 && d < 9 && e.cd <= -1 && sees(e, d) && rnd() < dt * 1.5) { setState(e, 'lunge', 'hunt'); AU.sfx('roar', { x: e.x, z: e.z, vol: 0.6 }); e.lx = Math.sin(e.ang); e.lz = Math.cos(e.ang); break; }
+        if (d > 4 && d < 9 && e.cd <= -1 && sees(e, d) && rnd() < dt * 1.5) { setState(e, 'brace', 'roar'); AU.sfx('roar', { x: e.x, z: e.z, vol: 0.6 }); break; }
         chase(e, dt, e.spd * fast, PL.x, PL.z, 2.2 * fast); break;
+      // 突進の前に、立ち止まって身構え、吠える（見てから横へよければ、かわせる。撃ってひるませれば止まる）
+      case 'brace': facePlayer(e, dt, 3); if (e.at > 0.5 / fast) { setState(e, 'lunge', 'hunt'); e.lx = Math.sin(e.ang); e.lz = Math.cos(e.ang); } break;
       case 'windup': facePlayer(e, dt, 3); if (e.at > 0.72 / fast) { setState(e, 'swing', 'swing'); AU.sfx('swing', { x: e.x, z: e.z }); const a = abs(angDiff(e.ang, Math.atan2(PL.x - e.x, PL.z - e.z))); if (d < 2.6 && a < 1.1) hurtPlayer(ph === 1 ? 32 : 36, e.x, e.z, { kb: 5, stun: 0.7, why: 'boss' }); } break;
       case 'swing': if (e.at > 0.75) { e.cd = 1.1 / fast; setState(e, 'walk', 'walk'); } break;
       case 'lunge': { facePlayer(e, dt, 0.8); e.anim = 'hunt'; moveActor(G.room, e, Math.sin(e.ang) * 6.5 * dt, Math.cos(e.ang) * 6.5 * dt, 'enemy'); if (d < 1.2 && !e.hitDone) { e.hitDone = true; hurtPlayer(28, e.x, e.z, { kb: 6, stun: 0.8, why: 'boss' }); } if (e.at > 0.6) { e.hitDone = false; e.cd = 1.6; setState(e, 'walk', 'walk'); } break; }
