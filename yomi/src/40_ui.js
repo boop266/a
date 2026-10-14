@@ -8,7 +8,7 @@ function rr(x, y, w, h, r) { UX.beginPath(); UX.moveTo(x + r, y); UX.arcTo(x + w
 function txt(s, x, y, size, col = '#e8e2d4', o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; UX.fillStyle = col; UX.textAlign = o.a || 'left'; UX.textBaseline = o.b || 'alphabetic'; if (o.sh) { UX.fillStyle = 'rgba(0,0,0,0.7)'; UX.fillText(s, x + size * 0.06, y + size * 0.06); UX.fillStyle = col; } UX.fillText(s, x, y); }
 // 幅に収まるよう、文字を小さくして書く
 function fitTxt(s, x, y, maxW, size, col, o = {}) { UX.font = `${o.w || 500} ${size}px ${o.f || FONT_UI}`; const w = UX.measureText(s).width; txt(s, x, y, w > maxW ? Math.max(8, size * maxW / w) : size, col, o); }
-function hit(x, y, w, h, fn) { UIR.push({ x, y, w, h, fn }); }
+function hit(x, y, w, h, fn, lab) { UIR.push({ x, y, w, h, fn, lab }); } // lab：その当たりの名前（指で遊ぶテストが、押す所を選ぶのに使う）
 function uiTap() { for (const p of IN.ptr) for (let i = UIR.length - 1; i >= 0; i--) { const r = UIR[i]; if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { r.fn(); return true; } } return false; }
 function wrapText(s, maxW, size, font = FONT_UI) { UX.font = `500 ${size}px ${font}`; const out = []; for (const para of s.split('\n')) { let line = ''; for (const ch of para) { if (UX.measureText(line + ch).width > maxW && line) { if ('、。」）'.includes(ch)) { line += ch; out.push(line); line = ''; continue; } out.push(line); line = ch; } else line += ch; } out.push(line); } return out; }
 // ── 伝言（下の黒い帯に一文字ずつ） ──
@@ -45,7 +45,7 @@ function drawMsg() {
   lines.forEach((l, i) => txt(l, x + u * 4, y + u * 6.5 + i * size * 1.45, size, '#ece6d6', { f: m.o.min ? FONT_MIN : FONT_UI }));
   if (m.o.choice && m.ch >= m.pages[m.i].length && m.i === m.pages.length - 1) {
     const cw = u * 22, ch = u * 7, cx0 = x + w - (cw + u * 2) * m.o.choice.length - u * 2, cy = y - ch - u * 1.5;
-    m.o.choice.forEach((c, i) => { const cx = cx0 + i * (cw + u * 2); UX.fillStyle = i === (m.sel || 0) ? 'rgba(160,30,30,0.9)' : 'rgba(0,0,0,0.8)'; rr(cx, cy, cw, ch, u); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(c, cx + cw / 2, cy + ch * 0.66, size, '#fff', { a: 'center' }); hit(cx, cy, cw, ch, () => { m.sel = i; msgChoose(i); }); });
+    m.o.choice.forEach((c, i) => { const cx = cx0 + i * (cw + u * 2); UX.fillStyle = i === (m.sel || 0) ? 'rgba(160,30,30,0.9)' : 'rgba(0,0,0,0.8)'; rr(cx, cy, cw, ch, u); UX.fill(); UX.strokeStyle = 'rgba(220,200,170,0.5)'; UX.stroke(); txt(c, cx + cw / 2, cy + ch * 0.66, size, '#fff', { a: 'center' }); hit(cx, cy, cw, ch, () => { m.sel = i; msgChoose(i); }, 'choice:' + c); });
   } else if (m.ch >= m.pages[m.i].length) { const bl = (G.t * 2 % 1) < 0.6; if (bl) { UX.fillStyle = '#c8b890'; UX.beginPath(); const ax = x + w - u * 4, ay = y + h - u * 4; UX.moveTo(ax - u, ay - u); UX.lineTo(ax + u, ay - u); UX.lineTo(ax, ay + u * 0.5); UX.fill(); } }
 }
 // ── 字幕（場面の間の短い言葉） ──
@@ -78,8 +78,9 @@ function drawTimer() {
 // ── タイトル ──
 const TITLE = { sel: 0, t: 0, phase: 'press', cam: null };
 function titleUpdate(dt) {
-  TITLE.t += dt; UIR.length = 0;
+  TITLE.t += dt;
   if (TITLE.phase === 'press') { if (IN.e.any || IN.ptr.length) { TITLE.phase = 'menu'; AU.wake(); AU.music('title'); AU.sfx('ok'); } return; }
+  if (uiTap()) return; // 指でたたいた項目（描いた項目の当たり）。キーボード・パッドは下の上下と決定で
   const items = titleItems();
   if (IN.e.up) { TITLE.sel = (TITLE.sel + items.length - 1) % items.length; AU.sfx('tick'); }
   if (IN.e.down) { TITLE.sel = (TITLE.sel + 1) % items.length; AU.sfx('tick'); }
@@ -92,7 +93,7 @@ function drawTitle() {
   UX.globalAlpha = a; txt('黄泉還', cx, UB.y + u * 34, u * 17, '#d8cfb8', { a: 'center', f: FONT_MIN, w: 700, sh: true });
   txt('―  Y O M I G A E R I  ―', cx, UB.y + u * 43, u * 3.4, '#9a2a22', { a: 'center', f: FONT_MIN, w: 600 }); UX.globalAlpha = 1;
   if (TITLE.phase === 'press') { if ((TITLE.t * 1.2) % 1 < 0.65) txt(IN.touch ? '画面にふれてください' : 'なにかボタンを押してください', cx, UB.y + u * 72, u * 4, '#cfc6b0', { a: 'center' }); }
-  else titleItems().forEach(([s, fn], i) => { const y = UB.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }); });
+  else titleItems().forEach(([s, fn], i) => { const y = UB.y + u * (62 + i * 8.5), on = i === TITLE.sel; if (on) { UX.fillStyle = 'rgba(140,20,20,0.55)'; UX.fillRect(cx - u * 22, y - u * 5, u * 44, u * 7); } txt(s, cx, y, u * 4.4, on ? '#fff' : '#b8b0a0', { a: 'center' }); hit(cx - u * 22, y - u * 5, u * 44, u * 7, () => { TITLE.sel = i; fn(); }, 'title:' + s); });
   txt('ⓒ 黄泉還　Claude', cx, UB.y + UB.h - u * 3, u * 2.2, '#5a544a', { a: 'center' });
 }
 // ── 死んだとき ──
@@ -110,7 +111,7 @@ function drawDead() {
   const u = U(), cx = UB.x + UB.w / 2, a = clamp((G.deathT - 1.2) / 1.5, 0, 1);
   UX.fillStyle = `rgba(0,0,0,${a * 0.55})`; UX.fillRect(UB.x, UB.y, UB.w, UB.h);
   UX.globalAlpha = a; txt('YOU DIED', cx, UB.y + UB.h * 0.45, u * 13, '#a8100c', { a: 'center', f: FONT_MIN, w: 700 }); UX.globalAlpha = 1;
-  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = UB.y + UB.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }); }); }
+  if (G.deathT > 3.2) { const items = hasSave() ? ['最後に記録した所から', 'タイトルへ'] : ['タイトルへ']; items.forEach((s, i) => { const y = UB.y + UB.h * (0.66 + i * 0.09), on = i === (G.dsel || 0); if (on) { UX.fillStyle = 'rgba(120,10,10,0.6)'; UX.fillRect(cx - u * 26, y - u * 5, u * 52, u * 7); } txt(s, cx, y, u * 4.2, on ? '#fff' : '#a8a090', { a: 'center' }); hit(cx - u * 26, y - u * 5, u * 52, u * 7, () => { G.dsel = i; deadChoose(i); }, 'dead:' + s); }); }
 }
 function toTitle() { G.mode = 'title'; G.ui = null; G.msg = null; G.msgQ = []; G.timer = null; TITLE.phase = 'menu'; TITLE.t = 3; TITLE.sel = 0; enterTitleScene(); AU.music('title'); }
 // ── 画面の上に重ねる：赤い傷・暗転 ──

@@ -2,6 +2,8 @@
 const IN = { mx: 0, my: 0, mag: 0, run: false, aim: false, fireHeld: false, touch: false, last: 'key', e: {}, ptr: [], wheel: 0, typed: '' };
 const EDGES = ['act', 'fire', 'menu', 'map', 'esc', 'reload', 'ok', 'cancel', 'up', 'down', 'left', 'right', 'tabL', 'tabR', 'any'];
 for (const k of EDGES) IN.e[k] = 0;
+// 指で触る端末（スマホ・タブレット）は、最初から指のボタンを出し、タイトルも「画面にふれて」と案内する
+try { IN.touch = matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0; } catch (e) { }
 function inEdge(k) { IN.e[k] = 1; if (k !== 'any') IN.e.any = 1; }
 function inConsume() { for (const k of EDGES) IN.e[k] = 0; IN.ptr.length = 0; IN.wheel = 0; IN.typed = ''; }
 const KEYS = {};
@@ -68,6 +70,8 @@ UIC.addEventListener('pointermove', e => { MOUSE.x = e.clientX; MOUSE.y = e.clie
 function tRelease(e) { if (e.pointerType === 'mouse' && e.button === 2) MOUSE.r = false; const t = TOUCH.map.get(e.pointerId); if (!t) return; if (t.k === 'stick') TOUCH.stick = null; else { TOUCH.held[t.k] = false; if (t.k === 'act') IN.fireHeld = false; } TOUCH.map.delete(e.pointerId); }
 UIC.addEventListener('pointerup', tRelease); UIC.addEventListener('pointercancel', tRelease); UIC.addEventListener('lostpointercapture', tRelease);
 addEventListener('wheel', e => { IN.wheel += Math.sign(e.deltaY); }, { passive: true });
+// 音を鳴らしてよい合図：スマホのブラウザは、指を離したとき（タッチの終わり・クリック）しか音の開始を許さない
+for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, () => { if (typeof AU !== 'undefined') AU.wake(); }, { passive: true });
 // ── 毎こま：いまの状態をまとめる ──
 const GP = { prev: [], ax: [0, 0], rep: 0 };
 function inPoll(dt) {

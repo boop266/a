@@ -6,6 +6,7 @@ const AU = {
   wake() {
     if (TEST) return;
     if (this.ac) { if (this.ac.state === 'suspended') this.ac.resume(); return; }
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { } // iPhone：消音スイッチが入っていても、ゲームの音は鳴らす
     try {
       const ac = this.ac = new (window.AudioContext || window.webkitAudioContext)();
       this.out = ac.createDynamicsCompressor(); this.out.threshold.value = -14; this.out.ratio.value = 4; this.out.connect(ac.destination);

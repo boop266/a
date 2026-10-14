@@ -32,7 +32,7 @@ function step(dt) {
   G.t += dt; inPoll(dt);
   if (G.fadeTo != null) { G.fade += Math.sign(G.fadeTo - G.fade) * dt * 2.2; if (abs(G.fade - G.fadeTo) < dt * 2.3) { G.fade = G.fadeTo; G.fadeTo = null; } }
   if (G.msg && G.ui && (G.ui.k === 'menu' || G.ui.k === 'box')) msgUpdate(dt); // 持ち物の画面の上に出た伝言は、先に閉じる
-  else if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(); else if (k === 'pass') passUpdate(); }
+  else if (G.ui) { const k = G.ui.k; if (k === 'menu') menuUpdate(dt); else if (k === 'box') boxUpdate(); else if (k === 'save' || k === 'load') slotUpdate(); else if (k === 'opts') optsUpdate(); else if (k === 'results') resultsUpdate(dt); else if (k === 'pass') passUpdate(); }
   else if (G.mode === 'title') titleUpdate(dt);
   else if (G.card) cardUpdate(dt);
   else if (G.mode === 'cut') { if (G.msg) msgUpdate(dt); cutStep(dt); } // 場面の中の伝言は、人物を動かしたまま待つ

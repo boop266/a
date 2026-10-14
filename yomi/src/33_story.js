@@ -5,7 +5,7 @@ const CUT = { gen: null, wait: 0, cond: null, movers: [], onEnd: null, skip: nul
 function runCut(fn, onEnd, skip) { G.mode = 'cut'; CUT.gen = fn(); CUT.wait = 0; CUT.cond = null; CUT.movers = []; CUT.onEnd = onEnd || null; CUT.skip = skip || null; CUT.skippable = false; CUT.t = 0; PL.aimT = 0; setWeapon(PL.h, null); PL.st.mode = 'idle'; cutAdvance(); }
 function skipCut() { const f = CUT.skip; CUT.gen = null; CUT.skip = null; G.msg = null; G.msgQ = []; G.card = null; AU.sfx('cancel'); if (f) f(); endCut(); }
 // 飛ばす印（右上の ▶▶）：押せる場面のときだけ
-function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = UB.x + UB.w - w - u * 3, y = UB.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut); }
+function drawSkip() { if (!CUT.skip || CUT.t < 1.2 || G.ui) return; const u = U(), w = u * 15, h = u * 6.5, x = UB.x + UB.w - w - u * 3, y = UB.y + u * 3; UX.globalAlpha = 0.75; UX.fillStyle = 'rgba(0,0,0,0.5)'; rr(x, y, w, h, u); UX.fill(); txt('スキップ ▶▶', x + w / 2, y + h * 0.68, u * 3, '#d8d0c0', { a: 'center' }); UX.globalAlpha = 1; hit(x, y, w, h, skipCut, 'スキップ'); }
 function cutStep(dt) {
   CUT.t += dt;
   if (CUT.skip && CUT.t > 1.2 && (IN.e.esc || IN.e.menu || (!G.msg && !G.card && uiTap()))) { skipCut(); return; }
@@ -277,8 +277,8 @@ function drawPass() {
   txt('合言葉を入力してください', UB.x + UB.w / 2, UB.y + u * 12, u * 4, '#60ff90', { a: 'center', f: 'monospace' });
   UX.strokeStyle = '#40c070'; UX.strokeRect(UB.x + UB.w / 2 - u * 30, UB.y + u * 17, u * 60, u * 10); txt(s.text + ((G.t * 2 % 1) < 0.5 ? '_' : ''), UB.x + UB.w / 2, UB.y + u * 24.5, u * 6, '#a0ffc0', { a: 'center', f: 'monospace', w: 700 });
   const cols = 7, kw = u * 12, kh = u * 9;
-  PASS_KEYS.forEach((k, i) => { const x = UB.x + UB.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = UB.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }); });
-  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 10, UB.y + UB.h - u * 9, u * 20, u * 7, () => { G.ui = null; });
+  PASS_KEYS.forEach((k, i) => { const x = UB.x + UB.w / 2 - (cols * (kw + u)) / 2 + (i % cols) * (kw + u), y = UB.y + u * 34 + Math.floor(i / cols) * (kh + u), on = i === s.sel; UX.fillStyle = on ? 'rgba(60,200,110,0.6)' : 'rgba(40,120,70,0.25)'; UX.fillRect(x, y, kw, kh); txt(k, x + kw / 2, y + kh * 0.68, u * (k.length > 1 ? 3 : 4), '#c0ffd0', { a: 'center', f: 'monospace' }); hit(x, y, kw, kh, () => { s.sel = i; passKey(k); }, 'key:' + k); });
+  txt('もどる', UB.x + UB.w / 2, UB.y + UB.h - u * 4, u * 3, '#60a070', { a: 'center' }); hit(UB.x + UB.w / 2 - u * 10, UB.y + UB.h - u * 9, u * 20, u * 7, () => { G.ui = null; }, 'もどる');
 }
 // ── 早瀬 ──
 function hayaAct() {
