@@ -23,6 +23,9 @@ function wallTex(kind, base, v = 0) {
       case 'inner': if (y > 26) return col3('#7a5a3a', 1, n); if (y === 26) return col3('#5a4028'); if ((x * 3 + y) % 7 === 0) f -= .03; n *= .4; break;
       case 'innerjp': if (x <= 1) return col3('#8a6440', x === 0 ? .85 : 1, n * .5); if (y < 3) return col3('#8a6440', y === 2 ? .8 : 1); if (y > 26) return col3('#6a4a2e', 1, n * .5); n *= .5; break;
       case 'vermil': if (x <= 1 || y < 2) return col3('#c8402a', x === 0 ? .8 : 1, n); n *= .6; break;
+      case 'haunt': { if (x % 3 === 0) f -= .25; if (hash(x * 7 + s, Math.floor(y / 5)) > .9) f -= .35; if (v === 1 && x >= 4 && x <= 7 && y >= 9 && y <= 17) return col3('#e8dcc0', 1, n * .5 + (y === 12 ? -40 : 0)); if (y > 25) f -= .15; n *= 1.4; break }
+      case 'pastel': { if (y < 5) return col3(x % 4 < 2 ? '#e8504a' : '#f8f4ec', 1, n * .3); if (y === 5) return col3('#c8a040'); if (y > 25) return col3('#8a7a6a', 1, n * .5); if (x === 0) f -= .05; n *= .5; break }
+      case 'brick': { const row = Math.floor(y / 3), bx = (x + (row % 2) * 3) % 6; if (y % 3 === 0 || bx === 0) f -= .22; if (y > 26) f -= .1; n += noiseAt(Math.floor((x + (row % 2) * 3) / 6), row, 3) * 18; break }
     }
     return [clamp(b[0] * f + n, 0, 255), clamp(b[1] * f + n, 0, 255), clamp(b[2] * f + n, 0, 255)];
   });

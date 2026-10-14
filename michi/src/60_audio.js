@@ -15,7 +15,11 @@ function audioStart() {
     // 風・川・発電機
     const nb = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), nd = nb.getChannelData(0); let l = 0; for (let i = 0; i < nd.length; i++) { l = (l + .02 * (Math.random() * 2 - 1)) / 1.02; nd[i] = l * 3.2 }
     const mk = (f, q, type) => { const s = ac.createBufferSource(); s.buffer = nb; s.loop = true; s.playbackRate.value = .8 + Math.random() * .4; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = ac.createGain(); g.gain.value = 0; s.connect(fl).connect(g).connect(AU.amb); s.start(); return g };
-    AU.wind = mk(420, .6, 'lowpass'); AU.river = mk(900, .4, 'bandpass');
+    AU.wind = mk(420, .6, 'lowpass'); AU.river = mk(900, .4, 'bandpass'); AU.sea = mk(300, .5, 'lowpass');
+    // 雨（白いざあざあ）
+    const wb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), wd = wb.getChannelData(0); for (let i = 0; i < wd.length; i++)wd[i] = Math.random() * 2 - 1;
+    const mkW = (f, q, type) => { const s2 = ac.createBufferSource(); s2.buffer = wb; s2.loop = true; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const g = ac.createGain(); g.gain.value = 0; s2.connect(fl).connect(g).connect(AU.amb); s2.start(); return g };
+    AU.rain = mkW(3200, .4, 'bandpass'); AU.rainLow = mkW(600, .6, 'lowpass');
     const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 47; const of = ac.createBiquadFilter(); of.type = 'lowpass'; of.frequency.value = 170; AU.gen = ac.createGain(); AU.gen.gain.value = 0; o.connect(of).connect(AU.gen).connect(AU.amb); o.start();
     AU.nextT = ac.currentTime + .1;
   } catch (e) { AU.ac = null }
@@ -29,7 +33,7 @@ function pad(ms, t, dur, vel = .045, bright = 900) { const ac = AU.ac, f = ac.cr
 function strings(m, t, dur, vel = .05) { const ac = AU.ac, o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain(); o.type = o2.type = 'sawtooth'; o.frequency.value = mfreq(m); o2.frequency.value = mfreq(m) * 1.004; lfo.frequency.value = 5.2; lg.gain.value = 4; lfo.connect(lg); lg.connect(o.detune); lg.connect(o2.detune); f.type = 'lowpass'; f.frequency.value = 1500; o.connect(f); o2.connect(f); f.connect(g).connect(AU.music); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel, t + .5); g.gain.setValueAtTime(vel, t + dur); g.gain.linearRampToValueAtTime(0, t + dur + .8); for (const x of [o, o2, lfo]) { x.start(t); x.stop(t + dur + 1) } }
 function bass(m, t, dur, vel = .12) { const ac = AU.ac, o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = mfreq(m); o.connect(g).connect(AU.music); env(g, t, .01, vel, dur); o.start(t); o.stop(t + dur + .1) }
 // ───────── 曲 ─────────
-const CHD = { D: [50, 62, 66, 69], Bm: [47, 59, 62, 66], G: [43, 59, 62, 67], A: [45, 57, 61, 64], Em: [40, 55, 59, 62], F: [41, 57, 60, 64], C: [48, 55, 60, 64], Am: [45, 57, 60, 64], Dmaj7: [50, 61, 66, 69], Gmaj7: [43, 59, 62, 66], Bm7: [47, 57, 62, 66], A6: [45, 57, 61, 66], Em9: [40, 54, 59, 62], Cmaj7: [48, 55, 59, 64], Fmaj7: [41, 57, 60, 64], Asus: [45, 57, 62, 64] };
+const CHD = { C7: [48, 52, 55, 58], Bb: [46, 50, 53, 58], D: [50, 62, 66, 69], Bm: [47, 59, 62, 66], G: [43, 59, 62, 67], A: [45, 57, 61, 64], Em: [40, 55, 59, 62], F: [41, 57, 60, 64], C: [48, 55, 60, 64], Am: [45, 57, 60, 64], Dmaj7: [50, 61, 66, 69], Gmaj7: [43, 59, 62, 66], Bm7: [47, 57, 62, 66], A6: [45, 57, 61, 66], Em9: [40, 54, 59, 62], Cmaj7: [48, 55, 59, 64], Fmaj7: [41, 57, 60, 64], Asus: [45, 57, 62, 64] };
 // テーマ（8小節・8分音符で16歩ずつ：数字＝音、0＝のばす、-1＝休み）
 const THEME = [[66, 0, 69, 0, 74, 0, 73, 0], [71, 0, 0, 0, 69, 0, 66, 0], [67, 0, 71, 0, 76, 0, 74, 0], [73, 0, 0, 0, 0, 0, -1, 0], [74, 0, 73, 0, 71, 0, 69, 0], [71, 0, 69, 0, 66, 0, 64, 0], [66, 0, 67, 0, 69, 0, 71, 0], [69, 0, 0, 0, 0, 0, -1, -1]];
 const THEME_CH = ['D', 'Bm', 'G', 'A', 'Bm', 'G', 'Em', 'A'];
@@ -40,6 +44,8 @@ const SONGS = {
   sunset: { bpm: 68, bars: 8, chords: THEME_CH, play(bar, s, t, d) { const n = THEME[bar][s]; const ch = CHD[THEME_CH[bar]]; if (n > 0) { piano(n, t, .14, 2.4); piano(n - 12, t, .05, 2) } if (s === 0) { bass(ch[0], t, d * 8, .1); pad(ch.slice(1), t, d * 8, .03, 1100); for (const m of ch.slice(1)) strings(m - 12, t, d * 7.5, .018) } if (s % 2 === 1) piano(ch[1 + ((s >> 1) % 3)], t, .04, 1.2) } },
   night: { bpm: 50, bars: 2, chords: ['Em9', 'Cmaj7'], play(bar, s, t, d) { const ch = CHD[this.chords[bar]]; if (s === 0) pad(ch, t, d * 8, .03, 480); if (Math.random() < .12) piano([76, 79, 83, 86, 88][Math.floor(Math.random() * 5)], t, .045, 3) } },
   danger: { bpm: 96, bars: 2, chords: ['Em', 'F'], play(bar, s, t, d) { const ch = CHD[this.chords[bar]]; bass(ch[0] - 12 + (s % 2 ? 12 : 0), t, d * .9, .1); if (s === 0) pad([ch[1], ch[1] + 1], t, d * 8, .025, 400); if (s === 4) bell(ch[2] + 12, t, .03) } },
+  // 遊園地のスピーカーから流れる、はずむ曲（オルゴールと鐘）
+  park: { bpm: 104, bars: 8, chords: ['F', 'C7', 'F', 'Bb', 'F', 'C7', 'F', 'F'], mel: [[72, 0, 77, 0, 81, 0, 77, 0], [79, 0, 76, 0, 72, 0, 79, 0], [81, 0, 84, 0, 81, 0, 77, 0], [82, 0, 81, 0, 79, 0, 77, 0], [77, 0, 81, 0, 84, 0, 86, 0], [84, 0, 82, 0, 79, 0, 76, 0], [77, 0, 79, 0, 81, 0, 76, 0], [77, 0, 0, 0, -1, 0, -1, 0]], play(bar, s, t, d) { const ch = CHD[this.chords[bar]], n = this.mel[bar][s]; if (n > 0) { mbox(n, t, .1); if (s === 0) bell(n + 12, t, .02) } if (s === 0 || s === 4) bass(ch[0], t, d * 1.6, .07); if (s === 2 || s === 6) for (const m of ch.slice(1)) mbox(m, t, .025) } },
   none: { bpm: 60, bars: 1, chords: ['D'], play() { } },
 };
 function musicUpdate() {
@@ -58,6 +64,9 @@ function ambUpdate(dt, D, alt, inside, nearRiver, genNear) {
   const ac = AU.ac; if (!ac) return; const t = ac.currentTime;
   AU.wind.gain.setTargetAtTime(inside ? .006 : .012 + clamp(alt / 24, 0, 1) * .09 + (P.L === 10 ? .05 : 0), t, .6);
   AU.river.gain.setTargetAtTime(inside ? 0 : clamp(1 - nearRiver / 14, 0, 1) * .05, t, .6);
+  // 波の音：寄せては返す
+  const sd = coastX(P.y) - P.x, swell = .55 + .45 * Math.sin(t * .55) * Math.sin(t * .23 + 1); AU.sea.gain.setTargetAtTime(clamp(1 - sd / 26, 0, 1) * (inside ? .02 : .09) * swell, t, .4);
+  const rn = G.wx ? G.wx.rain : 0; AU.rain.gain.setTargetAtTime(rn * (inside ? .012 : .05), t, .8); AU.rainLow.gain.setTargetAtTime(rn * (inside ? .05 : .025), t, .8);
   AU.gen.gain.setTargetAtTime(genNear, t, .3);
   if (t > AU.nextCall && !inside) {
     const h = D.h; AU.nextCall = t + 2.5 + Math.random() * 5;
@@ -85,7 +94,17 @@ function sfx(k, vol = 1) {
     case 'shrinebell': for (let i = 0; i < 6; i++) setTimeout(() => { if (AU.ac) { const tt = AU.ac.currentTime; const o = AU.ac.createOscillator(), g = AU.ac.createGain(); o.frequency.value = 2400 + Math.random() * 400; o.connect(g).connect(AU.sfx); env(g, tt, .002, .05, .4); o.start(tt); o.stop(tt + .5) } }, i * 60); break;
     case 'taiko': tone(70, .7, .4, 'sine', 45); noise(.1, .2, 200, .6, 'lowpass'); break;
     case 'power': { const ch = [50, 57, 62, 66, 69, 74]; ch.forEach((m, i) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = mfreq(m); o.connect(g).connect(AU.sfx); g.gain.setValueAtTime(0, t + i * .35); g.gain.linearRampToValueAtTime(.05 * vol, t + i * .35 + .4); g.gain.linearRampToValueAtTime(0, t + 6); o.start(t + i * .35); o.stop(t + 6.2) }); break }
-    case 'light': tone(1600 + Math.random() * 400, .3, .025); break;
+    case 'light': tone(120, .35, .03, 'square', 118); noise(.04, .05, 3000, 2); break;
+    case 'clunk': noise(.25, .45, 260, .7, 'lowpass'); tone(58, .9, .25, 'sawtooth', 46); noise(.6, .05, 900, .5, 'bandpass', .15); break;
+    case 'scare': noise(.5, .25, 2600, .6); tone(1400, .6, .06, 'sawtooth', 300); break;
+    case 'clank': tone(320, .15, .12, 'square', 200); noise(.12, .2, 1800, 2); break;
+    case 'chain': noise(.03, .08, 3200, 6); tone(900, .03, .02, 'square'); break;
+    case 'brake': noise(.9, .12, 3000, .7, 'highpass'); tone(2100, .5, .02, 'sine', 1700); break;
+    case 'wind': noise(1.4, .18, 600, .4, 'lowpass'); break;
+    case 'paddle': noise(.18, .05, 1100, 1.2); break;
+    case 'buzzer': for (let i = 0; i < 6; i++) tone(1046 + (i % 2) * 220, .1, .05, 'square'); break;
+    case 'starter': tone(120, .06, .1, 'square'); noise(.05, .12, 900, 2); break;
+    case 'coin': tone(2600, .12, .06); tone(3500, .25, .04); noise(.5, .03, 1800, 3, 'bandpass', .1); break;
     case 'flame': noise(.6, .06, 500, .4, 'lowpass'); break;
   }
 }

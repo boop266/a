@@ -17,6 +17,10 @@ const gtex = mkCanvas(GW * GS, GH * GS);
       let r = 100, gg = 100, b = 100;
       if (t >= 100) { const f = ft[t - 100] || ft[1], q = (py * 12 + px) * 4; set(o, f[q], f[q + 1], f[q + 2]); continue }
       let tt = t;
+      // 海岸：砂浜・岩場もなめらかな線で
+      if (t === TG.sea || t === TG.beach || t === TG.rock) { const wy = (Y + .5) / GS, cd = coastX(wy) - (X + .5) / GS, cape = CAPE(wy), e = 5.2 + n2 * .8; if (cd < 0) { set(o, 30, 70, 96); continue } if (cd < e) { let r2, g2, b2; if (cape) { const rk = vn(X / 5, Y / 5); r2 = 120 + rk * 50; g2 = 116 + rk * 46; b2 = 108 + rk * 40; if (cd < .9) { r2 *= .7; g2 *= .72; b2 *= .76 } if (n > .38) { r2 += 20; g2 += 20; b2 += 18 } } else if (cd < .5) { r2 = 178; g2 = 164; b2 = 130 } else { r2 = 232; g2 = 216; b2 = 172; if (cd < 1.4 && n > .44) { r2 = 74; g2 = 98; b2 = 60 } else if (n > .47) { r2 = g2 = b2 = 246 } else if (cd > e - .7 && n2 > .2) { r2 = 150; g2 = 160; b2 = 96 } } const q = n * 14; set(o, r2 + q, g2 + q, b2 + q * .8); continue } tt = TG.grass }
+      if (t === TG.parkpath) { const bx = (X + (Math.floor(Y / 4) % 2) * 3) % 6, by = Y % 4, hb = hash(Math.floor((X + (Math.floor(Y / 4) % 2) * 3) / 6), Math.floor(Y / 4)); let r2 = 214 + hb * 20, g2 = 192 + hb * 18, b2 = 158 + hb * 14; if (hb > .88) { r2 = 196; g2 = 120; b2 = 96 } if (bx === 0 || by === 0) { r2 -= 34; g2 -= 32; b2 -= 30 } const q = n * 8; set(o, r2 + q, g2 + q, b2 + q); continue }
+      if (t === TG.quay) { let r2 = 170, g2 = 168, b2 = 160; if (X % 24 === 0 || Y % 24 === 0) { r2 -= 30; g2 -= 30; b2 -= 30 } const q = n * 14 + n2 * 8; set(o, r2 + q, g2 + q, b2 + q); continue }
       // 川岸はタイルでなく、なめらかな線で（水→濡れた砂→小石の浜→草）
       if (t === TG.water || t === TG.bank) { const dd = Math.abs((X + .5) / GS - riverX((Y + .5) / GS)), e = 4.9 + n2 * .7; if (dd < 3.6) { set(o, 34 + n * 8, 66 + n * 8, 78 + n * 8); continue } if (dd < e) { let r2, g2, b2; if (dd < 3.95) { r2 = 104; g2 = 98; b2 = 82 } else { r2 = 168; g2 = 156; b2 = 128; if (n > .36) { r2 = 142; g2 = 140; b2 = 134 } else if (n < -.42) { r2 = 118; g2 = 110; b2 = 94 } if (n2 > .3 && dd > e - .5) { r2 = 128; g2 = 140; b2 = 84 } } const q = n * 16; set(o, r2 + q, g2 + q, b2 + q * .8); continue } tt = TG.grass }
       switch (tt) {
@@ -43,7 +47,10 @@ const gtex = mkCanvas(GW * GS, GH * GS);
   const P = v => v * GS;
   // 道路の白線
   g.fillStyle = 'rgba(236,236,230,.92)';
-  for (let x = 0; x < GW; x++) { if (x >= 59 && x <= 64) continue; g.fillRect(P(x), P(70) + 2, GS, 2); g.fillRect(P(x), P(74) - 4, GS, 2); if (x % 3 === 0) g.fillRect(P(x) + 2, P(72) - 1, GS * 1.6, 2) }
+  for (let x = 0; x < 222; x++) { if (x >= 59 && x <= 64 || x >= 213 && x <= 216) continue; g.fillRect(P(x), P(70) + 2, GS, 2); g.fillRect(P(x), P(74) - 4, GS, 2); if (x % 3 === 0) g.fillRect(P(x) + 2, P(72) - 1, GS * 1.6, 2) }
+  // ひかりが丘への道・海ぞいの道
+  for (let y = 19; y < 69; y++) { g.fillRect(P(214) + 2, P(y), 2, GS); g.fillRect(P(216) - 4, P(y), 2, GS); if (y % 3 === 0) g.fillRect(P(215) - 1, P(y), 2, GS * 1.6) }
+  for (let y = 75; y < 119; y++) { g.fillRect(P(218) + 2, P(y), 2, GS); g.fillRect(P(222) - 4, P(y), 2, GS); if (y % 3 === 0) g.fillRect(P(220) - 1, P(y), 2, GS * 1.6) }
   for (let y = 39; y < GH; y++) { if (y >= 69 && y <= 74) continue; if (y % 3 === 0) g.fillRect(P(62) - 1, P(y), 2, GS * 1.6); g.fillRect(P(60) + 2, P(y), 2, GS); g.fillRect(P(64) - 4, P(y), 2, GS) }
   for (let i = 0; i < 8; i++) { g.fillRect(P(55) + 4, P(70) + 3 + i * 6, GS * 3.2, 3) }// 横断歩道
   for (let i = 0; i < 7; i++) { g.fillRect(P(60) + 3 + i * 6, P(75) + 2, 3, GS * 2.4); g.fillRect(P(60) + 3 + i * 6, P(66) + 4, 3, GS * 2.4) }
@@ -57,7 +64,7 @@ const gtex = mkCanvas(GW * GS, GH * GS);
   // 線路
   for (const [y0, y1] of [[12, 14], [16, 18]]) { for (let x = 0; x < GW * GS; x += 6) { g.fillStyle = '#5a4634'; g.fillRect(x, P(y0) + 2, 3, P(y1 - y0) - 4) } g.fillStyle = '#9aa0a6'; g.fillRect(0, P(y0) + 6, GW * GS, 2); g.fillRect(0, P(y1) - 8, GW * GS, 2); g.fillStyle = '#d8dce0'; g.fillRect(0, P(y0) + 6, GW * GS, 1); g.fillRect(0, P(y1) - 8, GW * GS, 1) }
   // 駐車場の線
-  g.fillStyle = 'rgba(236,236,230,.8)'; for (let x = 66; x <= 76; x += 3) g.fillRect(P(x), P(66), 2, GS * 2.4); for (let x = 20; x <= 34; x += 3) g.fillRect(P(x), P(64), 2, GS * 3.5);
+  g.fillStyle = 'rgba(236,236,230,.8)'; for (const y0 of [78, 83, 88]) for (let x = 161; x <= 199; x += 3) g.fillRect(P(x), P(y0), 2, GS * 3); for (let x = 66; x <= 76; x += 3) g.fillRect(P(x), P(66), 2, GS * 2.4); for (let x = 20; x <= 34; x += 3) g.fillRect(P(x), P(64), 2, GS * 3.5);
   // 校庭のトラック
   g.strokeStyle = 'rgba(245,245,240,.85)'; g.lineWidth = 2; for (const r of [0, 1.4]) { g.beginPath(); g.ellipse(P(87), P(104), P(14 + r), P(7 + r), 0, 0, 7); g.stroke() } g.beginPath(); g.moveTo(P(87), P(97 - .4)); g.lineTo(P(87), P(95.6)); g.stroke();
   // 塔のまわりの模様
@@ -66,7 +73,6 @@ const gtex = mkCanvas(GW * GS, GH * GS);
 // ───────── 町の外（線路・川・道がそのまま地平まで続く。東の丘に小さな集落） ─────────
 const OM = 72, OS = 4, OW = GW + OM * 2, OH = GH + OM * 2;
 const outerTex = mkCanvas(OW * OS, OH * OS);
-const FARHOUSES = [[170, 4, 3, 2], [174, 3, 2, 3], [172, 7, 3, 2], [176, 7, 2, 2], [168, 8, 2, 2], [178, 3, 2, 2]];
 (function buildOuter() {
   const g = outerTex.getContext('2d'), W = OW * OS, im = g.createImageData(W, OH * OS), d = im.data;
   const TF = new Float32Array(OW * OH), TD = new Float32Array(OW * OH), TV2 = new Float32Array(OW * OH);
@@ -77,14 +83,14 @@ const FARHOUSES = [[170, 4, 3, 2], [174, 3, 2, 3], [172, 7, 3, 2], [176, 7, 2, 2
     if (tx >= 0 && ty >= 0 && tx < GW && ty < GH) continue;
     const i = (ty + OM) * OW + (tx + OM), n = nz(px, py), n2 = nz(px >> 1, py >> 1); let r, gg, b;
     const rd = Math.abs(wx - riverX(wy)), fy = wy - 69, fx = wx - 59;
-    const house = FARHOUSES.find(([x, y, w, h]) => wx >= x && wx < x + w && wy >= y && wy < y + h);
-    if (house) { const [x, y, w, h] = house, ridge = Math.abs(wy - (y + h / 2)) < .2; r = ridge ? 96 : wy < y + h / 2 ? 78 : 62; gg = r * .86; b = r * .8 }
-    else if (rd < 3.6 && !(wy >= 11 && wy < 19)) { r = 34 + n * 8; gg = 66 + n * 8; b = 78 + n * 8 }
+    const cd = coastX(wy) - wx;
+    if (cd < 0) { r = 30; gg = 70; b = 96 }
+    else if (cd < 5.2 + n2 * .8 && !(wy >= 11 && wy < 19)) { if (CAPE(wy)) { r = 130 + n * 30; gg = 126 + n * 28; b = 118 + n * 24 } else { r = 232 + n * 12; gg = 216 + n * 12; b = 172 + n * 10 } }
+    else if (rd < 3.6) { r = 34 + n * 8; gg = 66 + n * 8; b = 78 + n * 8 }
     else if (wy >= 11 && wy < 19) { const h2 = n * 40 + n2 * 20; r = 118 + h2; gg = 110 + h2; b = 100 + h2; for (const [y0, y1] of [[12, 14], [16, 18]]) { if (wy > y0 + .17 && wy < y1 - .17 && px % 2 === 0) { r = 90; gg = 70; b = 52 } if (Math.abs(wy - (y0 + .55)) < .13 || Math.abs(wy - (y1 - .62)) < .13) { r = 170; gg = 176; b = 182 } } }
-    else if (fy >= 0 && fy < 6 && (tx < 0 || tx >= GW)) { if (fy < 1 || fy >= 5) { r = 170 + n * 8; gg = 164 + n * 8; b = 150 + n * 8 } else { r = gg = 70 + n * 12; b = r + 3; if (Math.abs(fy - 1.2) < .12 || Math.abs(fy - 4.8) < .12 || Math.abs(fy - 3) < .1 && (tx % 3 === 0)) { r = gg = 230; b = 224 } } }
+    else if (fy >= 0 && fy < 6 && tx < 0) { if (fy < 1 || fy >= 5) { r = 170 + n * 8; gg = 164 + n * 8; b = 150 + n * 8 } else { r = gg = 70 + n * 12; b = r + 3; if (Math.abs(fy - 1.2) < .12 || Math.abs(fy - 4.8) < .12 || Math.abs(fy - 3) < .1 && (tx % 3 === 0)) { r = gg = 230; b = 224 } } }
     else if (fx >= 0 && fx < 6 && ty >= GH) { if (fx < 1 || fx >= 5) { r = 170 + n * 8; gg = 164 + n * 8; b = 150 + n * 8 } else { r = gg = 70 + n * 12; b = r + 3; if (Math.abs(fx - 3) < .1 && ty % 3 === 0) { r = gg = 230; b = 224 } } }
     else if (rd < 4.9 + n2 * .7) { r = 168 + n * 16; gg = 156 + n * 16; b = 128 + n * 12 }
-    else if (Math.hypot(wx - 173, wy - 6) < 7 + n2 * 2) { r = 140 + n * 20; gg = 124 + n * 18; b = 92 + n * 12 }
     else if (TF[i] > .6) { const cn = vn(wx * 1.4, wy * 1.4); if (cn > .58) { r = 34; gg = 54; b = 30 } else if (cn > .35) { r = 46 + n * 10; gg = 72 + n * 12; b = 38 } else { r = 60 + n * 10; gg = 88 + n * 12; b = 44 } }
     else if (TD[i] > .55) { const fc = FC[Math.floor(hash(tx >> 3, ty / 7 | 0) * 5)]; if (py % 4 < 2) { r = fc[0] + n * 24; gg = fc[1] + n * 24; b = fc[2] + n * 10 } else { r = fc[0] * .62; gg = fc[1] * .6; b = fc[2] * .58 } }
     else { const tv = TV2[i]; r = lerp(78, 112, tv); gg = lerp(108, 128, tv); b = lerp(50, 58, tv); const e = n * 18 + n2 * 10; r += e; gg += e; b += e * .5 }

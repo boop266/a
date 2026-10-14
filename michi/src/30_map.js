@@ -1,15 +1,20 @@
 // ════════════════ 町（地面・建物の間取り・家具・通りの小物） ════════════════
-const TG = { grass: 0, road: 1, walk: 2, plaza: 3, dirt: 4, field: 5, forest: 6, water: 7, lot: 8, gravel: 9, platform: 10, tactile: 11, sand: 12, stone: 13, bridge: 14, bank: 15, yard: 16, lane: 17, sgravel: 18, pond: 19 };
+const TG = { grass: 0, road: 1, walk: 2, plaza: 3, dirt: 4, field: 5, forest: 6, water: 7, lot: 8, gravel: 9, platform: 10, tactile: 11, sand: 12, stone: 13, bridge: 14, bank: 15, yard: 16, lane: 17, sgravel: 18, pond: 19, sea: 20, beach: 21, rock: 22, parkpath: 23, quay: 24 };
 const GT = new Uint8Array(N);
 const setG = (x0, y0, x1, y1, t) => { for (let y = Math.max(0, y0); y <= Math.min(GH - 1, y1); y++)for (let x = Math.max(0, x0); x <= Math.min(GW - 1, x1); x++)GT[key(x, y)] = t };
 const riverX = y => 128 + 3 * Math.sin(y / 13) + 2 * Math.sin(y / 5.3);
+// 海岸線：東は海。北のほうは陸が張り出し、南東に灯台の岬
+const coastX = y => 238 + 4 * Math.sin(y / 11) + 2.5 * Math.sin(y / 4.3) + (y < 46 ? (46 - y) * 3 : 0) + 13 * Math.exp(-(((y - 116) / 8) ** 2));
+const CAPE = y => y > 100 && y < 133;
 // 町のまわり：畑と森
-for (let y = 0; y < GH; y++)for (let x = 0; x < GW; x++) {
+function baseT(x, y) {
   const d = Math.hypot(x - 64, y - 70); let t = TG.grass;
   if (d > 62 && fbm(x / 13, y / 13) > .55) t = TG.field; if (fbm(x / 17 + 40, y / 17) > .6 && d > 56) t = TG.forest;
   const rx = riverX(y), dx = Math.abs(x + .5 - rx); if (dx < 3.6) t = TG.water; else if (dx < 6.5) t = TG.bank;
-  GT[key(x, y)] = t;
+  const cd = coastX(y + .5) - (x + .5); if (cd < 0) t = TG.sea; else if (cd < 5.5) t = CAPE(y) ? TG.rock : TG.beach; else if (cd < 13 && t === TG.field) t = TG.grass;
+  return t;
 }
+for (let y = 0; y < GH; y++)for (let x = 0; x < GW; x++) GT[key(x, y)] = baseT(x, y);
 // 線路・駅
 setG(0, 11, GW - 1, 18, TG.gravel); setG(36, 19, 92, 23, TG.platform); setG(36, 20, 92, 20, TG.tactile);
 setG(44, 32, 78, 38, TG.plaza);
@@ -20,7 +25,20 @@ setG(2, 52, 58, 53, TG.lane); setG(2, 87, 33, 88, TG.lane);
 // 川にかかる橋（車道と歩道、その外に欄干の足もと）
 const BRY = [68, 69, 70, 71, 72, 73, 74, 75].map(riverX), BRX0 = Math.floor(Math.min(...BRY) - 5), BRX1 = Math.ceil(Math.max(...BRY) + 5);
 setG(BRX0, 68, BRX1, 68, TG.bridge); setG(BRX0, 75, BRX1, 75, TG.bridge);
-for (let y = 10; y <= 19; y++) { const rx = riverX(y); setG(Math.floor(rx - 6), y, Math.ceil(rx + 6), y, TG.gravel) }
+// 鉄橋：線路は川の上を渡る（下は水のまま。橋げたは別に描く）
+const RBY = [11, 12, 13, 14, 15, 16, 17, 18].map(riverX), RBX0 = Math.floor(Math.min(...RBY) - 4.2), RBX1 = Math.ceil(Math.max(...RBY) + 4.2);
+// ───────── 川の東：遊園地・ひかりが丘・海岸・灯台岬 ─────────
+for (let y = 69; y <= 74; y++)for (let x = 223; x < GW; x++) GT[key(x, y)] = baseT(x, y);
+// ひかりが丘への道（南北）と、海ぞいの道
+setG(213, 19, 213, 68, TG.walk); setG(214, 19, 215, 68, TG.road); setG(216, 19, 216, 68, TG.walk);
+setG(217, 75, 217, 118, TG.walk); setG(218, 75, 221, 118, TG.road); setG(222, 75, 222, 118, TG.walk);
+setG(223, 115, 238, 117, TG.lane);
+// ひかりが丘駅のホームと駅前
+setG(219, 19, 246, 21, TG.platform); setG(219, 20, 246, 20, TG.tactile); setG(225, 28, 241, 31, TG.plaza); setG(217, 32, 246, 33, TG.lane);
+// 遊園地（中は遊園地の作りで上書きする）・駐車場
+setG(146, 24, 211, 62, TG.grass); setG(166, 63, 194, 68, TG.plaza); setG(160, 77, 200, 92, TG.lot);
+// 木を勝手に植えない所
+const NOTREE = [[144, 22, 213, 69], [158, 75, 202, 94], [212, 18, 252, 47], [216, 74, 224, 120], [222, 114, 252, 120]];
 // 広場・神社・公園・学校
 setG(76, 40, 108, 66, TG.plaza);
 setG(2, 21, 36, 41, TG.forest); setG(8, 22, 28, 40, TG.sgravel); setG(16, 31, 17, 51, TG.stone);
@@ -30,7 +48,7 @@ setG(68, 93, 106, 114, TG.yard);
 setG(66, 56, 75, 68, TG.lot); setG(6, 56, 34, 68, TG.lot);
 
 // 東の果て、線路の先の丘に灯りがひとつ（夜だけ見える）
-const FARLIGHT = [173.5, 5.5];
+const FARLIGHT = [245.5, 25.5];
 // ───────── 電波塔 ─────────
 const BX = 82, BY = 46, DCX = BX + 8.5, DCY = BY + 6.5;
 const T_ID = defBuilding({ name: '電波塔', ext: ['conc', '#d4cdc0'], int: ['inner', '#e4ddd0'], roof: 'flat', glassFrame: '#b8bcc2', light: '#ffe2b0' });
@@ -85,15 +103,26 @@ const HOUSE1 = ['#########', '#ttt#,,,#', 'Wttt#,,,W', '#tttD,,,#', '##D###D##',
 const HOUSE2A = ['##########', '#x,,,#ttt#', '#s,,,Dttt#', 'Ws,,,#ttt#', '#s,,,#####', '#,,,,,,,,W', 'W,,,,,,,,#', '####D#####'];
 const HOUSE2B = ['##########', '#;:::#:::#', '#h:::D:::W', 'Wh:::#:::#', '#h:::#####', '#;:::::::W', 'W::::::::#', '####S#####', ' kkkkkkkk ', ' rrrrrrrr '];
 const HOUSES = [];
-function house(x, y, two, ci, family) {
+function house(x, y, two, ci, family, opt) {
   const C = [['plaster', '#e8e0cc', 'kawara'], ['siding', '#d8dcd4', 'blue'], ['plaster', '#efe6d2', 'red'], ['siding', '#e4d8c0', 'kawara'], ['plaster', '#dcd8cc', 'brown'], ['siding', '#cfd8de', 'red']][ci];
   const id = defBuilding({ name: '民家', ext: [C[0], C[1]], int: ['innerjp', '#efe6d6'], roof: 'gable', roofTex: C[2], x, y, w: two ? 10 : 9, h: 8, levels: two ? 2 : 1, glassFrame: '#c8ccd0', family });
   stamp(0, x, y, two ? HOUSE2A : HOUSE1, id, FM.wood);
   if (two) { stamp(1, x, y, HOUSE2B, id, FM.carpet); addRun(0, [[x + 1, y + 4], [x + 1, y + 3], [x + 1, y + 2]], [0, -1], [x + 1, y + 5], [x + 1, y + 1]) }
   BLD[id].rooms = two ? [[1, x, y, x + 9, y + 9, '2階'], [0, x, y, x + 9, y + 7, '民家']] : [[0, x, y, x + 8, y + 7, '民家']];
-  HOUSES.push({ id, x, y, two }); return id;
+  HOUSES.push({ id, x, y, two, nowall: !!(opt && opt.nowall) }); return id;
 }
 house(4, 43, 0, 0, 'tanaka'); house(22, 42, 1, 1, 'sato'); house(35, 43, 0, 2, 'suzuki'); house(46, 43, 0, 3, 'kato'); house(6, 78, 1, 4, 'ito'); house(20, 79, 0, 5, 'yamada');
+
+// ───────── ひかりが丘（線路の先の小さな村） ─────────
+const HK_A = house(218, 23, 0, 2, 'kudo', { nowall: 1 }), HK_B = house(241, 22, 1, 4, 'hikari', { nowall: 1 }), HK_C = house(218, 35, 0, 5, 'mori', { nowall: 1 }), HK_D = house(237, 34, 0, 1, 'nishi', { nowall: 1 });
+BLD[HK_B].lit = true;
+const HST = defBuilding({ name: 'ひかりが丘駅', ext: ['tiles', '#e0d4bc'], int: ['inner', '#ebe6dc'], roof: 'gable', roofTex: 'blue', x: 230, y: 22, w: 10, h: 6, levels: 1, glassFrame: '#c8ccd0' });
+stamp(0, 230, 22, ['####TT####', '#,,,#....#', '#,,,D....W', '#,,,#....#', '#,,,#....W', '#####TT###'], HST);
+BLD[HST].rooms = [[0, 231, 23, 233, 26, 'ひかりが丘駅　駅務室'], [0, 230, 22, 239, 27, 'ひかりが丘駅']];
+const HSHOP = defBuilding({ name: 'ひかりが丘商店', ext: ['shop', '#ece6d6'], int: ['inner', '#f0ece2'], roof: 'flat', glassFrame: '#c8ccd0', shopGlass: true });
+stamp(0, 229, 35, ['#######', '#.....#', 'W.....#', '#.....W', '#.....#', '##SS###'], HSHOP);
+for (let j = 0; j < 6; j++)for (let i = 0; i < 7; i++) { const k = key(229 + i, 35 + j); LEV[1].t[k] = ROOF; LEV[1].fm[k] = FM.roof; LEV[1].bid[k] = HSHOP }
+BLD[HSHOP].rooms = [[0, 229, 35, 235, 40, 'ひかりが丘商店']];
 
 // ───────── 学校 ─────────
 const SX = 70, SY = 82;
@@ -135,6 +164,22 @@ const JX = 12, JY = 24;
 const J_ID = defBuilding({ name: '神社', ext: ['vermil', '#ece4d4'], int: ['board', '#a8885e'], roof: 'gable', roofTex: 'copper', x: JX, y: JY, w: 10, h: 7, levels: 1, shrine: true, glassFrame: '#6a4a30' });
 stamp(0, JX, JY, ['##########', '#kkkkkkkk#', '#kkkkkkkk#', '#kkkkkkkk#', '#kkkkkkkk#', '#kkkkkkkk#', '###SSSS###'], J_ID, FM.deck);
 BLD[J_ID].rooms = [[0, JX, JY, JX + 9, JY + 6, '拝殿']];
+// ───────── 灯台岬（らせん階段で、灯室と外のぐるりまで） ─────────
+const LHC = [244.5, 116.5], LHN = 6, LH_TOP = LHN * LH;
+const LH_ID = defBuilding({ name: '灯台', ext: ['plaster', '#f2f0ea'], int: ['inner', '#ece8de'], roof: 'flat', glassFrame: '#3a3e46', lamp: true, round: true });
+{
+  const B = [' ##### ', '##...##', '#.....#', '#.....#', '#.....#', '##...##', ' ##### '];
+  for (let L = 0; L < LHN; L++) {
+    const g = B.map(r => r.split('')); if (L === 0) g[3][0] = 'D'; else g[L % 2 ? 2 : 4][L % 2 ? 0 : 6] = 'W';
+    const east = L % 2 === 0, ry = east ? 4 : 2, hy = east ? 2 : 4;
+    for (let c2 = 2; c2 <= 4; c2++) { g[ry][c2] = 's'; if (L > 0) g[hy][c2] = 'h' }
+    stamp(L, 241, 113, g.map(r => r.join('')), LH_ID, L === 0 ? FM.tile : FM.conc);
+    if (east) addRun(L, [[243, 117], [244, 117], [245, 117]], [1, 0], [242, 117], [246, 117]); else addRun(L, [[245, 115], [244, 115], [243, 115]], [-1, 0], [246, 115], [242, 115]);
+  }
+  stamp(LHN, 239, 111, ['   rrrrr   ', '  rkkkkkr  ', ' rkkgggkkr ', 'rkkgggggkkr', 'rkg.hhh.gkr', 'rkg.....gkr', 'rkg.....gkr', 'rkkg...gkkr', ' rkkgDgkkr ', '  rkkkkkr  ', '   rrrrr   '], LH_ID, FM.conc);
+  setG(236, 114, 240, 118, TG.quay);
+}
+BLD[LH_ID].rooms = [[LHN, 239, 111, 249, 121, '灯台の灯室'], [0, 241, 113, 247, 119, '灯台'], ...Array.from({ length: LHN - 1 }, (_, i) => [i + 1, 241, 113, 247, 119, '灯台のらせん階段'])];
 finishDoors();
 for (const d of DOORS.values()) if (d.kind === 'S' && d.bid === J_ID) d.open = false;
 
@@ -157,10 +202,11 @@ const IT = {
   jerry_full: { n: '携行缶（満タン）', c: '#c8342a' }, jerry_empty: { n: '携行缶（から）', c: '#7a4038' },
   postcard: { n: '絵はがき', c: '#8ac0e8' }, battery: { n: '電池', c: '#4a8a4a' }, lighter: { n: 'ライター', c: '#e05a3a' }, wood: { n: '薪', c: '#8a6440' },
   omamori: { n: 'お守り', c: '#c83a4a' }, photo: { n: '写真', c: '#e8e0d0' },
+  coin: { n: '100円玉', c: '#d8d8d0' }, map_town: { n: '町の観光マップ', c: '#e8d8a8' }, map_road: { n: '道路地図', c: '#a8c8e8' }, map_park: { n: '園内マップ', c: '#f0a8c0' },
 };
 // 塔 1階
 furn('counter', BX + 2, BY + 10, { w: 3, name: 'チケット売り場', items: ['key_staff'] });
-furn('rack', BX + 13, BY + 11, { w: 2, name: 'パンフレット', read: '【電波塔のご案内】\n地上150m 展望台 ／ 地上187m 点検階より上は関係者のみ\n停電時：地下の発電設備から館内に電気を送ります' });
+furn('rack', BX + 13, BY + 11, { w: 2, name: 'パンフレット', items: ['map_town'], read: '【電波塔のご案内】\n地上150m 展望台 ／ 地上187m 点検階より上は関係者のみ\n展望台の望遠鏡は100円です\n停電時：地下の発電設備から館内に電気を送ります' });
 furn('vending', BX + 16, BY + 10, { name: '自動販売機', items: ['water', 'tea', 'juice'] });
 furn('bench', BX + 5, BY + 11, { w: 2 }); furn('bench', BX + 11, BY + 11, { w: 2 });
 furn('model', BX + 8, BY + 10, { w: 2, name: '塔の模型', read: '塔の模型。\n赤と白の鉄骨が、上にいくほど細くなっていく。\nいちばん上には、夜に赤く光るランプ。' });
@@ -192,12 +238,12 @@ furn('antenna', BX + 8, BY + 6, { L: 10, name: 'アンテナ' });
 for (let i = 1; i <= 4; i++) furn('fridge_shop', KX + 1, KY + i, { name: '飲み物の冷蔵ケース', items: [['water', 'tea'], ['juice'], ['tea', 'water'], ['juice', 'water']][i - 1] });
 furn('shelf', KX + 3, KY + 2, { name: '商品棚', items: ['onigiri', 'bread'] }); furn('shelf', KX + 4, KY + 2, { name: '商品棚', items: ['snack', 'choco'] });
 furn('shelf', KX + 3, KY + 5, { name: '商品棚', items: ['can'] }); furn('shelf', KX + 4, KY + 5, { name: '商品棚', items: ['bandage'] });
-furn('register', KX + 7, KY + 4, { w: 2, name: 'レジ', read: 'レジの横に、手書きの紙：\n「ご自由にどうぞ。\n　みなさん、どうかご無事で。　店長」' });
+furn('register', KX + 7, KY + 4, { w: 2, name: 'レジ', items: ['coin', 'coin', 'coin'], read: 'レジの横に、手書きの紙：\n「ご自由にどうぞ。\n　みなさん、どうかご無事で。　店長」' });
 furn('magazine', KX + 1, KY + 6, { w: 2, name: '雑誌コーナー', read: '雑誌の表紙：「この夏、行きたい絶景100」\n日付は、あの日の前の週だった。' });
 furn('atm', KX + 8, KY + 6); furn('boxes', KX + 7, KY + 1, { name: '段ボール', items: ['water', 'water'] }); furn('boxes', KX + 8, KY + 3, { name: '段ボール', items: ['lighter', 'wood'] });
 // スタンド
 for (const [x, y, items] of [[2, 2, ['water', 'snack']], [2, 3, ['bread']], [4, 2, ['can', 'juice']], [4, 3, ['choco']]]) furn('shelf', GX + x, GY + y, { name: '商品棚', items });
-furn('register', GX + 5, GY + 1, { name: 'レジ', items: [] }); furn('jerry', GX + 7, GY + 1, { name: '携行缶', items: ['jerry_full'] }); furn('cans', GX + 7, GY + 4, { solid: false });
+furn('register', GX + 5, GY + 1, { name: 'レジ', items: ['coin'] }); furn('jerry', GX + 7, GY + 1, { name: '携行缶', items: ['jerry_full'] }); furn('cans', GX + 7, GY + 4, { solid: false });
 furn('canopy', 8, 60, { w: 10, h: 6, solid: false }); for (const [x, y] of [[10, 62], [14, 62]]) furn('pump', x, y, { name: '給油機', read: '給油機。電気がこないので動かない。\n奥の店に、携行缶があるかもしれない。' });
 // 民家の家具
 const FAM = {
@@ -207,6 +253,10 @@ const FAM = {
   kato: '仏壇の写真立て。笑っているおじいさん。\nそばに、まだ新しいお線香の箱。',
   ito: '2階の窓に貼られた紙：\n「わたしたちは無事です。線路ぞいに、東へ行きます」',
   yamada: 'テーブルの上の手紙：\n「この家を見つけた人へ。\n食べものは好きに使ってください。\nどうか、生きて。」',
+  kudo: 'カレンダー。8月16日に丸。\n「ランド　家族で　観覧車！」',
+  hikari: '窓辺の手紙：\n「この灯りを見て来てくれた人へ。\n電池のランタンを、毎晩つけておきます。\nわたしたちは、岬の灯台へ行きます。\n灯台は、まだ光っているから。」',
+  mori: '玄関の伝言板：\n「ばあちゃんは駅のほうにいます」\nその下に、ちがう字で：「駅にもいませんでした」',
+  nishi: '机の上の絵日記：\n「きょうは、ランドのメリーゴーランドにのった。\nおうまさんが、しろくて、きれいだった。」',
 };
 for (const h of HOUSES) {
   const { x, y, two, id } = h, fam = BLD[id].family;
@@ -243,7 +293,7 @@ for (const [x, y] of [[SX + 8, SY + 24], [SX + 30, SY + 24]]) furn('goal', x, y,
 // 駅
 furn('ticketm', STX + 7, STY + 1, { w: 2, name: '券売機', read: '券売機の画面は真っ暗。\n上の路線図：果ての町 ― ひかりが丘 ― 灯台岬\nいちばん東の駅に、だれかが丸をつけている。' });
 for (const x of [10, 12, 14]) furn('gate', STX + x, STY);
-furn('kiosk', STX + 15, STY + 2, { w: 2, name: '売店', items: ['onigiri', 'tea'] });
+furn('kiosk', STX + 15, STY + 2, { w: 2, name: '売店', items: ['onigiri', 'tea', 'coin'] }); furn('rack', STX + 20, STY + 6, { name: 'パンフレット立て', items: ['map_town'], read: '「ようこそ はてのまちへ」\n観光マップが一部だけ残っている。' });
 furn('bench', STX + 20, STY + 2, { w: 3 }); furn('bench', STX + 20, STY + 5, { w: 3, name: '待合室のベンチ', seat: true });
 furn('desk', STX + 2, STY + 2, { w: 2, name: '駅員の机', read: '運転日誌（最後のページ）：\n「最終列車、当駅にて運転を打ち切る。\n線路の先、ひかりが丘の方角は、まだ明るかった。\n乗客を見送ったあと、私も歩いて東へ向かう」' });
 furn('locker', STX + 1, STY + 5, { name: '駅員のロッカー', items: ['water', 'bandage'] });
@@ -270,6 +320,23 @@ furn('swing', 37, 78, { w: 3, name: 'ブランコ' }); furn('slide', 45, 79, { w
 for (const [x, y] of [[38, 84], [52, 92], [44, 98], [55, 80]]) furn('bench', x, y, { w: 2, name: '公園のベンチ', seat: true });
 furn('firepit', 48, 95, { name: '焚き火のあと' }); furn('clock', 47, 82); furn('vending', 56, 77, { name: '自動販売機', items: ['juice', 'water'] });
 furn('pbridge', 41, 91, { w: 2, h: 1, solid: false });
+// ひかりが丘の駅と村
+furn('desk', 231, 24, { w: 2, name: '駅務室の机', items: ['coin'], read: '机の上のノート（ちがう人の字）：\n「はてのまち駅の駅長です。線路を歩いて、ここまで来ました。\nこの駅にも、だれもいない。\n夜、二階の窓に灯りがともる家がある。\n明日、たずねてみようと思う」' });
+furn('locker', 231, 26, { name: '駅員のロッカー', items: ['bandage', 'water'] }); furn('ticketm', 236, 23, { w: 2, name: '券売機', read: '路線図：はてのまち ― ひかりが丘 ― 灯台岬\n「ひかりが丘ランドへは　駅から歩いて5分」' });
+furn('bench', 235, 25, { w: 3, name: '待合室のベンチ', seat: true }); furn('stove', 238, 26, { name: 'だるまストーブ', read: 'だるまストーブ。上にやかんが乗っている。\n中の灰は、まだ新しい。' });
+furn('stationsign', 223, 21, { w: 3, name: '駅名標', text: 'ひかりがおか', read: '駅名標：\n　　　　ひかりがおか\n← はてのまち　　　　　とうだいみさき →' });
+for (const x of [226, 243]) furn('bench', x, 21, { w: 2, name: 'ホームのベンチ', seat: true });
+furn('clock', 229, 21); furn('vending', 228, 28, { name: '自動販売機', items: ['tea', 'coin'] }); furn('postbox', 242, 30); furn('busstop', 222, 30, { w: 2 });
+furn('shelf', 231, 37, { name: '商品棚', items: ['can', 'bread'] }); furn('shelf', 233, 37, { name: '商品棚', items: ['water', 'snack'] }); furn('register', 232, 39, { w: 2, name: 'レジ', items: ['coin', 'coin'], read: 'レジの横に貼り紙：\n「ランドの回数券　あります」\n引き出しには、まだ回数券の束が入っている。' });
+furn('fridge_shop', 230, 36, { name: '冷蔵ケース', items: ['juice', 'tea'] }); furn('boxes', 234, 39, { name: '段ボール', items: ['battery', 'lighter'] });
+furn('lamp_win', 246, 23, { L: 1, solid: false, name: 'ランタン', read: '電池式のランタン。窓辺に置かれて、ずっと光っている。\n電池の残りを示すランプは、まだ緑。' });
+// 灯台
+obj({ type: 'lighthouse', x: 244, y: 116, fx: 244.5, fy: 116.5, solid: false, tall: LH_TOP + 4 });
+furn('lens', 244, 116, { L: LHN, name: 'レンズ', read: '大きなレンズ。何重ものガラスの輪が、ゆっくり回っている。\n足もとの箱に「太陽電池・自動点灯」の札。\nだれもいなくても、毎晩ちゃんと光っている。' });
+furn('desk', 242, 114, { name: '灯台守の机', items: ['coin'], read: '業務日誌（最後のページ）：\n「自動化されて二十年。点検に来るのも、今月で最後。\n光はこれからも、勝手に回り続ける」\nその下に、子どもの字：「ここまで来たよ。ひかりが丘の、ひかりより」' });
+furn('locker', 246, 114, { name: 'ロッカー', items: ['water', 'bandage'] });
+furn('note', 245, 117, { L: LHN, solid: false, name: '書き置き', read: '「灯りの家の家族です。\nここで夜を明かしました。\n光が回るのを、ずっと見ていました。\n朝、船が来るかもしれないので、浜に下ります」' });
+furn('bench', 237, 113, { w: 2, name: '岬のベンチ', seat: true });
 // 通りの小物
 const POLES = [];
 const pole = (x, y) => { const o = obj({ type: 'pole', x, y, solid: true }); POLES.push(o); return o };
@@ -289,15 +356,18 @@ furn('bus', 64, 34, { w: 6, h: 2, name: 'バス', items: ['water'] });
 const BWALL = [];
 function bwall(x0, y0, x1, y1, kind = 'block') { const L = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i < L; i++) { const t = i / L, t2 = (i + 1) / L; const o = obj({ type: kind, x: Math.floor(lerp(x0, x1, (t + t2) / 2)), y: Math.floor(lerp(y0, y1, (t + t2) / 2)), x0: lerp(x0, x1, t), y0: lerp(y0, y1, t), x1: lerp(x0, x1, t2), y1: lerp(y0, y1, t2), solid: true }); BWALL.push(o) } }
 for (let x = BRX0; x <= BRX1; x++) for (const [y, ly] of [[68, 68.62], [75, 75.38]]) BWALL.push(obj({ type: 'parapet', x, y, x0: x, y0: ly, x1: x + 1, y1: ly, post: (x - BRX0) % 3 === 0, end: x === BRX0 || x === BRX1 }));
-for (const h of HOUSES) { const w = h.two ? 10 : 9, X0 = h.x - 1, X1 = h.x + w + 1, Y1 = h.y + 10; bwall(X0, h.y - 1, X0, Y1); bwall(X1, h.y - 1, X1, Y1); bwall(X0, Y1, h.x + 3, Y1); bwall(h.x + 5, Y1, X1, Y1, 'hedge') }
+// 鉄橋のトラス（両側）
+for (let x = RBX0; x <= RBX1; x++) { obj({ type: 'truss', x, y: 11, fx: x, fy: 10.9, side: 0, solid: false }); obj({ type: 'truss', x, y: 18, fx: x + 1, fy: 19, side: 1, solid: false }) }
+for (const h of HOUSES) { if (h.nowall) continue; const w = h.two ? 10 : 9, X0 = h.x - 1, X1 = h.x + w + 1, Y1 = h.y + 10; bwall(X0, h.y - 1, X0, Y1); bwall(X1, h.y - 1, X1, Y1); bwall(X0, Y1, h.x + 3, Y1); bwall(h.x + 5, Y1, X1, Y1, 'hedge') }
 for (let x = 68; x <= 106; x++) { if (x >= 70 && x <= 99) continue } bwall(68, 93, 68, 95, 'fence'); bwall(68, 99, 68, 115, 'fence'); bwall(68, 115, 107, 115, 'fence'); bwall(107, 81, 107, 115, 'fence');
 // 車
 const CARS = [];
 for (const [x, y, a, c, wr] of [[30, 71.2, 0, '#2f6fa8'], [90, 72.6, Math.PI, '#b5382c'], [104, 71.5, .3, '#8a8476', 1], [61.5, 100, Math.PI / 2, '#d8d0b8'], [12, 64.5, 0, '#5a6a4a'], [14.5, 50, 0, '#e8e4dc'], [27, 52.5, Math.PI, '#4a4a52'], [69, 67.4, 0, '#a83a3a']]) {
-  const w = Math.abs(Math.cos(a)) > .7 ? 2 : 1, h = 3 - w; CARS.push(obj({ type: 'car', x: Math.round(x - w / 2), y: Math.round(y - h / 2), fx: x, fy: y, a, col: c, wreck: wr, w, h, name: '車のトランク', items: hash(x, y) < .5 ? ['water'] : ['snack'] }))
+  const w = Math.abs(Math.cos(a)) > .7 ? 2 : 1, h = 3 - w; CARS.push(obj({ type: 'car', x: Math.round(x - w / 2), y: Math.round(y - h / 2), fx: x, fy: y, a, col: c, wreck: wr, w, h, name: x === 14.5 ? 'ダッシュボード' : '車のトランク', items: x === 14.5 ? ['map_road', 'coin'] : hash(x, y) < .5 ? ['water'] : ['snack'] }))
 }
 // 木
-const TREES = [];
+const TREES = [], TIDX = new Int32Array(N).fill(-1);
+function treeNear(x, y, r) { const tx = Math.floor(x), ty = Math.floor(y); for (let j = -2; j <= 2; j++)for (let i = -2; i <= 2; i++) { const xx = tx + i, yy = ty + j; if (xx < 0 || yy < 0 || xx >= GW || yy >= GH) continue; const ti = TIDX[key(xx, yy)]; if (ti >= 0) { const t = TREES[ti]; if (Math.abs(t.fx - x) < r && Math.abs(t.fy - y) < r) return true } } return false }
 function addTree(x, y, o = {}) {
   // 扉の前には植えない
   if (!o.force) for (const d of DOORS.values()) if (d.L === 0 && Math.abs(d.x + .5 - x) < 1.8 && Math.abs(d.y + .5 - y) < 1.8) return;
@@ -305,17 +375,17 @@ function addTree(x, y, o = {}) {
   if (g >= 100 || [TG.road, TG.walk, TG.water, TG.lot, TG.gravel, TG.platform, TG.tactile, TG.plaza, TG.bridge, TG.lane, TG.stone, TG.pond, TG.yard].includes(g) && !o.force) return;
   if (SOLID[0].has(k) || LEV[0].t[k]) return;
   const t = { type: 'tree', x: Math.floor(x), y: Math.floor(y), fx: x, fy: y, r: o.r || .8, hgt: o.h || 2.6, kind: o.kind || null, col: o.col || '#4b7533', ph: hash(x * 3, y * 7) * 6, solid: true, blossom: o.blossom };
-  TREES.push(t); obj(t); return t;
+  TIDX[k] = TREES.length; TREES.push(t); obj(t); return t;
 }
 const SAKURA = ['#f0b8c8', '#f4c8d4', '#e8a8bc'];
 for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2; addTree(DCX + Math.cos(a) * 13.6, DCY + Math.sin(a) * 12.6, { col: i % 3 ? '#4b7533' : SAKURA[i % 3], blossom: i % 3 === 0, r: .85, h: 2.6, force: true }) }
 for (const [x, y] of [[35, 77], [56, 99], [35, 99], [57, 88], [40, 80], [48, 100]]) addTree(x, y, { col: SAKURA[(x + y) % 3], blossom: true, r: 1.05, h: 2.8 });
 for (let x = 69; x <= 106; x += 4) { addTree(x + .5, 116.5, { col: SAKURA[x % 3], blossom: true, r: .95, h: 2.7 }) }
-for (let i = 0; i < 4000 && TREES.length < 160; i++) { const x = 3 + R() * 33, y = 21 + R() * 20; if (GT[key(x | 0, y | 0)] !== TG.forest) continue; if (TREES.some(t => Math.abs(t.fx - x) < 1.4 && Math.abs(t.fy - y) < 1.4)) continue; addTree(x, y, { kind: 'cedar', col: ['#2a4a32', '#30543a'][i % 2], r: .8, h: 4.2 + R() * 1.5 }) }
-for (let i = 0; i < 16000 && TREES.length < 1100; i++) {
-  const x = 2 + R() * (GW - 4), y = 2 + R() * (GH - 4), g = GT[key(x | 0, y | 0)]; const d = Math.hypot(x - 64, y - 70);
-  if (g === TG.forest || g === TG.bank && R() < .25 || (g === TG.grass && R() < (d < 50 ? .02 : .14))) {
-    if (TREES.some(t => Math.abs(t.fx - x) < 1.25 && Math.abs(t.fy - y) < 1.25)) continue; const pine = R() < .4;
+for (let i = 0; i < 4000 && TREES.length < 160; i++) { const x = 3 + R() * 33, y = 21 + R() * 20; if (GT[key(x | 0, y | 0)] !== TG.forest) continue; if (treeNear(x, y, 1.4)) continue; addTree(x, y, { kind: 'cedar', col: ['#2a4a32', '#30543a'][i % 2], r: .8, h: 4.2 + R() * 1.5 }) }
+for (let i = 0; i < 30000 && TREES.length < 1750; i++) {
+  const x = 2 + R() * (GW - 4), y = 2 + R() * (GH - 4), g = GT[key(x | 0, y | 0)]; const d = Math.hypot(x - 64, y - 70); if (NOTREE.some(([a, b, c2, e]) => x >= a && x <= c2 && y >= b && y <= e)) continue; const cd = coastX(y) - x;
+  if (g === TG.forest || g === TG.bank && R() < .25 || (g === TG.grass && R() < (d < 50 ? .02 : cd < 16 ? .5 : .14))) {
+    if (treeNear(x, y, 1.25)) continue; const pine = R() < (cd < 18 ? .95 : .4);
     addTree(x, y, { kind: pine ? 'pine' : null, col: pine ? ['#2f5a35', '#386a3c'][i % 2] : ['#3d6a33', '#4b7533', '#5a7d2e', '#6a8a34'][i % 4], r: .7 + R() * .35, h: 2.2 + R() * .9 })
   }
 }

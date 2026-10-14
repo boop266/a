@@ -1,5 +1,5 @@
 // ════════════════ 世界のしくみ（マス・階・扉・階段・物） ════════════════
-const GW = 160, GH = 160, N = GW * GH, LH = 2.4, MINL = -1, MAXL = 10;
+const GW = 256, GH = 160, N = GW * GH, LH = 2.4, MINL = -1, MAXL = 10;
 const EMPTY = 0, FLOOR = 1, WALL = 2, WIN = 3, DOOR = 4, RAIL = 5, STAIR = 6, HOLE = 7, SOLIDX = 8, SHAFT = 9, GLASS = 10, ROOF = 11, FENCE = 12;
 const WALLISH = new Set([WALL, WIN, DOOR, SHAFT, SOLIDX]);
 const FM = { none: 0, tile: 1, wood: 2, carpet: 3, conc: 4, metal: 5, roof: 6, tatami: 7, lino: 8, deck: 9, stone: 10, train: 11 };
