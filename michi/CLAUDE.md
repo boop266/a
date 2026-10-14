@@ -23,3 +23,8 @@
   5. 作る前に「これだけ作れば完成」という基準を決める：最低限のゲームループ・中身・絵で、最初から最後まで遊べること。テストプレイを経て渡す。
   - 出典：McGonigal要約 https://blog.ryan-jenkins.com/2013/02/18/book-review-reality-is-broken-by-jane-mcgonigal-part-2 ／桜井氏 https://www.gamer.ne.jp/news/201208210004/ ／流れ https://kinutani.hateblo.jp/entry/2022/12/25/162239 ／完成基準 https://mackysoft.net/articles/how-to-complete-game-development/ ／バーティカルスライス https://fungies.io/?p=20193 ・ https://www.rpgmakerweb.com/blog/5-ways-to-rapid-prototype-your-game
   - 戦闘だけ・画面だけの見本で出さない。案を見せるときも、上の1〜5を満たす1本として見せる。
+- 手抜きをしない。具体的には：
+  - 見本・仮の絵・仮の文・「あとで直す」で済ませない。出す物は全部、遊ぶ人の目に触れる完成品として作る。
+  - 置いた物・書いた仕組みは、全部ちゃんと動き、意味がある（調べれば一言返ってくる、鍵には理由がある）。
+  - 最初から最後まで自分で通し（ボットの通しプレイ）、詰まない・落ちないことを確かめる。全部の部屋・全部のカメラを写真で一枚ずつ見て、おかしい所を直してから渡す。
+  - 時間や量の都合で削るなら、削ったことを正直に書く。黙って削らない。
