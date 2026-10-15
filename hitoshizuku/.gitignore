@@ -1,0 +1,4 @@
+.kvg-cache/
+.fonts/
+.gen/
+tests/out/

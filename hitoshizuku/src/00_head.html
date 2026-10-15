@@ -1,0 +1,197 @@
+<title>ひとしずく</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/*FONT_CSS*/
+/* 絵巻の一枚の世界：和紙（楮）に墨、朱の落款、金泥、藍。昼も夜もこの色のまま（夜の巻だけ紺紙金泥に変わる）。
+   配置：上に絵巻（canvas、端まで）、下（横長なら右）に字帳。字と操作は 16px 以上の余白の内側。 */
+:root{
+  --washi:#ebe2c8;        /* 和紙 */
+  --washi-deep:#ddd2b2;   /* 字帳の紙 */
+  --washi-light:#f6f1e2;  /* 白紙・余白 */
+  --sumi:#1c1a20;         /* 墨 */
+  --usuzumi:#6b655c;      /* 薄墨 */
+  --shu:#c4381f;          /* 朱 */
+  --ai:#22508a;           /* 藍 */
+  --kin:#b0832a;          /* 金泥 */
+  --moegi:#55782b;        /* 萌黄 */
+  --veil:rgba(28,26,32,.55);
+  --font-hand:'Shizuku Klee','Hiragino Mincho ProN','Yu Mincho','YuMincho','Noto Serif JP','Noto Serif CJK JP',serif;
+  --fs-s:13px; --fs-m:16px; --fs-l:20px; --fs-xl:28px;
+  --tray-h:min(38vh,330px);
+  color-scheme:light;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--washi);color:var(--sumi);
+  font-family:var(--font-hand);font-size:var(--fs-m);-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;overscroll-behavior:none}
+button{font-family:inherit;color:inherit}
+#app{position:fixed;inset:0;display:grid;grid-template-rows:1fr var(--tray-h);grid-template-columns:100%}
+#stage{position:relative;overflow:hidden;min-height:0;background:var(--washi)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+@media (min-aspect-ratio: 11/10){
+  #app{grid-template-rows:100%;grid-template-columns:1fr min(34vw,360px)}
+}
+
+/* ---------- 上の飾り（落款・墨つぼ・ボタン） ---------- */
+#hud{position:absolute;left:0;right:0;top:0;display:flex;align-items:flex-start;gap:10px;pointer-events:none;
+  padding-top:calc(env(safe-area-inset-top,0px) + 10px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#hud > *{pointer-events:auto}
+#seal{display:flex;gap:8px;align-items:flex-start;min-width:0}
+#seal .stamp{width:30px;height:30px;border-radius:5px;background:var(--shu);color:var(--washi-light);display:grid;place-items:center;
+  font-weight:600;font-size:18px;line-height:1;box-shadow:inset 0 0 0 2px rgba(255,255,255,.18);transform:rotate(-3deg)}
+#seal .name{font-size:var(--fs-s);line-height:1.35;color:var(--sumi);background:rgba(235,226,200,.72);padding:3px 8px;border-radius:4px;
+  max-width:46vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hud .grow{flex:1}
+.hbtn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--sumi);background:rgba(246,241,226,.85);display:grid;place-items:center;
+  font-size:18px;font-weight:600;cursor:pointer;padding:0}
+.hbtn:focus-visible,.tab:focus-visible,.cell:focus-visible,.mbtn:focus-visible{outline:3px solid var(--shu);outline-offset:2px}
+.hbtn svg{width:22px;height:22px}
+
+/* 墨つぼ（字帳の左上） */
+#inkpot{display:flex;align-items:center;gap:8px;min-width:0}
+#inkpot canvas{width:44px;height:44px;display:block}
+#inkpot .num{font-size:var(--fs-s);font-variant-numeric:tabular-nums;white-space:nowrap}
+#inkpot .num b{font-size:var(--fs-l);font-weight:600}
+
+/* ---------- 絵師の声（縦書き） ---------- */
+#voice{position:absolute;right:max(14px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 60px);bottom:14px;align-items:flex-start;
+  display:flex;flex-direction:row-reverse;gap:6px;pointer-events:none;max-width:60%}
+#voice .line{writing-mode:vertical-rl;text-orientation:upright;font-size:17px;line-height:1.5;letter-spacing:.08em;
+  color:var(--sumi);background:linear-gradient(90deg,rgba(236,227,203,0),rgba(236,227,203,.88) 20%,rgba(236,227,203,.88) 80%,rgba(236,227,203,0));
+  padding:10px 6px;max-height:100%;opacity:0;transition:opacity .9s ease;white-space:pre-wrap}
+#voice .line.on{opacity:1}
+#voice .line.who::before{content:'';}
+
+/* ---------- 吹き出し・知らせ ---------- */
+#toast{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 62px);transform:translateX(-50%);pointer-events:none;
+  font-size:var(--fs-m);padding:6px 14px;border-radius:999px;background:rgba(28,26,32,.82);color:var(--washi-light);opacity:0;
+  transition:opacity .35s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis}
+#toast.on{opacity:1}
+#bubble{position:absolute;pointer-events:auto;display:flex;gap:6px;transform:translate(-50%,-100%);}
+#bubble button{font-size:15px;padding:7px 12px;border-radius:999px;border:1.5px solid var(--sumi);background:var(--washi-light);cursor:pointer;white-space:nowrap}
+#bubble button.red{background:var(--shu);color:var(--washi-light);border-color:var(--shu)}
+
+/* ---------- 字帳 ---------- */
+#tray{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--washi-deep);
+  border-top:2px solid var(--sumi);box-shadow:0 -6px 18px rgba(60,40,10,.12)}
+@media (min-aspect-ratio: 11/10){ #tray{border-top:none;border-left:2px solid var(--sumi)} }
+#trayhead{display:flex;align-items:center;gap:10px;padding-block:8px 6px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;touch-action:pan-x}
+#tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;font-size:14px;padding:5px 11px;border-radius:999px;border:1.5px solid rgba(28,26,32,.35);background:transparent;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--sumi);color:var(--washi-light);border-color:var(--sumi)}
+.tab .n{font-size:11px;opacity:.7;margin-left:3px;font-variant-numeric:tabular-nums}
+#grid{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px;align-content:start;
+  padding-block:4px calc(env(safe-area-inset-bottom,0px) + 12px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.cell{position:relative;aspect-ratio:1;max-width:100%;border:1.5px solid rgba(196,56,31,.55);background:var(--washi-light);border-radius:3px;
+  cursor:grab;padding:0;touch-action:none}
+.cell::before,.cell::after{content:'';position:absolute;pointer-events:none;border-color:rgba(196,56,31,.28);border-style:dashed;border-width:0}
+.cell::before{left:50%;top:4px;bottom:4px;border-left-width:1px}
+.cell::after{top:50%;left:4px;right:4px;border-top-width:1px}
+.cell canvas{position:absolute;inset:6%;width:88%;height:88%;z-index:1}
+.cell .cost{position:absolute;right:2px;bottom:1px;font-size:10px;line-height:1;color:var(--usuzumi);z-index:2;font-variant-numeric:tabular-nums}
+.cell.sel{border-color:var(--sumi);box-shadow:0 0 0 3px var(--sumi)}
+.cell.dim{opacity:.38}
+.cell.newk::after{content:'新';border:none;top:-6px;left:auto;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--shu);color:#fff;
+  font-size:11px;display:grid;place-items:center;z-index:3}
+.cell.hint{box-shadow:0 0 0 3px var(--kin)}
+.cell.word{grid-column:span 2;aspect-ratio:2/1}
+.cell.word canvas{inset:6% 3%;width:94%;height:88%}
+#trayempty{grid-column:1/-1;font-size:var(--fs-s);color:var(--usuzumi);padding:12px 0}
+
+/* 引っぱっている字 */
+#ghost{position:fixed;left:0;top:0;width:76px;height:76px;pointer-events:none;z-index:50;display:none;
+  filter:drop-shadow(0 6px 8px rgba(0,0,0,.25))}
+#ghost.on{display:block}
+
+/* ---------- 巻物（モーダル） ---------- */
+#modal{position:fixed;inset:0;z-index:40;display:none;background:var(--veil);
+  padding-top:calc(env(safe-area-inset-top,0px) + 12px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 12px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#modal.on{display:flex;align-items:center;justify-content:center}
+#sheet{position:relative;width:min(640px,100%);max-height:100%;overflow:auto;background:var(--washi);border-radius:6px;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);padding:18px 18px 22px;touch-action:pan-y}
+#sheet h2{font-size:var(--fs-xl);font-weight:600;margin:0 0 6px;text-wrap:balance}
+#sheet h3{font-size:var(--fs-l);font-weight:600;margin:14px 0 6px}
+#sheet p{line-height:1.75;margin:6px 0;max-width:34em}
+#sheet .close{position:sticky;top:0;float:right;margin:-6px -6px 0 0;z-index:2}
+.mrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.mbtn{font-size:16px;padding:10px 16px;border-radius:6px;border:1.5px solid var(--sumi);background:var(--washi-light);cursor:pointer}
+.mbtn.red{background:var(--shu);border-color:var(--shu);color:var(--washi-light)}
+.mbtn:disabled{opacity:.4;cursor:default}
+.dict{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:6px;margin-top:10px}
+.dict .d{aspect-ratio:1;border:1px solid rgba(196,56,31,.45);background:var(--washi-light);border-radius:3px;position:relative;cursor:pointer;padding:0}
+.dict .d canvas{position:absolute;inset:8%;width:84%;height:84%}
+.dict .d.no{background:transparent;border-style:dashed;color:var(--usuzumi);font-size:11px}
+.dict .d.no span{position:absolute;inset:0;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.card{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:start;margin-top:8px}
+.card canvas{width:120px;height:120px;background:var(--washi-light);border:1.5px solid rgba(196,56,31,.55);border-radius:4px}
+.card .yomi{font-size:var(--fs-l)}
+.card .meta{font-size:var(--fs-s);color:var(--usuzumi);font-variant-numeric:tabular-nums}
+.card .eq{font-size:var(--fs-l);margin-top:6px}
+@media (max-width:380px){ .card{grid-template-columns:96px 1fr} .card canvas{width:96px;height:96px} }
+.scenes{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px}
+.scn{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:5px;background:var(--washi-light);
+  border:1px solid rgba(28,26,32,.15);cursor:pointer;text-align:left;font-size:15px}
+.scn:disabled{opacity:.45;cursor:default}
+.scn .no{font-size:12px;color:var(--usuzumi)}
+.scn .stamps{display:flex;gap:3px}
+.scn .stamps i{width:12px;height:12px;border-radius:2px;border:1px solid var(--shu);display:block}
+.scn .stamps i.on{background:var(--shu)}
+.setting{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(28,26,32,.12)}
+.setting input[type=range]{width:min(200px,50vw)}
+
+/* ---------- 表紙 ---------- */
+#title{position:fixed;inset:0;z-index:30;display:none;background:var(--washi)}
+#title.on{display:block}
+#title canvas{position:absolute;inset:0;width:100%;height:100%}
+#title .menu{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 7vh);display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#title .menu button{min-width:min(240px,80vw);font-size:18px;padding:12px 18px;border-radius:6px;border:1.5px solid var(--sumi);background:rgba(246,241,226,.9);cursor:pointer}
+#title .menu button.red{background:var(--shu);border-color:var(--shu);color:var(--washi-light)}
+#title .credit{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);text-align:center;font-size:11px;color:var(--usuzumi)}
+
+/* 物語（縦書きの頁） */
+#story{position:fixed;inset:0;z-index:35;display:none;background:var(--washi);cursor:pointer}
+#story.on{display:block}
+#story canvas{position:absolute;inset:0;width:100%;height:100%}
+#story .txt{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8vh);bottom:calc(env(safe-area-inset-bottom,0px) + 12vh);right:max(28px,env(safe-area-inset-right,0px));
+  left:max(28px,env(safe-area-inset-left,0px));display:flex;flex-direction:row-reverse;justify-content:flex-start;gap:4px;overflow:hidden}
+#story .txt p{writing-mode:vertical-rl;text-orientation:upright;margin:0;font-size:clamp(18px,4.6vw,24px);line-height:1.9;letter-spacing:.12em;
+  opacity:0;transition:opacity 1.2s ease}
+#story .txt p.on{opacity:1}
+#story .tap{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 4vh);text-align:center;font-size:var(--fs-s);color:var(--usuzumi);opacity:0;transition:opacity .6s}
+#story .tap.on{opacity:1}
+#story .skip{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(16px,env(safe-area-inset-left,0px));font-size:var(--fs-s);
+  padding:6px 12px;border-radius:999px;border:1px solid var(--usuzumi);background:transparent;color:var(--usuzumi);cursor:pointer}
+
+@media (prefers-reduced-motion: reduce){ #voice .line,#story .txt p,#toast{transition:none} }
+</style>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv" aria-label="絵巻"></canvas>
+    <div id="hud">
+      <div id="seal"><div class="stamp" id="sealStamp">序</div><div class="name" id="sealName"></div></div>
+      <div class="grow"></div>
+      <button class="hbtn" id="hintBtn" aria-label="絵師の声を聞く">？</button>
+      <button class="hbtn" id="menuBtn" aria-label="巻物をひらく"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
+    <div id="voice"></div>
+    <div id="toast"></div>
+    <div id="bubble" hidden></div>
+  </div>
+  <div id="tray">
+    <div id="trayhead">
+      <div id="inkpot" aria-label="墨"><canvas id="inkcv" width="88" height="88"></canvas><div class="num"><b id="inkNow">0</b> / <span id="inkMax">0</span> 画</div></div>
+      <div id="tabs" role="tablist"></div>
+    </div>
+    <div id="grid" role="list"></div>
+  </div>
+</div>
+<canvas id="ghost" width="152" height="152"></canvas>
+<div id="modal"><div id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="title"><canvas id="titlecv"></canvas><div class="menu" id="titleMenu"></div><div class="credit">筆順データ KanjiVG（CC BY-SA 3.0）・字体 Klee One（SIL OFL）</div></div>
+<div id="story"><canvas id="storycv"></canvas><div class="txt" id="storyTxt"></div><div class="tap" id="storyTap">さわると つづく</div><button class="skip" id="storySkip">とばす</button></div>
