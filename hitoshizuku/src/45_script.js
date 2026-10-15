@@ -166,5 +166,3 @@ function meltSome(n) {
   }
 }
 
-// おわり（終の巻で書きかえる）
-const Ending = { play() { toast('つづく'); Game.toTitle(); } };

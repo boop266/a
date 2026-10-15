@@ -256,7 +256,7 @@ D('愛', 'あい', '愛', 'kokoro', { kind: 'feel', col: 'momo', fx: 'love', not
 D('礼', 'れい', 'お辞儀', 'kokoro', { kind: 'feel', col: 'sumi', fx: 'bow', note: 'ていねいにお辞儀をする。礼を知るものは道をゆずる。河童はお辞儀を返して、頭の皿の水をこぼす。', gen: '示（神）と乚（ひざまずく人）。' });
 D('夢', 'ゆめ', '夢', 'kokoro', { kind: 'feel', col: 'murasaki', fx: 'dream', note: '眠っている生き物に書くと、夢を見て、寝言でひみつを教えてくれる。', gen: '夜（夕）、目をおおう草（艹）。' });
 D('心', 'こころ', '心', 'kokoro', { kind: 'feel', col: 'shu', fx: 'heart', note: '薄れたものに書くと、名前は思い出せなくても、色がよみがえる。', gen: '心臓の形。' });
-D('安', 'やすらか', 'やすらか', 'kokoro', { kind: 'feel', col: 'moegi', fx: 'calm', note: 'まわりの生き物の気持ちが落ちつく。逃げ回る物も止まる。', gen: '宀（家）の中に女の人。' });
+D('安', 'やすらか', 'やすらか', 'kokoro', { kind: 'feel', col: 'moegi', fx: 'soothe', note: 'まわりの生き物の気持ちが落ちつく。逃げ回る物も止まる。', gen: '宀（家）の中に女の人。' });
 D('忘', 'わすれる', '忘れる', 'kokoro', { kind: 'feel', col: 'hai', fx: 'forget', note: '生き物が、自分の役目を忘れてどこかへ行く。', gen: '亡（なくなる）と心。' });
 D('思', 'おもう', '思う', 'kokoro', { kind: 'feel', col: 'murasaki', fx: 'think', note: '書いた物の思い出が、絵師の声になって聞こえる。', gen: '田（頭）と心。' });
 D('名', 'な', '名', 'kokoro', { kind: 'feel', col: 'shu', fx: 'name', story: true, note: '名を呼ぶ。', gen: '夕方、口で名のる。暗くて見えないので。' });

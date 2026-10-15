@@ -146,6 +146,47 @@ T['乗り物：舟に乗って川を渡る'] = `
   HS.heroTap(b.x, b.y - 1); HS.sim(3); if (HS.hero().y !== b.y - 1) return 'not on boat ' + HS.hero().x + ',' + HS.hero().y + ' boat ' + b.x + ',' + b.y;
   HS.heroTap(20, 6); HS.sim(10); return HS.hero().x >= 17 || 'hero ' + HS.hero().x + ' boat ' + b.x;`;
 
+T['音：鳴らすと、生き物が気づく（こわれない）'] = `
+  lab({ map: FLAT, start: { x: 2, y: 7 }, ents: [{ k: '犬', x: 12, y: 7 }] });
+  const k = HS.writeNow('音', 10, 6); if (k !== 'event') return 'kind ' + k;
+  HS.sim(1); return HS.ev('sound').length === 1 || 'no sound event';`;
+T['出：埋まっていた物が出てくる'] = `
+  lab({ map: FLAT, start: { x: 2, y: 7 }, buried: [{ k: '鍵', x: 10, y: 8 }] });
+  const k = HS.writeNow('出', 10, 7); if (k !== 'area') return 'kind ' + k;
+  HS.sim(1); return HS.ents('鍵').length === 1 || 'no key';`;
+T['安：にげまわる生き物が落ちつく'] = `
+  lab({ map: FLAT, start: { x: 2, y: 7 }, ents: [{ k: '猫', x: 12, y: 7 }] });
+  const c = HS.ents('猫')[0]; c.fearT = 10; c.fearFrom = { x: 10, y: 7 };
+  const k = HS.writeNow('安', 12, 7); if (k !== 'apply' && k !== 'area') return 'kind ' + k;
+  return (c.calmT > 0 && c.fearT === 0) || 'not calm ' + c.calmT + ' ' + c.fearT;`;
+T['門：鍵で開けると通れる'] = `
+  lab({ map: FLAT, start: { x: 2, y: 7 }, ents: [{ k: '門', x: 12, y: 5, w: 2, h: 3, locked: true }] });
+  HS.heroTap(20, 7); HS.sim(6); if (HS.hero().x >= 12) return 'passed locked gate';
+  const k = HS.writeNow('鍵', 12, 6); if (k !== 'apply') return 'kind ' + k;
+  HS.heroTap(20, 7); HS.sim(8); return HS.hero().x >= 19 || 'hero at ' + HS.hero().x;`;
+T['乗り物：着いたら、ぴょんと降りて歩く'] = `
+  lab({ map: GAP, start: { x: 2, y: 7 }, ents: [{ k: '鶴', x: 4, y: 6 }] });
+  const c = HS.ents('鶴')[0]; c.charmT = 999;
+  HS.heroTap(c.x, c.y); HS.sim(0.5); if (!HS.hero().hero.ride) return 'no ride';
+  HS.heroTap(22, 7); HS.sim(12);
+  return (!HS.hero().hero.ride && HS.hero().x >= 20) || 'hero ' + HS.hero().x + ',' + HS.hero().y + ' ride ' + !!HS.hero().hero.ride;`;
+T['雪は、人のいるマスには積もらない'] = `
+  lab({ map: FLAT, start: { x: 5, y: 7 } });
+  HS.W.rains.push({ x: 0, y: 0, w: 30, ttl: 20, rate: 1, cloud: true, snow: true }); HS.sim(15);
+  return HS.tAt(HS.hero().x, HS.hero().y) !== HS.T.SNOW || 'snow in hero cell';`;
+T['終の巻：思い出を返し、名をつけ、さいごの一画で絵巻がおわる'] = `
+  const i = HS.SCENES.findIndex(s => s.id === 'e1'); HS.Scene.load(i); HS.Game.paused = true;
+  for (const m of ['母', '父', '師', '友', '別']) HS.writeNow(m, 22, 8);
+  HS.sim(6); if (HS.Final.stage !== 0) return 'woke too early';
+  if (HS.planWrite('花', 14, 5).kind === 'title') return 'strip writable before wake';
+  HS.writeNow('夢', 22, 8); HS.sim(8); if (HS.Final.stage !== 1) return 'not awake ' + HS.Final.stage;
+  HS.sim(12); if (HS.planWrite('花', 14, 5).kind !== 'title') return 'strip not ready';
+  HS.startWrite('花', 14, 5); HS.sim(6); if (HS.Final.stage !== 2 || HS.Final.name !== '花') return 'no name';
+  if (!HS.Final.onTap(HS.hero().x, HS.hero().y)) return 'tap not taken';
+  HS.sim(6); if (HS.Final.stage !== 4) return 'no last stroke ' + HS.Final.stage;
+  HS.sim(20); const ok = HS.Final.ended && HS.Game.finalWord === '花' && HS.Game.story.ended;
+  if (HS.Ending.on) HS.Ending.close('title');
+  return ok || 'no ending';`;
 (async () => {
   const only = process.argv[2];
   const b = await chromium.launch();

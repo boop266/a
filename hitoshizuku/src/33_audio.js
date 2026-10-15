@@ -209,14 +209,58 @@ const AudioSys = (() => {
       M.beat++; M.nextT += spb * (1 + (chance(0.1) ? 0.15 : 0));
     }
   }
+  // 「ひとしずく」のふし（陽音階・二まわり目は尺八が重なる）。[度, 拍]
+  const THEME = [
+    [4, 1], [5, 1], [4, 1], [2, 1], [3, 2], [2, 2],
+    [4, 1], [5, 1], [7, 1], [5, 1], [4, 2], [null, 2],
+    [5, 1], [7, 1], [8, 1], [7, 1], [5, 1], [4, 1], [5, 2],
+    [4, 1], [3, 1], [2, 1], [1, 1], [2, 2], [null, 2],
+    [2, 1], [3, 1], [4, 2], [3, 1], [2, 1], [1, 2],
+    [0, 1], [1, 1], [2, 1], [3, 1], [2, 2], [1, 2],
+    [4, 1.5], [3, 0.5], [2, 1], [3, 1], [4, 2], [5, 2],
+    [4, 1], [2, 1], [1, 1], [2, 1], [0, 4],
+  ];
+  const THEME_BASS = [0, 2, 0, 3, 2, 0, 3, 0, 2, 3, 0, 0, 3, 2, 0, 0];
+  let themeBus = null;
   const Music = {
+    themeUntil: 0,
+    theme() {
+      if (!ac) return 0;
+      this.stopTheme(true);
+      M.mood = null;
+      themeBus = ac.createGain(); themeBus.gain.value = 1; themeBus.connect(musicBus);
+      const mood = { scale: 'yo', root: 62 }, spb = 60 / 64;
+      let t = ac.currentTime + 0.5; const t0 = t;
+      for (let pass = 0; pass < 2; pass++) {
+        const ps = t;
+        for (const [d, b] of THEME) {
+          if (d != null) {
+            koto(t, noteOf(mood, d, 0), pass ? 0.17 : 0.24, themeBus, 0.55);
+            if (pass) shaku(t, noteOf(mood, d, 0), Math.max(0.3, b * spb * 0.96), 0.075, themeBus);
+          }
+          t += b * spb;
+        }
+        THEME_BASS.forEach((d, bar) => { const tb = ps + bar * 4 * spb; koto(tb, noteOf(mood, d, -1), 0.2, themeBus, 0.7); koto(tb + 2 * spb, noteOf(mood, d + 3, -1), 0.09, themeBus, 0.7); });
+      }
+      koto(t, noteOf(mood, 0, -1), 0.22, themeBus, 0.8); koto(t + 0.05, noteOf(mood, 5, -1), 0.14, themeBus, 0.8); koto(t + 0.1, noteOf(mood, 0, 0), 0.12, themeBus, 0.8);
+      this.themeUntil = t + 3;
+      return t - t0;
+    },
+    stopTheme(now) {
+      this.themeUntil = 0;
+      if (!themeBus || !ac) return;
+      const g = themeBus; themeBus = null;
+      try { g.gain.setValueAtTime(g.gain.value, ac.currentTime); g.gain.linearRampToValueAtTime(0, ac.currentTime + (now ? 0.05 : 1.2)); setTimeout(() => { try { g.disconnect(); } catch (e) { } }, now ? 100 : 1400); } catch (e) { }
+    },
     play(mood) {
-      M.base = mood; if (M.mood === mood) return; M.mood = mood;
+      M.base = mood;
+      if (ac && this.themeUntil > ac.currentTime) return;
+      if (M.mood === mood) return; M.mood = mood;
       if (!ac) return;
       M.nextT = Math.max(M.nextT, ac.currentTime + 0.1);
       if (!M.timer) M.timer = setInterval(() => { try { schedule(); } catch (e) { reportError(e); } }, 120);
     },
-    mood(m) { const to = m || M.base; if (to && to !== M.mood) { M.mood = to; } },
+    mood(m) { if (ac && this.themeUntil > ac.currentTime) return; const to = m || M.base; if (to && to !== M.mood) { M.mood = to; } },
     stop() { M.mood = null; },
     motif(kind) {
       if (!ok()) return;

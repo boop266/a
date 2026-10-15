@@ -212,10 +212,13 @@ function cancelDrag() { $('ghost').classList.remove('on'); UI.drag = null; R.pre
 // ---- 書く ----
 function startWrite(k, tx, ty) {
   if (!W || Scene.leaving) return false;
+  if (Scene.cur && Scene.cur.final && Final.lock) return false;
   const plan = planWrite(k, tx, ty);
   if (['none', 'noroom', 'noeffect'].includes(plan.kind)) { toast(plan.msg || 'ここには書けない'); Sfx.nope(); return false; }
   if (plan.kind === 'wrongname') { toast('……ちがう名のようだ'); plan.faded.hintT = 1.2; Sfx.nope(); Bus.emit('wrongname', { k, f: plan.faded }); return false; }
   if ((plan.cost || 0) > Ink.free()) { toast('墨が足りない（' + plan.cost + '画）。書いた字をタップすると墨をもどせる'); UI.potShakeT = 0.5; Sfx.nope(); Bus.emit('noink', { k }); return false; }
+  // 絵巻の名は、題簽の上で、ゆっくり書く
+  if (plan.kind === 'title') { Final.beginTitle(k); Game.used(k); return true; }
   Ink.pending += plan.cost || 0;
   const n = strokesOf(k);
   let bx = tx, by = ty, bw = 1, bh = 1;
@@ -401,6 +404,7 @@ const Voice = {
   say(text, opt) {
     if (!text) return;
     const lines = Array.isArray(text) ? text : [text];
+    if (opt && opt.replace) this.q = [];
     for (const l of lines) this.q.push({ text: l, dur: (opt && opt.dur) || clamp(2.2 + l.length * 0.16, 3, 8) });
     if (!this.busy) this.next();
   },
@@ -409,8 +413,8 @@ const Voice = {
     if (!it) { this.busy = false; return; }
     this.busy = true;
     const p = el('div', 'line', it.text);
-    box.prepend(p);
-    while (box.children.length > 3) box.lastChild.remove();
+    box.append(p);
+    while (box.children.length > 3) box.firstChild.remove();
     requestAnimationFrame(() => p.classList.add('on'));
     setTimeout(() => { p.classList.remove('on'); setTimeout(() => p.remove(), 1000); }, it.dur * 1000);
     setTimeout(() => this.next(), Math.min(it.dur * 1000, 1800 + it.text.length * 60));
@@ -465,6 +469,7 @@ function tapAt(sx, sy) {
   const [tx, ty] = s2cell(sx, sy);
   if (UI.selected) { const k = UI.selected; if (startWrite(k, tx, ty)) { UI.selected = null; for (const c of $('grid').querySelectorAll('.cell.sel')) c.classList.remove('sel'); } return; }
   hideBubble();
+  if (Scene.cur && Scene.cur.final && Final.onTap(tx, ty)) return;
   // 自分の書いた字をタップ：もどす
   const mineEnt = entsAt(tx, ty, e => !e.isHero && (e.stack && e.stack.length))[0];
   if (mineEnt && !(mineEnt.d.ai && mineEnt.d.ai.ride && canRide(mineEnt))) { showBubbleFor(mineEnt); return; }
@@ -628,7 +633,7 @@ function openSettings() {
     del.onclick = () => {
       conf.innerHTML = '';
       conf.append(el('p', null, 'おぼえた字も、進んだ場面も、すべて消えます。'));
-      const yes = el('button', 'mbtn red', '消して、はじめから'); yes.onclick = () => { Store.clear(); location.reload(); };
+      const yes = el('button', 'mbtn red', '消して、はじめから'); yes.onclick = () => { Store.clear(); try { localStorage.removeItem(Snap.key); } catch (e) { } Snap.map = null; location.reload(); };
       const no = el('button', 'mbtn', 'やめる'); no.onclick = openSettings;
       conf.append(yes, no);
     };

@@ -97,10 +97,14 @@ const Title = {
     $('title').classList.add('on');
     Music.play('title');
     const menu = $('titleMenu'); menu.innerHTML = '';
-    const cont = Game.known.length > 0;
-    const b = el('button', 'red', cont ? 'つづきから' : 'はじめる');
-    b.onclick = () => { AudioSys.init(); Music.play('title'); this.hide(); Game.started = true; if (!cont) Story.prologue(() => Scene.load(0)); else Scene.load(Game.sceneIdx || 0); };
-    menu.append(b);
+    const cont = Game.known.length > 0, ended = !!(Game.story && Game.story.ended);
+    // 書きあげたあとは「つづき」はない。自分の絵巻を見るか、好きな場面へ
+    if (ended) { const e = el('button', 'red', '絵巻を見る'); e.onclick = () => { AudioSys.init(); this.hide(); Ending.play(true); }; menu.append(e); }
+    else {
+      const b = el('button', 'red', cont ? 'つづきから' : 'はじめる');
+      b.onclick = () => { AudioSys.init(); Music.play('title'); this.hide(); Game.started = true; if (!cont) Story.prologue(() => Scene.load(0)); else Scene.load(Game.sceneIdx || 0); };
+      menu.append(b);
+    }
     if (cont) {
       const s = el('button', null, '場面をえらぶ'); s.onclick = () => { AudioSys.init(); this.hide(); Game.started = true; Scene.load(Game.sceneIdx || 0); setTimeout(openScenes, 50); }; menu.append(s);
       const d = el('button', null, '自由帳'); d.onclick = () => { AudioSys.init(); this.hide(); Game.started = true; Game.sandbox(); }; menu.append(d);
@@ -142,6 +146,16 @@ const Title = {
       // 落款
       x.fillStyle = INK.shu; const s = size * 0.42; x.fillRect(tx + size * 0.28, ty + size * 5.05, s, s);
       x.save(); x.translate(tx + size * 0.28 + s * 0.06, ty + size * 5.05 + s * 0.06); Brush.draw(x, '雫', s * 0.88, '#f6f1e2', { bleed: false }); x.restore();
+      x.globalAlpha = 1;
+    }
+    // 書きあげた絵巻の名（題簽）
+    if (Game.story && Game.story.ended && Game.finalWord && t > 1.2) {
+      const chars = [...Game.finalWord], land = W_ > H_ * 1.1, sw = Math.min(W_, H_) * 0.1, sh = sw * (1.2 + chars.length * 0.95), sx = land ? W_ * 0.24 - Math.min(W_, H_) * 0.32 : W_ * 0.24 - sw / 2, sy = land ? H_ * 0.18 : H_ * 0.29;
+      x.globalAlpha = clamp((t - 1.2) * 1.5, 0, 1);
+      x.fillStyle = '#26314f'; x.fillRect(sx, sy, sw, sh);
+      x.fillStyle = '#f8f2e0'; x.fillRect(sx + sw * 0.1, sy + sw * 0.14, sw * 0.8, sh - sw * 0.28);
+      const s = Math.min(sw * 0.72, (sh - sw * 0.4) / chars.length);
+      chars.forEach((ch, i) => { x.save(); x.translate(sx + (sw - s) / 2, sy + (sh - s * chars.length) / 2 + i * s); Brush.draw(x, ch, s, INK.sumi); x.restore(); });
       x.globalAlpha = 1;
     }
     // 人（しずくの頭）

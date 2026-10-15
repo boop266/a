@@ -107,6 +107,11 @@ const PLANS = {
   s3: {
     memory: `w('虹',9,6); w('鳥',17,5); w('竜',21,3); t(6); w('夢',13,11); t(8); go(37,11);`,
   },
+  e1: {
+    name: `w('灯',4,11); go(10,11); w('硯',11,11); w('筆',13,11); go(17,11); for (const k of ['母','父','師','友','別','夢']) w(k,22,8); t(22); HS.startWrite('花',14,5); t(16); HS.Final.onTap(HS.W.hero.x, HS.W.hero.y); t(30);`,
+    heart: `w('灯',4,11); go(17,11); w('心',22,8); t(22); HS.startWrite('人',14,5); t(16); HS.Final.onTap(14,5); t(30);`,
+    again: `go(17,11); for (const k of ['夢','別','友','師','父','母']) w(k,22,8); t(22); HS.startWrite('一',14,5); t(10); HS.startWrite('竜',14,5); t(16); go(5,11); HS.Final.onTap(HS.W.hero.x, HS.W.hero.y); t(30);`,
+  },
 };
 
 (async () => {
@@ -146,7 +151,7 @@ const PLANS = {
         let exited = false; const off = HS.Bus.on ? null : null;
         const W = () => HS.W;
         const log = [];
-        const sim = s => { const n = Math.round(s / HS.TICK); for (let k = 0; k < n; k++) { HS.worldTick(); HS.Game.tickSee(); if (HS.Scene.leaving) { exited = true; return; } } };
+        const sim = s => { const n = Math.round(s / HS.TICK); for (let k = 0; k < n; k++) { HS.worldTick(); HS.Game.tickSee(); if (HS.Scene.leaving || (HS.Scene.cur && HS.Scene.cur.final && HS.Final.ended)) { exited = true; return; } } };
         const w = (k, x, y) => { if (exited) return; const r = HS.writeNow(k, x, y); log.push(k + '@' + x + ',' + y + ':' + r); sim(0.4); };
         const go = (x, y) => { if (exited) return; if (window.FULL) log.push('[from ' + HS.W.hero.x + ',' + HS.W.hero.y + ' ents ' + HS.ents().filter(e => !e.isHero).map(e => e.k + e.x + ',' + e.y).join(' ') + ']'); HS.heroTap(x, y); for (let k = 0; k < 60 && !exited; k++) { sim(0.25); const h = HS.W.hero; if (h.x === x && h.y === y) break; if (!h.hero.path.length && !h.hero.vehGoal && k > 4) { if (!h.hero.ride) HS.heroTap(x, y); } } log.push('go ' + x + ',' + y + '→' + HS.W.hero.x + ',' + HS.W.hero.y); };
         const t = s => sim(s);
@@ -158,11 +163,12 @@ const PLANS = {
         const tapE = (k, top) => { const h = HS.W.hero; const es = HS.ents(k).sort((a, b) => Math.abs(a.x - h.x) - Math.abs(b.x - h.x)); const e = es[0]; if (!e) return; if (top) { HS.heroTap(e.x + 1, e.y - 1); sim(2.5); } else { HS.heroTap(e.x, e.y); sim(0.3); } };
         try { eval(plan); } catch (e) { return 'throw ' + e.message + ' | ' + log.slice(-6).join(' '); }
         if (!exited) sim(1);
-        const st = HS.Scene.leaving;
+        const st = HS.Scene.leaving || (HS.Scene.cur && HS.Scene.cur.final && HS.Final.ended);
         HS.Scene.leaving = false;
+        if (HS.Ending.on) HS.Ending.close('title');
         const errs = HS.ERRORS.splice(0);
         if (errs.length) return 'errors ' + errs[0].split('\n')[0];
-        const hurts = HS.W.events.filter(e => e.type === 'hurt').map(e => e.why).join(',');
+        const hurts = HS.W ? HS.W.events.filter(e => e.type === 'hurt').map(e => e.why).join(',') : '';
         return st ? true : ('stuck at ' + HS.W.hero.x + ',' + HS.W.hero.y + (hurts ? ' hurts:' + hurts : '') + ' | ' + log.slice(window.FULL ? 0 : -6).join(' '));
       }, { id, plan });
       if (r === true) { pass++; console.log('◎', id, pname); } else { fail++; console.log('×', id, pname, '→', r); }

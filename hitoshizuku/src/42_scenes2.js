@@ -207,7 +207,7 @@ SCENES.push(
   },
   memScene('v4', '友', {
     chapter: 4, no: '四', title: '雪の日の友', music: 'village', theme: { seed: 54, hills: 0.7 }, season: 'winter', ambient: 'snow',
-    start: { x: 1, y: 11 },
+    start: { x: 1, y: 10 },
     map: B(36, 15, [['#', 0, 12, 23, 14], ['S', 0, 11, 23, 11], ['x', 24, 11, 35, 14]]),
     paint: [[24, 11, 35, 11, '.'], [24, 12, 35, 13, '#']],
     faded: [
@@ -242,7 +242,7 @@ SCENES.push(
     ],
   },
   {
-    id: 'n2', chapter: 5, no: '二', title: '化け岩', music: 'night', theme: { seed: 62, hills: 1 }, konshi: true, dark: 0.5, night: true,
+    id: 'n2', chapter: 5, no: '二', title: '化け岩', music: 'night', theme: { seed: 62, hills: 1 }, konshi: true, dark: 0.5, night: true, ambient: 'fireflies',
     start: { x: 1, y: 11 },
     map: B(46, 15, [['#', 0, 12, 45, 14], ['R', 20, 3, 21, 9], ['R', 26, 3, 27, 9]]),
     ents: [

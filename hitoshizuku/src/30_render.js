@@ -88,6 +88,7 @@ function updateCamera(dt) {
   const h = W.hero;
   const viewWt = R.vw / R.TS, viewHt = R.vh / R.TS;
   let tx = h.rx + 0.5 + R.cam.panX, ty = h.ry + 0.5 - viewHt * 0.08 + R.cam.panY;
+  if (R.cam.focus) { tx = R.cam.focus.x + R.cam.panX; ty = R.cam.focus.y + R.cam.panY; }
   if (R.cam.panT > 0) { R.cam.panT -= dt; if (R.cam.panT <= 0) { R.cam.panX *= 0.0; R.cam.panY *= 0.0; } }
   else { R.cam.panX *= Math.pow(0.02, dt); R.cam.panY *= Math.pow(0.02, dt); }
   // 端で止める
@@ -220,6 +221,7 @@ function renderBackdrop(ctx) {
   ctx.fillStyle = sky; ctx.fillRect(0, 0, R.vw, R.vh);
   // お日さま・お月さま
   const camPar = R.cam.x * R.TS * 0.05;
+  if (th.room) { renderRoomBackdrop(ctx); return; }
   if (W.night || night) {
     const mx = R.vw * 0.72 - camPar, my = R.vh * 0.16;
     const g = ctx.createRadialGradient(mx, my, 0, mx, my, R.TS * 2.2);
@@ -561,7 +563,7 @@ function drawHeroFigure(ctx, cx, by, size, o) {
   ctx.restore();
 }
 function renderHero(ctx) {
-  const h = W.hero; if (!h) return;
+  const h = W.hero; if (!h || h.hidden) return;
   if (h.birthT > 0.55) return;
   const hb = h.hero, TS = R.TS, t = R.t;
   let rx = h.rx, ry = h.ry;
@@ -620,6 +622,7 @@ function renderFaded(ctx) {
     const [sx, sy] = w2s(f.x, f.y);
     const W_ = f.w * TS, H_ = f.h * TS;
     if (sx > R.vw + W_ || sx + W_ < -W_ || sy > R.vh + H_ || sy + H_ < -H_) continue;
+    if (f.draw) { f.draw(ctx, f, sx, sy, W_, H_, t); if (f.hintT > 0) f.hintT -= 1 / 60; continue; }
     ctx.save();
     // 田字格のわく
     ctx.strokeStyle = 'rgba(196,56,31,.45)'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
@@ -771,6 +774,51 @@ function renderPreview(ctx) {
   ctx.restore();
 }
 
+// ---- 季節の空気（舞う雪・紅葉・花びら・蛍）：絵だけで、世界には触れない ----
+const AMB = { kind: null, list: [], camX: 0, camY: 0, few: (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })() };
+function ambSpawn(kind, anywhere) {
+  const r = Math.random;
+  const p = { t: r() * 10, ph: r() * TAU, depth: 0.4 + r() * 0.8, rot: r() * TAU, spin: (r() - .5) * 3 };
+  p.x = r() * (R.vw + 60) - 30; p.y = anywhere ? r() * R.vh : -10 - r() * 40;
+  if (kind === 'snow') { p.vx = (r() - .5) * 0.2; p.vy = 0.5 + r() * 0.7; p.sway = 0.35; p.wf = 1 + r(); p.s = 1.2 + r() * 2.4; }
+  else if (kind === 'leaves') { p.vx = -0.2 + r() * 0.3; p.vy = 0.6 + r() * 0.6; p.sway = 0.9; p.wf = 1.5 + r(); p.s = 3.5 + r() * 3; p.col = ['#c4381f', '#c8742a', '#b8461f', '#d29a2c'][Math.floor(r() * 4)]; }
+  else if (kind === 'petals') { p.vx = 0.25 + r() * 0.4; p.vy = 0.35 + r() * 0.45; p.sway = 0.6; p.wf = 1.8 + r(); p.s = 2.6 + r() * 1.8; p.col = ['#e8a6b8', '#f2c4cf', '#dc8fa6'][Math.floor(r() * 3)]; }
+  else { p.vx = (r() - .5) * 0.25; p.vy = (r() - .5) * 0.15; p.sway = 0.25; p.wf = 0.6 + r() * 0.5; p.s = 1.6 + r() * 1.2; p.y = R.vh * (0.3 + r() * 0.6); }
+  return p;
+}
+function renderAmbient(ctx, dt, layer) {
+  const kind = Scene.cur && Scene.cur.ambient;
+  if (!kind || R.snap || (layer === 'top') !== (kind === 'fireflies')) return;
+  if (AMB.kind !== kind) { AMB.kind = kind; AMB.list = []; AMB.camX = R.cam.x; AMB.camY = R.cam.y; }
+  const N = Math.round((kind === 'snow' ? 44 : kind === 'fireflies' ? 16 : 20) * (AMB.few ? 0.35 : 1) * clamp(R.vw / 420, 0.7, 2.2));
+  while (AMB.list.length < N) AMB.list.push(ambSpawn(kind, true));
+  const dcx = (R.cam.x - AMB.camX) * R.TS, dcy = (R.cam.y - AMB.camY) * R.TS; AMB.camX = R.cam.x; AMB.camY = R.cam.y;
+  const TS = R.TS, wind = (W.wind || 0) + (W.zones && W.zones.length && !(W.calmT > 0) ? W.zones[0].dir * 0.8 : 0);
+  ctx.save();
+  for (const p of AMB.list) {
+    p.t += dt; p.rot += p.spin * dt;
+    p.x += ((p.vx + wind * 0.5 * p.depth + Math.sin(p.t * p.wf + p.ph) * p.sway) * dt * TS) - dcx * p.depth;
+    p.y += (p.vy * dt * TS) - dcy * p.depth;
+    if (p.y > R.vh + 20 || p.x < -40 || p.x > R.vw + 40 || (kind === 'fireflies' && (p.y < -20))) Object.assign(p, ambSpawn(kind, kind === 'fireflies'));
+    if (kind === 'snow') { ctx.globalAlpha = 0.55 + 0.35 * p.depth / 1.2; ctx.fillStyle = '#fbfaf6'; ctx.beginPath(); ctx.arc(p.x, p.y, p.s * p.depth, 0, TAU); ctx.fill(); }
+    else if (kind === 'fireflies') {
+      const a = 0.35 + 0.65 * Math.max(0, Math.sin(p.t * 2.2 + p.ph));
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.s * 6); g.addColorStop(0, 'rgba(230,240,140,' + (0.55 * a) + ')'); g.addColorStop(1, 'rgba(230,240,140,0)');
+      ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(p.x - p.s * 6, p.y - p.s * 6, p.s * 12, p.s * 12);
+      ctx.fillStyle = 'rgba(245,250,190,' + a + ')'; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, TAU); ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.85; ctx.fillStyle = p.col;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, 0.45 + 0.55 * Math.abs(Math.sin(p.t * 3 + p.ph)));
+      const s = p.s * p.depth;
+      ctx.beginPath();
+      if (kind === 'leaves') { ctx.moveTo(0, -s); ctx.lineTo(s * 0.35, -s * 0.2); ctx.lineTo(s, -s * 0.3); ctx.lineTo(s * 0.45, s * 0.25); ctx.lineTo(s * 0.6, s); ctx.lineTo(0, s * 0.5); ctx.lineTo(-s * 0.6, s); ctx.lineTo(-s * 0.45, s * 0.25); ctx.lineTo(-s, -s * 0.3); ctx.lineTo(-s * 0.35, -s * 0.2); ctx.closePath(); }
+      else { ctx.ellipse(0, 0, s, s * 0.6, 0, 0, TAU); }
+      ctx.fill(); ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
 // ---- 一こま ----
 function renderFrame(dt) {
   const ctx = R.ctx; if (!W) return;
@@ -809,10 +857,13 @@ function renderFrame(dt) {
   renderWater(ctx, x0, y0, x1, y1);
   for (const e of vis) { if (e.d.beast) renderEnt(ctx, e); }
   renderHero(ctx);
+  if (Scene.cur && Scene.cur.renderOver) Scene.cur.renderOver(ctx, dt);
   Fx.render(ctx, dt);
+  renderAmbient(ctx, dt, 'mid');
   renderRainAndFog(ctx, dt);
   renderBlank(ctx, x0, y0, x1, y1);
   renderDark(ctx);
+  renderAmbient(ctx, dt, 'top');
   renderWriting(ctx);
   renderPreview(ctx);
   Fx.renderTop(ctx, dt);

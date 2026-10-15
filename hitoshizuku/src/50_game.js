@@ -2,7 +2,7 @@
 // 旅のしるし：おぼえた字・色をもどしたもの・墨のしずく・解き方の印・進んだ場面
 // ---------------------------------------------------------------------------
 const Game = {
-  known: [], usedAt: {}, colors: 0, gotDrops: {}, stamps: {}, cleared: {}, restored: {}, sceneIdx: 0, maxScene: 0,
+  known: [], usedAt: {}, useN: {}, colors: 0, gotDrops: {}, stamps: {}, cleared: {}, restored: {}, sceneIdx: 0, maxScene: 0,
   settings: { music: 0.55, sfx: 0.8, fast: false }, fastWrite: false, god: false, paused: false,
   stats: { hurts: 0, writes: 0, combos: 0 }, log: [], started: false, story: {}, finalWord: null,
   inkBase: 12,
@@ -17,7 +17,7 @@ const Game = {
     buildTray(); this.save();
     return true;
   },
-  used(k) { this.usedAt[k] = Date.now(); this.stats.writes++; },
+  used(k) { this.usedAt[k] = Date.now(); this.useN[k] = (this.useN[k] || 0) + 1; this.stats.writes++; },
   gotDrop(d) {
     const sid = Scene.cur ? Scene.cur.id : 'x';
     this.gotDrops[sid + ':' + d.x + ',' + d.y] = 1;
@@ -32,11 +32,11 @@ const Game = {
   hasStamp(sid, aid) { return !!(this.stamps[sid] && this.stamps[sid][aid]); },
   unlocked(i) { return i <= this.maxScene; },
   save() {
-    Store.save({ v: 1, known: this.known, usedAt: this.usedAt, colors: this.colors, gotDrops: this.gotDrops, stamps: this.stamps, cleared: this.cleared, restored: this.restored, sceneIdx: this.sceneIdx, maxScene: this.maxScene, settings: this.settings, story: this.story, finalWord: this.finalWord, stats: this.stats });
+    Store.save({ v: 1, known: this.known, usedAt: this.usedAt, useN: this.useN, colors: this.colors, gotDrops: this.gotDrops, stamps: this.stamps, cleared: this.cleared, restored: this.restored, sceneIdx: this.sceneIdx, maxScene: this.maxScene, settings: this.settings, story: this.story, finalWord: this.finalWord, stats: this.stats });
   },
   load() {
     const s = Store.load(); if (!s || s.v !== 1) return false;
-    Object.assign(this, { known: s.known || [], usedAt: s.usedAt || {}, colors: s.colors || 0, gotDrops: s.gotDrops || {}, stamps: s.stamps || {}, cleared: s.cleared || {}, restored: s.restored || {}, sceneIdx: s.sceneIdx || 0, maxScene: s.maxScene || 0, settings: Object.assign(this.settings, s.settings || {}), story: s.story || {}, finalWord: s.finalWord || null, stats: Object.assign(this.stats, s.stats || {}) });
+    Object.assign(this, { known: s.known || [], usedAt: s.usedAt || {}, useN: s.useN || {}, colors: s.colors || 0, gotDrops: s.gotDrops || {}, stamps: s.stamps || {}, cleared: s.cleared || {}, restored: s.restored || {}, sceneIdx: s.sceneIdx || 0, maxScene: s.maxScene || 0, settings: Object.assign(this.settings, s.settings || {}), story: s.story || {}, finalWord: s.finalWord || null, stats: Object.assign(this.stats, s.stats || {}) });
     this.known = this.known.filter(k => KDEF[k]);
     this.fastWrite = !!this.settings.fast;
     AudioSys.setVol('music', this.settings.music); AudioSys.setVol('sfx', this.settings.sfx);
@@ -124,7 +124,7 @@ const Scene = {
     W.darkBase = def.dark || 0; W.dark = W.darkBase; W.night = !!def.night; W.wind = def.wind || 0; W.season = def.season || null;
     W.zones = (def.zones || []).map(z => Object.assign({}, z));
     PAL = def.konshi ? PAL_NIGHT : PAL_DAY;
-    R.terrainCv = null; R.cam.inited = false; R.cam.panX = 0; R.cam.panY = 0;
+    R.terrainCv = null; R.cam.inited = false; R.cam.panX = 0; R.cam.panY = 0; R.cam.focus = null;
     R.bg = makeBackdrop(def.theme || {});
     Fx.clear(); Voice.clear(); hideBubble(); R.writing = []; Ink.pending = 0;
     const s = def.start || { x: 1, y: 1 };
@@ -196,6 +196,7 @@ const Scene = {
     Bus.emit('clear', { id: def.id, first, stamps: got.map(a => a.id) });
     if (def.onExit) { try { def.onExit(); } catch (e) { reportError(e); } }
     Game.save();
+    Snap.take(def.id);
     Transition.play(def, got, () => {
       const next = def.next != null ? def.next : this.idx + 1;
       if (typeof next === 'function') { next(); return; }

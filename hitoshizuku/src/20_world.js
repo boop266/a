@@ -374,7 +374,7 @@ function freezeCell(x, y) {
   const i = idx(x, y);
   W.wa[i] = 0; setT(x, y, T.ICE);
   Fx.sparkle(x + .5, y + .5, '#cfe6f7', 3);
-  for (const e of entsAt(x, y)) { if (e.d.swim) { e.frozenT = 12; } else if (!e.isHero && !e.d.fly) moveEnt(e, 0, -1); }
+  for (const e of entsAt(x, y)) { if (e.d.swim) { e.frozenT = 12; } else if (!e.d.fly || e.isHero) moveEnt(e, 0, -1, e.isHero); }
   Bus.emit('freeze', { x, y });
 }
 function ignite(e, by) {
@@ -466,7 +466,7 @@ function rainStep() {
       // 当たった物を濡らす
       for (const e of entsAt(x, y - 1)) e.wet(6);
       if (y < W.h) { const top = entsAt(x, y); for (const e of top) e.wet(6); }
-      if (r.snow) { if (y - 1 >= 0 && tAt(x, y - 1) === T.AIR && !deepAt(x, y - 1) && chance(0.25)) { if (waAt(x, y - 1) >= DEEP) freezeCell(x, y - 1); else setT(x, y - 1, T.SNOW); } }
+      if (r.snow) { if (y - 1 >= 0 && tAt(x, y - 1) === T.AIR && !deepAt(x, y - 1) && !entsAt(x, y - 1).length && chance(0.25)) { if (waAt(x, y - 1) >= DEEP) freezeCell(x, y - 1); else setT(x, y - 1, T.SNOW); } }
       else if (y - 1 >= 0) { addWater(x, y - 1, 1); }
       // 草木が育つ
       for (const e of entsAt(x, y - 1, e => e.d.grow)) e.growPts = (e.growPts || 0) + 1;

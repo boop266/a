@@ -59,5 +59,5 @@ window.HS = { get W() { return W; }, loadLab: def => { Game.started = true; $('t
   writeNow(k, x, y) { const pl = planWrite(k, x, y); if (['none', 'noroom', 'noeffect', 'wrongname'].includes(pl.kind)) return pl.kind; if ((pl.cost || 0) > Ink.free()) return 'noink'; commitWrite(k, pl, x, y); return pl.kind; },
   sim(sec) { const n = Math.round(sec / TICK); for (let i = 0; i < n; i++) { worldTick(); Game.tickSee(); } },
   hero() { return W.hero; }, ents(k) { return W.ents.filter(e => e.alive && (!k || e.k === k)); }, ev(type) { return W.events.filter(e => e.type === type); },
-  combineInTray, tapAt, findRecipe3, isPartialOf3, returnInk, get UI() { return UI; } };
+  combineInTray, tapAt, findRecipe3, isPartialOf3, returnInk, get UI() { return UI; }, Final, Ending, Snap, Music, Tutor };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

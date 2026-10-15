@@ -162,7 +162,7 @@ const SCENES = [
     ],
   },
   {
-    id: 'f2', chapter: 1, no: '二', title: '雨あがり', music: 'field', theme: { seed: 22, hills: 0.7 },
+    id: 'f2', chapter: 1, no: '二', title: '雨あがり', music: 'field', theme: { seed: 22, hills: 0.7 }, ambient: 'petals',
     start: { x: 1, y: 11 },
     map: pad([
       '', '', '', '', '', '', '', '', '', '', '',
@@ -192,7 +192,7 @@ const SCENES = [
     ],
   },
   {
-    id: 'f3', chapter: 1, no: '三', title: '風の丘', music: 'field', theme: { seed: 23, hills: 1.2 },
+    id: 'f3', chapter: 1, no: '三', title: '風の丘', music: 'field', theme: { seed: 23, hills: 1.2 }, ambient: 'petals',
     start: { x: 1, y: 12 },
     zones: [{ x0: 12, x1: 38, y0: 0, y1: 13, dir: -1, str: 1.6 }],
     map: pad([
@@ -204,7 +204,7 @@ const SCENES = [
       '##############################################',
       'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     ], 46),
-    ents: [{ k: '風', x: 24, y: 3, set: { pinned: true } }, { k: '山', x: 40, y: 2, set: { pinned: true } }, { k: '石', x: 8, y: 12 }, { k: '石', x: 9, y: 12 }],
+    ents: [{ k: '風', x: 24, y: 3, set: { pinned: true } }, { k: '山', x: 40, y: 2, set: { pinned: true } }, { k: '石', x: 5, y: 12 }, { k: '石', x: 16, y: 9 }],
     faded: [{ k: '花', x: 33, y: 10 }],
     drops: [{ x: 20, y: 5 }],
     voice: {
@@ -220,7 +220,7 @@ const SCENES = [
     ],
   },
   {
-    id: 'f4', chapter: 1, no: '四', title: '母の花', gifts: ['母'], music: 'field', theme: { seed: 24, hills: 0.8 }, memory: true,
+    id: 'f4', chapter: 1, no: '四', title: '母の花', gifts: ['母'], music: 'field', theme: { seed: 24, hills: 0.8 }, memory: true, ambient: 'petals',
     start: { x: 1, y: 11 },
     map: pad([
       '', '', '', '', '', '', '', '', '', '', '',

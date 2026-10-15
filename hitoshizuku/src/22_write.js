@@ -38,8 +38,8 @@ function targetAt(tx, ty) {
 }
 function fadedAt(tx, ty, k) {
   for (const f of W.faded) {
-    if (f.restored || !(tx >= f.x && tx < f.x + f.w && ty >= f.y && ty < f.y + f.h)) continue;
-    if (!k || k === f.k || k === '心') return f;
+    if (f.restored || f.hidden || !(tx >= f.x && tx < f.x + f.w && ty >= f.y && ty < f.y + f.h)) continue;
+    if (!k || k === f.k || k === '心' || f.title || (f.painter && MEMK.includes(k))) return f;
     // 名がちがう字は、大きな薄れたものの「まん中」でだけ止める（ほかの所には書ける）
     const cx0 = f.x + Math.max(0, Math.floor((f.w - 2) / 2)), cx1 = cx0 + Math.min(2, f.w) - 1;
     const cy0 = f.y + Math.max(0, Math.floor((f.h - 2) / 2)), cy1 = cy0 + Math.min(2, f.h) - 1;
@@ -56,6 +56,9 @@ function planWrite(k, tx, ty) {
   // 薄れたもの
   const fd = fadedAt(tx, ty, k);
   if (fd) {
+    // 終の巻：絵巻の名を書く紙・思い出を待つ絵師
+    if (fd.title) return Final.planTitle(k, fd);
+    if (fd.painter) { const pm = Final.planMemory(k, fd); if (pm) return pm; }
     if (fd.k === k || (k === '心' && fd.k)) return { kind: 'restore', faded: fd, cost: 0, msg: 'よみがえらせる' };
     return { kind: 'wrongname', faded: fd, cost: 0, msg: '……ちがう名のようだ' };
   }
@@ -130,6 +133,8 @@ function commitWrite(k, plan, tx, ty) {
   const ev = { k, kind: plan.kind, x: tx, y: ty, target: plan.target ? plan.target.k : null, out: plan.out };
   switch (plan.kind) {
     case 'restore': restoreFaded(plan.faded, k); break;
+    case 'memory': Final.giveMemory(k, plan.faded, plan.heart); break;
+    case 'title': Final.setTitle(k); break;
     case 'self': {
       const as = plan.as || k;
       const fx = FX[KDEF[as].fx];
@@ -430,7 +435,7 @@ const FX = {
   cry: { label: () => '大きな音', cell: () => true, ent: e => true,
     run(e) { noiseAt(e.cx, e.cy, 9, 'loud'); Fx.ring(e.cx, e.cy, INK.kin, 3); Sfx.cry(); return 1.5; },
     area(x, y) { noiseAt(x + .5, y + .5, 9, 'loud'); Fx.ring(x + .5, y + .5, INK.kin, 3); Sfx.cry(); return 1.5; } },
-  sound: { label: () => '音を鳴らす', ent: () => false },
+  sound: { label: () => '音を鳴らす', place: (x, y) => ({ x, y }), run(p) { noiseAt(p.x + .5, p.y + .5, 7, 'sound'); Fx.ring(p.x + .5, p.y + .5, INK.kin, 2.5); Fx.notes(p.x + .5, p.y, 5); Sfx.bell(0.45); Bus.emit('sound', { x: p.x, y: p.y }); return { ttl: 1.5 }; } },
   blow: { label: () => '息を吹く', hero: h => { const dir = h.hero.face; W.gusts.push({ x: h.x + dir, y0: h.y - 1, y1: h.y + 1, dir, str: 1.6, ttl: 1, range: 4, front: h.x + dir }); for (const o of entsNear(h.x + dir * 1.5, h.y, 2.5, o => o.d.flame && o.w === 1)) extinguish(o); Fx.windLines(h.cx + dir, h.cy, dir); Sfx.wind(0.4); return 1; } },
   eat: { label: () => '食べに行かせる', ent: e => isBeast(e) && e.d.ai.eats.length > 0,
     run(e) { e.fullT = 0; e.d.ai.sense; e.ai.think = 0; e.hungry = 20; Bus.emit('hungry', { who: e }); return 1.5; } },
@@ -519,9 +524,9 @@ const FX = {
     run(e) { heroBow(); return 3; }, area() { heroBow(); return 3; } },
   dream: { label: () => '夢を見せる', ent: e => isBeast(e) && e.sleepT > 0,
     run(e) { const s = (Scene.cur && Scene.cur.dreams && Scene.cur.dreams[e.k]) || dreamOf(e); e.talk('むにゃ……' + s, 5); Bus.emit('dream', { who: e }); return 3; } },
-  heart: { label: () => '心をこめる', ent: e => false },
-  calm: { label: () => '落ちつかせる', cell: () => true, ent: e => true,
-    run(e) { return FX.calm.area(e.x, e.y); },
+  heart: { label: () => '心をこめる', ent: e => false, run() { return 1; } },
+  soothe: { label: () => '落ちつかせる', cell: () => true, ent: e => true,
+    run(e) { return FX.soothe.area(e.x, e.y); },
     area(x, y) { for (const o of entsNear(x, y, 6, canFeel)) { o.calmT = 20; o.fearT = 0; o.angryT = 0; } Fx.ring(x + .5, y + .5, INK.moegi, 3); return 20; } },
   forget: { label: e => e.d.ai && e.d.ai.guard ? '役目を忘れさせる' : '忘れさせる', ent: e => canFeel(e),
     run(e) { e.talk('……あれ？', 2.5); if (e.d.ai.guard) { e.forgot = true; e.leaving = true; e.leaveDir = chance(.5) ? 1 : -1; e.ai.home = -99; } e.tamed = true; Bus.emit('forget', { who: e }); return 6; } },
@@ -554,7 +559,6 @@ const FX = {
   clear: { place: (x, y) => ({ x, y }), run(p) { W.rains = []; W.fogs = []; W.gusts = []; W.stormT = 0; W.clearT = 40; if (!W.night) W.dark = W.darkBase * 0.3; Fx.sunRise(); Bus.emit('clear', {}); return { ttl: 4 }; } },
   wave: { place: (x, y) => { for (let yy = y - 2; yy <= y + 3; yy++) if (waAt(x, yy) >= DEEP) return { x, y: yy }; return null; }, why: '水の上に書こう',
     run(p) { const dir = sign(p.x - W.hero.x) || 1; for (const o of entsNear(p.x, p.y, 4, o => (o.floats() || o.d.swim || o.isHero && o.hero.ride) && !o.d.root)) { for (let i = 0; i < 5; i++) moveEnt(o.isHero ? o : (o.hero ? o : o), dir, 0); Bus.emit('wave', { who: o }); } Fx.wave(p.x, p.y, dir); Sfx.splash(1); return { ttl: 2 }; } },
-  spring: { place: (x, y) => groundSpot(x, y), run(p) { const e = newEnt('泉', p.x, p.y, { mine: true }); if (e) { e.src = { x: p.x, y: p.y, amt: 1, every: 3, ttl: Infinity }; } return { ent: e }; } },
   river: { place: (x, y) => ({ x, y }), run(p) { const e = newEnt('川', p.x, p.y, {}); if (e) { e.src = { x: p.x, y: p.y, amt: 2, every: 1, ttl: 9 }; e.sky = true; } Sfx.splash(1); Bus.emit('water', { x: p.x, y: p.y, n: 'river' }); return { ttl: 9 }; } },
   water: { place: (x, y) => ({ x, y }), run(p) { splash(p.x, p.y, 3, WMAX); return { ttl: 2 }; } },
   drop: { place: (x, y) => ({ x, y }), run(p) { splash(p.x, p.y, 1, 2); return { ttl: 1 }; } },
@@ -588,7 +592,7 @@ const FX = {
     run(p) { const e = newEnt('縄', p.x, p.y, { w: 1, h: p.h }); if (e) { e.h = p.h; Bus.emit('rope', { h: p.h }); } return { ent: e }; } },
   ivy: { place: (x, y) => ivySpot(x, y), why: '壁のそばに書こう',
     run(p) { const e = newEnt('蔦', p.x, p.y, { w: 1, h: p.h }); if (e) { e.h = p.h; Bus.emit('ivy', { h: p.h }); } return { ent: e }; } },
-  emerge: { place: (x, y) => ({ x, y }), run(p) { let n = 0; for (const b of W.buried || []) { if (!b.found && Math.abs(b.x - p.x) <= 2 && Math.abs(b.y - p.y) <= 3) { b.found = true; digCells([[b.x, b.y]]); const e = entsAt(b.x, b.y)[0]; if (!e) newEnt(b.k, b.x, b.y); n++; } } for (const o of entsNear(p.x, p.y, 3, o => o.hideT > 0)) { o.hideT = 0; n++; } Fx.ring(p.x + .5, p.y + .5, INK.cha, 2); if (!n) toast('何も出てこなかった'); return { ttl: 2 }; } },
+  emerge: { label: () => '出てこさせる', cell: () => true, area(x, y) { return FX.emerge.run({ x, y }).ttl; }, place: (x, y) => ({ x, y }), run(p) { let n = 0; for (const b of W.buried || []) { if (!b.found && Math.abs(b.x - p.x) <= 2 && Math.abs(b.y - p.y) <= 3) { b.found = true; digCells([[b.x, b.y]]); const e = entsAt(b.x, b.y)[0]; if (!e) newEnt(b.k, b.x, b.y); n++; } } for (const o of entsNear(p.x, p.y, 3, o => o.hideT > 0)) { o.hideT = 0; n++; } Fx.ring(p.x + .5, p.y + .5, INK.cha, 2); if (!n) toast('何も出てこなかった'); return { ttl: 2 }; } },
   bigbell: { place: (x, y) => ({ x, y }), run(p) { Sfx.bigBell(); Fx.ring(p.x + .5, p.y + .5, INK.kin, 6); for (const o of W.ents) if (isBeast(o)) { o.sleepT = 0; o.drunkT = 0; if (o.d.ai.yokai || o.d.ai.fears.includes('#noise')) { o.fleeFrom({ x: p.x, y: p.y, w: 1, h: 1 }, 10); if (o.d.ai.yokai) { o.leaving = true; o.leaveDir = sign(o.cx - p.x) || 1; o.talk('ひえっ', 2); } } } Bus.emit('bigbell', {}); return { ttl: 4 }; } },
   flute: { place: (x, y) => ({ x, y }), run(p) { Music.motif('flute'); Fx.notes(p.x + .5, p.y, 12); for (const o of entsNear(p.x, p.y, 8, isBeast)) { o.calmT = 18; o.fearT = 0; o.angryT = 0; if (o.k === '蛇') { o.danceT = 18; o.danceAt = { x: o.x, y: o.y }; o.talk('♪', 2); } if (o.k === '鳥') { o.callT = 8; o.callTo = { x: p.x, y: p.y - 1 }; } } Bus.emit('flute', {}); return { ttl: 6 }; } },
   drum: { place: (x, y) => ({ x, y }), run(p) { Sfx.drum(); Sfx.drum(0.25); Fx.ring(p.x + .5, p.y + .5, INK.aka, 4); noiseAt(p.x, p.y, 10, 'loud'); for (const o of W.ents) if (isBeast(o) && (o.d.npc || o.k === '狸')) { o.danceT = 15; o.danceAt = { x: p.x, y: p.y }; } Bus.emit('drum', {}); return { ttl: 4 }; } },
@@ -598,16 +602,13 @@ const FX = {
   autumn: { place: (x, y) => ({ x, y }), run(p) { setSeason('autumn'); return { ttl: 4 }; } },
   summer: { place: (x, y) => ({ x, y }), run(p) { setSeason('summer'); return { ttl: 4 }; } },
   winter: { place: (x, y) => ({ x, y }), run(p) { setSeason('winter'); return { ttl: 4 }; } },
-  spring: Object.assign({}, {}),
   village: { place: (x, y) => ({ x, y }), run(p) { Voice.say('……どこかで、里の人の笑い声がする', { who: 'painter' }); return { ttl: 2 }; } },
 };
 // 「泉」と「春」が同じ名になるので分ける
-FX.spring = FX.spring || {};
 FX.springWater = { place: (x, y) => groundSpot(x, y), run(p) { const e = newEnt('泉', p.x, p.y, { mine: true }); if (e) { e.src = { x: p.x, y: p.y, amt: 1, every: 3, ttl: Infinity }; } return { ent: e }; } };
 FX.springSeason = { place: (x, y) => ({ x, y }), run(p) { setSeason('spring'); return { ttl: 4 }; } };
 KDEF['泉'].fx = 'springWater';
 KDEF['春'].fx = 'springSeason';
-FX.paddy = FX.paddy;
 
 function groundSpot(x, y) { const g = groundBelow(x, y); return g <= W.h ? { x, y: Math.max(0, g - 1) } : null; }
 function cloudRow(x, y) { let yy = Math.max(0, y - 6); return yy; }
