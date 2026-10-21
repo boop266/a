@@ -33,8 +33,22 @@ const CFG = {
   speed: { unit: 2.6, walk: 1.0, dash: 1.8, sprint: 2.6, zombie: 2.2, zombieDay: 1.2, zombieWander: 0.22, bike: 3.5 },
   // スティックの倒し具合：walkFull まで＝歩き（最高速）、dashAt から＝ダッシュ、sprintAt（倒し切り）＝本気ダッシュ
   stick: { walkFull: 0.45, dashAt: 0.62, sprintAt: 0.95 },
-  // 自転車の手触り（単位は speed と同じ「1.0 = 歩き」/秒）
+  // 自転車の手触り（単位は speed と同じ「1.0 = 歩き」/秒）。reach は乗り物に手が届く距離（スケボーも同じ）
   bike: { accel: 2.2, brake: 3.2, coast: 0.55, turn: 3.4, reach: 1.6, bumpAt: 1.6 },
+  // 乗り物ごとの違い。up / down は坂の倍率（いちばん急な坂での値。ゆるい坂ほど 1 に近づく）
+  //   surf は地面ごとの倍率（書いていない地面は自転車の表 SURF に従う）
+  vehicle: {
+    bike: { speed: 3.5, turn: 3.4, accel: 2.2, brake: 3.2, coast: 0.55, up: 0.5, down: 1.4 },
+    skate: { speed: 2.8, turn: 7.5, accel: 2.6, brake: 3.4, coast: 0.4, up: 0.35, down: 1.3,
+             surf: { 0: 0.22, 11: 0.2, 2: 0.45, 3: 0.25, 4: 0.12, 5: 0.15, 6: 0.18, 7: 0.5 } },
+  },
+  // 坂：ゾンビは登りで ×zombieUp、歩きは ×walkUp（いちばん急な坂での値）
+  slope: { zombieUp: 0.8, walkUp: 0.9 },
+  // 地形の高さ（0=平地 1=丘 2=高台）。cell マスごとに丘が一つ出るかどうか決まる
+  //   頂上の平らな所の半径 plateauMin〜Max、斜面の幅は 高さ1につき slopeTiles マス（崖は作らない）
+  terrain: { cell: 120, chance: 0.6, highChance: 0.45, plateauMin: 6, plateauMax: 11, slopeTiles: 8, startFlat: 45, levelPx: 16 },
+  // 見える距離（高さ 0 / 1 / 2 のときの倍率。間はなめらかに）
+  view: [1, 1.5, 3],
   // 時間：現実30分 = 24時間（1時間 = 75秒）
   time: { secondsPerHour: 75, startHour: 6, sunrise: 5.0, sunset: 18.6 },
   // 演出時間（手触り表）。秒
@@ -42,7 +56,7 @@ const CFG = {
   // ゾンビ。sight は「画面の半分」をマスに直した値（画面の横半分 ≒ 17マス、縦半分 ≒ 15マス）
   zombie: { sight: 15, hear: 6, lose: 26, loseTime: 4, radius: 0.3, catchDist: 0.55, freezeDist: 48 },
   player: { radius: 0.28, strideWalk: 0.8, strideDash: 1.15 },
-  world: { chunk: 24, originChunk: 41664, simRadius: 2, keepRadius: 4, riverPeriod: 260, safeRadius: 16 },
+  world: { chunk: 24, originChunk: 41664, simRadius: 2, keepRadius: 5, riverPeriod: 260, safeRadius: 16 },
   // スタミナ・空腹・水分（どれも 0..max。空腹・水分は 0 で終わり）
   //   スタミナ：本気ダッシュで毎秒 -sprintDrain、歩き・自転車をこぐと +walkRegen、止まると +restRegen、ダッシュは増減なし
   //   一度 0 になると recoverAt まで戻るまで本気ダッシュできない
@@ -146,6 +160,51 @@ function riverY(seed, b, x) {
 
 const WALL_COLS = 5, ROOF_COLS = 5, CLOTHES = 9;
 
+// ---------------------------------------------------------------
+// 丘と高台（高さは連続。頂上は平らで、まわりはなめらかな斜面）
+// ---------------------------------------------------------------
+function hillAt(seed, ci, cj) {
+  const TR = CFG.terrain, C = TR.cell;
+  if (hash(seed, ci, cj, 501) > TR.chance) return null;
+  const x = ci * C + C * (0.25 + 0.5 * hash(seed, ci, cj, 502)), y = cj * C + C * (0.25 + 0.5 * hash(seed, ci, cj, 503));
+  const level = hash(seed, ci, cj, 504) < TR.highChance ? 2 : 1;
+  const r0 = TR.plateauMin + hash(seed, ci, cj, 505) * (TR.plateauMax - TR.plateauMin);
+  const sw = level * TR.slopeTiles, R = r0 + sw;
+  const sp = startPos();
+  if (Math.hypot(x - sp.x, y - sp.y) < R + TR.startFlat) return null;
+  // 川のそばには作らない（川は低い所を流れる）
+  const P = CFG.world.riverPeriod;
+  for (let b = Math.floor((y - R - 60) / P); b <= Math.floor((y + R + 60) / P); b++) if (riverOn(seed, b) && Math.abs(b * P + P / 2 - y) < R + 48) return null;
+  return { x, y, level, r0, sw, R };
+}
+function hillsNear(seed, x, y) {
+  const C = CFG.terrain.cell, ci = Math.floor(x / C), cj = Math.floor(y / C), out = [];
+  for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) { const h = hillAt(seed, i, j); if (h) out.push(h); }
+  return out;
+}
+function heightRaw(seed, x, y, hills) {
+  let best = 0;
+  for (const h of hills || hillsNear(seed, x, y)) {
+    const d = Math.hypot(x - h.x, y - h.y);
+    if (d >= h.R) continue;
+    const f = clamp((d - h.r0) / h.sw, 0, 1);
+    const v = h.level * (1 - f * f * (3 - 2 * f));
+    if (v > best) best = v;
+  }
+  return best;
+}
+// 斜面のいちばん急な所の傾き（高さ/マス）
+const SLOPE_MAX = 1.5 / CFG.terrain.slopeTiles;
+function slopeMul(sl, up, down) {
+  const f = clamp(Math.abs(sl) / SLOPE_MAX, 0, 1);
+  return sl > 0 ? 1 + (up - 1) * f : 1 + (down - 1) * f;
+}
+function viewScale(h) {
+  const V = CFG.view;
+  h = clamp(h, 0, 2);
+  return h <= 1 ? V[0] + (V[1] - V[0]) * h : V[1] + (V[2] - V[1]) * (h - 1);
+}
+
 function genChunk(seed, cx, cy) {
   const x0 = cx * CS, y0 = cy * CS, N = CS * CS;
   const t = new Uint8Array(N).fill(T.GRASS), base = new Uint8Array(N).fill(T.GRASS), river = new Uint8Array(N);
@@ -168,7 +227,13 @@ function genChunk(seed, cx, cy) {
     if (Math.hypot(wx - sp.x, wy - sp.y) < CFG.world.safeRadius) return;
     c.zs.push({ x: wx, y: wy, kind: Math.floor(R() * CLOTHES) });
   };
-  const bikeAt = (lx, ly, heading, fallen) => c.bikes.push({ x: x0 + lx, y: y0 + ly, heading, fallen: !!fallen, col: Math.floor(R() * 4) });
+  const bikeAt = (lx, ly, heading, fallen, type) => c.bikes.push({ x: x0 + lx, y: y0 + ly, heading, fallen: !!fallen, col: Math.floor(R() * 4), type: type || 'bike' });
+  // 高さ（マスの角ごと）。隣のチャンクと同じ式なので継ぎ目がない
+  const hills = hillsNear(seed, x0 + CS / 2, y0 + CS / 2);
+  const hg = new Float32Array((CS + 1) * (CS + 1));
+  let hmax = 0;
+  for (let y = 0; y <= CS; y++) for (let x = 0; x <= CS; x++) { const v = heightRaw(seed, x0 + x, y0 + y, hills); hg[y * (CS + 1) + x] = v; if (v > hmax) hmax = v; }
+  c.hg = hg; c.flat = hmax === 0;
 
   // 川（先に位置だけ求めておき、川にかかる区画には家を建てない）
   const P = CFG.world.riverPeriod;
@@ -204,11 +269,16 @@ function genChunk(seed, cx, cy) {
 
   // 区画の中身
   const bx0 = WV, by0 = WH, bx1 = CS - 1, by1 = CS - 1;
-  const d = density(seed, cx, cy);
+  // 丘の上は人が少ない（家はまばらで、頂上は見晴らしの公園）
+  const hc = hg[(CS / 2) * (CS + 1) + CS / 2];
+  const d = density(seed, cx, cy) * (1 - Math.min(hc, 2) * 0.3);
   c.d = d;
+  const top = hills.find(h => h.x >= x0 && h.x < x0 + CS && h.y >= y0 && h.y < y0 + CS);
   const r = R();
   let kind;
   if (isStart) kind = 'houses';
+  else if (top) kind = 'park';
+  else if (hc > 0.35) kind = r < 0.55 ? 'sparse' : r < 0.85 ? 'park' : 'field';
   else if (d > 0.58) kind = r < 0.08 ? 'park' : r < 0.15 ? 'lot' : 'dense';
   else if (d > 0.36) kind = r < 0.13 ? 'park' : r < 0.23 ? 'lot' : r < 0.31 ? 'field' : 'houses';
   else kind = r < 0.3 ? 'field' : r < 0.45 ? 'park' : r < 0.58 ? 'lot' : 'sparse';
@@ -285,6 +355,7 @@ function genChunk(seed, cx, cy) {
     if (k === 'dense' && R() < d * 0.25) zombieAt(gateX + 1, gy + inward);
     // 自転車（門の内側に止めてある）
     if (R() < 0.22) bikeAt(gateX + 0.5 + R() * 0.8, gy + inward * 0.2, face === 'N' ? Math.PI / 2 : -Math.PI / 2, R() < 0.2);
+    else if (R() < 0.05) bikeAt(gateX + 0.5 + R() * 0.8, gy + inward * 0.2, R() * 6.28, false, 'skate');
   }
 
   function lots(k) {
@@ -328,6 +399,7 @@ function genChunk(seed, cx, cy) {
         const sx = qa + 5 < qc ? qa + 5 : qc - 1;
         put(sx, qb + 1, T.PLAY); put(sx + 1, qb + 1, T.PLAY);
         c.props.push({ k: 'swing', x: x0 + sx, y: y0 + qb + 1 });
+        if (R() < 0.5) bikeAt(qa + 1 + R() * 3, qb + 4.5, R() * 6.28, false, 'skate');   // 遊んでいた子のスケボー
         const n2 = Math.floor(crowd * 3 * R() + crowd);
         for (let i = 0; i < n2; i++) zombieAt(qa + 1 + R() * 3, qb + 4 + R() * 2);
       } else if (n === 1 && R() < 0.6) {  // 池
@@ -367,6 +439,7 @@ function genChunk(seed, cx, cy) {
       c.props.push({ k: 'car', x: x0 + ax, y: y0 + ay, w: 2, h: 1, col: pick(6), old: true });
     }
     if (R() < d) zombieAt(px + 1.5, py + 2.5);
+    if (R() < 0.35) bikeAt(px + 1 + R(), py + 2.5, R() * 6.28, false, 'skate');
   }
 
   function field() {
@@ -389,7 +462,7 @@ function genChunk(seed, cx, cy) {
     }
   }
 
-  if (kind === 'park') park();
+  if (kind === 'park') { park(); if (top) { c.props.push({ k: 'bench', x: x0 + bx0 + 2, y: y0 + by0 + 1.2 }); c.props.push({ k: 'bench', x: x0 + bx1 - 3, y: y0 + by1 - 0.8 }); } }
   else if (kind === 'lot') emptyLot();
   else if (kind === 'field') field();
   else lots(kind);
@@ -463,7 +536,8 @@ function genChunk(seed, cx, cy) {
   c.zs = c.zs.filter(z => walk(z.x, z.y));
   c.bikes = c.bikes.filter(b => walk(b.x, b.y));
   if (isStart) {
-    c.bikes.push({ x: sp.x, y: sp.y + 2.2, heading: Math.PI / 2, fallen: false, col: 0 });
+    c.bikes.push({ x: sp.x, y: sp.y + 2.2, heading: Math.PI / 2, fallen: false, col: 0, type: 'bike' });
+    c.bikes.push({ x: sp.x, y: sp.y - 2.6, heading: -Math.PI / 2, fallen: false, col: 1, type: 'skate' });
   }
 
   // 家の入口：玄関・勝手口・壊れた窓。入口の前（外側のマス）が歩けるものだけ
@@ -515,6 +589,21 @@ function baseAt(w, x, y) {
   const c = chunkAt(w, x, y);
   return c.base[(Math.floor(y) - c.y0) * CS + (Math.floor(x) - c.x0)];
 }
+function heightAt(w, x, y) {
+  const c = chunkAt(w, x, y);
+  if (c.flat) return 0;
+  const fx = clamp(x - c.x0, 0, CS - 1e-6), fy = clamp(y - c.y0, 0, CS - 1e-6);
+  const ix = fx | 0, iy = fy | 0, ux = fx - ix, uy = fy - iy, W1 = CS + 1, hg = c.hg;
+  const a = hg[iy * W1 + ix], b = hg[iy * W1 + ix + 1], cc = hg[(iy + 1) * W1 + ix], d = hg[(iy + 1) * W1 + ix + 1];
+  return a + (b - a) * ux + (cc - a) * uy + (a - b - cc + d) * ux * uy;
+}
+// 向き (ux, uy) に進むときの傾き（高さ/マス。登りが正）
+function slopeAlong(w, x, y, ux, uy) {
+  const l = Math.hypot(ux, uy);
+  if (l < 1e-6) return 0;
+  ux /= l; uy /= l;
+  return (heightAt(w, x + ux * 0.4, y + uy * 0.4) - heightAt(w, x - ux * 0.4, y - uy * 0.4)) / 0.8;
+}
 function blocked(w, x, y, r) {
   const ax = Math.floor(x - r), bx = Math.floor(x + r), ay = Math.floor(y - r), by = Math.floor(y + r);
   for (let ty = ay; ty <= by; ty++) for (let tx = ax; tx <= bx; tx++) if (SOLID[tileAt(w, tx + 0.5, ty + 0.5)]) return true;
@@ -537,9 +626,23 @@ function moveWith(blk, e, dx, dy, r) {
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 0.2));
   const sx = dx / n, sy = dy / n;
   let hit = false;
+  // 角に少しだけ引っかかったときは、横へずらして通す（細い隙間や戸口を抜けやすく）
+  const CORNER = 0.32;
   for (let i = 0; i < n; i++) {
-    if (sx) { if (!blk(e.x + sx, e.y, r)) e.x += sx; else hit = true; }
-    if (sy) { if (!blk(e.x, e.y + sy, r)) e.y += sy; else hit = true; }
+    if (sx) {
+      if (!blk(e.x + sx, e.y, r)) e.x += sx;
+      else {
+        hit = true;
+        if (!sy) for (const k of [1, -1]) if (!blk(e.x + sx, e.y + k * CORNER, r) && !blk(e.x, e.y + k * Math.abs(sx), r)) { e.y += k * Math.abs(sx); break; }
+      }
+    }
+    if (sy) {
+      if (!blk(e.x, e.y + sy, r)) e.y += sy;
+      else {
+        hit = true;
+        if (!sx) for (const k of [1, -1]) if (!blk(e.x + k * CORNER, e.y + sy, r) && !blk(e.x + k * Math.abs(sy), e.y, r)) { e.x += k * Math.abs(sy); break; }
+      }
+    }
   }
   return hit;
 }
@@ -748,7 +851,7 @@ function createGame(seed) {
     seed: seed | 0, world: createWorld(seed), time: 0, tick: 0, rng: mulberry((seed | 0) ^ 0x9e3779b9),
     player: {
       x: sp.x, y: sp.y, vx: 0, vy: 0, heading: Math.PI / 2, speed: 0, riding: false, mount: 0, mountFrom: null, mountBike: null,
-      dash: false, sprint: false, moving: false, stepAcc: 0, walkPhase: 0, bikeCol: 0, pushT: 0, act: null,
+      dash: false, sprint: false, moving: false, vehicle: 'bike', slope: 0, kick: false, stepAcc: 0, walkPhase: 0, bikeCol: 0, pushT: 0, act: null,
       stamina: N.max, food: N.max, water: N.max, tired: false,
     },
     zombies: [], bikes: [], events: [], dead: false, cause: null, nextId: 1, lastChunk: null,
@@ -805,6 +908,8 @@ function space(g) {
       blk: (x, y, r) => iBlocked(I, x, y, r),
       sight: (ax, ay, bx, by) => iSight(I, ax, ay, bx, by),
       surf: (x, y) => [1, 1, IMAT[iTile(I, x, y)] || 'wood'],
+      slope: () => 0,
+      base: () => -1,
       solidAt: (x, y) => ISOLID(iTile(I, x, y)),
     };
   }
@@ -813,6 +918,8 @@ function space(g) {
     blk: (x, y, r) => blocked(w, x, y, r),
     sight: (ax, ay, bx, by) => lineOfSight(w, ax, ay, bx, by),
     surf: (x, y) => SURF[baseAt(w, x, y)] || SURF[0],
+    slope: (x, y, ux, uy) => slopeAlong(w, x, y, ux, uy),
+    base: (x, y) => baseAt(w, x, y),
     solidAt: (x, y) => !!SOLID[tileAt(w, x, y)],
   };
 }
@@ -911,9 +1018,9 @@ function tryInteract(g) {
   const p = g.player;
   if (p.riding) {
     p.riding = false;
-    g.bikes.push({ x: p.x, y: p.y, heading: p.heading, fallen: false, col: p.bikeCol });
+    g.bikes.push({ x: p.x, y: p.y, heading: p.heading, fallen: false, col: p.bikeCol, type: p.vehicle });
     p.speed = 0; p.vx = p.vy = 0;
-    g.events.push({ t: 'dismount' });
+    g.events.push({ t: 'dismount', v: p.vehicle });
     return true;
   }
   const it = nearestInteract(g);
@@ -924,7 +1031,7 @@ function tryInteract(g) {
     g.bikes.splice(g.bikes.indexOf(b), 1);
     p.mount = CFG.feel.mount; p.mountBike = b; p.mountFrom = { x: p.x, y: p.y };
     p.vx = p.vy = 0;
-    g.events.push({ t: 'mount' });
+    g.events.push({ t: 'mount', v: b.type || 'bike' });
   } else if (it.type === 'entry') {
     startTrans(g, 'enter', it.h, it.h.entries.indexOf(it.e));
   } else if (it.type === 'exit') {
@@ -1000,7 +1107,8 @@ function updatePlayer(g, inp, dt) {
     p.y = p.mountFrom.y + (b.y - p.mountFrom.y) * f;
     p.vx = p.vy = 0; p.speed = 0;
     regen(p, N.restRegen, dt);
-    if (p.mount <= 0) { p.mount = 0; p.riding = true; p.heading = b.heading; p.bikeCol = b.col; p.x = b.x; p.y = b.y; p.mountBike = null; p.mountFrom = null; }
+    p.vehicle = b.type || 'bike';
+    if (p.mount <= 0) { p.mount = 0; p.riding = true; p.vehicle = b.type || 'bike'; p.heading = b.heading; p.bikeCol = b.col; p.x = b.x; p.y = b.y; p.mountBike = null; p.mountFrom = null; }
     return;
   }
 
@@ -1009,7 +1117,13 @@ function updatePlayer(g, inp, dt) {
   const S = space(g);
   const surf = S.surf(p.x, p.y);
   if (p.riding) {
-    const B = CFG.bike;
+    const B = CFG.vehicle[p.vehicle] || CFG.vehicle.bike;
+    const bt = S.base(p.x, p.y);
+    const sm = B.surf && B.surf[bt] !== undefined ? B.surf[bt] : surf[1];
+    const sl = S.slope(p.x, p.y, Math.cos(p.heading), Math.sin(p.heading));
+    const top = B.speed * sm * slopeMul(sl, B.up, B.down);
+    p.slope = sl;
+    p.kick = false;
     if (mag > 0.08) {
       const want = Math.atan2(my, mx);
       let da = want - p.heading;
@@ -1020,22 +1134,30 @@ function updatePlayer(g, inp, dt) {
       const turn = B.turn * slow * dt / (1 + p.speed * 0.12);
       p.heading += clamp(da, -turn, turn);
       const back = Math.abs(da) > 2.4 ? 0.2 : 1;   // 真後ろに倒すとブレーキ
-      const target = CFG.speed.bike * surf[1] * mag * back;
-      if (p.speed < target) p.speed = Math.min(target, p.speed + B.accel * dt);
+      const target = top * mag * back;
+      if (p.speed < target) { p.speed = Math.min(target, p.speed + B.accel * dt); p.kick = true; }
       else p.speed = Math.max(target, p.speed - B.brake * dt);
+    } else if (sl < -0.01) {
+      // こがなくても下り坂では速度が乗っていく
+      const gv = top * 0.85;
+      if (p.speed < gv) p.speed = Math.min(gv, p.speed + B.accel * 0.6 * clamp(-sl / SLOPE_MAX, 0, 1) * dt);
+      else p.speed = Math.max(gv, p.speed - B.coast * dt);
     } else {
-      p.speed = Math.max(0, p.speed - B.coast * dt);
-      if (p.speed > CFG.speed.bike * surf[1]) p.speed = Math.max(0, p.speed - B.brake * dt);
+      p.speed = Math.max(0, p.speed - B.coast * (1 + Math.max(0, sl) / SLOPE_MAX * 2) * dt);
+      if (p.speed > top) p.speed = Math.max(0, p.speed - B.brake * dt);
     }
+    p.speed = clamp(p.speed, 0, B.speed * B.down);
     p.pedal = mag > 0.08;
     regen(p, p.pedal ? N.walkRegen : N.restRegen, dt);
     const v = p.speed * U;
     p.vx = Math.cos(p.heading) * v; p.vy = Math.sin(p.heading) * v;
-    const before = p.speed;
+    const before = p.speed, ox = p.x, oy = p.y;
     const hit = moveWith(S.blk, p, p.vx * dt, p.vy * dt, CFG.player.radius);
     if (hit) {
-      if (before > B.bumpAt) g.events.push({ t: 'bump', v: before });
-      p.speed *= 0.35;
+      // 壁に沿って滑れる分だけ速さが残る。正面からぶつかると止まる
+      const keep = v > 0 ? clamp(Math.hypot(p.x - ox, p.y - oy) / (v * dt), 0, 1) : 0;
+      if (keep < 0.15) { if (before > CFG.bike.bumpAt) g.events.push({ t: 'bump', v: before }); p.speed = before * 0.35 * keep; }
+      else p.speed = Math.max(before * keep, p.pedal ? Math.min(0.3, before) : 0);
     }
     p.walkPhase += p.speed * U * dt * 1.4;
     p.dash = false; p.moving = p.speed > 0.05;
@@ -1048,7 +1170,7 @@ function updatePlayer(g, inp, dt) {
   const sprint = wantSprint && !p.tired && p.stamina > 0;
   const dash = wantDash;
   const sp = sprint ? CFG.speed.sprint : dash ? CFG.speed.dash : CFG.speed.walk * clamp(mag / CFG.stick.walkFull, 0, 1);
-  const v = sp * surf[0] * U;
+  const v = sp * surf[0] * U * (mag > 0.05 ? slopeMul(S.slope(p.x, p.y, mx, my), CFG.slope.walkUp, 1) : 1);
   const tvx = mag > 0.05 ? mx / mag * v : 0, tvy = mag > 0.05 ? my / mag * v : 0;
   const a = Math.min(1, dt * 14);
   p.vx += (tvx - p.vx) * a; p.vy += (tvy - p.vy) * a;
@@ -1109,7 +1231,7 @@ function updateZombies(g, dt) {
     updateZombieList(g, g.inside.zombies, p, space(g), true, cs, dt);
     if (g.dead) return;
     const w = g.world;
-    updateZombieList(g, g.zombies, g.outPos, { blk: (x, y, r) => blocked(w, x, y, r), sight: () => false }, false, cs, dt);
+    updateZombieList(g, g.zombies, g.outPos, { blk: (x, y, r) => blocked(w, x, y, r), sight: () => false, slope: (x, y, ux, uy) => slopeAlong(w, x, y, ux, uy) }, false, cs, dt);
   } else {
     updateZombieList(g, g.zombies, p, space(g), true, cs, dt);
   }
@@ -1142,7 +1264,7 @@ function updateZombieList(g, list, target, S, visible, chase, dt) {
       }
       const ex = z.tx - z.x, ey = z.ty - z.y, ed = Math.hypot(ex, ey);
       if (ed > 0.2) {
-        const v = CFG.speed.zombieWander * U * dt;
+        const v = CFG.speed.zombieWander * U * dt * (S.slope ? slopeMul(S.slope(z.x, z.y, ex, ey), CFG.slope.zombieUp, 1) : 1);
         z.vx = ex / ed * CFG.speed.zombieWander * U; z.vy = ey / ed * CFG.speed.zombieWander * U;
         if (moveWith(S.blk, z, ex / ed * v, ey / ed * v, Z.radius)) z.timer = Math.min(z.timer, 0.3);
         if (Math.abs(ex) > 0.05) z.face = (ex - ey) > 0 ? 1 : -1;
@@ -1156,7 +1278,7 @@ function updateZombieList(g, list, target, S, visible, chase, dt) {
         const a = 1.15 * z.detourDir, ca = Math.cos(a), sa = Math.sin(a);
         const rx = ux * ca - uy * sa, ry = ux * sa + uy * ca; ux = rx; uy = ry;
       }
-      const v = (d < 0.4 && !visible) ? 0 : chase * U;
+      const v = (d < 0.4 && !visible) ? 0 : chase * U * (S.slope ? slopeMul(S.slope(z.x, z.y, ux, uy), CFG.slope.zombieUp, 1) : 1);
       const ox = z.x, oy = z.y;
       moveWith(S.blk, z, ux * v * dt, uy * v * dt, Z.radius);
       const moved = Math.hypot(z.x - ox, z.y - oy);
@@ -1178,7 +1300,7 @@ function updateZombieList(g, list, target, S, visible, chase, dt) {
   }
 }
 
-const API = { CFG, T, SOLID, SURF, IT, ISOLID, hash, mulberry, vnoise, createGame, step, genChunk, genInterior, getInterior, iTile, iBlocked, tileAt, baseAt, chunkAt, getChunk, blocked, startPos, hourOf, lightAt, chaseSpeed, nearestBike, nearestInteract, usesLeft, sourceKey, tryInteract, ckey, CS, WALL_COLS, ROOF_COLS, CLOTHES, mainV, mainH };
+const API = { CFG, SLOPE_MAX, hillAt, hillsNear, heightRaw, heightAt, slopeAlong, slopeMul, viewScale, T, SOLID, SURF, IT, ISOLID, hash, mulberry, vnoise, createGame, step, genChunk, genInterior, getInterior, iTile, iBlocked, tileAt, baseAt, chunkAt, getChunk, blocked, startPos, hourOf, lightAt, chaseSpeed, nearestBike, nearestInteract, usesLeft, sourceKey, tryInteract, ckey, CS, WALL_COLS, ROOF_COLS, CLOTHES, mainV, mainH };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 root.MACHI = API;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -1243,13 +1365,45 @@ function SX(x, y) { return Math.round((x - camX - (y - camY)) * 8 + W / 2 - camS
 function SY(x, y, z) { return Math.round((x - camX + (y - camY)) * 4 + H / 2 - camSY - (z || 0)); }
 // 細かい描画用（丸めない）
 function fx(x, y) { return (x - camX - (y - camY)) * 8 + W / 2 - camSX; }
-function fy(x, y, z) { return (x - camX + (y - camY)) * 4 + H / 2 - camSY - (z || 0); }
+function fy(x, y, z) { return (x - camX + (y - camY)) * 4 + H / 2 - camSY - (z || 0) - zb + camZ; }
+// zb: いま描いている物の足もとの高さ（px）。camZ: カメラの高さ（px）
+let zb = 0, camZ = 0;
+// zoom: 見える距離の倍率（高い所ほど広く見える）。VX0..VY1 は拡大前の座標での見える範囲
+let zoom = 1, VX0 = 0, VX1 = 320, VY0 = 0, VY1 = 180;
+const LPX = CFG.terrain.levelPx;
+const hpx = (x, y) => M.heightAt(game.world, x, y) * LPX;
 
 // ---------------------------------------------------------------
 // 地面（チャンクごとに1枚の絵にしておく。ピクセル単位で塗るので継ぎ目が出ない）
 // ---------------------------------------------------------------
-const groundCache = new Map();
+const groundCache = new WeakMap();
 const GW = CS * 16 + 2, GH = CS * 8 + 2;
+const TOP = 2 * CFG.terrain.levelPx + 4;   // 高い地面のぶん、絵の上に余白をとる
+// チャンク内の高さ（角の格子から補間。範囲外は端の値）
+function hLocal(c, u, v) {
+  if (c.flat) return 0;
+  const W1 = CS + 1;
+  u = u < 0 ? 0 : u > CS - 1e-6 ? CS - 1e-6 : u; v = v < 0 ? 0 : v > CS - 1e-6 ? CS - 1e-6 : v;
+  const ix = u | 0, iy = v | 0, a = u - ix, b = v - iy, hg = c.hg;
+  const h00 = hg[iy * W1 + ix], h10 = hg[iy * W1 + ix + 1], h01 = hg[(iy + 1) * W1 + ix], h11 = hg[(iy + 1) * W1 + ix + 1];
+  return h00 + (h10 - h00) * a + (h01 - h00) * b + (h00 - h10 - h01 + h11) * a * b;
+}
+// 画面の点 (sx, sy) に見えている地面の (u, v) を、高さを考えながら求める（なめらかな斜面なので数回でおさまる）
+function unproject(c, sx, sy) {
+  let z = 0, u = 0, v = 0;
+  for (let k = 0; k < (c.flat ? 1 : 5); k++) {
+    const yy = sy + z;
+    u = (sx / 8 + yy / 4) / 2; v = (yy / 4 - sx / 8) / 2;
+    z = hLocal(c, u, v) * LPX;
+  }
+  return [u, v];
+}
+// 斜面の明るさ（左上から光）と、高い所ほど少し明るく
+function slopeShade(c, u, v) {
+  if (c.flat) return 1;
+  const du = hLocal(c, u + 0.5, v) - hLocal(c, u - 0.5, v), dv = hLocal(c, u, v + 0.5) - hLocal(c, u, v - 0.5);
+  return Math.max(0.66, Math.min(1.25, 1 + du * 1.3 + dv * 0.45 - (-du - dv > 0 ? (-du - dv) * 0.7 : 0) + hLocal(c, u, v) * 0.035));
+}
 function tileOf(c, lx, ly) {
   if (lx >= 0 && ly >= 0 && lx < CS && ly < CS) return c.t[ly * CS + lx];
   return M.tileAt(game.world, c.x0 + lx + 0.5, c.y0 + ly + 0.5);
@@ -1261,18 +1415,18 @@ function baseOf(c, lx, ly) {
 const isRoadT = t => t === T.ROAD || t === T.BRIDGE || t === T.PARKING;
 function buildGround(c) {
   const cv = document.createElement('canvas');
-  cv.width = GW; cv.height = GH;
+  cv.width = GW; cv.height = GH + TOP;
   const g = cv.getContext('2d');
-  const img = g.createImageData(GW, GH), D = img.data;
+  const img = g.createImageData(GW, GH + TOP), D = img.data;
   const s = game.seed;
   // 周りのタイルを先に引いておく（-1..CS）
   const E = CS + 2, bt = new Uint8Array(E * E), tt = new Uint8Array(E * E);
   for (let y = -1; y <= CS; y++) for (let x = -1; x <= CS; x++) { bt[(y + 1) * E + x + 1] = baseOf(c, x, y); tt[(y + 1) * E + x + 1] = tileOf(c, x, y); }
   const B = (x, y) => bt[(y + 1) * E + x + 1], TT = (x, y) => tt[(y + 1) * E + x + 1];
   const mv = M.mainV(c.cx), mh = M.mainH(c.cy);
-  for (let py = 0; py < GH; py++) for (let px = 0; px < GW; px++) {
-    const sx = px - CS * 8 + 0.5, sy = py + 0.5;
-    const u = (sx / 8 + sy / 4) / 2, v = (sy / 4 - sx / 8) / 2;
+  for (let py = 0; py < GH + TOP; py++) for (let px = 0; px < GW; px++) {
+    const sx = px - CS * 8 + 0.5, sy = py - TOP + 0.5;
+    const [u, v] = unproject(c, sx, sy);
     if (u < 0 || v < 0 || u >= CS || v >= CS) continue;
     const lx = u | 0, ly = v | 0, fu = u - lx, fv = v - ly;
     const b = B(lx, ly), t = TT(lx, ly);
@@ -1344,6 +1498,7 @@ function buildGround(c) {
       if (t === T.TREE) { const r = Math.hypot(fu - 0.6, fv - 0.6); if (r < 0.5) sh = Math.max(sh, 0.3); }
       if (sh) col = [col[0] * (1 - sh), col[1] * (1 - sh), col[2] * (1 - sh)];
     }
+    if (!c.flat) { const k = slopeShade(c, u, v); col = [col[0] * k, col[1] * k, col[2] * k]; }
     const o = (py * GW + px) * 4;
     D[o] = col[0]; D[o + 1] = col[1]; D[o + 2] = col[2]; D[o + 3] = 255;
   }
@@ -1354,7 +1509,7 @@ function buildGround(c) {
 // ---------------------------------------------------------------
 // 立っている物（塀・家・木・電柱…）の一覧をチャンクごとに作る
 // ---------------------------------------------------------------
-const objCache = new Map();
+const objCache = new WeakMap();
 function buildObjects(c) {
   const list = [];
   for (let ly = 0; ly < CS; ly++) for (let lx = 0; lx < CS; lx++) {
@@ -1436,13 +1591,13 @@ function drawHouse(h, night) {
       const on = lit && M.hash(game.seed, x * 10 | 0, f, 81) < 0.6;
       rect(sx - 1, sy, 3, 4, on ? '#f2d38a' : '#3a4250');
       rect(sx - 1, sy, 3, 1, on ? '#fff0c0' : '#59626f');
-      if (on) lights.push({ x: x, y: y1 + 0.3, r: 1.4, a: 0.55 });
+      if (on) lights.push({ z: zb, x: x, y: y1 + 0.3, r: 1.4, a: 0.55 });
     }
     for (let y = y0 + 0.8; y < y1 - 0.5; y += 1.8) {
       const sx = Math.round(fx(x1, y)), sy = Math.round(fy(x1, y, z + 4));
       const on = lit && M.hash(game.seed, y * 10 | 0, f, 82) < 0.5;
       rect(sx - 1, sy, 3, 4, on ? '#e8c47a' : '#323946');
-      if (on) lights.push({ x: x1 + 0.3, y: y, r: 1.4, a: 0.5 });
+      if (on) lights.push({ z: zb, x: x1 + 0.3, y: y, r: 1.4, a: 0.5 });
     }
   }
   // 玄関・勝手口・壊れた窓（見えている2面だけ）
@@ -1510,7 +1665,7 @@ function drawPole(o, night, t) {
     let on = night > 0.02;
     if (on && o.flick) on = Math.sin(t * 23 + o.x) + Math.sin(t * 7.1 + o.y * 3) > -0.6;
     rect(sx + 4, sy - 22, 2, 2, on ? '#f4f8e8' : '#c9cbc0');
-    if (on) lights.push({ x: o.x + 0.45, y: o.y + 0.45, r: 3.6, a: 0.85, glow: [230, 240, 210] });
+    if (on) lights.push({ z: zb, x: o.x + 0.45, y: o.y + 0.45, r: 3.6, a: 0.85, glow: [230, 240, 210] });
   }
 }
 
@@ -1518,8 +1673,11 @@ function drawWire(o) {
   ctx.strokeStyle = 'rgba(28,30,32,.7)';
   ctx.lineWidth = 1;
   {
+    const za = hpx(o.x, o.y), zz = hpx(o.nx, o.ny), keep = zb;
     for (const zoff of [31, 28]) {
-      const ax = fx(o.x, o.y), ay = fy(o.x, o.y, zoff), bx = fx(o.nx, o.ny), by = fy(o.nx, o.ny, zoff);
+      zb = za; const ax = fx(o.x, o.y), ay = fy(o.x, o.y, zoff);
+      zb = zz; const bx = fx(o.nx, o.ny), by = fy(o.nx, o.ny, zoff);
+      zb = keep;
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 + 4, bx, by);
@@ -1538,7 +1696,7 @@ function drawVend(o, night) {
     poly([P(x0 + 0.1, y1, 3), P(x1 - 0.1, y1, 3), P(x1 - 0.1, y1, 13), P(x0 + 0.1, y1, 13)], night > 0 ? '#eaf4ff' : '#c8d2da');
     for (let i = 0; i < 3; i++) { const p = P(x0 + 0.2 + i * 0.22, y1, 11); rect(p[0], p[1], 2, 2, ['#c33', '#36c', '#3a3'][i]); }
   }
-  lights.push({ x: o.x + 0.5, y: o.y + (o.face === 'N' ? -0.3 : 1.3), r: 2.4, a: 0.8, glow: [200, 225, 255] });
+  lights.push({ z: zb, x: o.x + 0.5, y: o.y + (o.face === 'N' ? -0.3 : 1.3), r: 2.4, a: 0.8, glow: [200, 225, 255] });
 }
 
 function drawCar(o) {
@@ -1632,9 +1790,15 @@ function drawPerson(sx, sy, o) {
     rect(sx - 2 + o.face, y - 2, 2, 3, o.bottom); rect(sx + 1 + o.face, y - 1, 2, 3, o.bottom);
   } else {
     const spread = o.sprint && o.moving ? Math.round(Math.sin(o.phase) * 1.5) : 0;
+    if (o.kick) {
+      // 片足で地面を蹴る
+      rect(sx - 2, y - 4, 2, 4, o.bottom);
+      rect(o.kick > 0 ? sx + 1 : sx - 4, y - 3, 2, 2, o.bottom); rect(o.kick > 0 ? sx + 3 : sx - 6, y - 1 + 2, 2, 1, o.bottom);
+    } else {
     rect(sx - 2 - spread, y - 4 + Math.max(0, step), 2, 4 - Math.max(0, step), o.bottom);
     rect(sx + 1 + spread, y - 4 + Math.max(0, -step), 2, 4 - Math.max(0, -step), o.bottom);
     rect(sx - 2, y - 1 + Math.max(0, step) - Math.max(0, step), 2, 1, '#222');
+    }
   }
   // 胴
   rect(sx - 2, y - 9, 5, 5, o.top);
@@ -1643,6 +1807,8 @@ function drawPerson(sx, sy, o) {
   if (o.arms === 'fwd') {
     const ax = o.face > 0 ? sx + 3 : sx - 6;
     rect(ax, y - 8, 4, 1, o.skin); rect(ax + (o.face > 0 ? 0 : 1), y - 7, 3, 1, o.top);
+  } else if (o.arms === 'out') {
+    rect(sx - 5, y - 8, 3, 1, o.top); rect(sx + 3, y - 8, 3, 1, o.top); rect(sx - 6, y - 8, 1, 1, o.skin); rect(sx + 6, y - 8, 1, 1, o.skin);
   } else if (o.arms === 'bar') {
     rect(o.face > 0 ? sx + 3 : sx - 4, y - 8, 2, 1, o.skin);
   } else {
@@ -1666,6 +1832,23 @@ function headingToScreen(h) {
   let ex = (c - s) * 8, ey = (c + s) * 4;
   const l = Math.hypot(ex, ey) || 1;
   return [ex / l, ey / l];
+}
+
+// スケボー（板と4つのウィール）
+function drawSkate(x, y, heading, col, spin) {
+  const sx = fx(x, y), sy = fy(x, y);
+  const [ex, ey] = headingToScreen(heading);
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.ellipse(sx, sy, 5, 1.5, 0, 0, 6.3); ctx.fill();
+  const deck = ['#2a2a2e', '#a33a2a', '#2f5a7a', '#c9a23a'][col % 4];
+  const L = 4;
+  for (const k of [-1, 1]) {
+    const wx = sx + ex * L * 0.65 * k, wy = sy + ey * L * 0.65 * k;
+    rect(Math.round(wx - ey * 1.2), Math.round(wy - 1), 1, 1, '#e4dcc0');
+    rect(Math.round(wx + ey * 1.2), Math.round(wy - 1), 1, 1, '#e4dcc0');
+  }
+  pline(sx - ex * L, sy - ey * L - 2, sx + ex * L, sy + ey * L - 2, deck);
+  pline(sx - ex * L, sy - ey * L - 1, sx + ex * L, sy + ey * L - 1, shade(deck.length === 7 ? deck : '#2a2a2e', 0.7));
 }
 
 function drawBike(x, y, heading, col, spin, fallen, glint) {
@@ -1709,7 +1892,7 @@ function drawBike(x, y, heading, col, spin, fallen, glint) {
 // ---------------------------------------------------------------
 // 1フレームぶんの描画
 // ---------------------------------------------------------------
-let lastInside = null;
+let lastInside = null, lastInsideZ = null;
 const dust = [];
 let dustT = 0;
 function render(t) {
@@ -1725,15 +1908,25 @@ function render(t) {
   // ピクセルにそろえる
   const ox = isoX(camX, camY), oy = isoY(camX, camY);
   camSX = Math.round(ox) - ox; camSY = Math.round(oy) - oy;
+  // 高さ：カメラも一緒に持ち上げる。高い所ほど遠くまで見える（2秒ほどで広がる）
+  const ph = game.inside ? 0 : M.heightAt(game.world, p.x, p.y);
+  const tz = game.inside ? 0 : M.heightAt(game.world, camX, camY) * LPX;
+  if (game.inside !== lastInsideZ) { lastInsideZ = game.inside; camZ = tz; zoom = game.inside ? 1 : M.viewScale(ph); }
+  camZ += (tz - camZ) * Math.min(1, frameDt * 5);
+  camZ = Math.round(camZ);
+  const zt = game.inside ? 1 : M.viewScale(ph);
+  zoom += (zt - zoom) * Math.min(1, frameDt * 1.8);
+  if (Math.abs(zt - zoom) < 0.002) zoom = zt;
+  VX0 = W / 2 - W / 2 * zoom; VX1 = W / 2 + W / 2 * zoom; VY0 = H / 2 - H / 2 * zoom; VY1 = H / 2 + H / 2 * zoom;
   // 本気ダッシュの土ぼこり
   dustT -= frameDt;
   if (p.sprint && dustT <= 0) { dustT = 0.06; dust.push({ x: p.x - Math.cos(p.heading) * 0.3, y: p.y - Math.sin(p.heading) * 0.3, t: 0, r: Math.random() }); }
   for (const d of dust) d.t += frameDt;
   while (dust.length && dust[0].t > 0.45) dust.shift();
 
-  if (game.inside) renderInterior(t, Lt, night);
+  if (game.inside) { zoom = 1; VX0 = 0; VX1 = W; VY0 = 0; VY1 = H; renderInterior(t, Lt, night); }
   else renderOutside(t, Lt, night, hour);
-  drawGlint(t);
+  setZoom(); drawGlint(t); ctx.setTransform(1, 0, 0, 1, 0, 0);
   // 家の出入り：一度暗くなって切り替わる
   if (game.trans) {
     const tr = game.trans, k = 1 - Math.abs(tr.t - tr.dur / 2) / (tr.dur / 2);
@@ -1744,10 +1937,12 @@ function render(t) {
 
 function drawDust() {
   for (const d of dust) {
+    zb = game.inside ? 0 : hpx(d.x, d.y);
     const sx = Math.round(fx(d.x, d.y) + (d.r - 0.5) * 4), sy = Math.round(fy(d.x, d.y, d.t * 8));
     ctx.fillStyle = `rgba(170,160,140,${0.45 * (1 - d.t / 0.45)})`;
     ctx.fillRect(sx, sy, 2, 1);
   }
+  zb = 0;
 }
 
 // 触れるものの小さなきらめき（自転車・入口・自販機・冷蔵庫…）
@@ -1757,7 +1952,9 @@ function drawGlint(t) {
   const it = M.nearestInteract(game);
   if (!it || it.empty) return;
   const z = { bike: 12, entry: 14, exit: 10, fixture: 18, source: it.o && it.o.k === 'veg' ? 6 : 16 }[it.type] || 12;
+  zb = game.inside ? 0 : hpx(it.x, it.y);
   const sx = Math.round(fx(it.x, it.y)), sy = Math.round(fy(it.x, it.y, z));
+  zb = 0;
   const ph = (t * 1.6) % 1;
   if (ph < 0.55) { ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillRect(sx, sy, 1, 1); }
   if (ph > 0.15 && ph < 0.4) { ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); }
@@ -1771,7 +1968,9 @@ function applyDark(alpha, holes, col) {
   dctx.fillRect(0, 0, W, H);
   dctx.globalCompositeOperation = 'destination-out';
   for (const l of holes) {
-    const sx = fx(l.x, l.y), sy = fy(l.x, l.y), rp = l.r * 9, k = l.a;
+    zb = l.z || 0;
+    const sx = W / 2 + (fx(l.x, l.y) - W / 2) / zoom, sy = H / 2 + (fy(l.x, l.y) - H / 2) / zoom, rp = l.r * 9 / Math.sqrt(zoom), k = l.a;
+    zb = 0;
     if (sx < -rp || sx > W + rp || sy < -rp || sy > H + rp) continue;
     const gr = dctx.createRadialGradient(sx, sy, 0, sx, sy, rp);
     gr.addColorStop(0, `rgba(0,0,0,${k})`);
@@ -1792,8 +1991,10 @@ function drawEyes(list, night, t) {
   for (const z of list) {
     const dd = Math.hypot(z.x - p.x, z.y - p.y);
     if (dd > 20) continue;
+    zb = game.inside ? 0 : hpx(z.x, z.y);
     const sx = Math.round(fx(z.x, z.y)), sy = Math.round(fy(z.x, z.y));
-    if (sx < 0 || sx > W || sy < 0 || sy > H + 14) continue;
+    zb = 0;
+    if (sx < VX0 || sx > VX1 || sy < VY0 || sy > VY1 + 14) continue;
     if (Math.sin(t * 0.7 + z.id) < -0.95) continue;
     const away = z.state === 1 ? false : (z.id % 2 === 0);
     if (away) continue;
@@ -1804,36 +2005,78 @@ function drawEyes(list, night, t) {
   }
 }
 
+function setZoom() {
+  if (zoom === 1) ctx.setTransform(1, 0, 0, 1, 0, 0);
+  else ctx.setTransform(1 / zoom, 0, 0, 1 / zoom, W / 2 * (1 - 1 / zoom), H / 2 * (1 - 1 / zoom));
+}
+// 物の足もと（高さを決める点）
+function objBase(o) {
+  switch (o.k) {
+    case 'house': return [(o.x0 + o.x1) / 2, (o.y0 + o.y1) / 2];
+    case 'wall': case 'hedge': case 'tree': case 'vend': case 'fountain': return [o.x + 0.5, o.y + 0.5];
+    case 'car': case 'shed': return [o.x + o.w / 2, o.y + o.h / 2];
+    case 'pipes': return [o.x + 1.5, o.y + 0.5];
+    case 'swing': return [o.x + 1, o.y + 0.5];
+    default: return [o.x, o.y];
+  }
+}
+
 function renderOutside(t, Lt, night, hour) {
   const p = game.player;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#20241e';
   ctx.fillRect(0, 0, W, H);
+  setZoom();
+  ctx.imageSmoothingEnabled = zoom > 1.05;
   lights = [];
+  zb = 0;
 
-  // 見えているチャンク
+  // 見えているチャンク。近く（2つ先まで）はくわしく、その外は簡略化した遠景
   const pcx = Math.floor(camX / CS), pcy = Math.floor(camY / CS);
-  const vis = [];
-  let built = 0;
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-    const c = game.world.chunks.get(M.ckey(pcx + dx, pcy + dy));
-    if (!c) continue;
-    const gx = fx(c.x0, c.y0) - CS * 8, gy = fy(c.x0, c.y0);
-    if (gx > W || gx + GW < 0 || gy > H + 40 || gy + GH < -40) continue;
+  const RR = Math.min(CFG.world.keepRadius, Math.ceil(zoom * 1.3) + 1);
+  const vis = [], far = [];
+  let built = 0, impBuilt = 0;
+  const inView = (gx, gy, w, h) => !(gx > VX1 || gx + w < VX0 || gy > VY1 + 40 || gy + h < VY0 - 40);
+  for (let dy = -RR; dy <= RR; dy++) for (let dx = -RR; dx <= RR; dx++) {
+    // 広く見えているときは、細かく描くのはすぐ近くだけ（60fpsを保つため）
+    const NR = zoom > 1.7 ? 1 : 2;
+    const near = Math.abs(dx) <= NR && Math.abs(dy) <= NR;
+    let c = game.world.chunks.get(M.ckey(pcx + dx, pcy + dy));
+    if (!c) { if (near) continue; c = M.getChunk(game.world, pcx + dx, pcy + dy); }
+    const gx = fx(c.x0, c.y0) - CS * 8, gy = fy(c.x0, c.y0) - TOP;
+    if (!inView(gx, gy - IMP_UP, GW, GH + TOP + IMP_UP)) continue;
+    if (near) vis.push(c);
+    else far.push({ c, dx, dy, gx, gy });
+  }
+  // 遠景（奥にあるもの）
+  const drawFar = after => {
+    for (const f of far) {
+      if ((f.dx + f.dy > (zoom > 1.7 ? 1 : 2)) !== after) continue;
+      let im = impCache.get(f.c);
+      if (!im && impBuilt < 3) { im = buildImpostor(f.c); impCache.set(f.c, im); impBuilt++; }
+      if (im) ctx.drawImage(im.cv, Math.round(f.gx), Math.round(f.gy - IMP_UP), im.cv.width * 2, im.cv.height * 2);
+    }
+  };
+  drawFar(false);
+  for (const c of vis) {
+    const gx = fx(c.x0, c.y0) - CS * 8, gy = fy(c.x0, c.y0) - TOP;
     let gc = groundCache.get(c);
     if (!gc && built < 2) { gc = buildGround(c); groundCache.set(c, gc); built++; }
-    if (gc) ctx.drawImage(gc, Math.round(gx), Math.round(gy));
-    vis.push(c);
+    if (!gc) { const im = impCache.get(c) || buildImpostor(c); impCache.set(c, im); ctx.drawImage(im.cv, Math.round(gx), Math.round(gy - IMP_UP), im.cv.width * 2, im.cv.height * 2); continue; }
+    ctx.drawImage(gc, Math.round(gx), Math.round(gy));
   }
+  ctx.imageSmoothingEnabled = false;
 
   drawDust();
   // 立っている物を手前から奥へ並べる
   const objs = [];
   for (const c of vis) {
+    if (!groundCache.get(c)) continue;
     let ol = objCache.get(c);
     if (!ol) { ol = buildObjects(c); objCache.set(c, ol); }
     for (const o of ol) {
       const sx = fx(o.x, o.y), sy = fy(o.x, o.y);
-      if (sx < -80 || sx > W + 80 || sy < -20 || sy > H + 80) { if (!(o.k === 'pole' && o.nx !== null)) continue; }
+      if (sx < VX0 - 80 || sx > VX1 + 80 || sy < VY0 - 20 || sy > VY1 + 100) { if (!(o.k === 'pole' && o.nx !== null)) continue; }
       objs.push(o);
       if (o.k === 'pole' && o.nx !== null) objs.push({ k: 'wire', p: o, d: (o.x + o.y + o.nx + o.ny) / 2 + 0.5 });
     }
@@ -1841,20 +2084,22 @@ function renderOutside(t, Lt, night, hour) {
   for (const b of game.bikes) objs.push({ k: 'bike', x: b.x, y: b.y, d: b.x + b.y, b });
   for (const z of game.zombies) {
     const sx = fx(z.x, z.y), sy = fy(z.x, z.y);
-    if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 30) continue;
+    if (sx < VX0 - 20 || sx > VX1 + 20 || sy < VY0 - 20 || sy > VY1 + 60) continue;
     objs.push({ k: 'zombie', x: z.x, y: z.y, d: z.x + z.y, z });
   }
   objs.push({ k: 'player', x: p.x, y: p.y, d: p.x + p.y });
   objs.sort((a, b) => a.d - b.d);
 
   for (const o of objs) {
+    if (o.k === 'wire') zb = 0;
+    else { const [bx, by] = objBase(o); zb = hpx(bx, by); }
     switch (o.k) {
       case 'wall': drawWall(o); break;
       case 'hedge': box(o.x + 0.05, o.y + 0.05, o.x + 0.95, o.y + 0.95, 0, 8, '#4c6c3a', '#3c5a2e', '#324d27'); { const p2 = P(o.x + 0.5, o.y + 0.5, 8); rect(p2[0] - 2, p2[1] - 1, 1, 1, '#5f8248'); rect(p2[0] + 2, p2[1], 1, 1, '#5f8248'); } break;
       case 'tree': drawTree(o); break;
       case 'house': drawHouse(o, night); break;
       case 'wire': drawWire(o.p); break;
-      case 'pole': if (fx(o.x, o.y) > -10 && fx(o.x, o.y) < W + 10 && fy(o.x, o.y) > -5 && fy(o.x, o.y) < H + 40) drawPole(o, night, t); break;
+      case 'pole': if (fx(o.x, o.y) > VX0 - 10 && fx(o.x, o.y) < VX1 + 10 && fy(o.x, o.y) > VY0 - 5 && fy(o.x, o.y) < VY1 + 40) drawPole(o, night, t); break;
       case 'vend': drawVend(o, night); break;
       case 'car': drawCar(o); break;
       case 'pipes': drawPipes(o); break;
@@ -1864,15 +2109,22 @@ function renderOutside(t, Lt, night, hour) {
       case 'shed': drawShed(o); break;
       case 'fountain': drawFountain(o); break;
       case 'veg': drawVeg(o); break;
-      case 'bike': drawBike(o.x, o.y, o.b.heading, o.b.col, 0, o.b.fallen, false); break;
+      case 'bike': if (o.b.type === 'skate') drawSkate(o.x, o.y, o.b.heading, o.b.col, 0); else drawBike(o.x, o.y, o.b.heading, o.b.col, 0, o.b.fallen, false); break;
       case 'zombie': drawZombie(o.z, t); break;
       case 'player': drawPlayer(t); break;
     }
   }
+  drawFar(true);
   // 家の陰に入ったときは輪郭だけ見せる
+  zb = hpx(p.x, p.y);
   ctx.globalAlpha = 0.28;
   drawPlayer(t, true);
   ctx.globalAlpha = 1;
+  zb = 0;
+  // 夜の遠景：街灯・自販機・窓の明かりが点々と見える
+  const farLights = [];
+  if (night > 0.005) for (const f of far) { const im = impCache.get(f.c); if (im) for (const l of im.lights) farLights.push(l); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   // 朝夕の色
   if (Lt.warm > 0.01) {
@@ -1887,11 +2139,19 @@ function renderOutside(t, Lt, night, hour) {
   // 夜
   if (night > 0.005) {
     const a = (0.86 + Lt.deep * 0.08) * night;
-    applyDark(a, [{ x: p.x, y: p.y, r: 7.5, a: 0.95 }].concat(lights));
+    applyDark(a, [{ x: p.x, y: p.y, r: 7.5, a: 0.95, z: hpx(p.x, p.y) }].concat(lights));
+    setZoom();
     // 明かりのにじみ
     ctx.globalCompositeOperation = 'lighter';
+    for (const l of farLights) {
+      zb = l.z;
+      const sx = Math.round(fx(l.x, l.y)), sy = Math.round(fy(l.x, l.y, l.h || 0));
+      ctx.fillStyle = `rgba(${l.glow[0]},${l.glow[1]},${l.glow[2]},${0.8 * night})`;
+      ctx.fillRect(sx - 1, sy - 1, 2 + (zoom > 2 ? 1 : 0), 2 + (zoom > 2 ? 1 : 0));
+    }
     for (const l of lights) {
       if (!l.glow) continue;
+      zb = l.z || 0;
       const sx = fx(l.x, l.y), sy = fy(l.x, l.y);
       const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, l.r * 5);
       gr.addColorStop(0, `rgba(${l.glow[0]},${l.glow[1]},${l.glow[2]},${0.09 * night})`);
@@ -1899,15 +2159,76 @@ function renderOutside(t, Lt, night, hour) {
       ctx.fillStyle = gr;
       ctx.fillRect(sx - l.r * 5, sy - l.r * 5, l.r * 10, l.r * 10);
     }
+    zb = 0;
     ctx.globalCompositeOperation = 'source-over';
     drawEyes(game.zombies, night, t);
   }
 }
 
 // ---------------------------------------------------------------
+// 遠景（簡略化したチャンクの絵：地面は粗く、家と木だけ。半分の解像度）
+// ---------------------------------------------------------------
+const impCache = new WeakMap();
+const IMP_UP = 44;   // 家の高さぶんの余白
+const FARCOL = {};
+FARCOL[T.ROAD] = [74, 77, 82]; FARCOL[T.BRIDGE] = [96, 98, 102]; FARCOL[T.PARKING] = [92, 94, 98];
+FARCOL[T.GRASS] = [88, 116, 60]; FARCOL[T.BANK] = [86, 112, 60]; FARCOL[T.DIRT] = [138, 115, 84]; FARCOL[T.GRAVEL] = [150, 148, 140];
+FARCOL[T.SAND] = [196, 178, 140]; FARCOL[T.FIELD] = [104, 80, 58]; FARCOL[T.CROP] = [92, 112, 58]; FARCOL[T.PUDDLE] = [96, 112, 118]; FARCOL[T.WATER] = [58, 86, 100];
+function buildImpostor(c) {
+  const w = Math.ceil(GW / 2), h = Math.ceil((GH + TOP + IMP_UP) / 2);
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const g = cv.getContext('2d');
+  const img = g.createImageData(w, h), D = img.data;
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+    const sx = px * 2 + 1 - CS * 8, sy = py * 2 + 1 - TOP - IMP_UP;
+    const [u, v] = unproject(c, sx, sy);
+    if (u < 0 || v < 0 || u >= CS || v >= CS) continue;
+    const b = c.base[(v | 0) * CS + (u | 0)];
+    const col = FARCOL[b] || [60, 58, 54];
+    const k = slopeShade(c, u, v) * (0.94 + M.hash(game.seed, c.x0 + px, c.y0 + py, 9) * 0.1);
+    const o = (py * w + px) * 4;
+    D[o] = col[0] * k; D[o + 1] = col[1] * k; D[o + 2] = col[2] * k; D[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  // チャンクの左上の角を基準にした投影（半分の大きさ）
+  const lx = (x, y) => ((x - c.x0) - (y - c.y0)) * 4 + CS * 4;
+  const ly = (x, y, z) => (((x - c.x0) + (y - c.y0)) * 4 + TOP + IMP_UP - z - hLocal(c, x - c.x0, y - c.y0) * LPX) / 2;
+  const pl = (pts, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); g.fill(); };
+  const items = [];
+  for (const hs of c.houses) items.push({ d: (hs.x0 + hs.x1 + hs.y0 + hs.y1) / 2, hs });
+  for (let y = 0; y < CS; y++) for (let x = 0; x < CS; x++) if (c.t[y * CS + x] === T.TREE) items.push({ d: c.x0 + c.y0 + x + y + 1, tr: [c.x0 + x + 0.5, c.y0 + y + 0.5] });
+  items.sort((a, b) => a.d - b.d);
+  const lights = [];
+  for (const it of items) {
+    if (it.tr) {
+      const [x, y] = it.tr;
+      g.fillStyle = '#34502c'; g.beginPath(); g.arc(lx(x, y), ly(x, y, 15), 3.5, 0, 6.3); g.fill();
+      continue;
+    }
+    const hs = it.hs, hz = hs.floors === 2 ? 22 : 12, cxm = (hs.x0 + hs.x1) / 2, cym = (hs.y0 + hs.y1) / 2;
+    const base = hLocal(c, cxm - c.x0, cym - c.y0) * LPX;
+    const Q = (x, y, z) => [lx(x, y), (((x - c.x0) + (y - c.y0)) * 4 + TOP + IMP_UP - z - base) / 2];
+    const wc = WALLS[hs.wall], rc = ROOFS[hs.roof];
+    pl([Q(hs.x0, hs.y1, 0), Q(hs.x1, hs.y1, 0), Q(hs.x1, hs.y1, hz), Q(hs.x0, hs.y1, hz)], shade(wc, 0.86));
+    pl([Q(hs.x1, hs.y1, 0), Q(hs.x1, hs.y0, 0), Q(hs.x1, hs.y0, hz), Q(hs.x1, hs.y1, hz)], shade(wc, 0.7));
+    const rh = 7;
+    if (hs.ridge === 'x') { const ym = (hs.y0 + hs.y1) / 2; pl([Q(hs.x0, hs.y0, hz), Q(hs.x1, hs.y0, hz), Q(hs.x1, ym, hz + rh), Q(hs.x0, ym, hz + rh)], shade(rc, 0.75)); pl([Q(hs.x0, ym, hz + rh), Q(hs.x1, ym, hz + rh), Q(hs.x1, hs.y1, hz), Q(hs.x0, hs.y1, hz)], rc); }
+    else { const xm = (hs.x0 + hs.x1) / 2; pl([Q(hs.x0, hs.y0, hz), Q(hs.x0, hs.y1, hz), Q(xm, hs.y1, hz + rh), Q(xm, hs.y0, hz + rh)], shade(rc, 0.75)); pl([Q(xm, hs.y0, hz + rh), Q(xm, hs.y1, hz + rh), Q(hs.x1, hs.y1, hz), Q(hs.x1, hs.y0, hz)], shade(rc, 0.92)); }
+    if (hs.lit) lights.push({ x: cxm + 0.5, y: hs.y1 + 0.2, z: base, h: 8, r: 1.0, a: 0.5, glow: [242, 211, 138] });
+  }
+  for (const o of c.props) {
+    const z = hLocal(c, o.x - c.x0, o.y - c.y0) * LPX;
+    if (o.k === 'pole' && o.light) lights.push({ x: o.x + 0.45, y: o.y + 0.45, z, h: 22, r: 2.2, a: 0.7, glow: [230, 240, 210] });
+    else if (o.k === 'vend') lights.push({ x: o.x + 0.5, y: o.y + 0.5, z, h: 8, r: 1.6, a: 0.7, glow: [200, 225, 255] });
+  }
+  return { cv, lights };
+}
+
+// ---------------------------------------------------------------
 // 家の中
 // ---------------------------------------------------------------
-const iCache = new Map();
+const iCache = new WeakMap();
 function buildInteriorGround(I) {
   const GWi = (I.W + I.H) * 8 + 2, GHi = (I.W + I.H) * 4 + 2;
   const cv = document.createElement('canvas');
@@ -2061,6 +2382,16 @@ function drawPlayer(t, ghost) {
   const sx = fx(p.x, p.y), sy = fy(p.x, p.y);
   const [ex, ey] = headingToScreen(p.heading);
   const face = ex >= 0 ? 1 : -1, away = ey < -0.3;
+  const sk = p.riding ? p.vehicle === 'skate' : p.mount > 0 && p.mountBike && p.mountBike.type === 'skate';
+  if (sk) {
+    // スケボー：片足で地面を蹴って乗る。乗っている間はこぐ代わりに蹴る
+    const f = p.mount > 0 ? 1 - p.mount / CFG.feel.mount : 1;
+    if (p.mount > 0) drawSkate(p.mountBike.x, p.mountBike.y, p.mountBike.heading, p.mountBike.col, 0);
+    else drawSkate(p.x, p.y, p.heading, p.bikeCol, p.walkPhase);
+    const kicking = p.mount > 0 ? f < 0.7 : (p.kick && Math.sin(p.walkPhase * 1.2) > 0);
+    drawPerson(sx, sy - 2, { top: '#3b4d63', bottom: '#2c2c33', skin: '#e0b896', hair: '#1e1a18', face, away, phase: 0, moving: false, arms: 'out', kick: kicking ? -face : 0 });
+    return;
+  }
   if (p.riding || p.mount > 0) {
     const f = p.mount > 0 ? 1 - p.mount / CFG.feel.mount : 1;
     if (p.mount > 0) drawBike(p.mountBike.x, p.mountBike.y, p.mountBike.heading, p.mountBike.col, 0, false, false);
@@ -2091,6 +2422,7 @@ const Snd = (() => {
   const L = {};
   let white, pink, brown;
   const groanAt = new Map(), stepAt = new Map();
+  let rollAcc = 0, kickT = 0;
   let voices = 0, gust = 0.6, gustT = 0, envT = 0, clickT = 0, chimeDone = -1, pant = 0, breathT = 0, inhale = false;
   let env = { open: 0.5, grass: 0.3, water: 0, trees: 0, field: 0, vend: 99, mat: 'asphalt' };
 
@@ -2143,7 +2475,12 @@ const Snd = (() => {
     L.water = layer(loop(pink), [filt('bandpass', 750, 0.9)], 0);
     L.waterB = layer(loop(white), [filt('bandpass', 2300, 4)], 0);
     L.city = layer(loop(brown), [filt('lowpass', 130, 0.5)], 0);
-    L.speedWind = layer(loop(pink), [filt('highpass', 700, 0.5), filt('lowpass', 4500, 0.5)], 0);
+    L.speedWindF = filt('highpass', 700, 0.5);
+    L.speedWind = layer(loop(pink), [L.speedWindF, filt('lowpass', 4500, 0.5)], 0);
+    // スケボーのウィールの転がり
+    L.rollF = filt('bandpass', 260, 1.2);
+    L.roll = layer(loop(brown), [L.rollF], 0);
+    L.grit = layer(loop(white), [filt('bandpass', 1800, 0.8)], 0);
     L.chainF = filt('bandpass', 500, 7);
     L.chain = layer(loop(white), [L.chainF], 0);
     L.tireF = filt('lowpass', 300, 0.7);
@@ -2238,6 +2575,15 @@ const Snd = (() => {
     e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.05, t + 0.2); e.gain.exponentialRampToValueAtTime(0.0008, t + 1.2);
     chain(o, filt('lowpass', 220, 1), e, out(0, 0, 1));
     o.start(t); am.start(t); o.stop(t + 1.3); am.stop(t + 1.3);
+  }
+  // スケボーに乗る：板を踏むコトッ、蹴る音、ウィールが転がり始める
+  function skateOn(t) {
+    burst(t, 0.03, 'bandpass', 900, 1.5, 0.22); tone(t, 'sine', 150, 90, 0.08, 0.16);
+    burst(t + 0.05, 0.16, 'bandpass', 1300, 0.8, 0.08, 0, 0, 0.03);
+    const s2 = ac.createBufferSource(); s2.buffer = brown;
+    const f = filt('bandpass', 120, 1.2); f.frequency.setValueAtTime(120, t + 0.1); f.frequency.linearRampToValueAtTime(320, t + 0.5);
+    const e = gain(0); e.gain.setValueAtTime(0, t + 0.1); e.gain.linearRampToValueAtTime(0.4, t + 0.45); e.gain.linearRampToValueAtTime(0.0, t + 0.6);
+    chain(s2, f, e, out(0, 0, 1)); s2.start(t + 0.1, Math.random()); s2.stop(t + 0.65);
   }
   function kickstand(t) {
     tone(t, 'triangle', 1750, 1700, 0.14, 0.12, 0, 0.1);
@@ -2398,9 +2744,11 @@ const Snd = (() => {
     gustT -= dt;
     if (gustT <= 0) { gustT = 1 + Math.random() * 3; gust = 0.35 + Math.random() * 0.75; }
     const io = game.inside ? 0.22 : 1;   // 家の中では外の音がこもる
-    const wind = (0.18 + env.open * 0.55) * gust * (0.8 + night * 0.15) * io;
+    // 高い所ほど風が強い（高台に着くと2秒ほどで強くなる）
+    const hh = game.inside ? 0 : M.heightAt(game.world, p.x, p.y);
+    const wind = (0.18 + env.open * 0.55 + hh * 0.32) * gust * (0.8 + night * 0.15) * io;
     setL(L.wind, wind * 0.5, 1.2);
-    L.windF.frequency.setTargetAtTime(250 + gust * 500, ac.currentTime, 1.5);
+    L.windF.frequency.setTargetAtTime(250 + gust * 500 + hh * 220, ac.currentTime, 0.7);
     setL(L.grass, env.grass * gust * 0.05 * io, 0.8);
     const wv = env.wd < 99 ? Math.min(1, 1 / (1 + (env.wd / 3.5) ** 2) + env.water) : 0;
     setL(L.water, wv * 0.35 * io, 0.6);
@@ -2414,15 +2762,30 @@ const Snd = (() => {
     if (want > 0.12 && breathT <= 0) { breathT = 0.95 - want * 0.55; breath(want, inhale = !inhale); }
     // 腹の虫
     if (p.food < 20 && Math.random() < dt * 0.05) growl();
-    // 自転車
+    // 乗り物（下り坂で速度が乗ると、風切り音が強く・高くなる）
+    const sk = p.riding && p.vehicle === 'skate', bk = p.riding && !sk;
     const v = p.riding ? p.speed : 0, vr = v / CFG.speed.bike;
     setL(L.speedWind, vr * vr * 0.32, 0.15);
-    setL(L.tire, p.riding ? vr * 0.5 : 0, 0.1);
+    L.speedWindF.frequency.setTargetAtTime(500 + vr * 1100, ac.currentTime, 0.2);
+    setL(L.tire, bk ? vr * 0.5 : 0, 0.1);
     L.tireF.frequency.setTargetAtTime(150 + vr * 500 + (env.grass > 0.5 ? 400 : 0), ac.currentTime, 0.1);
-    setL(L.chain, p.riding && p.pedal ? vr * 0.11 : 0, 0.08);
+    setL(L.chain, bk && p.pedal ? vr * 0.11 : 0, 0.08);
     L.chainF.frequency.setTargetAtTime(300 + vr * 1300, ac.currentTime, 0.1);
+    // スケボー：ゴーッという転がり。悪い地面ではザラザラ
+    const rough = sk ? (['grass', 'gravel', 'dirt'].includes((M.SURF[M.baseAt(game.world, p.x, p.y)] || [])[2]) ? 1 : 0) : 0;
+    setL(L.roll, sk ? Math.min(1, v / 2.8) * 0.55 : 0, 0.08);
+    L.rollF.frequency.setTargetAtTime(160 + v * 90 + rough * 200, ac.currentTime, 0.1);
+    setL(L.grit, sk ? (0.02 + rough * 0.08) * Math.min(1, v / 1.5) : 0, 0.08);
+    if (sk && v > 0.3) {
+      // 路面の継ぎ目でカタン
+      rollAcc += v * CFG.speed.unit * dt;
+      if (rollAcc > 1.7) { rollAcc = 0; const t = ac.currentTime; burst(t, 0.02, 'bandpass', 1400, 2, 0.12); burst(t + 0.05, 0.02, 'bandpass', 1300, 2, 0.1); }
+      // 地面を蹴る音
+      kickT -= dt;
+      if (p.kick && kickT <= 0) { kickT = 0.55; burst(ac.currentTime, 0.16, 'bandpass', 1300, 0.8, 0.08, 0, 0, 0.03); }
+    }
     // こがずに流しているときはラチェットの音
-    if (p.riding && !p.pedal && v > 0.4) {
+    if (bk && !p.pedal && v > 0.4) {
       clickT -= dt;
       if (clickT <= 0) { clickT = 0.5 / (v + 0.5); burst(ac.currentTime, 0.012, 'bandpass', 4500, 5, 0.05); }
     }
@@ -2469,8 +2832,8 @@ const Snd = (() => {
       else if (e.t === 'vend') { tone(t, 'sine', 120, 70, 0.18, 0.25); burst(t, 0.12, 'lowpass', 600, 1, 0.2); burst(t + 0.28, 0.18, 'highpass', 3000, 0.7, 0.05, 0, 0, 0.01); }
       else if (e.t === 'empty') { tone(t, 'sine', 180, 120, 0.08, 0.12); burst(t, 0.05, 'bandpass', 900, 2, 0.1); }
       else if (e.t === 'tired') breath(1, true);
-      else if (e.t === 'mount') { kickstand(t); chainRattle(t); }
-      else if (e.t === 'dismount') { kickstand(t); }
+      else if (e.t === 'mount') { if (e.v === 'skate') skateOn(t); else { kickstand(t); chainRattle(t); } }
+      else if (e.t === 'dismount') { if (e.v === 'skate') { burst(t, 0.03, 'bandpass', 900, 1.5, 0.2); tone(t, 'sine', 140, 80, 0.08, 0.15); } else kickstand(t); }
       else if (e.t === 'bump') { tone(t, 'sine', 90, 50, 0.15, 0.3); burst(t, 0.15, 'bandpass', 2600, 3, 0.12, 0, 0.2); }
       else if (e.t === 'notice') { const z = zl.find(q => q.id === e.id); if (z) { groan(z, Math.hypot(z.x - p.x, z.y - p.y), relPan(z.x, z.y), true, true); groanAt.set(z.id, 1.5 + Math.random()); } }
     }

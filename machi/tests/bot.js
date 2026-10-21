@@ -43,6 +43,17 @@ function check(g, seed, turn) {
     if (!pos(z.x) || !pos(z.y) || !num(z.vx) || !num(z.vy)) return fail(seed, turn, `zombie#${z.id} pos/vel = ${z.x},${z.y},${z.vx},${z.vy}`);
   }
   for (const b of g.bikes) if (!pos(b.x) || !pos(b.y)) return fail(seed, turn, `bike pos = ${b.x},${b.y}`);
+  // 速さがすべて決まった範囲に入っているか
+  const U = M.CFG.speed.unit;
+  if (p.riding) {
+    const V = M.CFG.vehicle[p.vehicle];
+    if (!V) return fail(seed, turn, `知らない乗り物 ${p.vehicle}`);
+    if (p.speed > V.speed * V.down + 1e-9) return fail(seed, turn, `${p.vehicle} が速すぎる ${p.speed.toFixed(3)} > ${(V.speed * V.down).toFixed(3)}`);
+  } else if (p.speed > M.CFG.speed.sprint + 0.02) return fail(seed, turn, `歩き・走りが速すぎる ${p.speed.toFixed(3)}`);
+  for (const z of (g.inside ? g.inside.zombies : g.zombies)) {
+    const v = Math.hypot(z.vx, z.vy) / U;
+    if (v > M.CFG.speed.zombie + 0.02) return fail(seed, turn, `ゾンビ#${z.id} が速すぎる ${v.toFixed(3)}`);
+  }
   if (g.world.chunks.size > 200) return fail(seed, turn, `チャンクが解放されない (${g.world.chunks.size})`);
   if (g.zombies.length > 3000) return fail(seed, turn, `ゾンビが増えすぎ (${g.zombies.length})`);
 }
@@ -67,7 +78,7 @@ function pathStep(g, tx, ty, maxR) {
       if (Math.abs(nx - sx) > R || Math.abs(ny - sy) > R) continue;
       const k = key(nx, ny);
       if (prev[k] !== -1) continue;
-      if (M.SOLID[M.tileAt(g.world, nx + 0.5, ny + 0.5)] && !(nx === gx && ny === gy)) continue;
+      if ((M.SOLID[M.tileAt(g.world, nx + 0.5, ny + 0.5)] || M.blocked(g.world, nx + 0.5, ny + 0.5, 0.3)) && !(nx === gx && ny === gy)) continue;
       prev[k] = key(x, y);
       q.push([nx, ny]);
     }
@@ -223,6 +234,23 @@ function suppliesReachable(seed, radius) {
 const t0 = Date.now();
 let deaths = 0, rides = 0, totalChunks = 0, maxDist = 0, nightTurns = 0, entered = 0, exited = 0, ate = 0, drank = 0;
 const causes = {};
+let hillStarts = 0;
+// 丘の近くの歩ける点（where: 'base' ふもと / 'top' 頂上）
+function hillSpot(seed, where, wantLevel) {
+  const sp = M.startPos(), C = M.CFG.terrain.cell;
+  const g = M.createGame(seed);
+  const hills = [];
+  for (let j = -3; j <= 3; j++) for (let i = -3; i <= 3; i++) { const h = M.hillAt(seed, Math.floor(sp.x / C) + i, Math.floor(sp.y / C) + j); if (h && (!wantLevel || h.level === wantLevel)) hills.push(h); }
+  hills.sort((a, b) => Math.hypot(a.x - sp.x, a.y - sp.y) - Math.hypot(b.x - sp.x, b.y - sp.y));
+  for (const h of hills) {
+    const rr = where === 'top' ? 0 : h.R + 1.5;
+    for (let r = rr; r < rr + 6; r += 0.5) for (let a = 0; a < 6.28; a += 0.3) {
+      const x = h.x + Math.cos(a) * r, y = h.y + Math.sin(a) * r;
+      if (!M.SOLID[M.tileAt(g.world, x, y)] && !M.blocked(g.world, x, y, 0.35)) return { x: Math.floor(x) + 0.5, y: Math.floor(y) + 0.5, h };
+    }
+  }
+  return null;
+}
 for (let s = FIRST; s < FIRST + SEEDS; s++) {
   // 始まりの場所：歩ける・近くに自転車がある
   {
@@ -238,6 +266,11 @@ for (let s = FIRST; s < FIRST + SEEDS; s++) {
     if (!sup.water) fail(s, 0, '歩いて行ける所に水がない');
   }
   let seed = s, g = M.createGame(seed), bot = makeBot(seed), sx = g.player.x, sy = g.player.y;
+  // 5つに1つは丘のふもとから始めて、坂の上り下りも混ぜる
+  if (s % 5 === 0) {
+    const spot = hillSpot(seed, 'base');
+    if (spot) { g.player.x = spot.x; g.player.y = spot.y; g.bikes.push({ x: spot.x, y: spot.y, heading: 0, fallen: false, col: 0, type: s % 10 === 0 ? 'skate' : 'bike' }); sx = spot.x; sy = spot.y; hillStarts++; }
+  }
   // シードごとに時刻をずらして、夜も通す
   g.time = (s % 4) * 6 * M.CFG.time.secondsPerHour;
   let n = fails.length;
@@ -454,8 +487,184 @@ const at = (g, h) => { g.time = ((h - CFG.time.startHour + 24) % 24) * CFG.time.
   if (!g.dead || g.cause !== 'zombie') fail(2, 0, '家の中のゾンビに触れても終わらない');
 }
 
+// ---- 第3段階：乗り物・高低差・見晴らし ----
+{
+  // 見える距離
+  const V = CFG.view;
+  if (M.viewScale(0) !== V[0] || M.viewScale(1) !== V[1] || M.viewScale(2) !== V[2]) fail(0, 0, `見える距離の倍率が違う ${M.viewScale(0)}/${M.viewScale(1)}/${M.viewScale(2)}`);
+  if (!(M.viewScale(1.5) > V[1] && M.viewScale(1.5) < V[2])) fail(0, 0, '見える距離がなめらかに変わらない');
+  // 坂の倍率（いちばん急な坂で表の値）
+  const SM = M.SLOPE_MAX, VB = CFG.vehicle.bike, VS = CFG.vehicle.skate;
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  if (!near(M.slopeMul(SM, VB.up, VB.down), 0.5) || !near(M.slopeMul(-SM, VB.up, VB.down), 1.4)) fail(0, 0, '自転車の坂の倍率が表と違う');
+  if (!near(M.slopeMul(SM, VS.up, VS.down), 0.35) || !near(M.slopeMul(-SM, VS.up, VS.down), 1.3)) fail(0, 0, 'スケボーの坂の倍率が表と違う');
+  if (!near(M.slopeMul(SM, CFG.slope.zombieUp, 1), 0.8)) fail(0, 0, 'ゾンビの登りの倍率が表と違う');
+  if (!(VS.speed < VB.speed && VS.turn > VB.turn)) fail(0, 0, 'スケボーが自転車より遅く・小回りが利く、になっていない');
+}
+{
+  // 高さは 0..2、斜面はなめらか（段差・崖がない）
+  let maxG = 0, maxH = 0, maxErr = 0, hillsSeen = 0;
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const g = M.createGame(seed), sp = M.startPos(), C = CFG.terrain.cell;
+    for (let j = -4; j <= 4; j++) for (let i = -4; i <= 4; i++) {
+      const h = M.hillAt(seed, Math.floor(sp.x / C) + i, Math.floor(sp.y / C) + j);
+      if (!h) continue;
+      hillsSeen++;
+      const R = M.mulberry(seed * 31 + i * 7 + j);
+      for (let k = 0; k < 300; k++) {
+        const x = h.x + (R() - 0.5) * h.R * 2.4, y = h.y + (R() - 0.5) * h.R * 2.4;
+        const a = M.heightRaw(seed, x, y), b = M.heightRaw(seed, x + 0.05, y), c = M.heightRaw(seed, x, y + 0.05);
+        const gr = Math.hypot(b - a, c - a) / 0.05;
+        if (!(a >= 0 && a <= 2)) fail(seed, 0, `高さが範囲外 ${a}`);
+        maxG = Math.max(maxG, gr); maxH = Math.max(maxH, a);
+        if (k % 10 === 0) maxErr = Math.max(maxErr, Math.abs(M.heightAt(g.world, x, y) - a));
+      }
+    }
+  }
+  console.log(`地形：丘 ${hillsSeen}個 / いちばん急な傾き ${maxG.toFixed(3)}（上限 ${M.SLOPE_MAX.toFixed(3)}）/ 最高 ${maxH.toFixed(2)} / 格子の誤差 ${maxErr.toFixed(3)}`);
+  if (maxG > M.SLOPE_MAX * 1.05) fail(0, 0, `斜面が急すぎる（段差に近い） ${maxG}`);
+  if (maxErr > 0.06) fail(0, 0, `チャンクの高さの格子がずれている ${maxErr}`);
+  if (maxH < 1.99) fail(0, 0, '高台（高さ2）ができていない');
+}
+{
+  // 丘のふもとから頂上まで、自転車でも歩きでも登りきれる（スタックしない）。下りも降りられる
+  let climbs = 0;
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) for (const mode of ['bike', 'walk']) {
+    const base = hillSpot(seed, 'base', 2);
+    if (!base) continue;
+    const g = M.createGame(seed), p = g.player, h = base.h;
+    p.x = base.x; p.y = base.y;
+    g.zombies.length = 0;
+    if (mode === 'bike') { g.bikes.push({ x: p.x, y: p.y, heading: 0, fallen: false, col: 0, type: 'bike' }); M.step(g, { interact: true }, DT); for (let k = 0; k < 15; k++) M.step(g, {}, DT); }
+    // 頂上の平らな所で一番近い歩ける点
+    let goal = null, gd = Infinity;
+    for (let y = Math.floor(h.y - h.r0); y <= h.y + h.r0; y++) for (let x = Math.floor(h.x - h.r0); x <= h.x + h.r0; x++) {
+      if (M.SOLID[M.tileAt(g.world, x + 0.5, y + 0.5)] || M.heightAt(g.world, x + 0.5, y + 0.5) < h.level - 0.05) continue;
+      const d = Math.hypot(x + 0.5 - p.x, y + 0.5 - p.y);
+      if (d < gd) { gd = d; goal = { x: x + 0.5, y: y + 0.5 }; }
+    }
+    if (!goal) { fail(seed, 0, '高台の上に立てる所がない'); continue; }
+    let reached = false, lastProgress = { x: p.x, y: p.y }, best = Infinity, way = null;
+    const side = { x: p.x, y: p.y, t: 0 };
+    let retries = 0;
+    for (let i = 0; i < 30 * 40 && !reached; i++) {
+      if (i % 8 === 0 || !way) way = pathStep(g, goal.x, goal.y, 40);
+      if (!way) break;
+      let a = Math.atan2(way.y - p.y, way.x - p.x);
+      // 電柱などに正面から当たって止まったら、人がするように少し横へよける
+      if (i % 30 === 0) { if (i && Math.hypot(p.x - side.x, p.y - side.y) < 0.3) side.t = 18; side.x = p.x; side.y = p.y; }
+      if (side.t > 0) { side.t--; a += Math.PI / 2 * (Math.floor(i / 120) % 2 ? 1 : -1); }
+      g.zombies.length = 0; p.food = p.water = 100;   // 登れるかだけを見る
+      // 曲がり角の手前では自転車も速度を落とす（人がするように）
+      let turnNeed = Math.abs(((a - p.heading) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+      const mg = mode === 'bike' ? (turnNeed > 0.5 ? 0.12 : 0.55) : 0.6;
+      M.step(g, { mx: Math.cos(a) * mg, my: Math.sin(a) * mg }, DT);
+      g.events.length = 0;
+      check(g, seed, i);
+      const d = Math.hypot(goal.x - p.x, goal.y - p.y);
+      best = Math.min(best, d);
+      // 3秒で0.5マスも動けない＝スタック
+      //（人がするように、少し下がってやり直すのは5回まで）
+      if (i % 90 === 0) {
+        if (i && Math.hypot(p.x - lastProgress.x, p.y - lastProgress.y) < 0.5) {
+          if (++retries > 5) break;
+          const back = p.heading + Math.PI + (retries % 2 ? 0.6 : -0.6);
+          for (let k = 0; k < 24; k++) { g.zombies.length = 0; M.step(g, { mx: Math.cos(back) * 0.5, my: Math.sin(back) * 0.5 }, DT); }
+        }
+        lastProgress = { x: p.x, y: p.y };
+      }
+      if (M.heightAt(g.world, p.x, p.y) >= h.level - 0.05) reached = true;
+    }
+    if (!reached) fail(seed, 0, `${mode} で高台に登れない（残り ${best.toFixed(1)}マス / 位置 ${(p.x - h.x).toFixed(1)},${(p.y - h.y).toFixed(1)} 高さ ${M.heightAt(g.world, p.x, p.y).toFixed(2)} way=${!!way} 乗車=${p.riding}）`);
+    else climbs++;
+  }
+  console.log(`高台への登り：${climbs}回成功`);
+}
+{
+  // 坂で速さが変わる（道路の上で、坂に沿ってまっすぐ）
+  const found = [];
+  for (let seed = 1; seed <= 40 && found.length < 4; seed++) {
+    const g = M.createGame(seed), sp = M.startPos(), C = CFG.terrain.cell;
+    for (let j = -3; j <= 3 && found.length < 4; j++) for (let i = -3; i <= 3 && found.length < 4; i++) {
+      const h = M.hillAt(seed, Math.floor(sp.x / C) + i, Math.floor(sp.y / C) + j);
+      if (!h) continue;
+      for (let y = Math.floor(h.y - h.R); y < h.y + h.R && found.length < 4; y++) for (let x = Math.floor(h.x - h.R); x < h.x + h.R; x++) {
+        if (M.tileAt(g.world, x + 0.5, y + 0.5) !== M.T.ROAD) continue;
+        for (const [ux, uy] of [[1, 0], [0, 1]]) {
+          const sl = M.slopeAlong(g.world, x + 0.5, y + 0.5, ux, uy);
+          if (Math.abs(sl) < M.SLOPE_MAX * 0.7) continue;
+          let ok = true;
+          for (let k = -6; k <= 6; k++) { const tx = x + 0.5 + ux * k, ty = y + 0.5 + uy * k; if (M.tileAt(g.world, tx, ty) !== M.T.ROAD || M.blocked(g.world, tx, ty, 0.3)) { ok = false; break; } }
+          if (ok && !found.some(q => q.seed === seed)) { const dn = sl > 0 ? [-ux, -uy] : [ux, uy]; found.push({ seed, x: x + 0.5, y: y + 0.5, dn }); break; }
+        }
+      }
+    }
+  }
+  if (!found.length) fail(0, 0, '坂の道路が見つからない');
+  for (const f of found) for (const type of ['bike', 'skate']) {
+    const V = CFG.vehicle[type];
+    // 坂の途中の点を通り抜けるあいだの最高速・最低速
+    const run = (dir) => {
+      const g = M.createGame(f.seed), p = g.player;
+      g.zombies.length = 0; g.bikes.length = 0;
+      p.x = f.x - dir[0] * 5; p.y = f.y - dir[1] * 5;
+      p.riding = true; p.vehicle = type; p.heading = Math.atan2(dir[1], dir[0]); p.speed = V.speed;
+      let top = 0, low = Infinity;
+      for (let i = 0; i < 60; i++) {
+        M.step(g, { mx: dir[0], my: dir[1] }, DT); g.events.length = 0; g.zombies.length = 0; check(g, f.seed, i);
+        const along = (p.x - f.x) * dir[0] + (p.y - f.y) * dir[1];
+        if (Math.abs(along) < 2) { top = Math.max(top, p.speed); low = Math.min(low, p.speed); }
+        if (along > 3) break;
+      }
+      return { top, low };
+    };
+    const down = run(f.dn).top, up = run([-f.dn[0], -f.dn[1]]).low;
+    if (!(down > V.speed * 1.05)) fail(f.seed, 0, `${type} が下り坂で速くならない (${down.toFixed(2)})`);
+    if (!(up < V.speed * 0.92)) fail(f.seed, 0, `${type} が登り坂で遅くならない (${up.toFixed(2)})`);
+  }
+  console.log(`坂の道路 ${found.length}か所で 自転車・スケボーの上り下りを確認`);
+}
+{
+  // スケボー：始まりの場所にあり、乗り降りでき、自転車より遅く小回りが利き、草の上では大きく遅くなる
+  const g = M.createGame(1), p = g.player;
+  g.zombies.length = 0;
+  const sk = g.bikes.find(b => b.type === 'skate' && Math.hypot(b.x - p.x, b.y - p.y) < 6);
+  if (!sk) fail(1, 0, '始まりの場所の近くにスケボーがない');
+  else {
+    p.x = sk.x; p.y = sk.y;
+    M.step(g, { interact: true }, DT);
+    for (let k = 0; k < 15; k++) M.step(g, {}, DT);
+    if (!p.riding || p.vehicle !== 'skate') fail(1, 0, 'スケボーに乗れない');
+    for (let k = 0; k < 90; k++) { M.step(g, { mx: 0, my: -1 }, DT); }
+    if (Math.abs(p.speed - CFG.vehicle.skate.speed) > 0.05) fail(1, 0, `スケボーの平地の最高速が ${p.speed.toFixed(2)}`);
+    M.step(g, { interact: true }, DT);
+    if (p.riding || !g.bikes.some(b => b.type === 'skate' && Math.hypot(b.x - p.x, b.y - p.y) < 0.01)) fail(1, 0, 'スケボーを降りてもその場に残らない');
+  }
+  // 旋回：同じ速さで90度曲がるのにかかる時間
+  const turnTime = type => {
+    const g2 = M.createGame(1), q = g2.player;
+    g2.zombies.length = 0;
+    q.riding = true; q.vehicle = type; q.heading = -Math.PI / 2; q.speed = 2.5;
+    for (let i = 1; i < 200; i++) { M.step(g2, { mx: 1, my: 0 }, DT); if (Math.abs(q.heading) < 0.05) return i; }
+    return 999;
+  };
+  const tb = turnTime('bike'), ts = turnTime('skate');
+  if (!(ts < tb)) fail(1, 0, `スケボーのほうが小回りが利かない（${ts} / ${tb}ターン）`);
+  // 草の上
+  const g3 = M.createGame(1), q = g3.player;
+  g3.zombies.length = 0;
+  let spot = null;
+  for (let y = -20; y < 20 && !spot; y++) for (let x = -20; x < 20; x++) { const tx = q.x + x, ty = q.y + y; if (M.baseAt(g3.world, tx, ty) === M.T.GRASS && !M.blocked(g3.world, tx, ty, 0.35)) { spot = [tx, ty]; break; } }
+  if (spot) {
+    q.x = spot[0]; q.y = spot[1]; q.riding = true; q.vehicle = 'skate'; q.speed = 0; q.heading = 0;
+    let mx = 0;
+    for (let i = 0; i < 20; i++) { M.step(g3, { mx: 1, my: 0 }, DT); if (M.baseAt(g3.world, q.x, q.y) === M.T.GRASS) mx = Math.max(mx, q.speed); }
+    if (mx > CFG.vehicle.skate.speed * 0.3) fail(1, 0, `スケボーが草の上で速すぎる ${mx.toFixed(2)}`);
+  }
+}
+
 const sec = ((Date.now() - t0) / 1000).toFixed(1);
-console.log(`シード ${SEEDS}個 × ${TURNS}ターン: 終わった ${deaths}回 ${JSON.stringify(causes)} / 自転車に乗った ${rides}回 / 家に入った ${entered}回・出た ${exited}回 / 食べた ${ate}回・飲んだ ${drank}回 / 夜のターン ${nightTurns} / 最も遠くまで ${maxDist.toFixed(0)}マス / ${sec}秒`);
+console.log(`シード ${SEEDS}個 × ${TURNS}ターン: 終わった ${deaths}回 ${JSON.stringify(causes)} / 自転車に乗った ${rides}回 / 家に入った ${entered}回・出た ${exited}回 / 食べた ${ate}回・飲んだ ${drank}回 / 丘から始めた ${hillStarts}回 / 夜のターン ${nightTurns} / 最も遠くまで ${maxDist.toFixed(0)}マス / ${sec}秒`);
 if (fails.length) {
   console.log(`\n失敗 ${fails.length}件:`);
   for (const f of fails.slice(0, 30)) console.log(`  シード ${f.seed} ターン ${f.turn}: ${f.msg}`);
