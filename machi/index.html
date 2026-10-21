@@ -29,21 +29,29 @@ canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
 // ---------------------------------------------------------------
 const CFG = {
   // 速さ（1.0 = 歩き）。unit は「1.0 が 1秒に何マス進むか」
-  speed: { unit: 2.6, walk: 1.0, dash: 1.8, zombie: 2.2, zombieWander: 0.22, bike: 3.5 },
-  // スティック：これより奥まで倒すとダッシュ。walkFull まで倒すと歩きの最高速
-  stick: { dashAt: 0.86, walkFull: 0.55 },
+  // zombie は夜の速さ、zombieDay は日が出ている間の速さ（日の出・日没のフェードに合わせて移り変わる）
+  speed: { unit: 2.6, walk: 1.0, dash: 1.8, sprint: 2.6, zombie: 2.2, zombieDay: 1.2, zombieWander: 0.22, bike: 3.5 },
+  // スティックの倒し具合：walkFull まで＝歩き（最高速）、dashAt から＝ダッシュ、sprintAt（倒し切り）＝本気ダッシュ
+  stick: { walkFull: 0.45, dashAt: 0.62, sprintAt: 0.95 },
   // 自転車の手触り（単位は speed と同じ「1.0 = 歩き」/秒）
   bike: { accel: 2.2, brake: 3.2, coast: 0.55, turn: 3.4, reach: 1.6, bumpAt: 1.6 },
   // 時間：現実30分 = 24時間（1時間 = 75秒）
   time: { secondsPerHour: 75, startHour: 6, sunrise: 5.0, sunset: 18.6 },
   // 演出時間（手触り表）。秒
-  feel: { mount: 0.4, sunFade: 15, catch: 0 },
+  feel: { mount: 0.4, sunFade: 15, catch: 0, door: 0.5, drink: 1.2, eat: 1.0 },
   // ゾンビ。sight は「画面の半分」をマスに直した値（画面の横半分 ≒ 17マス、縦半分 ≒ 15マス）
   zombie: { sight: 15, hear: 6, lose: 26, loseTime: 4, radius: 0.3, catchDist: 0.55, freezeDist: 48 },
   player: { radius: 0.28, strideWalk: 0.8, strideDash: 1.15 },
   world: { chunk: 24, originChunk: 41664, simRadius: 2, keepRadius: 4, riverPeriod: 260, safeRadius: 16 },
-  // 第2段階で使う（今は無効）
-  needs: { enabled: false, stamina: 1, food: 1, water: 1, foodPerHour: 0, waterPerHour: 0 },
+  // スタミナ・空腹・水分（どれも 0..max。空腹・水分は 0 で終わり）
+  //   スタミナ：本気ダッシュで毎秒 -sprintDrain、歩き・自転車をこぐと +walkRegen、止まると +restRegen、ダッシュは増減なし
+  //   一度 0 になると recoverAt まで戻るまで本気ダッシュできない
+  needs: { max: 100, sprintDrain: 12, walkRegen: 6, restRegen: 10, dashRegen: 0, recoverAt: 20,
+           foodSeconds: 900, waterSeconds: 600, eat: 35, drink: 50 },
+  // 家：水・食料がある確率、中にいる元住人の数、入るときに押し込む時間（秒）、手が届く距離
+  house: { supplyChance: 0.7, residentBase: 0.2, residentByDensity: 0.45, enterPush: 0.15, reach: 1.3, entryReach: 1.1 },
+  // 外の水と食料：自販機に飲み物が残っている確率、公園の水飲み場が出る確率、畑の野菜の数
+  source: { vendChance: 0.7, fountainChance: 0.6, vegPerField: 3, reach: 1.3 },
 };
 
 const CS = CFG.world.chunk;
@@ -223,7 +231,7 @@ function genChunk(seed, cx, cy) {
     // 自動販売機（家の前の塀ぎわ）
     if (R() < (k === 'dense' ? 0.09 : 0.05)) {
       const vx = gateX > lx0 + 1 ? lx0 : lx1;
-      if (!open(vx)) { put(vx, frontY, T.VEND); c.props.push({ k: 'vend', x: x0 + vx, y: y0 + frontY, face }); if (R() < 0.35) zombieAt(vx + 0.5, frontY - inward + 0.5); }
+      if (!open(vx)) { put(vx, frontY, T.VEND); c.props.push({ k: 'vend', x: x0 + vx, y: y0 + frontY, face, uses: R() < CFG.source.vendChance ? 1 + pick(3) : 0 }); if (R() < 0.35) zombieAt(vx + 0.5, frontY - inward + 0.5); }
     }
     // 隣との境の塀（密集地は奥まで、ふつうは手前半分）
     const sideDepth = k === 'dense' ? (ly1 - ly0) : Math.floor((ly1 - ly0) / 2);
@@ -248,6 +256,7 @@ function genChunk(seed, cx, cy) {
         floors: k === 'dense' ? (R() < 0.75 ? 2 : 1) : (R() < 0.55 ? 2 : 1),
         wall: pick(WALL_COLS), roof: pick(ROOF_COLS), ridge: hw >= hd ? 'x' : 'y',
         lit: R() < 0.12, face, v: R(),
+        supplies: isStart && c.houses.length === 0 ? true : R() < CFG.house.supplyChance, d,
       });
     }
     // 駐車場と車
@@ -327,7 +336,8 @@ function genChunk(seed, cx, cy) {
           const ex = (x + 0.5 - pcx) / (qw / 2 - 0.8), ey = (y + 0.5 - pcy) / (qh / 2 - 0.8);
           if (ex * ex + ey * ey < 1) put(x, y, T.WATER);
         }
-      } else if (n === 2) {  // 木立とベンチ
+      } else if (n === 2) {  // 木立とベンチと水飲み場
+        if (R() < CFG.source.fountainChance) { put(qa + 3, qb + 1, T.PLAY); c.props.push({ k: 'fountain', x: x0 + qa + 3, y: y0 + qb + 1, uses: 99 }); }
         for (let i = 0; i < 6; i++) { const tx = qa + pick(qw), ty = qb + pick(qh); if (get(tx, ty) === T.GRASS) put(tx, ty, T.TREE); }
         c.props.push({ k: 'bench', x: x0 + qa + 1, y: y0 + qd + 0.2 });
         if (R() < crowd) zombieAt(qa + 2, qd + 0.5);
@@ -372,6 +382,11 @@ function genChunk(seed, cx, cy) {
     }
     for (let i = 0; i < 4; i++) { const px = bx0 + pick(bx1 - bx0), py = by0 + pick(by1 - by0); if (get(px, py) === T.FIELD) put(px, py, T.PUDDLE); }
     if (R() < 0.25) zombieAt(pathX + 0.5, by0 + 4 + R() * 12);
+    // 実った野菜（その場で食べられる）
+    for (let i = 0; i < CFG.source.vegPerField; i++) {
+      const vx = bx0 + pick(bx1 - bx0 + 1), vy = by0 + pick(by1 - by0 + 1);
+      if (get(vx, vy) === T.CROP) c.props.push({ k: 'veg', x: x0 + vx + 0.5, y: y0 + vy + 0.5, uses: 1, col: pick(3) });
+    }
   }
 
   if (kind === 'park') park();
@@ -417,7 +432,8 @@ function genChunk(seed, cx, cy) {
     else if (!isRoad) { t[i] = T.BANK; base[i] = T.BANK; }
   }
   c.props = c.props.filter(p => {
-    if (p.k !== 'car' && p.k !== 'pipes' && p.k !== 'shed' && p.k !== 'vend' && p.k !== 'swing') return true;
+    if (p.k === 'veg') return get(Math.floor(p.x - x0), Math.floor(p.y - y0)) === T.CROP;
+    if (p.k !== 'car' && p.k !== 'pipes' && p.k !== 'shed' && p.k !== 'vend' && p.k !== 'swing' && p.k !== 'fountain') return true;
     const lx = Math.floor(p.x - x0), ly = Math.floor(p.y - y0);
     return SOLID[get(lx, ly)] && get(lx, ly) !== T.WATER;
   });
@@ -448,6 +464,27 @@ function genChunk(seed, cx, cy) {
   c.bikes = c.bikes.filter(b => walk(b.x, b.y));
   if (isStart) {
     c.bikes.push({ x: sp.x, y: sp.y + 2.2, heading: Math.PI / 2, fallen: false, col: 0 });
+  }
+
+  // 家の入口：玄関・勝手口・壊れた窓。入口の前（外側のマス）が歩けるものだけ
+  for (const h of c.houses) {
+    h.id = h.x0 + ',' + h.y0;
+    const ents = [];
+    const tryE = (side, tx, ty, kind, f, vis) => {
+      const lx = tx - x0, ly = ty - y0;
+      if (!inb(lx, ly) || SOLID[t[I(lx, ly)]]) return;
+      ents.push({ side, kind, f, vis, tx, ty, x: tx + 0.5, y: ty + 0.5, nx: side === 'E' ? -1 : 0, ny: side === 'S' ? -1 : side === 'N' ? 1 : 0 });
+    };
+    const dx = h.x0 + Math.floor((h.x1 - h.x0) * (0.3 + h.v * 0.4));
+    const fdx = (dx + 0.5 - h.x0) / (h.x1 - h.x0);
+    const ey = h.y0 + Math.floor((h.y1 - h.y0) / 2), fey = (ey + 0.5 - h.y0) / (h.y1 - h.y0);
+    if (h.face === 'S') tryE('S', dx, h.y1, 'door', fdx, true);
+    else { tryE('N', dx, h.y0 - 1, 'door', fdx, false); tryE('E', h.x1, ey, 'door', fey, true); }
+    if (R() < 0.35) {
+      if (h.face === 'S') tryE('E', h.x1, h.y0 + 1, 'window', (1.5) / (h.y1 - h.y0), true);
+      else { const wx = dx > h.x0 + 1 ? h.x0 + 1 : h.x1 - 2; tryE('S', wx, h.y1, 'window', (wx - h.x0 + 0.5) / (h.x1 - h.x0), true); }
+    }
+    h.entries = ents;
   }
   return c;
 }
@@ -495,16 +532,18 @@ function blocked(w, x, y, r) {
   return false;
 }
 // 軸ごとに動かして壁沿いに滑らせる。戻り値：どちらかでぶつかったか
-function moveEntity(w, e, dx, dy, r) {
+// blk(x, y, r) は「そこに置けないか」を返す（外と家の中で入れ替える）
+function moveWith(blk, e, dx, dy, r) {
   const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 0.2));
   const sx = dx / n, sy = dy / n;
   let hit = false;
   for (let i = 0; i < n; i++) {
-    if (sx) { if (!blocked(w, e.x + sx, e.y, r)) e.x += sx; else hit = true; }
-    if (sy) { if (!blocked(w, e.x, e.y + sy, r)) e.y += sy; else hit = true; }
+    if (sx) { if (!blk(e.x + sx, e.y, r)) e.x += sx; else hit = true; }
+    if (sy) { if (!blk(e.x, e.y + sy, r)) e.y += sy; else hit = true; }
   }
   return hit;
 }
+function moveEntity(w, e, dx, dy, r) { return moveWith((x, y, rr) => blocked(w, x, y, rr), e, dx, dy, r); }
 function lineOfSight(w, ax, ay, bx, by) {
   const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 0.5);
   for (let i = 1; i < n; i++) {
@@ -539,25 +578,188 @@ function lightAt(h) {
 }
 
 // ---------------------------------------------------------------
+// 家の中（玄関・勝手口・壊れた窓から入る。小さな部屋がいくつか）
+// ---------------------------------------------------------------
+const IT = { FLOOR: 0, TATAMI: 1, TILE: 2, GENKAN: 3, FUTON: 4, WALL: 8, DOOR: 9, WIN: 10, BROKEN: 11, FRIDGE: 12, CUP: 13, SINK: 14, TABLE: 15, TV: 16, SHELF: 17, KOTATSU: 18 };
+const ISOLID = tt => tt >= 8;
+const IOPAQUE = tt => tt >= 8 && tt <= 11;
+const IMAT = ['wood', 'tatami', 'tile', 'tile', 'tatami'];
+
+function genInterior(seed, h) {
+  const R = mulberry(Math.floor(hash(seed, h.x0, h.y0, 301) * 4294967296));
+  const pick = n => Math.floor(R() * n);
+  const W = clamp(Math.round((h.x1 - h.x0) * 1.8), 8, 13), H = clamp(Math.round((h.y1 - h.y0) * 1.8), 7, 12);
+  const t = new Uint8Array(W * H);
+  const I = (x, y) => y * W + x;
+  const reserved = new Uint8Array(W * H);
+  const res = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) reserved[I(x, y)] = 1; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) t[I(x, y)] = (x === 0 || y === 0 || x === W - 1 || y === H - 1) ? IT.WALL : IT.FLOOR;
+  // 間仕切り（縦に1本、右側を横に1本）。それぞれに出入口
+  const px = Math.floor(W / 2) - pick(2), py = Math.floor(H / 2);
+  for (let y = 1; y < H - 1; y++) t[I(px, y)] = IT.WALL;
+  let dyv = 1 + pick(H - 2);
+  if (dyv === py) dyv = py - 1 >= 1 ? py - 1 : py + 1;
+  t[I(px, dyv)] = IT.FLOOR; res(px - 1, dyv); res(px + 1, dyv); res(px, dyv);
+  for (let x = px + 1; x < W - 1; x++) t[I(x, py)] = IT.WALL;
+  const dxh = px + 1 + pick(W - 2 - px);
+  t[I(dxh, py)] = IT.FLOOR; res(dxh, py - 1); res(dxh, py + 1); res(dxh, py);
+  const rooms = [{ x0: 1, y0: 1, x1: px - 1, y1: H - 2 }, { x0: px + 1, y0: 1, x1: W - 2, y1: py - 1 }, { x0: px + 1, y0: py + 1, x1: W - 2, y1: H - 2 }];
+  // 出口（外の入口と1対1）
+  const exits = h.entries.map((e, i) => {
+    let ex, ey, ix, iy, ox, oy;
+    if (e.side === 'E') {
+      ex = W - 1; ey = clamp(Math.round(e.f * (H - 1)), 1, H - 2);
+      if (ey === py) ey = py - 1 >= 1 ? py - 1 : py + 1;
+      ix = W - 2; iy = ey; ox = 1; oy = 0;
+    } else {
+      ex = clamp(Math.round(e.f * (W - 1)), 1, W - 2);
+      if (ex === px) ex = ex + 1 <= W - 2 ? ex + 1 : ex - 1;
+      if (e.side === 'S') { ey = H - 1; iy = H - 2; oy = 1; } else { ey = 0; iy = 1; oy = -1; }
+      ix = ex; ox = 0;
+    }
+    t[I(ex, ey)] = e.kind === 'window' ? IT.BROKEN : IT.DOOR;
+    res(ix, iy); res(ix + 1, iy); res(ix - 1, iy); res(ix, iy + 1); res(ix, iy - 1);
+    return { x: ex, y: ey, sx: ix + 0.5, sy: iy + 0.5, ox, oy, entry: i, kind: e.kind };
+  });
+  // 部屋の役割と床
+  const roles = ['kitchen', 'living', 'washitsu'].sort(() => R() - 0.5);
+  const area = r => (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+  let ki = roles.indexOf('kitchen');
+  if (area(rooms[ki]) < 6) { let bi = 0; for (let i = 1; i < 3; i++) if (area(rooms[i]) > area(rooms[bi])) bi = i; [roles[ki], roles[bi]] = [roles[bi], roles[ki]]; ki = bi; }
+  rooms.forEach((r, i) => {
+    r.role = roles[i];
+    const ft = r.role === 'kitchen' ? IT.TILE : r.role === 'washitsu' ? IT.TATAMI : IT.FLOOR;
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (t[I(x, y)] === IT.FLOOR) t[I(x, y)] = ft;
+  });
+  if (exits.length) { const e0 = exits.find(e => e.kind === 'door') || exits[0]; t[I(Math.floor(e0.sx), Math.floor(e0.sy))] = IT.GENKAN; }
+  // 窓（奥の壁）
+  for (let i = 0; i < 4; i++) {
+    const onTop = R() < 0.6;
+    const x = onTop ? 1 + pick(W - 2) : 0, y = onTop ? 0 : 1 + pick(H - 2);
+    if (t[I(x, y)] === IT.WALL && x !== px && !(y === py && x > px)) t[I(x, y)] = IT.WIN;
+  }
+  // つながりの確認（家具を置いて部屋が分断されないように）
+  const startI = exits.length ? I(Math.floor(exits[0].sx), Math.floor(exits[0].sy)) : I(1, 1);
+  const connected = () => {
+    const seen = new Uint8Array(W * H), q = [startI];
+    seen[startI] = 1;
+    let n = 0;
+    while (q.length) {
+      const i = q.pop(); n++;
+      const x = i % W, y = (i / W) | 0;
+      for (const [ax, ay] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + ax, ny = y + ay;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const j = I(nx, ny);
+        if (!seen[j] && !ISOLID(t[j])) { seen[j] = 1; q.push(j); }
+      }
+    }
+    let total = 0;
+    for (let i = 0; i < W * H; i++) if (!ISOLID(t[i])) total++;
+    return n === total;
+  };
+  const fixtures = [];
+  const place = (tt, r, center) => {
+    const cand = [];
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+      if (reserved[I(x, y)] || ISOLID(t[I(x, y)])) continue;
+      const wallAdj = ISOLID(t[I(x - 1, y)]) || ISOLID(t[I(x + 1, y)]) || ISOLID(t[I(x, y - 1)]) || ISOLID(t[I(x, y + 1)]);
+      if (center ? !wallAdj : wallAdj) cand.push([x, y]);
+    }
+    cand.sort(() => R() - 0.5);
+    for (const [x, y] of cand) {
+      const old = t[I(x, y)];
+      t[I(x, y)] = tt;
+      if (connected()) return [x, y];
+      t[I(x, y)] = old;
+    }
+    return null;
+  };
+  const fix = (tt, r, kind) => { const at = place(tt, r, false); if (at) fixtures.push({ x: at[0], y: at[1], kind, food: 0, water: 0 }); return at; };
+  for (const r of rooms) {
+    if (r.x1 < r.x0 || r.y1 < r.y0) continue;
+    if (r.role === 'kitchen') { fix(IT.FRIDGE, r, 'fridge'); fix(IT.SINK, r, 'sink'); fix(IT.CUP, r, 'cup'); if (area(r) >= 9) place(IT.TABLE, r, true); }
+    else if (r.role === 'living') { place(IT.TV, r, false); place(IT.SHELF, r, false); if (area(r) >= 9) place(IT.TABLE, r, true); }
+    else {
+      if (area(r) >= 9) place(IT.KOTATSU, r, true);
+      place(IT.SHELF, r, false);
+      for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (t[I(x, y)] === IT.TATAMI && !reserved[I(x, y)] && R() < 0.12) t[I(x, y)] = IT.FUTON;
+    }
+  }
+  // 台所が狭すぎて冷蔵庫が置けなかったときは、どこかの部屋に置く
+  if (!fixtures.some(f => f.kind === 'fridge')) for (const r of rooms) { if (fix(IT.FRIDGE, r, 'fridge')) break; }
+  if (!fixtures.some(f => f.kind === 'sink')) for (const r of rooms) { if (fix(IT.SINK, r, 'sink')) break; }
+  // 中身（この家に残っていれば）
+  if (h.supplies) {
+    for (const f of fixtures) {
+      if (f.kind === 'fridge') { f.food = 1 + pick(2); f.water = R() < 0.5 ? 1 : 0; }
+      else if (f.kind === 'sink') f.water = 1 + pick(2);
+      else if (f.kind === 'cup') f.food = R() < 0.6 ? 1 + pick(2) : 0;
+    }
+    if (!fixtures.some(f => f.food > 0) && fixtures.length) fixtures[0].food = 1;
+    if (!fixtures.some(f => f.water > 0) && fixtures.length) fixtures[fixtures.length - 1].water = 1;
+  }
+  // 元住人（人の多い所ほど残っている）
+  const zs = [];
+  const d = h.d || 0;
+  if (R() < CFG.house.residentBase + d * CFG.house.residentByDensity) {
+    const n = 1 + (R() < d * 0.4 ? 1 : 0);
+    for (let k = 0, tries = 0; k < n && tries < 40; tries++) {
+      const x = 1 + pick(W - 2), y = 1 + pick(H - 2);
+      if (ISOLID(t[I(x, y)])) continue;
+      if (exits.some(e => Math.hypot(e.sx - x - 0.5, e.sy - y - 0.5) < 4)) continue;
+      zs.push({ x: x + 0.5, y: y + 0.5, kind: pick(CLOTHES) });
+      k++;
+    }
+  }
+  return { id: h.id, W, H, t, fixtures, exits, zs, px, py, house: h, zombies: null };
+}
+function iTile(I, x, y) {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (tx < 0 || ty < 0 || tx >= I.W || ty >= I.H) return IT.WALL;
+  return I.t[ty * I.W + tx];
+}
+function iBlocked(I, x, y, r) {
+  const ax = Math.floor(x - r), bx = Math.floor(x + r), ay = Math.floor(y - r), by = Math.floor(y + r);
+  for (let ty = ay; ty <= by; ty++) for (let tx = ax; tx <= bx; tx++) if (ISOLID(iTile(I, tx, ty))) return true;
+  return false;
+}
+function iSight(I, ax, ay, bx, by) {
+  const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 0.4);
+  for (let i = 1; i < n; i++) { const f = i / n; if (IOPAQUE(iTile(I, ax + (bx - ax) * f, ay + (by - ay) * f))) return false; }
+  return true;
+}
+function getInterior(g, h) {
+  let I = g.interiors.get(h.id);
+  if (!I) {
+    I = genInterior(g.seed, h);
+    I.zombies = I.zs.map(z => makeZombie(g, z));
+    g.interiors.set(h.id, I);
+  }
+  return I;
+}
+
+// ---------------------------------------------------------------
 // ゲーム
 // ---------------------------------------------------------------
 function createGame(seed) {
-  const sp = startPos();
+  const sp = startPos(), N = CFG.needs;
   const g = {
     seed: seed | 0, world: createWorld(seed), time: 0, tick: 0, rng: mulberry((seed | 0) ^ 0x9e3779b9),
     player: {
       x: sp.x, y: sp.y, vx: 0, vy: 0, heading: Math.PI / 2, speed: 0, riding: false, mount: 0, mountFrom: null, mountBike: null,
-      dash: false, moving: false, stepAcc: 0, walkPhase: 0, bikeCol: 0,
-      stamina: CFG.needs.stamina, food: CFG.needs.food, water: CFG.needs.water,
+      dash: false, sprint: false, moving: false, stepAcc: 0, walkPhase: 0, bikeCol: 0, pushT: 0, act: null,
+      stamina: N.max, food: N.max, water: N.max, tired: false,
     },
-    zombies: [], bikes: [], events: [], dead: false, nextId: 1, lastChunk: null,
+    zombies: [], bikes: [], events: [], dead: false, cause: null, nextId: 1, lastChunk: null,
+    inside: null, outPos: null, trans: null, interiors: new Map(), used: new Map(),
   };
   ensureChunks(g, true);
   return g;
 }
 
 function ensureChunks(g, force) {
-  const w = g.world, p = g.player;
+  const w = g.world, p = g.inside ? g.outPos : g.player;
   const pcx = Math.floor(p.x / CS), pcy = Math.floor(p.y / CS);
   const k = ckey(pcx, pcy);
   if (!force && k === g.lastChunk && g.tick % 30 !== 0) return;
@@ -589,30 +791,206 @@ function makeZombie(g, s) {
   };
 }
 
-// input: { mx, my (ワールド方向。長さ0..1), dash, interact }
+// 追ってくる速さ：日が出ている間は歩き、夜は走る（日の出・日没のフェードで移り変わる）
+function chaseSpeed(g) {
+  const day = lightAt(hourOf(g.time)).day;
+  return CFG.speed.zombieDay + (CFG.speed.zombie - CFG.speed.zombieDay) * (1 - day);
+}
+
+// いまいる場所（外か家の中か）での当たり判定・視線・足もと
+function space(g) {
+  if (g.inside) {
+    const I = g.inside;
+    return {
+      blk: (x, y, r) => iBlocked(I, x, y, r),
+      sight: (ax, ay, bx, by) => iSight(I, ax, ay, bx, by),
+      surf: (x, y) => [1, 1, IMAT[iTile(I, x, y)] || 'wood'],
+      solidAt: (x, y) => ISOLID(iTile(I, x, y)),
+    };
+  }
+  const w = g.world;
+  return {
+    blk: (x, y, r) => blocked(w, x, y, r),
+    sight: (ax, ay, bx, by) => lineOfSight(w, ax, ay, bx, by),
+    surf: (x, y) => SURF[baseAt(w, x, y)] || SURF[0],
+    solidAt: (x, y) => !!SOLID[tileAt(w, x, y)],
+  };
+}
+
+// input: { mx, my (ワールド方向。長さ0..1), dash, sprint, interact }
 function step(g, input, dt) {
   if (g.dead) return;
   g.tick++;
   g.time += dt;
   updatePlayer(g, input || {}, dt);
+  if (g.dead) return;
   ensureChunks(g, false);
   updateZombies(g, dt);
 }
 
+function die(g, cause) {
+  if (g.dead) return;
+  g.dead = true; g.cause = cause;
+  g.events.push({ t: 'death', cause });
+}
+
+function sourceKey(o) { return o.k + ':' + Math.floor(o.x) + ',' + Math.floor(o.y); }
+function usesLeft(g, o) { const k = sourceKey(o); return g.used.has(k) ? g.used.get(k) : o.uses; }
+
 function nearestBike(g) {
+  if (g.inside) return null;
   const p = g.player;
   let best = null, bd = CFG.bike.reach;
   for (const b of g.bikes) { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < bd) { bd = d; best = b; } }
   return best;
 }
 
+// 手の届く所にある、触れるもの（いちばん近いもの）。empty: 使い切っていて何も出ない
+function nearestInteract(g) {
+  const p = g.player;
+  let best = null, bd = Infinity;
+  const consider = (o, d, reach) => { if (d < reach && d < bd) { bd = d; best = o; } };
+  if (g.inside) {
+    const I = g.inside;
+    for (const f of I.fixtures) consider({ type: 'fixture', f, empty: !(f.food > 0 || f.water > 0), x: f.x + 0.5, y: f.y + 0.5 }, Math.hypot(f.x + 0.5 - p.x, f.y + 0.5 - p.y), CFG.house.reach);
+    for (const e of I.exits) consider({ type: 'exit', e, x: e.sx, y: e.sy }, Math.hypot(e.sx - p.x, e.sy - p.y), CFG.house.entryReach);
+    return best;
+  }
+  const b = nearestBike(g);
+  if (b) consider({ type: 'bike', b, x: b.x, y: b.y }, Math.hypot(b.x - p.x, b.y - p.y), CFG.bike.reach);
+  const pcx = Math.floor(p.x / CS), pcy = Math.floor(p.y / CS);
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const c = g.world.chunks.get(ckey(pcx + dx, pcy + dy));
+    if (!c) continue;
+    for (const o of c.props) {
+      if (o.k !== 'vend' && o.k !== 'fountain' && o.k !== 'veg') continue;
+      const cx = o.k === 'veg' ? o.x : o.x + 0.5, cy = o.k === 'veg' ? o.y : o.y + 0.5;
+      consider({ type: 'source', o, empty: usesLeft(g, o) <= 0, x: cx, y: cy }, Math.hypot(cx - p.x, cy - p.y), o.k === 'veg' ? 0.9 : CFG.source.reach);
+    }
+    for (const h of c.houses) for (const e of h.entries) consider({ type: 'entry', h, e, x: e.x, y: e.y }, Math.hypot(e.x - p.x, e.y - p.y), CFG.house.entryReach);
+  }
+  return best;
+}
+
+function startAct(g, kind, amount) {
+  const p = g.player;
+  const dur = kind === 'drink' ? CFG.feel.drink : CFG.feel.eat;
+  p.act = { kind, t: dur, dur, amount };
+  p.vx = p.vy = 0; p.speed = 0;
+  g.events.push({ t: kind });
+}
+
+function startTrans(g, kind, h, idx) {
+  const p = g.player;
+  g.trans = { kind, h, idx, t: CFG.feel.door, dur: CFG.feel.door, swapped: false };
+  p.vx = p.vy = 0; p.speed = 0; p.pushT = 0;
+  const e = kind === 'enter' ? h.entries[idx] : h.entries[idx];
+  g.events.push({ t: 'door', kind: e ? e.kind : 'door', dir: kind });
+}
+
+function swapSpace(g) {
+  const tr = g.trans, p = g.player;
+  if (tr.kind === 'enter') {
+    const I = getInterior(g, tr.h);
+    const ex = I.exits.find(e => e.entry === tr.idx) || I.exits[0];
+    g.outPos = { x: tr.h.entries[tr.idx].x, y: tr.h.entries[tr.idx].y };
+    g.inside = I;
+    p.x = ex.sx; p.y = ex.sy;
+    p.heading = Math.atan2(-ex.oy, -ex.ox);
+  } else {
+    const e = tr.h.entries[tr.idx];
+    g.inside = null;
+    p.x = e.x; p.y = e.y;
+    p.heading = Math.atan2(-e.ny, -e.nx);
+    g.outPos = null;
+  }
+  p.vx = p.vy = 0;
+}
+
+function tryInteract(g) {
+  const p = g.player;
+  if (p.riding) {
+    p.riding = false;
+    g.bikes.push({ x: p.x, y: p.y, heading: p.heading, fallen: false, col: p.bikeCol });
+    p.speed = 0; p.vx = p.vy = 0;
+    g.events.push({ t: 'dismount' });
+    return true;
+  }
+  const it = nearestInteract(g);
+  if (!it) return false;
+  const N = CFG.needs;
+  if (it.type === 'bike') {
+    const b = it.b;
+    g.bikes.splice(g.bikes.indexOf(b), 1);
+    p.mount = CFG.feel.mount; p.mountBike = b; p.mountFrom = { x: p.x, y: p.y };
+    p.vx = p.vy = 0;
+    g.events.push({ t: 'mount' });
+  } else if (it.type === 'entry') {
+    startTrans(g, 'enter', it.h, it.h.entries.indexOf(it.e));
+  } else if (it.type === 'exit') {
+    startTrans(g, 'exit', g.inside.house, it.e.entry);
+  } else if (it.type === 'source') {
+    const o = it.o, left = usesLeft(g, o);
+    if (left <= 0) { g.events.push({ t: 'empty', k: o.k }); return true; }
+    g.used.set(sourceKey(o), left - 1);
+    if (o.k === 'veg') startAct(g, 'eat', N.eat);
+    else { if (o.k === 'vend') g.events.push({ t: 'vend' }); startAct(g, 'drink', N.drink); }
+  } else if (it.type === 'fixture') {
+    const f = it.f;
+    if (!(f.food > 0 || f.water > 0)) { g.events.push({ t: 'empty', k: f.kind }); return true; }
+    // 両方あるときは、足りないほうから
+    const drink = f.water > 0 && (f.food <= 0 || p.water <= p.food);
+    if (drink) { f.water--; startAct(g, 'drink', N.drink); }
+    else { f.food--; startAct(g, 'eat', N.eat); }
+  }
+  return true;
+}
+
+function updateNeeds(g, dt) {
+  const p = g.player, N = CFG.needs;
+  p.food = Math.max(0, p.food - dt * N.max / N.foodSeconds);
+  p.water = Math.max(0, p.water - dt * N.max / N.waterSeconds);
+  if (p.food <= 0) die(g, 'hunger');
+  else if (p.water <= 0) die(g, 'thirst');
+}
+function regen(p, rate, dt) {
+  const N = CFG.needs;
+  p.stamina = clamp(p.stamina + rate * dt, 0, N.max);
+  if (p.tired && p.stamina >= N.recoverAt) p.tired = false;
+}
+
 function updatePlayer(g, inp, dt) {
-  const p = g.player, w = g.world, U = CFG.speed.unit;
+  const p = g.player, U = CFG.speed.unit, N = CFG.needs;
+  updateNeeds(g, dt);
+  if (g.dead) return;
   let mx = +inp.mx || 0, my = +inp.my || 0;
   if (!isFinite(mx) || !isFinite(my)) { mx = 0; my = 0; }
   let mag = Math.hypot(mx, my);
   if (mag > 1) { mx /= mag; my /= mag; mag = 1; }
+  p.sprint = false;
 
+  // 家の出入り（0.5秒。半分で暗転して切り替わる）
+  if (g.trans) {
+    const tr = g.trans;
+    tr.t -= dt;
+    p.vx = p.vy = 0; p.speed = 0; p.moving = false; p.dash = false;
+    if (!tr.swapped && tr.t <= tr.dur / 2) { tr.swapped = true; swapSpace(g); }
+    if (tr.t <= 0) g.trans = null;
+    regen(p, N.restRegen, dt);
+    return;
+  }
+  // 飲む・食べる（その場でかがむ）
+  if (p.act) {
+    p.act.t -= dt;
+    p.vx = p.vy = 0; p.speed = 0; p.moving = false; p.dash = false;
+    regen(p, N.restRegen, dt);
+    if (p.act.t <= 0) {
+      if (p.act.kind === 'drink') p.water = Math.min(N.max, p.water + p.act.amount);
+      else p.food = Math.min(N.max, p.food + p.act.amount);
+      p.act = null;
+    }
+    return;
+  }
   // 乗る途中（0.4秒）は動けない
   if (p.mount > 0) {
     p.mount -= dt;
@@ -621,29 +999,15 @@ function updatePlayer(g, inp, dt) {
     p.x = p.mountFrom.x + (b.x - p.mountFrom.x) * f;
     p.y = p.mountFrom.y + (b.y - p.mountFrom.y) * f;
     p.vx = p.vy = 0; p.speed = 0;
+    regen(p, N.restRegen, dt);
     if (p.mount <= 0) { p.mount = 0; p.riding = true; p.heading = b.heading; p.bikeCol = b.col; p.x = b.x; p.y = b.y; p.mountBike = null; p.mountFrom = null; }
     return;
   }
 
-  if (inp.interact) {
-    if (p.riding) {
-      p.riding = false;
-      g.bikes.push({ x: p.x, y: p.y, heading: p.heading, fallen: false, col: p.bikeCol });
-      p.speed = 0; p.vx = p.vy = 0;
-      g.events.push({ t: 'dismount' });
-      return;
-    }
-    const b = nearestBike(g);
-    if (b) {
-      g.bikes.splice(g.bikes.indexOf(b), 1);
-      p.mount = CFG.feel.mount; p.mountBike = b; p.mountFrom = { x: p.x, y: p.y };
-      p.vx = p.vy = 0;
-      g.events.push({ t: 'mount' });
-      return;
-    }
-  }
+  if (inp.interact && tryInteract(g)) return;
 
-  const surf = SURF[baseAt(w, p.x, p.y)] || SURF[0];
+  const S = space(g);
+  const surf = S.surf(p.x, p.y);
   if (p.riding) {
     const B = CFG.bike;
     if (mag > 0.08) {
@@ -664,53 +1028,107 @@ function updatePlayer(g, inp, dt) {
       if (p.speed > CFG.speed.bike * surf[1]) p.speed = Math.max(0, p.speed - B.brake * dt);
     }
     p.pedal = mag > 0.08;
+    regen(p, p.pedal ? N.walkRegen : N.restRegen, dt);
     const v = p.speed * U;
     p.vx = Math.cos(p.heading) * v; p.vy = Math.sin(p.heading) * v;
     const before = p.speed;
-    const hit = moveEntity(w, p, p.vx * dt, p.vy * dt, CFG.player.radius);
+    const hit = moveWith(S.blk, p, p.vx * dt, p.vy * dt, CFG.player.radius);
     if (hit) {
       if (before > B.bumpAt) g.events.push({ t: 'bump', v: before });
       p.speed *= 0.35;
     }
     p.walkPhase += p.speed * U * dt * 1.4;
     p.dash = false; p.moving = p.speed > 0.05;
-  } else {
-    const dash = !!inp.dash || mag >= CFG.stick.dashAt;
-    const sp = dash ? CFG.speed.dash : CFG.speed.walk * clamp(mag / CFG.stick.walkFull, 0, 1);
-    const v = sp * surf[0] * U;
-    const tvx = mag > 0.05 ? mx / mag * v : 0, tvy = mag > 0.05 ? my / mag * v : 0;
-    const a = Math.min(1, dt * 14);
-    p.vx += (tvx - p.vx) * a; p.vy += (tvy - p.vy) * a;
-    const s = Math.hypot(p.vx, p.vy);
-    if (s < 0.02) { p.vx = p.vy = 0; }
-    else p.heading = Math.atan2(p.vy, p.vx);
-    const ox = p.x, oy = p.y;
-    moveEntity(w, p, p.vx * dt, p.vy * dt, CFG.player.radius);
-    const moved = Math.hypot(p.x - ox, p.y - oy);
-    p.speed = moved / dt / U;
-    p.dash = dash && moved > 0.001;
-    p.moving = moved > 0.0005;
-    p.walkPhase += moved * 2.6;
-    p.stepAcc += moved;
-    const stride = p.dash ? CFG.player.strideDash : CFG.player.strideWalk;
-    if (p.stepAcc >= stride) { p.stepAcc -= stride; g.events.push({ t: 'step', mat: surf[2], dash: p.dash }); }
-    if (!p.moving) p.stepAcc = Math.min(p.stepAcc, stride * 0.6);
+    return;
   }
+
+  // 歩き → ダッシュ → 本気ダッシュ（倒し切り）
+  const wantSprint = !!inp.sprint || mag >= CFG.stick.sprintAt;
+  const wantDash = wantSprint || !!inp.dash || mag >= CFG.stick.dashAt;
+  const sprint = wantSprint && !p.tired && p.stamina > 0;
+  const dash = wantDash;
+  const sp = sprint ? CFG.speed.sprint : dash ? CFG.speed.dash : CFG.speed.walk * clamp(mag / CFG.stick.walkFull, 0, 1);
+  const v = sp * surf[0] * U;
+  const tvx = mag > 0.05 ? mx / mag * v : 0, tvy = mag > 0.05 ? my / mag * v : 0;
+  const a = Math.min(1, dt * 14);
+  p.vx += (tvx - p.vx) * a; p.vy += (tvy - p.vy) * a;
+  const s = Math.hypot(p.vx, p.vy);
+  if (s < 0.02) { p.vx = p.vy = 0; }
+  else p.heading = Math.atan2(p.vy, p.vx);
+  const ox = p.x, oy = p.y;
+  moveWith(S.blk, p, p.vx * dt, p.vy * dt, CFG.player.radius);
+  const moved = Math.hypot(p.x - ox, p.y - oy);
+  p.speed = moved / dt / U;
+  p.moving = moved > 0.0005;
+  p.dash = dash && p.moving;
+  p.sprint = sprint && p.moving;
+  // スタミナ
+  if (p.sprint) {
+    p.stamina = Math.max(0, p.stamina - N.sprintDrain * dt);
+    if (p.stamina <= 0) { p.tired = true; g.events.push({ t: 'tired' }); }
+  } else if (!p.moving) regen(p, N.restRegen, dt);
+  else if (p.dash) regen(p, N.dashRegen, dt);
+  else regen(p, N.walkRegen, dt);
+  p.walkPhase += moved * (p.sprint ? 2.2 : 2.6);
+  p.stepAcc += moved;
+  const stride = p.sprint ? CFG.player.strideDash * 1.3 : p.dash ? CFG.player.strideDash : CFG.player.strideWalk;
+  if (p.stepAcc >= stride) { p.stepAcc -= stride; g.events.push({ t: 'step', mat: surf[2], dash: p.dash, sprint: p.sprint }); }
+  if (!p.moving) p.stepAcc = Math.min(p.stepAcc, stride * 0.6);
+
+  // 入口・出口へ押し込むと出入りする
+  let pushing = false;
+  if (mag > 0.3) {
+    const ux = mx / mag, uy = my / mag;
+    if (g.inside) {
+      for (const e of g.inside.exits) {
+        if (Math.hypot(e.sx - p.x, e.sy - p.y) < 0.8 && ux * e.ox + uy * e.oy > 0.6) { pushing = true; p.pushT += dt; if (p.pushT >= CFG.house.enterPush) { startTrans(g, 'exit', g.inside.house, e.entry); return; } break; }
+      }
+    } else {
+      const pcx = Math.floor(p.x / CS), pcy = Math.floor(p.y / CS);
+      outer: for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const c = g.world.chunks.get(ckey(pcx + dx, pcy + dy));
+        if (!c) continue;
+        for (const h of c.houses) for (let i = 0; i < h.entries.length; i++) {
+          const e = h.entries[i];
+          if (Math.hypot(e.x - p.x, e.y - p.y) < 0.8 && ux * e.nx + uy * e.ny > 0.6) {
+            pushing = true; p.pushT += dt;
+            if (p.pushT >= CFG.house.enterPush) { startTrans(g, 'enter', h, i); return; }
+            break outer;
+          }
+        }
+      }
+    }
+  }
+  if (!pushing) p.pushT = 0;
 }
 
 function updateZombies(g, dt) {
-  const p = g.player, w = g.world, Z = CFG.zombie, U = CFG.speed.unit, rng = g.rng;
-  const loud = (p.riding && p.speed > 1.2) || p.dash;
+  const p = g.player, cs = chaseSpeed(g);
+  if (g.inside) {
+    // 中の元住人は見える・追える。外の者からは見えない（戸口のあたりで見失う）
+    updateZombieList(g, g.inside.zombies, p, space(g), true, cs, dt);
+    if (g.dead) return;
+    const w = g.world;
+    updateZombieList(g, g.zombies, g.outPos, { blk: (x, y, r) => blocked(w, x, y, r), sight: () => false }, false, cs, dt);
+  } else {
+    updateZombieList(g, g.zombies, p, space(g), true, cs, dt);
+  }
+}
+
+// visible: 相手が見えているか（家の中にいる間、外の者には見えない）
+function updateZombieList(g, list, target, S, visible, chase, dt) {
+  const p = g.player, Z = CFG.zombie, U = CFG.speed.unit, rng = g.rng;
+  const loud = visible && ((p.riding && p.speed > 1.2) || p.dash);
   const chasers = [];
-  for (const z of g.zombies) {
-    const dx = p.x - z.x, dy = p.y - z.y, d = Math.hypot(dx, dy);
+  for (const z of list) {
+    const dx = target.x - z.x, dy = target.y - z.y, d = Math.hypot(dx, dy);
     if (d > Z.freezeDist) continue;
     z.phase += dt;
     if (z.state === 0) {
       z.see -= dt;
       if (z.see <= 0) {
         z.see = 0.25;
-        if ((d < Z.sight && lineOfSight(w, z.x, z.y, p.x, p.y)) || (loud && d < Z.hear)) {
+        if (visible && ((d < Z.sight && S.sight(z.x, z.y, target.x, target.y)) || (loud && d < Z.hear))) {
           z.state = 1; z.lost = 0;
           g.events.push({ t: 'notice', id: z.id, x: z.x, y: z.y });
           continue;
@@ -726,11 +1144,11 @@ function updateZombies(g, dt) {
       if (ed > 0.2) {
         const v = CFG.speed.zombieWander * U * dt;
         z.vx = ex / ed * CFG.speed.zombieWander * U; z.vy = ey / ed * CFG.speed.zombieWander * U;
-        if (moveEntity(w, z, ex / ed * v, ey / ed * v, Z.radius)) z.timer = Math.min(z.timer, 0.3);
+        if (moveWith(S.blk, z, ex / ed * v, ey / ed * v, Z.radius)) z.timer = Math.min(z.timer, 0.3);
         if (Math.abs(ex) > 0.05) z.face = (ex - ey) > 0 ? 1 : -1;
       } else { z.vx = z.vy = 0; }
     } else {
-      if (d > Z.lose) { z.lost += dt; if (z.lost > Z.loseTime) { z.state = 0; z.timer = 1; z.tx = z.x; z.ty = z.y; continue; } }
+      if (d > Z.lose || !visible) { z.lost += dt; if (z.lost > Z.loseTime) { z.state = 0; z.timer = 1; z.tx = z.x; z.ty = z.y; z.vx = z.vy = 0; continue; } }
       else z.lost = 0;
       let ux = dx / (d || 1), uy = dy / (d || 1);
       if (z.detour > 0) {
@@ -738,33 +1156,29 @@ function updateZombies(g, dt) {
         const a = 1.15 * z.detourDir, ca = Math.cos(a), sa = Math.sin(a);
         const rx = ux * ca - uy * sa, ry = ux * sa + uy * ca; ux = rx; uy = ry;
       }
-      const v = CFG.speed.zombie * U;
+      const v = (d < 0.4 && !visible) ? 0 : chase * U;
       const ox = z.x, oy = z.y;
-      moveEntity(w, z, ux * v * dt, uy * v * dt, Z.radius);
+      moveWith(S.blk, z, ux * v * dt, uy * v * dt, Z.radius);
       const moved = Math.hypot(z.x - ox, z.y - oy);
       z.vx = (z.x - ox) / dt; z.vy = (z.y - oy) / dt;
-      if (moved < v * dt * 0.35) { z.stuck += dt; if (z.stuck > 0.25) { z.stuck = 0; z.detour = 0.5 + rng() * 0.7; z.detourDir = rng() < 0.5 ? -1 : 1; } }
+      if (v > 0 && moved < v * dt * 0.35) { z.stuck += dt; if (z.stuck > 0.25) { z.stuck = 0; z.detour = 0.5 + rng() * 0.7; z.detourDir = rng() < 0.5 ? -1 : 1; } }
       else z.stuck = Math.max(0, z.stuck - dt);
       if (Math.abs(dx - dy) > 0.1) z.face = (dx - dy) > 0 ? 1 : -1;
       chasers.push(z);
     }
-    if (d < Z.catchDist) {
-      g.dead = true;
-      g.events.push({ t: 'death' });
-      return;
-    }
+    if (visible && d < Z.catchDist) { die(g, 'zombie'); return; }
   }
   // 追ってくる者どうしは重ならない
   for (let i = 0; i < chasers.length; i++) for (let j = i + 1; j < chasers.length; j++) {
     const a = chasers[i], b = chasers[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
     if (d > 0.001 && d < 0.6) {
       const push = (0.6 - d) * 0.5, nx = dx / d * push, ny = dy / d * push;
-      moveEntity(w, a, -nx, -ny, Z.radius); moveEntity(w, b, nx, ny, Z.radius);
+      moveWith(S.blk, a, -nx, -ny, Z.radius); moveWith(S.blk, b, nx, ny, Z.radius);
     }
   }
 }
 
-const API = { CFG, T, SOLID, SURF, hash, mulberry, vnoise, createGame, step, genChunk, tileAt, baseAt, chunkAt, getChunk, blocked, startPos, hourOf, lightAt, nearestBike, ckey, CS, WALL_COLS, ROOF_COLS, CLOTHES, mainV, mainH };
+const API = { CFG, T, SOLID, SURF, IT, ISOLID, hash, mulberry, vnoise, createGame, step, genChunk, genInterior, getInterior, iTile, iBlocked, tileAt, baseAt, chunkAt, getChunk, blocked, startPos, hourOf, lightAt, chaseSpeed, nearestBike, nearestInteract, usesLeft, sourceKey, tryInteract, ckey, CS, WALL_COLS, ROOF_COLS, CLOTHES, mainV, mainH };
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 root.MACHI = API;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -958,7 +1372,7 @@ function buildObjects(c) {
     if (p.k === 'car') o.d = p.x + p.y + (p.w + p.h) / 2;
     else if (p.k === 'pipes') o.d = p.x + p.y + 2;
     else if (p.k === 'shed') o.d = p.x + p.y + (p.w + p.h) / 2;
-    else if (p.k === 'vend' || p.k === 'swing') o.d = p.x + p.y + 1;
+    else if (p.k === 'vend' || p.k === 'swing' || p.k === 'fountain') o.d = p.x + p.y + 1;
     else o.d = p.x + p.y;
     list.push(o);
   }
@@ -1031,8 +1445,22 @@ function drawHouse(h, night) {
       if (on) lights.push({ x: x1 + 0.3, y: y, r: 1.4, a: 0.5 });
     }
   }
-  // 玄関
-  if (h.face === 'S') { const dx = x0 + (x1 - x0) * (0.3 + h.v * 0.4); const sx = Math.round(fx(dx, y1)), sy = Math.round(fy(dx, y1, 9)); rect(sx - 2, sy, 4, 9, '#5a4a3c'); }
+  // 玄関・勝手口・壊れた窓（見えている2面だけ）
+  for (const e of h.entries || []) {
+    if (!e.vis) continue;
+    const ax = e.side === 'E' ? x1 : e.tx + 0.5, ay = e.side === 'E' ? e.ty + 0.5 : y1;
+    const sx = Math.round(fx(ax, ay));
+    if (e.kind === 'door') {
+      const sy = Math.round(fy(ax, ay, 10));
+      rect(sx - 2, sy, 5, 10, '#5a4a3c'); rect(sx - 2, sy, 5, 1, '#3e3229'); rect(sx + 1, sy + 5, 1, 1, '#c8b070');
+      if (e.side === 'S') rect(sx - 3, sy + 10, 7, 1, '#7d7a72');
+    } else {
+      const sy = Math.round(fy(ax, ay, 9));
+      rect(sx - 2, sy, 5, 5, '#15181c');
+      rect(sx - 2, sy, 1, 2, '#9fb0bc'); rect(sx + 2, sy + 3, 1, 2, '#9fb0bc'); rect(sx, sy + 4, 1, 1, '#7d8e9a');
+      rect(sx - 2, sy - 1, 5, 1, '#6a625a');
+    }
+  }
   // 屋根（切妻）
   const o = 0.25, rh = Math.min(10, ((h.ridge === 'x' ? (y1 - y0) : (x1 - x0)) / 2) * 3.2);
   const rd = shade(rc, 0.75), rf = rc, rl = shade(rc, 1.15);
@@ -1160,6 +1588,18 @@ function drawBusStop(o) {
   rect(b[0] - 5, b[1] - 4, 10, 2, '#7a5a3a'); rect(b[0] - 4, b[1] - 2, 1, 2, '#555'); rect(b[0] + 3, b[1] - 2, 1, 2, '#555');
 }
 
+function drawFountain(o) {
+  const b = P(o.x + 0.5, o.y + 0.5, 0);
+  rect(b[0] - 3, b[1] - 1, 6, 2, 'rgba(0,0,0,.25)');
+  rect(b[0] - 2, b[1] - 9, 4, 9, '#a9a69c'); rect(b[0] + 1, b[1] - 9, 1, 9, '#8f8c83');
+  rect(b[0] - 3, b[1] - 10, 6, 2, '#bdbab0'); rect(b[0] - 1, b[1] - 12, 1, 2, '#9aa4ab');
+}
+function drawVeg(o) {
+  if (M.usesLeft(game, o) <= 0) return;
+  const b = P(o.x, o.y, 0);
+  const col = ['#c63b2c', '#5b2d63', '#d8a030'][o.col];
+  rect(b[0] - 2, b[1] - 4, 5, 3, '#4f7a35'); rect(b[0] - 1, b[1] - 3, 2, 2, col); rect(b[0] + 1, b[1] - 2, 1, 1, col);
+}
 function drawBench(o) { const b = P(o.x + 0.5, o.y + 0.5, 0); rect(b[0] - 5, b[1] - 4, 10, 2, '#7a5a3a'); rect(b[0] - 5, b[1] - 6, 10, 1, '#6a4a2a'); rect(b[0] - 4, b[1] - 2, 1, 2, '#444'); rect(b[0] + 3, b[1] - 2, 1, 2, '#444'); }
 
 function drawShed(o) {
@@ -1171,15 +1611,29 @@ function drawShed(o) {
 function drawPerson(sx, sy, o) {
   sx = Math.round(sx); sy = Math.round(sy);
   if (!o.seated) rect(sx - 3, sy - 1, 7, 2, 'rgba(0,0,0,.3)');
-  const step = o.moving ? Math.round(Math.sin(o.phase) * 1.2) : 0;
+  const amp = o.sprint ? 2.4 : 1.2;
+  const step = o.moving ? Math.round(Math.sin(o.phase) * amp) : 0;
   const bob = o.moving ? (Math.abs(Math.sin(o.phase)) > 0.6 ? -1 : 0) : 0;
+  if (o.crouch) {
+    // かがむ（飲む・食べる）
+    const y = sy;
+    rect(sx - 3, y - 2, 6, 2, o.bottom);
+    rect(sx - 2 + (o.face > 0 ? 0 : -1), y - 6, 5, 4, o.top);
+    const hx = sx - 2 + o.face + (o.bite ? o.face : 0);
+    rect(hx, y - 10, 4, 4, o.skin);
+    rect(hx, y - 11, 4, 1, o.hair);
+    rect(o.face > 0 ? hx : hx + 3, y - 10, 1, 2, o.hair);
+    rect(o.face > 0 ? hx + 3 : hx - 1, y - 7, 2, 1, o.skin);
+    return;
+  }
   const y = sy + bob - (o.seated ? 4 : 0);
   // 脚
   if (o.seated) {
     rect(sx - 2 + o.face, y - 2, 2, 3, o.bottom); rect(sx + 1 + o.face, y - 1, 2, 3, o.bottom);
   } else {
-    rect(sx - 2, y - 4 + Math.max(0, step), 2, 4 - Math.max(0, step), o.bottom);
-    rect(sx + 1, y - 4 + Math.max(0, -step), 2, 4 - Math.max(0, -step), o.bottom);
+    const spread = o.sprint && o.moving ? Math.round(Math.sin(o.phase) * 1.5) : 0;
+    rect(sx - 2 - spread, y - 4 + Math.max(0, step), 2, 4 - Math.max(0, step), o.bottom);
+    rect(sx + 1 + spread, y - 4 + Math.max(0, -step), 2, 4 - Math.max(0, -step), o.bottom);
     rect(sx - 2, y - 1 + Math.max(0, step) - Math.max(0, step), 2, 1, '#222');
   }
   // 胴
@@ -1192,12 +1646,12 @@ function drawPerson(sx, sy, o) {
   } else if (o.arms === 'bar') {
     rect(o.face > 0 ? sx + 3 : sx - 4, y - 8, 2, 1, o.skin);
   } else {
-    const sw = o.moving ? Math.round(Math.sin(o.phase) * 1) : 0;
+    const sw = o.moving ? Math.round(Math.sin(o.phase) * (o.sprint ? 2 : 1)) : 0;
     rect(sx - 3, y - 8 + sw, 1, 4, o.top); rect(sx + 3, y - 8 - sw, 1, 4, o.top);
     rect(sx - 3, y - 4 + sw, 1, 1, o.skin); rect(sx + 3, y - 4 - sw, 1, 1, o.skin);
   }
   // 頭
-  const hx = sx - 2 + (o.zombie ? o.tilt : 0);
+  const hx = sx - 2 + (o.zombie ? o.tilt : 0) + (o.sprint && o.moving ? o.face : 0);
   rect(hx, y - 13, 4, 4, o.skin);
   rect(hx, y - 14, 4, 1, o.hair);
   if (o.away) rect(hx, y - 13, 4, 3, o.hair);
@@ -1255,9 +1709,13 @@ function drawBike(x, y, heading, col, spin, fallen, glint) {
 // ---------------------------------------------------------------
 // 1フレームぶんの描画
 // ---------------------------------------------------------------
+let lastInside = null;
+const dust = [];
+let dustT = 0;
 function render(t) {
   const p = game.player;
   const hour = M.hourOf(game.time), Lt = M.lightAt(hour), night = 1 - Lt.day;
+  if (game.inside !== lastInside) { lastInside = game.inside; camX = p.x; camY = p.y; dust.length = 0; }
   // カメラ：自転車のときは進む方向を少し先まで見せる
   const look = p.riding ? 0.45 : 0.15;
   const tx = p.x + p.vx * look, ty = p.y + p.vy * look;
@@ -1267,7 +1725,87 @@ function render(t) {
   // ピクセルにそろえる
   const ox = isoX(camX, camY), oy = isoY(camX, camY);
   camSX = Math.round(ox) - ox; camSY = Math.round(oy) - oy;
+  // 本気ダッシュの土ぼこり
+  dustT -= frameDt;
+  if (p.sprint && dustT <= 0) { dustT = 0.06; dust.push({ x: p.x - Math.cos(p.heading) * 0.3, y: p.y - Math.sin(p.heading) * 0.3, t: 0, r: Math.random() }); }
+  for (const d of dust) d.t += frameDt;
+  while (dust.length && dust[0].t > 0.45) dust.shift();
 
+  if (game.inside) renderInterior(t, Lt, night);
+  else renderOutside(t, Lt, night, hour);
+  drawGlint(t);
+  // 家の出入り：一度暗くなって切り替わる
+  if (game.trans) {
+    const tr = game.trans, k = 1 - Math.abs(tr.t - tr.dur / 2) / (tr.dur / 2);
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, Math.max(0, k * 1.25))})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawDust() {
+  for (const d of dust) {
+    const sx = Math.round(fx(d.x, d.y) + (d.r - 0.5) * 4), sy = Math.round(fy(d.x, d.y, d.t * 8));
+    ctx.fillStyle = `rgba(170,160,140,${0.45 * (1 - d.t / 0.45)})`;
+    ctx.fillRect(sx, sy, 2, 1);
+  }
+}
+
+// 触れるものの小さなきらめき（自転車・入口・自販機・冷蔵庫…）
+function drawGlint(t) {
+  const p = game.player;
+  if (p.riding || p.mount > 0 || p.act || game.trans) return;
+  const it = M.nearestInteract(game);
+  if (!it || it.empty) return;
+  const z = { bike: 12, entry: 14, exit: 10, fixture: 18, source: it.o && it.o.k === 'veg' ? 6 : 16 }[it.type] || 12;
+  const sx = Math.round(fx(it.x, it.y)), sy = Math.round(fy(it.x, it.y, z));
+  const ph = (t * 1.6) % 1;
+  if (ph < 0.55) { ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.fillRect(sx, sy, 1, 1); }
+  if (ph > 0.15 && ph < 0.4) { ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); }
+}
+
+// 暗がりに明かりの穴をあけて重ねる
+function applyDark(alpha, holes, col) {
+  dctx.globalCompositeOperation = 'source-over';
+  dctx.clearRect(0, 0, W, H);
+  dctx.fillStyle = `rgba(${col || '5,7,20'},${alpha})`;
+  dctx.fillRect(0, 0, W, H);
+  dctx.globalCompositeOperation = 'destination-out';
+  for (const l of holes) {
+    const sx = fx(l.x, l.y), sy = fy(l.x, l.y), rp = l.r * 9, k = l.a;
+    if (sx < -rp || sx > W + rp || sy < -rp || sy > H + rp) continue;
+    const gr = dctx.createRadialGradient(sx, sy, 0, sx, sy, rp);
+    gr.addColorStop(0, `rgba(0,0,0,${k})`);
+    gr.addColorStop(0.55, `rgba(0,0,0,${k * 0.6})`);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    dctx.save();
+    dctx.translate(sx, sy); dctx.scale(1, 0.62); dctx.translate(-sx, -sy);
+    dctx.fillStyle = gr;
+    dctx.fillRect(sx - rp, sy - rp, rp * 2, rp * 2);
+    dctx.restore();
+  }
+  ctx.drawImage(darkCv, 0, 0);
+}
+
+// 夜はゾンビの目がうっすら光る（見た目だけ）
+function drawEyes(list, night, t) {
+  const p = game.player;
+  for (const z of list) {
+    const dd = Math.hypot(z.x - p.x, z.y - p.y);
+    if (dd > 20) continue;
+    const sx = Math.round(fx(z.x, z.y)), sy = Math.round(fy(z.x, z.y));
+    if (sx < 0 || sx > W || sy < 0 || sy > H + 14) continue;
+    if (Math.sin(t * 0.7 + z.id) < -0.95) continue;
+    const away = z.state === 1 ? false : (z.id % 2 === 0);
+    if (away) continue;
+    ctx.fillStyle = `rgba(214,232,186,${0.75 * night * (1 - dd / 22)})`;
+    const hx = sx - 2 + ((z.id % 3) - 1);
+    ctx.fillRect(hx + (z.face > 0 ? 2 : 1), sy - 12, 1, 1);
+    ctx.fillRect(hx + (z.face > 0 ? 3 : 0), sy - 12, 1, 1);
+  }
+}
+
+function renderOutside(t, Lt, night, hour) {
+  const p = game.player;
   ctx.fillStyle = '#20241e';
   ctx.fillRect(0, 0, W, H);
   lights = [];
@@ -1287,6 +1825,7 @@ function render(t) {
     vis.push(c);
   }
 
+  drawDust();
   // 立っている物を手前から奥へ並べる
   const objs = [];
   for (const c of vis) {
@@ -1308,7 +1847,6 @@ function render(t) {
   objs.push({ k: 'player', x: p.x, y: p.y, d: p.x + p.y });
   objs.sort((a, b) => a.d - b.d);
 
-  const near = !p.riding && p.mount <= 0 ? M.nearestBike(game) : null;
   for (const o of objs) {
     switch (o.k) {
       case 'wall': drawWall(o); break;
@@ -1324,7 +1862,9 @@ function render(t) {
       case 'busstop': drawBusStop(o); break;
       case 'bench': drawBench(o); break;
       case 'shed': drawShed(o); break;
-      case 'bike': drawBike(o.x, o.y, o.b.heading, o.b.col, 0, o.b.fallen, o.b === near); break;
+      case 'fountain': drawFountain(o); break;
+      case 'veg': drawVeg(o); break;
+      case 'bike': drawBike(o.x, o.y, o.b.heading, o.b.col, 0, o.b.fallen, false); break;
       case 'zombie': drawZombie(o.z, t); break;
       case 'player': drawPlayer(t); break;
     }
@@ -1347,27 +1887,7 @@ function render(t) {
   // 夜
   if (night > 0.005) {
     const a = (0.86 + Lt.deep * 0.08) * night;
-    dctx.globalCompositeOperation = 'source-over';
-    dctx.clearRect(0, 0, W, H);
-    dctx.fillStyle = `rgba(5,7,20,${a})`;
-    dctx.fillRect(0, 0, W, H);
-    dctx.globalCompositeOperation = 'destination-out';
-    const hole = (x, y, r, k) => {
-      const sx = fx(x, y), sy = fy(x, y), rp = r * 9;
-      if (sx < -rp || sx > W + rp || sy < -rp || sy > H + rp) return;
-      const gr = dctx.createRadialGradient(sx, sy, 0, sx, sy, rp);
-      gr.addColorStop(0, `rgba(0,0,0,${k})`);
-      gr.addColorStop(0.55, `rgba(0,0,0,${k * 0.6})`);
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
-      dctx.save();
-      dctx.translate(sx, sy); dctx.scale(1, 0.62); dctx.translate(-sx, -sy);
-      dctx.fillStyle = gr;
-      dctx.fillRect(sx - rp, sy - rp, rp * 2, rp * 2);
-      dctx.restore();
-    };
-    hole(p.x, p.y, 7.5, 0.95);
-    for (const l of lights) hole(l.x, l.y, l.r, l.a);
-    ctx.drawImage(darkCv, 0, 0);
+    applyDark(a, [{ x: p.x, y: p.y, r: 7.5, a: 0.95 }].concat(lights));
     // 明かりのにじみ
     ctx.globalCompositeOperation = 'lighter';
     for (const l of lights) {
@@ -1380,22 +1900,146 @@ function render(t) {
       ctx.fillRect(sx - l.r * 5, sy - l.r * 5, l.r * 10, l.r * 10);
     }
     ctx.globalCompositeOperation = 'source-over';
-    // 夜はゾンビの目がうっすら光る（見た目だけ。動きは昼と同じ）
-    for (const z of game.zombies) {
-      const dd = Math.hypot(z.x - p.x, z.y - p.y);
-      if (dd > 20) continue;
-      const sx = Math.round(fx(z.x, z.y)), sy = Math.round(fy(z.x, z.y));
-      if (sx < 0 || sx > W || sy < 0 || sy > H + 14) continue;
-      const blink = Math.sin(t * 0.7 + z.id) > -0.95;
-      if (!blink) continue;
-      ctx.fillStyle = `rgba(214,232,186,${0.75 * night * (1 - dd / 22)})`;
-      const hx = sx - 2 + ((z.id % 3) - 1);
-      const away = z.state === 1 ? false : (z.id % 2 === 0);
-      if (away) continue;
-      ctx.fillRect(hx + (z.face > 0 ? 2 : 1), sy - 12, 1, 1);
-      ctx.fillRect(hx + (z.face > 0 ? 3 : 0), sy - 12, 1, 1);
-    }
+    drawEyes(game.zombies, night, t);
   }
+}
+
+// ---------------------------------------------------------------
+// 家の中
+// ---------------------------------------------------------------
+const iCache = new Map();
+function buildInteriorGround(I) {
+  const GWi = (I.W + I.H) * 8 + 2, GHi = (I.W + I.H) * 4 + 2;
+  const cv = document.createElement('canvas');
+  cv.width = GWi; cv.height = GHi;
+  const g = cv.getContext('2d');
+  const img = g.createImageData(GWi, GHi), D = img.data;
+  const IT = M.IT;
+  for (let py = 0; py < GHi; py++) for (let px = 0; px < GWi; px++) {
+    const sx = px - I.H * 8 + 0.5, sy = py + 0.5;
+    const u = (sx / 8 + sy / 4) / 2, v = (sy / 4 - sx / 8) / 2;
+    if (u < 0 || v < 0 || u >= I.W || v >= I.H) continue;
+    const lx = u | 0, ly = v | 0, fu = u - lx, fv = v - ly;
+    const tt = I.t[ly * I.W + lx];
+    const n = M.hash(game.seed, px + I.W * 97, py + I.H * 31, 401);
+    let col;
+    if (tt === IT.FLOOR || (tt >= 8 && tt !== IT.WALL)) {
+      const plank = Math.floor(v * 3), pv = M.hash(game.seed, plank, Math.floor(u / 2.5 + plank * 0.37), 402);
+      col = [138 + pv * 22 + (n - 0.5) * 8, 102 + pv * 16 + (n - 0.5) * 6, 66 + pv * 10];
+      if ((v * 3) % 1 < 0.1) col = [col[0] - 26, col[1] - 22, col[2] - 16];
+    } else if (tt === IT.TATAMI || tt === IT.FUTON) {
+      col = ((u * 9) % 1 < 0.35) ? [176, 176, 118] : [162, 164, 106];
+      col = [col[0] + (n - 0.5) * 6, col[1] + (n - 0.5) * 6, col[2]];
+      if (fu < 0.06 || fv < 0.06) col = [70, 74, 52];
+      if (tt === IT.FUTON && fu > 0.08 && fv > 0.08 && fu < 0.94 && fv < 0.94) col = ((fv * 4) % 1 < 0.5) ? [206, 212, 222] : [176, 188, 210];
+    } else if (tt === IT.TILE) {
+      col = (((u * 3) | 0) + ((v * 3) | 0)) & 1 ? [196, 196, 188] : [174, 178, 172];
+      if ((u * 3) % 1 < 0.08 || (v * 3) % 1 < 0.08) col = [140, 140, 134];
+    } else if (tt === IT.GENKAN) {
+      col = [116 + (n - 0.5) * 18, 114 + (n - 0.5) * 18, 108 + (n - 0.5) * 18];
+    } else col = [42, 38, 34];
+    const o = (py * GWi + px) * 4;
+    D[o] = col[0]; D[o + 1] = col[1]; D[o + 2] = col[2]; D[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const objs = [];
+  for (let y = 0; y < I.H; y++) for (let x = 0; x < I.W; x++) {
+    const tt = I.t[y * I.W + x];
+    if (tt < 8) continue;
+    if (tt <= IT.BROKEN) {
+      const back = x === 0 || y === 0, front = x === I.W - 1 || y === I.H - 1;
+      objs.push({ k: 'iwall', x, y, tt, back, front, h: back ? 20 : front ? 4 : 13, d: x + y + 1 });
+    } else objs.push({ k: 'furn', x, y, tt, d: x + y + 1 });
+  }
+  return { cv, objs };
+}
+
+function drawIWall(o, day) {
+  const IT = M.IT, x = o.x, y = o.y;
+  if (o.front && (o.tt === IT.DOOR || o.tt === IT.BROKEN)) {
+    // 手前の壁の出口：敷居だけ
+    const a = P(x + 0.5, y + 0.5, 0);
+    rect(a[0] - 4, a[1] - 1, 8, 2, o.tt === IT.DOOR ? '#6b5440' : '#3c4248');
+    return;
+  }
+  box(x, y, x + 1, y + 1, 0, o.h, '#4c463e', '#d2c9b6', '#b8ae99');
+  if (!o.back) return;
+  // 奥の壁の内側の面（窓・戸）
+  const onTop = y === 0 && x !== 0;
+  const face = (a, b, z0, z1, col) => {
+    if (onTop) poly([P(x + a, y + 1, z0), P(x + b, y + 1, z0), P(x + b, y + 1, z1), P(x + a, y + 1, z1)], col);
+    else poly([P(x + 1, y + a, z0), P(x + 1, y + b, z0), P(x + 1, y + b, z1), P(x + 1, y + a, z1)], col);
+  };
+  if (o.tt === IT.WIN) { face(0.15, 0.85, 8, 17, day > 0.3 ? '#cfdfe8' : '#2a3442'); face(0.48, 0.52, 8, 17, '#8a8a84'); }
+  else if (o.tt === IT.BROKEN) { face(0.15, 0.85, 7, 17, day > 0.3 ? '#dfe9ef' : '#1d242c'); face(0.3, 0.4, 10, 17, '#6d7880'); face(0.6, 0.72, 7, 12, '#6d7880'); }
+  else if (o.tt === IT.DOOR) { face(0.18, 0.82, 0, 16, '#6b5440'); face(0.65, 0.72, 7, 8, '#c8b070'); }
+}
+
+function drawFurn(o) {
+  const IT = M.IT, x = o.x, y = o.y;
+  switch (o.tt) {
+    case IT.FRIDGE:
+      box(x + 0.12, y + 0.15, x + 0.88, y + 0.85, 0, 21, '#ecebe6', '#d6d5d0', '#bebdb8');
+      { const a = P(x + 0.5, y + 0.85, 13), b = P(x + 0.85, y + 0.85, 13); pline(a[0], a[1], b[0], b[1], '#a8a7a2'); }
+      break;
+    case IT.SINK:
+      box(x + 0.04, y + 0.04, x + 0.96, y + 0.96, 0, 9, '#b9bec2', '#8f7a62', '#7d6a55');
+      { const a = P(x + 0.5, y + 0.5, 9); ctx.fillStyle = '#7e868c'; ctx.beginPath(); ctx.ellipse(a[0], a[1], 4, 2, 0, 0, 6.3); ctx.fill(); rect(a[0] - 3, a[1] - 5, 1, 4, '#c9cfd3'); rect(a[0] - 3, a[1] - 5, 3, 1, '#c9cfd3'); }
+      break;
+    case IT.CUP:
+      box(x + 0.1, y + 0.2, x + 0.9, y + 0.8, 0, 15, '#6e5038', '#8a6648', '#765639');
+      { const a = P(x + 0.3, y + 0.8, 12), b = P(x + 0.9, y + 0.5, 12); rect(a[0] - 2, a[1], 4, 3, '#a9b6bb'); rect(b[0] - 1, b[1], 3, 3, '#95a2a7'); }
+      break;
+    case IT.TABLE: box(x + 0.1, y + 0.1, x + 0.9, y + 0.9, 5, 2, '#a07a55', '#7a5a3c', '#6a4d33'); { const a = P(x + 0.2, y + 0.85, 0); rect(a[0], a[1] - 5, 1, 5, '#5a4030'); const b = P(x + 0.85, y + 0.2, 0); rect(b[0], b[1] - 5, 1, 5, '#5a4030'); } break;
+    case IT.TV: box(x + 0.15, y + 0.2, x + 0.85, y + 0.8, 0, 4, '#4a3a2c', '#3a2c20', '#33271c'); box(x + 0.3, y + 0.35, x + 0.7, y + 0.6, 4, 9, '#202224', '#141618', '#1b1d20'); break;
+    case IT.SHELF: box(x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, 17, '#7a5a3c', '#8a6648', '#6e5038'); { for (let i = 0; i < 4; i++) { const a = P(x + 0.25 + i * 0.15, y + 0.85, 12); rect(a[0], a[1], 1, 3, ['#8a3a2c', '#2c4a6a', '#c8b070', '#3a5a3a'][i]); } } break;
+    case IT.KOTATSU: box(x + 0.05, y + 0.05, x + 0.95, y + 0.95, 0, 4, '#a4553a', '#8e4630', '#7a3c29'); box(x + 0.15, y + 0.15, x + 0.85, y + 0.85, 4, 1, '#b08a5e', '#8a6a48', '#7a5c3e'); break;
+  }
+}
+
+function renderInterior(t, Lt, night) {
+  const p = game.player, I = game.inside, day = Lt.day;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  let ic = iCache.get(I);
+  if (!ic) { ic = buildInteriorGround(I); iCache.set(I, ic); }
+  ctx.drawImage(ic.cv, Math.round(fx(0, 0) - I.H * 8), Math.round(fy(0, 0)));
+  drawDust();
+  const objs = ic.objs.slice();
+  for (const z of I.zombies) objs.push({ k: 'zombie', z, d: z.x + z.y });
+  objs.push({ k: 'player', d: p.x + p.y });
+  objs.sort((a, b) => a.d - b.d);
+  for (const o of objs) {
+    if (o.k === 'iwall') drawIWall(o, day);
+    else if (o.k === 'furn') drawFurn(o);
+    else if (o.k === 'zombie') drawZombie(o.z, t);
+    else drawPlayer(t);
+  }
+  ctx.globalAlpha = 0.28; drawPlayer(t, true); ctx.globalAlpha = 1;
+  // 薄暗い。窓と戸口から外の光が入る
+  const holes = [{ x: p.x, y: p.y, r: 4.2, a: 0.7 }];
+  const glows = [];
+  for (let y = 0; y < I.H; y++) for (let x = 0; x < I.W; x++) {
+    const tt = I.t[y * I.W + x];
+    if (tt !== M.IT.WIN && tt !== M.IT.BROKEN && tt !== M.IT.DOOR) continue;
+    const ix = x === 0 ? 1.2 : x === I.W - 1 ? I.W - 1.2 : x + 0.5, iy = y === 0 ? 1.2 : y === I.H - 1 ? I.H - 1.2 : y + 0.5;
+    const isExit = I.exits.some(e => e.x === x && e.y === y);
+    const k = (isExit ? 0.9 : 0.75) * day + 0.12;
+    holes.push({ x: ix, y: iy, r: isExit ? 2.6 : 2.2, a: k });
+    if (day > 0.2) glows.push({ x: ix, y: iy, r: 2.2 });
+  }
+  applyDark(0.55 + 0.37 * night, holes, '6,6,10');
+  ctx.globalCompositeOperation = 'lighter';
+  for (const l of glows) {
+    const sx = fx(l.x, l.y), sy = fy(l.x, l.y);
+    const gr = ctx.createRadialGradient(sx, sy, 0, sx, sy, l.r * 8);
+    gr.addColorStop(0, `rgba(255,236,200,${0.07 * day})`);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(sx - l.r * 8, sy - l.r * 8, l.r * 16, l.r * 16);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  if (night > 0.005) drawEyes(I.zombies, night, t);
 }
 
 function drawZombie(z, t) {
@@ -1429,8 +2073,13 @@ function drawPlayer(t, ghost) {
     });
     return;
   }
+  if (p.act) {
+    const k = 1 - p.act.t / p.act.dur;
+    drawPerson(sx, sy, { top: '#3b4d63', bottom: '#2c2c33', skin: '#e0b896', hair: '#1e1a18', face, crouch: true, bite: p.act.kind === 'eat' && (k * 6 % 1) < 0.5 });
+    return;
+  }
   drawPerson(sx, sy, {
-    top: '#3b4d63', bottom: '#2c2c33', skin: '#e0b896', hair: '#1e1a18', face, away, phase: p.walkPhase, moving: p.moving, arms: 'down',
+    top: '#3b4d63', bottom: '#2c2c33', skin: '#e0b896', hair: '#1e1a18', face, away, phase: p.walkPhase, moving: p.moving, arms: 'down', sprint: p.sprint,
   });
 }
 
@@ -1442,7 +2091,7 @@ const Snd = (() => {
   const L = {};
   let white, pink, brown;
   const groanAt = new Map(), stepAt = new Map();
-  let voices = 0, gust = 0.6, gustT = 0, envT = 0, clickT = 0, chimeDone = -1;
+  let voices = 0, gust = 0.6, gustT = 0, envT = 0, clickT = 0, chimeDone = -1, pant = 0, breathT = 0, inhale = false;
   let env = { open: 0.5, grass: 0.3, water: 0, trees: 0, field: 0, vend: 99, mat: 'asphalt' };
 
   function noiseBuf(kind, sec) {
@@ -1504,6 +2153,8 @@ const Snd = (() => {
     const o2 = ac.createOscillator(); o2.frequency.value = 200; o2.start();
     const o2g = gain(0.35); o2.connect(o2g);
     L.hum = gain(0); o1.connect(L.hum); o2g.connect(L.hum); L.hum.connect(master);
+    // 家の中の空気（こもった低い音）
+    L.room = layer(loop(brown), [filt('lowpass', 90, 0.5)], 0);
   }
 
   function setL(g, v, tc) { g.gain.setTargetAtTime(Math.max(0, v), ac.currentTime, tc || 0.4); }
@@ -1537,13 +2188,56 @@ const Snd = (() => {
     return o;
   }
 
-  function footstep(mat, dash) {
-    const t = ac.currentTime + 0.005, g = dash ? 1.3 : 1;
+  function footstep(mat, dash, sprint) {
+    const t = ac.currentTime + 0.005, g = sprint ? 1.6 : dash ? 1.3 : 1;
+    if (mat === 'wood') { burst(t, 0.07, 'bandpass', 520, 1.2, 0.2 * g, 0, 0.08); tone(t, 'sine', 95, 60, 0.08, 0.12 * g); if (Math.random() < 0.15) tone(t + 0.03, 'triangle', 900 + Math.random() * 400, 700, 0.12, 0.012); return; }
+    if (mat === 'tatami') { burst(t, 0.1, 'lowpass', 420, 0.7, 0.16 * g, 0, 0.04, 0.02); burst(t, 0.06, 'bandpass', 2400, 0.8, 0.03 * g); return; }
+    if (mat === 'tile') { burst(t, 0.035, 'bandpass', 2600, 1.5, 0.14 * g, 0, 0.12); tone(t, 'sine', 160, 90, 0.04, 0.07 * g); return; }
     if (mat === 'asphalt') { burst(t, 0.05, 'bandpass', 1800, 1.2, 0.16 * g, 0, 0.05); tone(t, 'sine', 130, 70, 0.06, 0.12 * g); }
     else if (mat === 'dirt') { burst(t, 0.08, 'lowpass', 800, 0.8, 0.22 * g, 0, 0.03); }
     else if (mat === 'grass') { burst(t, 0.13, 'bandpass', 3200, 0.7, 0.1 * g, 0, 0, 0.03); burst(t, 0.06, 'lowpass', 500, 0.7, 0.08 * g); }
     else if (mat === 'gravel') { for (let i = 0; i < 5; i++) burst(t + i * 0.012 + Math.random() * 0.01, 0.025, 'highpass', 1800 + Math.random() * 1500, 0.8, 0.07 * g); }
     else if (mat === 'water') { burst(t, 0.12, 'bandpass', 1100, 1.5, 0.16 * g, 0, 0.05); tone(t + 0.02, 'sine', 500, 1300, 0.05, 0.05 * g); }
+  }
+  // 息（吸う・吐く）
+  function breath(k, inh) {
+    const t = ac.currentTime;
+    if (inh) burst(t, 0.28, 'bandpass', 1500 + k * 400, 1.4, 0.05 + k * 0.08, 0, 0, 0.12);
+    else burst(t, 0.34, 'bandpass', 800 + k * 300, 1.2, 0.06 + k * 0.1, 0, 0, 0.05);
+  }
+  // 喉を鳴らす（1.2秒で3口）
+  function gulps(t) {
+    for (const d of [0.18, 0.55, 0.92]) {
+      tone(t + d, 'sine', 210, 85, 0.13, 0.2, 0, 0.05, 0.01, filt('lowpass', 600, 0.7));
+      burst(t + d + 0.02, 0.08, 'bandpass', 500, 2, 0.05);
+    }
+  }
+  // かじる（1.0秒）
+  function bites(t) {
+    for (const d of [0.1, 0.45]) for (let i = 0; i < 4; i++) burst(t + d + i * 0.018, 0.03, 'highpass', 2200 + Math.random() * 1500, 0.8, 0.09);
+    for (const d of [0.65, 0.8, 0.93]) burst(t + d, 0.06, 'lowpass', 350, 0.8, 0.12);
+  }
+  // ドアのきしみ（0.5秒）
+  function creak(t) {
+    const o = ac.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(220, t); o.frequency.linearRampToValueAtTime(340, t + 0.18); o.frequency.linearRampToValueAtTime(260, t + 0.42);
+    const lfo = ac.createOscillator(); lfo.frequency.value = 38; const lg = gain(60); lfo.connect(lg); lg.connect(o.frequency);
+    const e = gain(0);
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.07, t + 0.05); e.gain.setValueAtTime(0.07, t + 0.36); e.gain.exponentialRampToValueAtTime(0.0008, t + 0.48);
+    chain(o, filt('bandpass', 1100, 6), e, out(0, 0.25, 1));
+    o.start(t); lfo.start(t); o.stop(t + 0.5); lfo.stop(t + 0.5);
+    burst(t + 0.46, 0.04, 'bandpass', 1800, 2, 0.12);
+  }
+  // 割れた窓をくぐる（ガラスを踏む）
+  function glass(t) { for (let i = 0; i < 9; i++) { const s = t + Math.random() * 0.4; tone(s, 'sine', 3000 + Math.random() * 3000, 2500, 0.06, 0.025); burst(s, 0.02, 'highpass', 4000, 0.8, 0.05); } }
+  function growl() {
+    const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(70, t); o.frequency.linearRampToValueAtTime(55, t + 1.2);
+    const am = ac.createOscillator(); am.frequency.value = 7; const ag = gain(0.5); am.connect(ag);
+    const e = gain(0); ag.connect(e.gain);
+    e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.05, t + 0.2); e.gain.exponentialRampToValueAtTime(0.0008, t + 1.2);
+    chain(o, filt('lowpass', 220, 1), e, out(0, 0, 1));
+    o.start(t); am.start(t); o.stop(t + 1.3); am.stop(t + 1.3);
   }
   function kickstand(t) {
     tone(t, 'triangle', 1750, 1700, 0.14, 0.12, 0, 0.1);
@@ -1670,7 +2364,7 @@ const Snd = (() => {
 
   // ---- 毎フレームの更新 ----
   function sampleEnv() {
-    const p = game.player, w = game.world;
+    const p = game.inside ? game.outPos : game.player, w = game.world;
     let n = 0, open = 0, grass = 0, water = 0, trees = 0, field = 0, wd = 99, vd = 99;
     for (let dy = -9; dy <= 9; dy += 1.5) for (let dx = -9; dx <= 9; dx += 1.5) {
       const t = M.tileAt(w, p.x + dx, p.y + dy), d = Math.hypot(dx, dy);
@@ -1687,7 +2381,7 @@ const Snd = (() => {
       if (!c) continue;
       for (const o of c.props) if (o.k === 'vend') vd = Math.min(vd, Math.hypot(o.x + 0.5 - p.x, o.y + 0.5 - p.y));
     }
-    env = { open: open / n, grass: grass / n, water: water / n, wd, trees: trees / n, field: field / n, vend: vd };
+    env = { open: open / n, grass: grass / n, water: water / n, wd, trees: trees / n, field: field / n, vend: game.inside ? 99 : vd };
   }
 
   function relPan(x, y) {
@@ -1703,14 +2397,23 @@ const Snd = (() => {
     // 風（ゆっくり強弱が変わる）
     gustT -= dt;
     if (gustT <= 0) { gustT = 1 + Math.random() * 3; gust = 0.35 + Math.random() * 0.75; }
-    const wind = (0.18 + env.open * 0.55) * gust * (0.8 + night * 0.15);
+    const io = game.inside ? 0.22 : 1;   // 家の中では外の音がこもる
+    const wind = (0.18 + env.open * 0.55) * gust * (0.8 + night * 0.15) * io;
     setL(L.wind, wind * 0.5, 1.2);
     L.windF.frequency.setTargetAtTime(250 + gust * 500, ac.currentTime, 1.5);
-    setL(L.grass, env.grass * gust * 0.05, 0.8);
+    setL(L.grass, env.grass * gust * 0.05 * io, 0.8);
     const wv = env.wd < 99 ? Math.min(1, 1 / (1 + (env.wd / 3.5) ** 2) + env.water) : 0;
-    setL(L.water, wv * 0.35, 0.6);
-    setL(L.waterB, wv * 0.04 * (0.5 + Math.random()), 0.05);
-    setL(L.city, 0.35 * (0.6 + day * 0.4) * (1 - env.open * 0.3), 2);
+    setL(L.water, wv * 0.35 * io, 0.6);
+    setL(L.waterB, wv * 0.04 * (0.5 + Math.random()) * io, 0.05);
+    setL(L.city, 0.35 * (0.6 + day * 0.4) * (1 - env.open * 0.3) * (game.inside ? 0.5 : 1), 2);
+    setL(L.room, game.inside ? 0.05 : 0, 0.3);
+    // 息づかい：本気ダッシュで荒くなり、スタミナが戻るまで続く
+    pant = Math.max(0, Math.min(1, pant + (p.sprint ? dt * 0.6 : -dt * 0.12)));
+    const want = Math.max(pant, p.tired ? 0.8 : 0, (1 - p.stamina / CFG.needs.max) * 0.7);
+    breathT -= dt;
+    if (want > 0.12 && breathT <= 0) { breathT = 0.95 - want * 0.55; breath(want, inhale = !inhale); }
+    // 腹の虫
+    if (p.food < 20 && Math.random() < dt * 0.05) growl();
     // 自転車
     const v = p.riding ? p.speed : 0, vr = v / CFG.speed.bike;
     setL(L.speedWind, vr * vr * 0.32, 0.15);
@@ -1728,18 +2431,19 @@ const Snd = (() => {
     // 生き物たち
     const r = (rate) => Math.random() < rate * dt;
     const rp = () => Math.random() * 1.8 - 0.9;
-    if (r(day * (0.12 + env.trees * 3 + env.grass * 0.4) * (1 + Lt.morning * 2))) bird(rp(), 0.025 + Math.random() * 0.03);
-    if (r(day * 0.025 * (1 + Lt.warm * 4))) crow(rp(), 0.035 + Math.random() * 0.03);
-    if (r(night * (1.2 + env.grass * 6 + env.field * 4))) cricket(rp(), 0.006 + Math.random() * 0.012);
-    if (r(night * (env.field * 5 + (env.wd < 12 ? 2 : 0)))) frog(rp(), 0.03 + Math.random() * 0.03);
+    if (r(day * (0.12 + env.trees * 3 + env.grass * 0.4) * (1 + Lt.morning * 2))) bird(rp(), (0.025 + Math.random() * 0.03) * io);
+    if (r(day * 0.025 * (1 + Lt.warm * 4))) crow(rp(), (0.035 + Math.random() * 0.03) * (game.inside ? 0.4 : 1));
+    if (r(night * (1.2 + env.grass * 6 + env.field * 4))) cricket(rp(), (0.006 + Math.random() * 0.012) * io);
+    if (r(night * (env.field * 5 + (env.wd < 12 ? 2 : 0)))) frog(rp(), (0.03 + Math.random() * 0.03) * io);
     if (r(0.006)) dog(rp());
     if (r(0.0018)) siren(rp() * 1.1);
     // 17時
     const day0 = Math.floor((game.time / CFG.time.secondsPerHour + CFG.time.startHour) / 24);
     if (h >= 17 && h < 17.2 && chimeDone !== day0) { chimeDone = day0; chime(); }
 
-    // ゾンビの声と足音
-    for (const z of game.zombies) {
+    // ゾンビの声と足音（家の中では中の者だけ）
+    const zl = game.inside ? game.inside.zombies : game.zombies;
+    for (const z of zl) {
       const d = Math.hypot(z.x - p.x, z.y - p.y);
       if (d > 24) continue;
       const pan = relPan(z.x, z.y);
@@ -1758,11 +2462,17 @@ const Snd = (() => {
 
     for (const e of events) {
       const t = ac.currentTime;
-      if (e.t === 'step') footstep(e.mat, e.dash);
+      if (e.t === 'step') footstep(e.mat, e.dash, e.sprint);
+      else if (e.t === 'door') { if (e.kind === 'window') glass(t); else creak(t); }
+      else if (e.t === 'drink') gulps(t);
+      else if (e.t === 'eat') bites(t);
+      else if (e.t === 'vend') { tone(t, 'sine', 120, 70, 0.18, 0.25); burst(t, 0.12, 'lowpass', 600, 1, 0.2); burst(t + 0.28, 0.18, 'highpass', 3000, 0.7, 0.05, 0, 0, 0.01); }
+      else if (e.t === 'empty') { tone(t, 'sine', 180, 120, 0.08, 0.12); burst(t, 0.05, 'bandpass', 900, 2, 0.1); }
+      else if (e.t === 'tired') breath(1, true);
       else if (e.t === 'mount') { kickstand(t); chainRattle(t); }
       else if (e.t === 'dismount') { kickstand(t); }
       else if (e.t === 'bump') { tone(t, 'sine', 90, 50, 0.15, 0.3); burst(t, 0.15, 'bandpass', 2600, 3, 0.12, 0, 0.2); }
-      else if (e.t === 'notice') { const z = game.zombies.find(q => q.id === e.id); if (z) { groan(z, Math.hypot(z.x - p.x, z.y - p.y), relPan(z.x, z.y), true, true); groanAt.set(z.id, 1.5 + Math.random()); } }
+      else if (e.t === 'notice') { const z = zl.find(q => q.id === e.id); if (z) { groan(z, Math.hypot(z.x - p.x, z.y - p.y), relPan(z.x, z.y), true, true); groanAt.set(z.id, 1.5 + Math.random()); } }
     }
   }
 
@@ -1851,7 +2561,7 @@ function screenToWorld(ux, uy) {
   return [wx / l * mag, wy / l * mag];
 }
 function readInput() {
-  let ux = stick.mx, uy = stick.my, dash = false;
+  let ux = stick.mx, uy = stick.my, dash = false, sprint = false;
   let kx = 0, ky = 0;
   if (keys.has('ArrowLeft') || keys.has('KeyA')) kx -= 1;
   if (keys.has('ArrowRight') || keys.has('KeyD')) kx += 1;
@@ -1859,25 +2569,43 @@ function readInput() {
   if (keys.has('ArrowDown') || keys.has('KeyS')) ky += 1;
   if (kx || ky) {
     const l = Math.hypot(kx, ky);
-    dash = keys.has('ShiftLeft') || keys.has('ShiftRight');
-    ux = kx / l * (dash ? 1 : 0.7); uy = ky / l * (dash ? 1 : 0.7);
+    // キーボード：矢印/WASD＝歩き、Shift＝ダッシュ、X（または Z）＝本気ダッシュ
+    sprint = keys.has('KeyX') || keys.has('KeyZ');
+    dash = sprint || keys.has('ShiftLeft') || keys.has('ShiftRight');
+    ux = kx / l * (dash ? 0.75 : 0.42); uy = ky / l * (dash ? 0.75 : 0.42);
   }
   const [mx, my] = screenToWorld(ux, uy);
-  const r = { mx, my, dash, interact: interactQueued };
+  const r = { mx, my, dash, sprint, interact: interactQueued };
   interactQueued = false;
   return r;
 }
 
-function drawUI() {
+function drawUI(t) {
   uctx.clearRect(0, 0, ui.width, ui.height);
+  const s = DPR, p = game.player, N = CFG.needs;
+  // バー（数字なし。長さだけ）：下の中央にスタミナ、左下に空腹と水分
+  const iw = window.innerWidth, ih = window.innerHeight;
+  const bar = (x, y, w, v, col) => {
+    const f = Math.max(0, Math.min(1, v / N.max));
+    const low = f < 0.25 ? 0.55 + 0.45 * Math.abs(Math.sin(t * 4)) : 1;
+    uctx.fillStyle = 'rgba(255,255,255,0.13)';
+    uctx.fillRect(x * s, y * s, w * s, 3 * s);
+    uctx.fillStyle = col.replace('A', String(0.85 * low));
+    uctx.fillRect(x * s, y * s, w * f * s, 3 * s);
+  };
+  const sw = Math.min(200, iw * 0.24);
+  bar((iw - sw) / 2, ih - 12, sw, p.stamina, p.tired ? 'rgba(200,120,100,A)' : 'rgba(236,232,220,A)');
+  bar(16, ih - 19, 92, p.food, 'rgba(214,160,92,A)');
+  bar(16, ih - 12, 92, p.water, 'rgba(126,178,216,A)');
+
   const on = stick.id !== null;
   stick.alpha += ((on ? 1 : 0) - stick.alpha) * (on ? 0.5 : 0.25);
   if (stick.alpha < 0.02) return;
-  const s = DPR, a = stick.alpha;
+  const a = stick.alpha, m = Math.hypot(stick.mx, stick.my);
   uctx.lineWidth = 2 * s;
-  uctx.strokeStyle = `rgba(255,255,255,${0.22 * a})`;
+  uctx.strokeStyle = `rgba(255,255,255,${(m >= CFG.stick.sprintAt ? 0.45 : 0.22) * a})`;
   uctx.beginPath(); uctx.arc(stick.ox * s, stick.oy * s, STICK_R * s, 0, 6.3); uctx.stroke();
-  uctx.fillStyle = `rgba(255,255,255,${0.2 * a})`;
+  uctx.fillStyle = `rgba(255,255,255,${(0.2 + (m >= CFG.stick.dashAt ? 0.1 : 0) + (m >= CFG.stick.sprintAt ? 0.15 : 0)) * a})`;
   uctx.beginPath(); uctx.arc((stick.ox + stick.mx * STICK_R) * s, (stick.oy + stick.my * STICK_R) * s, 20 * s, 0, 6.3); uctx.fill();
 }
 
@@ -1918,7 +2646,7 @@ function frame(now) {
   const inp = readInput();
   let first = true;
   while (acc >= STEP) {
-    M.step(game, first ? inp : { mx: inp.mx, my: inp.my, dash: inp.dash }, STEP);
+    M.step(game, first ? inp : { mx: inp.mx, my: inp.my, dash: inp.dash, sprint: inp.sprint }, STEP);
     first = false;
     acc -= STEP;
     if (game.dead) break;
@@ -1928,7 +2656,7 @@ function frame(now) {
   Snd.update(frameDt, game.events);
   game.events.length = 0;
   render(now / 1000);
-  drawUI();
+  drawUI(now / 1000);
   requestAnimationFrame(frame);
 }
 document.addEventListener('visibilitychange', () => {
