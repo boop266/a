@@ -60,6 +60,21 @@
   - Wikipedia「Z-fighting」https://en.wikipedia.org/wiki/Z-fighting
   - AUTOMATON「ポケモンBDSPの壁抜け・当たり判定のバグ報告」https://automaton-media.com/en/news/20211123-6470/
 
+### ゲームの「外側」をきちんと作る
+- 外側（製品として必要な部品）があると、ゲームらしくなる。ファミコンだって、いきなりゲームが始まったら遊ばないと思う。ドラクエのタイトル画面や、ソフトに描いてある絵から、ゲームは始まっている。
+- 遊ぶ人が通る順番で確かめる。
+  1. 起動したとき：タイトル画面、作った人の名前（クレジット）、初めて遊ぶ人への案内
+  2. タイトル画面から：はじめから／つづきから、設定、クレジット、終了
+  3. 遊んでいる途中：ポーズ（ちゃんと動く「ゲームに戻る」、そこから設定を開ける）、セーブとロード、やめずにやり直せる
+  4. 終わったとき：ゲームオーバーからちゃんとやり直せる、エンディング、きれいに終われる
+  5. 設定：音量を分けて調整（効果音・声・音楽、または消せる）、操作の割り当てを変えられる、設定を元に戻すボタン、文字の大きさ、色だけに頼らない（形や模様やアイコンも使う）、字幕（声や大事な音があるなら）
+  6. そのほか：コントローラー対応（ゲームに合うなら）、出す場所（ストアなど）の決まりを守る
+- 参考にしたページ：
+  - 「Is my game done? A checklist」https://mycours.es/egd/is-my-game-done-a-checklist/
+  - Wayline「20 reasons your pause menu is sabotaging your game」https://www.wayline.io/blog/20-reasons-your-pause-menu-is-sabotaging-your-game
+  - Game Accessibility Guidelines https://gameaccessibilityguidelines.com/
+  - IGDA Game Accessibility SIG https://igda-gasig.org/?p=3404
+
 ### 実装したあと
 - 遊べるHTML（index.html そのもの）をユーザーに送る。
 
